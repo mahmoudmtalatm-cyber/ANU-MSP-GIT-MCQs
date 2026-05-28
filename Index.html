@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GIT Parasitology Quiz</title>
+  <link rel="icon" href="logo.ico" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-main:       #EAF4FB;
+      --bg-card:       #FFFFFF;
+      --accent:        #1B8AC4;
+      --accent-dark:   #136B99;
+      --nav-default:   #90CAF9;
+      --nav-answered:  #42A5F5;
+      --nav-marked:    #E53935;
+      --nav-current:   #0D47A1;
+      --text-main:     #1A2A3A;
+      --text-muted:    #5A7080;
+      --correct-bg:    #E8F5E9;
+      --correct-fg:    #2E7D32;
+      --wrong-bg:      #FFEBEE;
+      --wrong-fg:      #C62828;
+      --unanswered-bg: #FFF3E0;
+      --unanswered-fg: #E65100;
+      --font: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg-main);
+      color: var(--text-main);
+    }
+
+    /* ── LAYOUT ── */
+    #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── HEADER ── */
+    .header {
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      min-height: 60px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(27,138,196,.3);
+    }
+    .header-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -.3px; }
+    .header-title span { font-size: 1.4rem; }
+    .timer {
+      font-size: 1.3rem; font-weight: 800;
+      color: #FFE082;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 2px;
+      transition: color .3s;
+    }
+    .timer.urgent { color: #FF5252; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+    /* ── HOME SCREEN ── */
+    #home { flex: 1; display: flex; flex-direction: column; }
+    .home-hero {
+      background: var(--accent);
+      text-align: center;
+      padding: 36px 20px 44px;
+      color: white;
+    }
+    .home-hero h1 { font-size: 2rem; font-weight: 800; letter-spacing: -.5px; }
+    .home-hero p { font-size: 1rem; opacity: .85; margin-top: 6px; }
+
+    .home-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 20px;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid #B0D4F0;
+      border-radius: 14px;
+      padding: 32px 36px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 4px 20px rgba(27,138,196,.1);
+    }
+
+    .field-label {
+      font-size: .88rem; font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      margin-bottom: 8px;
+    }
+
+    select, input[type="number"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #B0D4F0;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 1rem;
+      color: var(--text-main);
+      background: #F7FBFF;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    select:focus, input[type="number"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(27,138,196,.15);
+    }
+    .select-wrapper { position: relative; }
+    .select-wrapper::after {
+      content: '▾';
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--accent); pointer-events: none; font-size: 1.1rem;
+    }
+
+    .field-group { margin-bottom: 20px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      border: none; border-radius: 8px; cursor: pointer;
+      font-family: var(--font); font-weight: 700;
+      transition: filter .15s, transform .1s, background .15s;
+      white-space: nowrap;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: scale(.97); }
+
+    .btn-primary {
+      background: var(--accent); color: white;
+      padding: 14px 24px; font-size: 1.05rem;
+      width: 100%;
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+
+    /* Legend */
+    .legend {
+      display: flex; align-items: center; justify-content: center;
+      gap: 6px; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: .85rem; color: var(--text-muted); }
+    .legend-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── QUIZ SCREEN ── */
+    #quiz { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .quiz-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 16px 24px 12px; gap: 12px; }
+
+    .q-card {
+      background: var(--bg-card);
+      border: 1px solid #B0D4F0;
+      border-radius: 12px;
+      padding: 24px 28px 20px;
+      box-shadow: 0 2px 12px rgba(27,138,196,.08);
+      flex-shrink: 0;
+    }
+
+    .q-number {
+      font-size: .82rem; font-weight: 700; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+    }
+
+    .q-text {
+      font-size: 1.05rem; font-weight: 600; line-height: 1.55;
+      color: var(--text-main); margin-bottom: 18px;
+    }
+
+    .options-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .option-label {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 16px; border-radius: 8px;
+      border: 1.5px solid #D8EAF7;
+      cursor: pointer; transition: background .15s, border-color .15s;
+      font-size: .97rem; line-height: 1.45; font-weight: 500;
+      color: var(--text-main);
+    }
+    .option-label:hover { background: #EEF7FF; border-color: var(--nav-answered); }
+    .option-label input[type="radio"] { display: none; }
+    .option-label.selected {
+      background: #DDF0FF; border-color: var(--accent);
+    }
+    .opt-key {
+      font-weight: 800; color: var(--accent);
+      min-width: 20px; padding-top: 1px;
+    }
+
+    /* ── ACTION BAR ── */
+    .action-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; flex-wrap: wrap;
+      padding: 6px 0;
+      flex-shrink: 0;
+    }
+
+    .btn-nav { padding: 10px 18px; font-size: .9rem; border-radius: 8px; }
+    .btn-prev { background: #78909C; color: white; }
+    .btn-mark { background: var(--nav-marked); color: white; }
+    .btn-mark.is-marked { background: #7E1010; }
+    .btn-next { background: var(--accent); color: white; }
+    .btn-submit { background: #2E7D32; color: white; }
+
+    /* ── NAVIGATOR ── */
+    .navigator-wrap {
+      flex-shrink: 0;
+      background: var(--bg-card);
+      border: 1px solid #B0D4F0;
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .nav-label { font-size: .78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .8px; }
+    .nav-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+    .nav-btn {
+      width: 34px; height: 34px;
+      border: none; border-radius: 6px;
+      font-family: var(--font); font-size: .8rem; font-weight: 700;
+      cursor: pointer; transition: filter .15s, transform .1s;
+      color: white;
+    }
+    .nav-btn:hover { filter: brightness(1.1); transform: scale(1.05); }
+    .nav-btn.state-default { background: var(--nav-default); color: var(--text-main); }
+    .nav-btn.state-answered { background: var(--nav-answered); }
+    .nav-btn.state-marked { background: var(--nav-marked); }
+    .nav-btn.state-current { background: var(--nav-current); }
+
+    /* ── RESULTS SCREEN ── */
+    #results { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .results-header {
+      background: var(--accent); display: flex;
+      align-items: center; justify-content: space-between;
+      padding: 14px 28px; flex-shrink: 0;
+    }
+    .results-title { font-size: 1.3rem; font-weight: 800; color: white; }
+    .results-score-badge {
+      font-size: 1.1rem; font-weight: 800;
+      padding: 6px 18px; border-radius: 8px; color: var(--text-main);
+    }
+
+    .results-body { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+
+    .r-card {
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      border: 1px solid transparent;
+    }
+    .r-card.correct { background: var(--correct-bg); border-color: var(--correct-fg); }
+    .r-card.wrong    { background: var(--wrong-bg);   border-color: var(--wrong-fg); }
+    .r-card.unanswered { background: var(--unanswered-bg); border-color: var(--unanswered-fg); }
+
+    .r-card-inner { display: flex; }
+    .r-strip { width: 6px; flex-shrink: 0; }
+    .r-content { flex: 1; padding: 14px 18px; }
+
+    .r-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .r-qnum { font-weight: 800; font-size: .9rem; color: var(--text-main); }
+    .r-status { font-size: .85rem; font-weight: 700; }
+    .r-status.correct { color: var(--correct-fg); }
+    .r-status.wrong   { color: var(--wrong-fg); }
+    .r-status.unanswered { color: var(--unanswered-fg); }
+
+    .r-question { font-size: .95rem; font-weight: 600; color: var(--text-main); line-height: 1.5; margin-bottom: 10px; }
+
+    .r-option {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 12px; border-radius: 6px;
+      font-size: .9rem; font-weight: 500; line-height: 1.4;
+      margin-bottom: 4px;
+    }
+    .r-opt-pfx { font-weight: 800; min-width: 18px; }
+
+    .results-footer { padding: 12px 24px; flex-shrink: 0; display: flex; justify-content: center; }
+    .btn-home { background: var(--accent); color: white; padding: 12px 32px; font-size: 1rem; border-radius: 8px; }
+
+    /* ── UTILS ── */
+    .hidden { display: none !important; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
+
+    /* Mobile tweaks */
+    @media (max-width: 600px) {
+      .card { padding: 22px 18px; }
+      .quiz-body { padding: 12px 14px 8px; gap: 8px; }
+      .q-card { padding: 16px 14px; }
+      .q-text { font-size: .97rem; }
+      .option-label { font-size: .9rem; padding: 10px 12px; }
+      .results-header { padding: 12px 16px; }
+      .results-body { padding: 12px 14px; }
+      .r-content { padding: 12px 14px; }
+      .header-title { font-size: 1rem; }
+      .home-hero h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════════════════════════════════
+       HOME SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="home">
+    <div class="home-hero">
+      <h1>🧫&nbsp; GIT Parasitology Quiz</h1>
+      <p>Select a lecture, set your time, and test your knowledge</p>
+    </div>
+    <div class="home-body">
+      <div class="card">
+        <div class="field-group">
+          <div class="field-label">Select Lecture</div>
+          <div class="select-wrapper">
+            <select id="lectureSelect">
+              <option value="">— Choose a lecture —</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Quiz Duration (minutes)</div>
+          <input type="number" id="timeInput" value="10" min="1" max="120" />
+        </div>
+        <button class="btn btn-primary" onclick="startQuiz()">▶&nbsp; Start Quiz</button>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-answered)"></div> Answered</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-marked)"></div> Marked</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-current)"></div> Current</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-default)"></div> Unanswered</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       QUIZ SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="quiz" class="hidden">
+    <div class="header">
+      <div class="header-title"><span>🧫</span>&nbsp; GIT Parasitology Quiz</div>
+      <div class="timer" id="timerDisplay">00:00</div>
+    </div>
+    <div class="quiz-body">
+      <div class="q-card">
+        <div class="q-number" id="qNumber">Q1 / 16</div>
+        <div class="q-text" id="qText"></div>
+        <div class="options-list" id="optionsList"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-nav btn-prev" onclick="prevQ()">◀&nbsp; Previous</button>
+        <button class="btn btn-nav btn-mark" id="markBtn" onclick="toggleMark()">🔴&nbsp; Mark / Unmark</button>
+        <button class="btn btn-nav btn-next" onclick="nextQ()">Next&nbsp; ▶</button>
+        <button class="btn btn-nav btn-submit" onclick="confirmSubmit()">✔&nbsp; Submit</button>
+      </div>
+
+      <div class="navigator-wrap">
+        <div class="nav-label">Questions Navigator</div>
+        <div class="nav-grid" id="navGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       RESULTS SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="results" class="hidden">
+    <div class="results-header">
+      <div class="results-title" id="resultsTitle">📝&nbsp; Quiz Results</div>
+      <div class="results-score-badge" id="scoreBadge"></div>
+    </div>
+    <div class="results-body" id="resultsBody"></div>
+    <div class="results-footer">
+      <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   LECTURE DATA
+══════════════════════════════════════════════════════════ */
+const lectures = {
+  "Lecture 1 - Ascaris lumbricoides": [
+    {question:"A patient with ascariasis experiences a cough and wheezing. This symptom is most likely due to which stage of the Ascaris life cycle?",options:{A:"Eggs",B:"Adult worms",C:"Larvae"},answer:"C"},
+    {question:"After Ascaris eggs hatch in the small intestine, what path do the larvae take to the lungs?",options:{A:"Through the lymphatic system",B:"Through the bloodstream",C:"Directly through tissue penetration"},answer:"B"},
+    {question:"What is the correct sequence of Ascaris lumbricoides lifecycle stages after humans ingest infective eggs?",options:{A:"Eggs hatch into larvae, larvae migrate to lungs, then to intestines",B:"Larvae mature into adults in intestine then adults migrate to lungs",C:"Eggs hatch larvae in the soil before human ingestion"},answer:"A"},
+    {question:"Why does Ascaris infection often lead to malnutrition, especially in children?",options:{A:"The worms produce toxins that destroy nutrients",B:"The worms cause allergic reactions to food",C:"The worms compete with the host for nutrients"},answer:"C"},
+    {question:"Which of the following is NOT a predisposing factor for Ascaris migration?",options:{A:"Fever",B:"Diarrhea",C:"Spicy food",D:"Anesthesia"},answer:"B"},
+    {question:"Which patient's symptom suggests infection by adult Ascaris worms?",options:{A:"The patient with a persistent cough",B:"The patient with abdominal pain",C:"Neither patient's symptoms are linked to Ascaris",D:"Both patients show signs of adult Ascaris"},answer:"B"},
+    {question:"What is the primary method for diagnosing ascariasis?",options:{A:"X-ray imaging of the lungs",B:"Blood picture analysis",C:"Microscopic examination of stool samples",D:"Urine analysis"},answer:"C"},
+    {question:"In a community with high rates of ascariasis, which measure would be most effective for reducing new infections?",options:{A:"Improving sanitation systems for waste disposal",B:"Providing medication to all infected individuals",C:"Encouraging more outdoor activities for children",D:"Educating children about proper cooking methods"},answer:"A"},
+    {question:"What is the diagnostic stage of intestinal ascariasis?",options:{A:"Mature egg",B:"Fertilized egg",C:"Larva"},answer:"B"},
+    {question:"Which of the following is a complication of Ascaris infection?",options:{A:"Peritonitis",B:"Rectal prolapse",C:"Anemia"},answer:"A"},
+    {question:"What is the infective stage of ascariasis?",options:{A:"Mature egg",B:"Fertilized egg",C:"Larva"},answer:"A"},
+    {question:"What is the type of vitamin deficiency with ascariasis?",options:{A:"Vitamin D",B:"Vitamin A",C:"Vitamin K",D:"Vitamin E"},answer:"B"},
+    {question:"How can man get infected with Ascaris?",options:{A:"Penetration of the skin",B:"Autoinfection by the eggs",C:"Ingestion of eggs from contaminated hands",D:"Inhalation of eggs"},answer:"C"},
+    {question:"What is the cause of Ascaris pneumonitis?",options:{A:"Larval migration",B:"Wandering adults",C:"Ectopic egg deposition"},answer:"A"},
+    {question:"Why do Urticaria and fever happen in intestinal ascariasis?",options:{A:"Secretory egg antigens",B:"Metabolite, Ascaron",C:"Degenerated worm cuticle"},answer:"B"},
+    {question:"What can diagnose Loeffler's syndrome?",options:{A:"Pleural effusion and lung consolidation",B:"Transient pulmonary infiltration by X-ray",C:"Adult worms expelled from the nose"},answer:"B"},
+  ],
+  "Lecture 2 - Strongyloides stercoralis": [
+    {question:"What is a key risk factor for Strongyloides infection in individuals?",options:{A:"Living in tropical regions",B:"Consuming contaminated food",C:"Having a strong immune system",D:"Regularly exercising outdoors"},answer:"A"},
+    {question:"What kind of climate provides the ideal conditions for Strongyloides larvae to survive in the soil?",options:{A:"Dry and cold",B:"Hot and very dry",C:"Warm and moist",D:"Cool and frozen"},answer:"C"},
+    {question:"Which population is at the highest risk for severe manifestations of Strongyloides infection?",options:{A:"Healthy adults with no prior health issues",B:"Immunocompromised individuals",C:"Children under five years old",D:"Elderly individuals"},answer:"B"},
+    {question:"A patient exhibits both respiratory symptoms and later gastrointestinal issues during a Strongyloides infection. How do the causative agents for these two symptom phases primarily differ?",options:{A:"Both are caused by rhabditiform larvae",B:"Respiratory symptoms are from adult worms; intestinal issues are from larvae",C:"Both are caused by filariform larvae",D:"Respiratory symptoms are from larval migration; intestinal issues are from adult worms"},answer:"D"},
+    {question:"In strongyloidiasis, what is the most accurate description of 'Hyperinfection'?",options:{A:"An initial localized skin inflammation",B:"A widespread infection affecting multiple organs",C:"Larvae migrating from the lungs to the throat",D:"Persistent allergic asthma"},answer:"B"},
+    {question:"Which action is most practical for people to apply daily to prevent Strongyloides infection?",options:{A:"Avoid contact with farm animals",B:"Drink only bottled water",C:"Take prophylactic medication",D:"Wear shoes and use proper toilets"},answer:"D"},
+    {question:"What is the diagnostic stage of intestinal strongyloidiasis?",options:{A:"Mature egg",B:"Rhabditiform larva",C:"Filariform larva",D:"Rhabditiform or filariform larva"},answer:"B"},
+    {question:"Which of the following is the cause of death in strongyloidiasis?",options:{A:"Disseminated infection",B:"Rectal prolapse",C:"Iron deficiency anemia"},answer:"A"},
+    {question:"What is the infective stage of strongyloidiasis?",options:{A:"Mature egg",B:"Fertilized egg",C:"Filariform larva",D:"Rhabditiform larva"},answer:"C"},
+    {question:"How can man get infected with Strongyloides?",options:{A:"Penetration of the skin",B:"Ingestion of eggs from contaminated hands",C:"Inhalation of eggs"},answer:"A"},
+    {question:"What is the cause of larva currens?",options:{A:"Internal autoinfection",B:"External autoinfection",C:"Heteroinfection"},answer:"B"},
+    {question:"What is the type of vitamin deficiency with intestinal strongyloidiasis?",options:{A:"Vitamin A",B:"Vitamin B12",C:"Vitamin E"},answer:"B"},
+    {question:"Which technique depends on the hydrophilic nature of the nematode larvae?",options:{A:"Sedimentation technique",B:"Baermann's technique",C:"Entero-capsule test"},answer:"B"},
+    {question:"When do you have to exclude strongyloidiasis?",options:{A:"Before chemotherapy",B:"In concomitant Ascaris infection",C:"Before starting antibiotics"},answer:"A"},
+  ],
+  "Lecture 3 - Ancylostoma and Heterophyes": [
+    {question:"After skin penetration, what is the next step in the hookworm larvae migration?",options:{A:"To the kidney",B:"To the lungs",C:"To the liver",D:"Directly to the intestines"},answer:"B"},
+    {question:"Which statement best describes the pulmonary phase of hookworm disease?",options:{A:"Chronic inflammation leads to stunted growth",B:"Larvae cause severe skin lesions",C:"Larvae migrate through the lungs, causing respiratory symptoms",D:"Adult worms feed on blood in the intestines"},answer:"C"},
+    {question:"What is the scientific name for the skin reaction experienced when hookworm larvae penetrate the skin?",options:{A:"Larvae bite",B:"Larvae eczema",C:"Ground abscess",D:"Ground itch"},answer:"D"},
+    {question:"What is the primary health problem caused by Ancylostoma duodenale feeding habits?",options:{A:"Bacterial infections of the gut",B:"Severe allergic reactions",C:"High blood pressure",D:"Anemia due to blood loss"},answer:"D"},
+    {question:"What is a significant consequence of Ancylostoma duodenale infections in children?",options:{A:"Impaired cognitive development",B:"Increased blood pressure",C:"Autoimmune responses",D:"Impaired renal functions"},answer:"A"},
+    {question:"Given the information about Ancylostoma duodenale, what can be implied about public health efforts in affected regions?",options:{A:"Hookworm infections primarily decrease through boiling water",B:"A combination of proper sanitation and health education is crucial",C:"Medical treatment is the only effective solution",D:"Education on hygiene is less important than medication"},answer:"B"},
+    {question:"A community leader suggests that avoiding raw vegetables will prevent hookworm disease. Why is this advice insufficient for prevention?",options:{A:"Hookworms are spread by mosquito bites",B:"Hookworms are transmitted through raw fish",C:"Hookworms are transmitted through skin penetration by larvae",D:"Hookworms are only transmitted through raw meat"},answer:"C"},
+    {question:"To effectively reduce chronic hookworm infections in a school-aged population, what comprehensive intervention plan would you propose?",options:{A:"Only provide iron supplements to all children",B:"Implement regular deworming, promote shoe-wearing",C:"Educate only parents about the disease",D:"Focus solely on treating symptomatic children"},answer:"B"},
+    {question:"What is the diagnostic stage of hookworm disease?",options:{A:"Mature egg",B:"Fertilized egg",C:"Filariform larva",D:"Rhabditiform larva"},answer:"B"},
+    {question:"Which of the following is a complication of hookworm disease?",options:{A:"Severe diarrhea",B:"Disseminated infection",C:"Delayed child development"},answer:"C"},
+    {question:"What is the infective stage of hookworm disease?",options:{A:"Mature egg",B:"Fertilized egg",C:"Filariform larva",D:"Rhabditiform larva"},answer:"C"},
+    {question:"How can man get infected with Ancylostoma duodenale?",options:{A:"Penetration of the skin",B:"Ingestion of eggs",C:"Inhalation of eggs"},answer:"A"},
+    {question:"What is the cause of ground itch?",options:{A:"Internal autoinfection",B:"External autoinfection",C:"Heteroinfection"},answer:"C"},
+    {question:"What is the type of anemia in hookworm disease?",options:{A:"Microcytic hypochromic",B:"Megaloblastic",C:"Pernicious"},answer:"A"},
+    {question:"Which technique can be used to detect the intensity of intestinal helminthiasis?",options:{A:"Stoll's technique",B:"Baermann's technique",C:"Stool culture"},answer:"A"},
+    {question:"Who are at risk to catch ancylostomiasis?",options:{A:"Fishermen",B:"Farmers",C:"Immunosuppressed"},answer:"B"},
+    {question:"Which of the following is correct about the egg of Heterophyes heterophyes?",options:{A:"Large sized",B:"Spherical",C:"Operculated",D:"Immature"},answer:"C"},
+    {question:"To which type of water must the eggs of Heterophyes heterophyes reach to continue its life cycle?",options:{A:"Brackish or fresh water",B:"Fresh water only",C:"Salty water",D:"Any type of water"},answer:"A"},
+    {question:"Based on the life cycle of Heterophyes heterophyes, which parasitic stage could be found in the fessikh?",options:{A:"The adult",B:"The egg",C:"The sporocyst",D:"The metacercariae"},answer:"D"},
+    {question:"Which of the following is a possible complication of Heterophyes heterophyes infection?",options:{A:"Hepatitis",B:"Myocarditis",C:"Intestinal obstruction",D:"Pneumonitis"},answer:"B"},
+    {question:"What is the drug of choice for treatment of Heterophyes heterophyes?",options:{A:"Albendazole",B:"Praziquantel",C:"Ivermectin",D:"Nitazoxanide"},answer:"B"},
+    {question:"What is the infective stage of Heterophyes?",options:{A:"Egg",B:"Cercaria",C:"Metacercaria",D:"Miracidium"},answer:"C"},
+    {question:"What are the intermediate host(s) of Heterophyes?",options:{A:"Fish and birds",B:"Man and birds",C:"Fish and snails",D:"Snails and birds"},answer:"C"},
+    {question:"What are the reservoir hosts in Heterophyes life cycle?",options:{A:"Snails",B:"Birds",C:"Man",D:"Fish"},answer:"B"},
+    {question:"Which is an ectopic stage in heterophyiasis?",options:{A:"Egg",B:"Cercaria",C:"Metacercaria",D:"Adult"},answer:"A"},
+    {question:"What is the snail host in heterophyiasis?",options:{A:"Lymnea",B:"Biomphalaria",C:"Pirenella",D:"Bulinus"},answer:"C"},
+    {question:"What should be avoided to prevent heterophyiasis?",options:{A:"Raw pork",B:"Raw beef",C:"Raw fishes",D:"Unfiltered water"},answer:"C"},
+  ],
+  "Lecture 4 - Taenia and Capillaria": [
+    {question:"How do humans typically acquire adult Taenia infections?",options:{A:"By drinking contaminated water",B:"By ingesting Taenia eggs directly",C:"By eating undercooked meat containing cysticerci",D:"By skin contact with infected animal feces"},answer:"C"},
+    {question:"What is the infective stage of Taenia saginata?",options:{A:"The cysticercus bovis",B:"The eggs",C:"The cysticercus cellulosae",D:"The metacercariae"},answer:"A"},
+    {question:"Which of the following is a possible complication of Taenia saginata infection?",options:{A:"Hepatitis",B:"Myocarditis",C:"Appendicitis",D:"Pneumonitis"},answer:"C"},
+    {question:"A patient with a history of diarrhea presents with seizures and his stool analysis revealed the presence of gravid proglottids. What is the name of this parasitic disease?",options:{A:"Ascariasis",B:"Capillariasis",C:"Cysticercosis",D:"Amoebiasis"},answer:"C"},
+    {question:"Why is proper cooking of meat highlighted as a key strategy to prevent Taenia infection?",options:{A:"It makes meat easier to digest",B:"It removes all bacteria from meat",C:"It kills potential eggs in the meat",D:"It kills potential cysticerci in the meat"},answer:"D"},
+    {question:"In which of the following man acts as both a definitive and intermediate host?",options:{A:"Taenia solium",B:"Ancylostoma",C:"Ascaris lumbricoides"},answer:"A"},
+    {question:"What is the intermediate host of Taenia saginata?",options:{A:"Man",B:"Sheep",C:"Pigs",D:"Fish"},answer:"B"},
+    {question:"What are the intermediate hosts of Taenia solium?",options:{A:"Pigs only",B:"Pigs and cattle",C:"Pigs and man",D:"Cattle only"},answer:"C"},
+    {question:"What is the drug of choice for Taenia solium infection?",options:{A:"Niclosamide",B:"Albendazole",C:"Mebendazole",D:"Praziquantel"},answer:"D"},
+    {question:"Which one is a wandering parasite?",options:{A:"Capillaria philippinensis",B:"Gravid segment of Taenia saginata",C:"Ascaris lumbricoides",D:"B and C"},answer:"D"},
+    {question:"Taenia solium can cause cysticercosis. What is the reason?",options:{A:"Eggs are the only infective stage",B:"Eggs cannot hatch in the GIT of man",C:"Eggs are sensitive to human gastric HCL",D:"Eggs have very thin shell"},answer:"A"},
+    {question:"Which practice is the most likely cause of transmission of Capillaria philippinensis?",options:{A:"Drinking contaminated water",B:"Direct contact with infected people",C:"Eating undercooked or raw fish",D:"Eating raw vegetables"},answer:"C"},
+    {question:"Where do adult Capillaria philippinensis worms primarily reside in the human body?",options:{A:"Small intestine",B:"Large intestine",C:"The liver",D:"The lungs"},answer:"A"},
+    {question:"If a patient infected with Capillaria philippinensis experiences weight loss, what can be inferred about the adult worms' activity?",options:{A:"They are primarily causing intestinal obstruction",B:"They are actively competing with the host for essential nutrients",C:"They are migrating to other organs, causing systemic illness",D:"They are dormant and not causing any active harm"},answer:"B"},
+    {question:"Which antiparasitic medication is most prescribed for treating capillariasis?",options:{A:"Praziquantel",B:"Albendazole",C:"Metronidazole",D:"Cotrimoxazole"},answer:"B"},
+    {question:"Which measure would be a key prevention method for capillariasis?",options:{A:"Eating well-cooked fish",B:"Drink boiled water",C:"Take prophylactic medication",D:"Wear shoes"},answer:"A"},
+    {question:"Why is proper sanitation important in preventing Capillaria philippinensis infections?",options:{A:"It eliminates the need for medical treatment",B:"It strengthens the host's immune response",C:"It prevents eggs from becoming infective in the environment",D:"It helps in diagnosing the infection early"},answer:"C"},
+    {question:"Which is the infective stage in intestinal capillariasis?",options:{A:"Eggs",B:"Larvae",C:"Adults"},answer:"B"},
+    {question:"Which is the reservoir host for Capillaria philippinensis?",options:{A:"Fish-eating birds",B:"Freshwater fish",C:"Fish-eating mammals",D:"Herbivorous animals"},answer:"A"},
+    {question:"What is the main cause of death in intestinal capillariasis?",options:{A:"Haemorrhage",B:"Intestinal ulcers",C:"Loss of proteins and electrolytes",D:"Mucoid diarrhea"},answer:"C"},
+    {question:"Is hyperinfection in capillariasis related to immunosuppression?",options:{A:"True",B:"False"},answer:"B"},
+    {question:"What is the diagnostic stage of capillariasis?",options:{A:"Immature egg",B:"Larvated egg",C:"Mature striated egg"},answer:"A"},
+    {question:"Which one is a complication of intestinal capillariasis?",options:{A:"Rectal prolapse",B:"Cardiomyopathy",C:"Intestinal obstruction",D:"Peritonitis"},answer:"B"},
+    {question:"Who is at risk to intestinal capillariasis?",options:{A:"Fishermen",B:"Gardeners",C:"Chefs",D:"Nurses"},answer:"A"},
+  ],
+  "Lecture 5 - H.nana and Giardia": [
+    {question:"Which of the following worms is called the dwarf tapeworm?",options:{A:"Taenia saginata",B:"Taenia solium",C:"Hymenolepis nana",D:"Capillaria philippinensis"},answer:"C"},
+    {question:"What is the primary route of transmission for Hymenolepis nana?",options:{A:"Blood transfusions",B:"Airborne droplets",C:"Direct skin contact",D:"Fecal-oral route"},answer:"D"},
+    {question:"What is the name of the embryo inside the Hymenolepis nana egg?",options:{A:"Trophozoite",B:"Oncosphere",C:"Miracidium",D:"Sporozoite"},answer:"B"},
+    {question:"Which of the following complications could occur to immunosuppressed children infected with Hymenolepis nana?",options:{A:"Rectal prolapse",B:"Intussusception",C:"Intestinal obstruction",D:"Growth retardation"},answer:"D"},
+    {question:"How is Hymenolepis nana infection typically diagnosed?",options:{A:"Blood tests",B:"Urine analysis",C:"Stool analysis",D:"Intestinal endoscopy"},answer:"C"},
+    {question:"Besides direct transmission, how else can Hymenolepis nana be transmitted?",options:{A:"By blood transfusion",B:"Through intermediate hosts like fleas or beetles",C:"Via infected mosquito bite",D:"Through contaminated air"},answer:"B"},
+    {question:"Whose egg acts as diagnostic and infective stage?",options:{A:"Hymenolepis nana",B:"Taenia saginata",C:"Capillaria",D:"Strongyloides"},answer:"A"},
+    {question:"What is the tissue stage of Hymenolepis nana?",options:{A:"Adult",B:"Egg",C:"Cysticercoid"},answer:"C"},
+    {question:"Which are opportunistic parasites?",options:{A:"Hymenolepis and Taenia solium",B:"Strongyloides and Capillaria",C:"Hymenolepis and Strongyloides"},answer:"C"},
+    {question:"What is the type of nana's lifecycle?",options:{A:"Facultative",B:"Direct",C:"Indirect"},answer:"B"},
+    {question:"Which condition should be excluded before starting corticosteroid therapy?",options:{A:"Taeniasis",B:"Hymenolepiasis",C:"Ascariasis"},answer:"B"},
+    {question:"Which of the following eggs is discharged mature?",options:{A:"Ascaris",B:"Capillaria",C:"Hymenolepis"},answer:"C"},
+    {question:"What damages the intestinal mucosa in hymenolepiasis?",options:{A:"Suckers",B:"Hatching eggs",C:"Growing larvae",D:"Praziquantel"},answer:"C"},
+    {question:"How do Giardia trophozoites cause gastrointestinal symptoms in their host?",options:{A:"They create ulcers in the intestinal lining",B:"They embed themselves in the intestinal wall",C:"They attach to the intestinal wall, interfering with nutrient absorption",D:"They release toxins that destroy the intestinal epithelium"},answer:"C"},
+    {question:"What is the cause of steatorrhea in giardiasis?",options:{A:"Malabsorption of fat",B:"Malabsorption of proteins",C:"Malabsorption of Vitamins",D:"Malabsorption of carbohydrates"},answer:"A"},
+    {question:"Which of the following parasite may cause pernicious anemia?",options:{A:"Taenia saginata",B:"Giardia lamblia",C:"Heterophyes heterophyes",D:"Ascaris lumbricoides"},answer:"B"},
+    {question:"Regarding diagnosis of giardiasis, why may a series of five or six stool samples be examined without recovering the organisms?",options:{A:"Because the infection is usually scanty",B:"Because the organisms are attached so securely to the mucosa",C:"Because the organisms usually disintegrate before discharge",D:"Because the organisms usually discharged at night"},answer:"B"},
+    {question:"If a municipal water treatment plant relies only on chlorine disinfection, what can be inferred about its effectiveness against Giardia lamblia?",options:{A:"It is only effective in high concentrations",B:"It is highly effective because chlorine kills all parasites",C:"It is effective only against the cyst",D:"It is not fully effective because Giardia cysts are resistant to chlorine"},answer:"D"},
+    {question:"What is the mode of transmission of Giardia parasites?",options:{A:"Direct contact with infected skin lesions",B:"Inhalation of airborne cysts",C:"Ingestion of contaminated food or water",D:"Sexual transmission"},answer:"C"},
+    {question:"What is the infective stage of Giardia?",options:{A:"Trophozoite",B:"Cyst",C:"Larva",D:"Sporozoite"},answer:"B"},
+    {question:"Which of the following describes the motile form of Giardia?",options:{A:"Trophozoite",B:"Cyst",C:"Larva",D:"Sporozoite"},answer:"A"},
+    {question:"Which of the following symptoms is a characteristic of giardiasis?",options:{A:"Joint pain",B:"Fever",C:"Abdominal pains",D:"Diarrhea"},answer:"D"},
+    {question:"In addition to stool examination, what other diagnostic methods can be used for direct detection of Giardia?",options:{A:"Sputum analysis",B:"Duodenal aspiration",C:"Triage test",D:"Nasal swab"},answer:"B"},
+    {question:"What is the structure responsible for the pathology of giardiasis?",options:{A:"Nucleus",B:"Flagella",C:"Sucking disc",D:"Median bodies"},answer:"C"},
+    {question:"What is the diagnostic stage of Giardia?",options:{A:"Trophozoite",B:"Cyst",C:"Trophozoite and cyst"},answer:"C"},
+  ],
+  "Lecture 6 - Enterobius and Trichuris": [
+    {question:"Which of the following is a characteristic feature of Trichuris trichiura eggs?",options:{A:"Operculated egg",B:"Mamillated shell",C:"Polar filaments",D:"Bipolar plugs"},answer:"D"},
+    {question:"How do Trichuris trichiura eggs become infective after being passed in feces?",options:{A:"They hatch immediately in fresh water",B:"They develop in shady moist soil",C:"They are eaten directly by other animals",D:"They need to invade a snail"},answer:"B"},
+    {question:"Based on the pathogenesis of trichuriasis, what is the likely cause of the constant abdominal pain and bloody diarrhea?",options:{A:"The patient is having allergic reactions against the worms",B:"The parasites are migrating to other organs",C:"The worms are causing mechanical damage and inflammation",D:"The worms are actively digesting the patient's food"},answer:"C"},
+    {question:"Which type of immune cells is primarily associated with the body's response to Trichuris trichiura?",options:{A:"Macrophages",B:"Eosinophils",C:"Neutrophils",D:"Cytotoxic T-cells"},answer:"B"},
+    {question:"Which long-term health issue can chronic trichuriasis cause specifically in children?",options:{A:"Renal dysfunction",B:"Autoimmune disease",C:"Chronic hepatitis",D:"Growth retardation"},answer:"D"},
+    {question:"A local health clinic suggests that deworming medication alone is sufficient to eliminate whipworm infections long-term in a community. How would you evaluate this strategy?",options:{A:"It is completely effective because it kills adult worms",B:"It will fail without addressing environmental factors for reinfection",C:"It is effective only if done twice a year",D:"It will greatly affect the eggs development in soil"},answer:"B"},
+    {question:"What does 'contact helminthiasis' primarily refer to?",options:{A:"Parasitic infections spread by insect bites",B:"All types of parasitic infections transmitted through the air",C:"Parasitic infections caused by blood transfusion",D:"Parasitic worm infections from direct skin contact or ingestion"},answer:"D"},
+    {question:"What is the mode of transmission of Trichuris parasites?",options:{A:"Direct contact with infected skin lesions",B:"Inhalation of airborne cysts",C:"Ingestion of contaminated food or water",D:"Sexual transmission"},answer:"C"},
+    {question:"What is the infective stage of Trichuris?",options:{A:"Larva",B:"Eggs"},answer:"B"},
+    {question:"What is the diagnostic stage of Trichuris?",options:{A:"Mature egg",B:"Embryonated egg",C:"Immature egg"},answer:"C"},
+    {question:"Which of the following symptoms is common in trichuriasis?",options:{A:"Rectal prolapse",B:"Tenesmus",C:"Bloody diarrhea"},answer:"C"},
+    {question:"In addition to stool examination, what other diagnostic methods can be used for direct detection of Trichuris?",options:{A:"Sputum analysis",B:"Duodenal aspiration",C:"Proctoscopy"},answer:"C"},
+    {question:"What is the structure responsible for the pathology of trichuriasis?",options:{A:"Thick short anus",B:"Long narrow anterior part",C:"The mouth opening",D:"The eggs"},answer:"B"},
+    {question:"What is a complication of trichuriasis in children?",options:{A:"Rectal prolapse",B:"Pernicious anemia",C:"Cholangitis",D:"Disseminated infection"},answer:"A"},
+    {question:"Which of the following is correct about adult Enterobius vermicularis?",options:{A:"It also called whipworm",B:"It belongs to phylum Trematoda",C:"It is one of the most common biliary parasites",D:"It mainly affects children"},answer:"D"},
+    {question:"Which of the following nematode eggs are immediately infective when laid?",options:{A:"Ascaris lumbricoides eggs",B:"Enterobius vermicularis eggs",C:"Trichuris trichiura eggs",D:"Ancylostoma duodenale eggs"},answer:"B"},
+    {question:"Which of the following parasites could be sexually transmitted to the man?",options:{A:"Heterophyes heterophyes",B:"Taenia saginata",C:"Strongyloides stercoralis",D:"Enterobius vermicularis"},answer:"D"},
+    {question:"Which of the following complications could occur to a girl infected with enterobiasis?",options:{A:"Vaginitis",B:"Intussusception",C:"Rectal prolapse",D:"Intestinal obstruction"},answer:"A"},
+    {question:"Which practice is highlighted as a critical behavior to prevent contact helminthiasis?",options:{A:"Avoiding blood transfusion",B:"Avoiding all plant-based foods",C:"Regular hand washing",D:"Relying on prophylactic treatments"},answer:"C"},
+    {question:"A village experiences a rise in intestinal helminthiasis cases. Public health officials should first focus on which intervention?",options:{A:"Developing new diagnostic procedures",B:"Improving sanitation and waste disposal systems",C:"Distributing antiparasitic widely",D:"Mandating daily vitamin supplements for everyone"},answer:"B"},
+    {question:"What is the most common mode of transmission of Enterobius?",options:{A:"Ingestion of eggs in unwashed vegetables",B:"Inhalation of airborne eggs",C:"Larval penetration into the skin",D:"Autoinfection"},answer:"D"},
+    {question:"What is the infective stage of Enterobius?",options:{A:"Larva",B:"Eggs",C:"Adult female"},answer:"B"},
+    {question:"What is the diagnostic stage of Enterobius?",options:{A:"Mature egg",B:"Adult female",C:"Immature egg",D:"Mature egg and adult female"},answer:"D"},
+    {question:"Which of the following symptoms is common in enterobiasis?",options:{A:"Rectal prolapse",B:"Anal pruritus",C:"Bloody diarrhea"},answer:"B"},
+    {question:"What is the diagnostic method for direct detection of Enterobius?",options:{A:"Duodenal aspiration",B:"Stool analysis",C:"Cellotape technique"},answer:"C"},
+    {question:"What is responsible for the pathogenesis of enterobiasis?",options:{A:"Eggs",B:"Wandering female",C:"Wandering male",D:"Larva"},answer:"B"},
+    {question:"What is a complication of enterobiasis?",options:{A:"Rectal prolapse",B:"Anemia",C:"Appendicitis",D:"Dysentery"},answer:"C"},
+  ],
+  "Lecture 7 - Entamoeba histolytica": [
+    {question:"Which term is used to describe the transmission of E. histolytica by houseflies?",options:{A:"Mechanical transmission",B:"Biological transmission",C:"External autoinfection"},answer:"A"},
+    {question:"Why is ingestion of E. histolytica cysts, not trophozoites, the primary way humans get infected?",options:{A:"Cysts multiply rapidly in food",B:"Trophozoites are too large to ingest",C:"Cysts are resistant to stomach acid",D:"Cysts cannot survive outside the body"},answer:"C"},
+    {question:"If E. histolytica suddenly lost its ability to produce lectin, what would be the most likely immediate consequence for the parasite?",options:{A:"It would be unable to break down host proteins effectively",B:"It would struggle to adhere to the host's intestinal cells",C:"It would become more easily recognized by the host's immune system"},answer:"B"},
+    {question:"What is the role of Ionophore-like protein in the pathogenesis of amoebiasis?",options:{A:"It makes the organism resistant to gastric juice",B:"It helps the organism to adhere to host cell",C:"It causes leakage of ions from the host cell",D:"It causes tissue destruction and necrosis"},answer:"C"},
+    {question:"Which organ is most affected by complicated amoebiasis outside the intestine?",options:{A:"Brain",B:"Liver",C:"Lungs",D:"Kidneys"},answer:"B"},
+    {question:"If a microscopic stool examination for E. histolytica is negative, but strong clinical suspicion of amoebiasis remains, what is the logical next diagnostic step?",options:{A:"Perform serological tests",B:"Recommend sigmoidoscopy",C:"Perform ultrasonography",D:"Prescribe standard drugs"},answer:"A"},
+    {question:"What is the mode of transmission of Entamoeba?",options:{A:"Ingestion of eggs in unwashed vegetables",B:"Inhalation of airborne cysts",C:"Internal autoinfection by the trophozoites",D:"External autoinfection by the cysts"},answer:"D"},
+    {question:"What is the diagnostic stage of Entamoeba in well-formed stool?",options:{A:"Cyst",B:"Trophozoite",C:"Trophozoite and cyst"},answer:"A"},
+    {question:"How can we confirm the diagnosis of amoebic liver abscess?",options:{A:"Cysts in stool",B:"Coproantigen",C:"Duodenal aspiration",D:"Abdominal ultrasound"},answer:"D"},
+    {question:"How can amoebae reach the liver?",options:{A:"Hematogenous spread",B:"Direct spread from the colon",C:"Both A and B"},answer:"A"},
+    {question:"What is the diagnostic feature of Entamoeba cyst?",options:{A:"Chromatid body",B:"Ingested RBCs",C:"Single nucleus",D:"Food vacuoles"},answer:"A"},
+    {question:"What is the diagnostic feature of Entamoeba tissue-form?",options:{A:"Chromatid body",B:"Stored glycogen",C:"Multiple nuclei",D:"Ingested RBCs"},answer:"D"},
+    {question:"What is the advantage of detection of Entamoeba coproantigen?",options:{A:"Detects past infection",B:"Diagnose active infection",C:"Not suitable for cyst passers",D:"Diagnose intestinal infections only"},answer:"B"},
+    {question:"What is the diagnostic feature of amoebic ulcer?",options:{A:"Has wide opening",B:"Filled with necrotic tissues",C:"No trophozoites are present",D:"Tissues in between are necrotic"},answer:"B"},
+    {question:"What is the treatment of chronic amoebic colitis?",options:{A:"Diloxanide furoate",B:"Metronidazole",C:"Supportive treatment",D:"All the above"},answer:"D"},
+    {question:"What is the largest protozoan infecting man?",options:{A:"Giardia",B:"Entamoeba coli",C:"Entamoeba histolytica",D:"Balantidium coli"},answer:"D"},
+    {question:"What is the Entamoeba without a cyst?",options:{A:"Coli",B:"Histolytica",C:"Gingivalis"},answer:"C"},
+    {question:"What is a zoonotic protozoan causing dysentery in man?",options:{A:"Entamoeba html",B:"Entamoeba coli",C:"Balantidium coli",D:"Entamoeba gingivalis"},answer:"C"},
+  ],
+  "Lecture 8 - Schistosoma mansoni": [
+    {question:"Which of the following best describes the egg of Schistosoma mansoni?",options:{A:"Terminal spine",B:"Lateral spine",C:"Operculum",D:"Round without a spine"},answer:"B"},
+    {question:"What is the intermediate host for Schistosoma mansoni?",options:{A:"Bulinus snail",B:"Oncomelania snail",C:"Biomphalaria snail",D:"Fish"},answer:"C"},
+    {question:"The infective stage of Schistosoma mansoni to humans is:",options:{A:"Miracidium",B:"Cercaria",C:"Metacercaria",D:"Adult worm"},answer:"B"},
+    {question:"Where do adult Schistosoma mansoni worms typically reside in the human body?",options:{A:"Urinary bladder plexus",B:"Portal veins draining the large intestine",C:"Pulmonary artery"},answer:"B"},
+    {question:"Chronic infection with S. mansoni leads to major morbidity through:",options:{A:"Deposition of eggs in the liver, causing periportal fibrosis",B:"Destruction of the bladder wall",C:"Adult worms causing cerebral infection",D:"Acute pneumonia"},answer:"A"},
+    {question:"The direct diagnosis of Schistosoma mansoni is primarily made by:",options:{A:"Urine microscopy",B:"Stool microscopy",C:"Serology for antigen detection",D:"Skin snip"},answer:"B"},
+    {question:"Which drug is the treatment of choice for Schistosoma mansoni?",options:{A:"Metronidazole",B:"Praziquantel",C:"Albendazole",D:"Ivermectin"},answer:"B"},
+    {question:"What is the function of the lateral spine on the egg of S. mansoni?",options:{A:"Attachment to the host intestine",B:"Facilitating the passage through tissue into the lumen",C:"Protecting the egg from digestive enzymes",D:"Detecting light"},answer:"B"},
+    {question:"What is the acute allergic reaction to migrating schistosomula?",options:{A:"Chronic liver failure",B:"Katayama fever",C:"Cor pulmonale",D:"Severe diarrhea"},answer:"B"},
+    {question:"What is the characteristic finding on ultrasound in patients with hepatosplenic schistosomiasis?",options:{A:"Diffuse nodular liver surface",B:"Fatty liver infiltration",C:"Periportal echogenic thickening (pipestem fibrosis)",D:"Thrombosis of the hepatic veins"},answer:"C"},
+    {question:"The periportal fibrosis in schistosomiasis is a result of host immune response to:",options:{A:"Adult worms in the liver",B:"Cercariae in the skin",C:"Eggs deposited in the small portal venules",D:"Miracidia in the blood"},answer:"C"},
+    {question:"What is the mechanism by which eggs reach the lungs in hepatosplenic schistosomiasis?",options:{A:"Direct migration of adult worms from the bladder",B:"Opening of porto-systemic collaterals, allowing eggs to pass directly via the heart to the lungs",C:"Inhalation of cercariae during swimming",D:"Hematogenous spread from the skin"},answer:"B"},
+  ],
+  "Lecture 9 - Fasciola": [
+    {question:"Which of the following is a significant risk factor for fascioliasis?",options:{A:"Eating raw vegetables",B:"Eating raw meat",C:"Eating raw fish",D:"Walking barefoot"},answer:"A"},
+    {question:"Where do adult Fasciola flukes typically reside in the definitive host?",options:{A:"Pancreatic duct",B:"Bile ducts",C:"Small intestine",D:"Large intestine"},answer:"B"},
+    {question:"Which stage of the Fasciola spp. is released from the snail host?",options:{A:"Cercariae",B:"Metacercaria",C:"Miracidium",D:"Egg"},answer:"A"},
+    {question:"The acute phase of fascioliasis involves fever and abdominal pain. Which fluke stage directly causes this damage during its migration?",options:{A:"Miracidium",B:"Cercariae",C:"Metacercaria",D:"Adult fluke"},answer:"C"},
+    {question:"What is the standard technique commonly used to diagnose Halzoun?",options:{A:"Serological tests",B:"Enterotest",C:"Endoscopic retrograde cholangiopancreatography",D:"Laryngoscopy"},answer:"D"},
+    {question:"To prevent fascioliasis in an area with infected livestock, what public health measure would be most effective?",options:{A:"Treating infected humans only",B:"Vaccinating all definitive hosts",C:"Eliminating snail populations",D:"Boiling all ingested water"},answer:"C"},
+    {question:"Which of the following is the intermediate host of Fasciola spp.?",options:{A:"Lymnea snail",B:"Freshwater fish",C:"Sheep and cattle",D:"Freshwater vegetations"},answer:"A"},
+    {question:"Which of the following is the reservoir host of Fasciola?",options:{A:"Sheep and cattle",B:"Lymnea snail",C:"Man",D:"Snail-eating birds"},answer:"A"},
+    {question:"What is the infective stage of classical form of fascioliasis?",options:{A:"Eggs",B:"Metacercaria",C:"Dead adults",D:"Living adults"},answer:"B"},
+    {question:"What is the infective stage of ectopic form of fascioliasis?",options:{A:"Eggs",B:"Metacercaria",C:"Dead adults",D:"Living adults"},answer:"B"},
+    {question:"What is the infective stage of false form of fascioliasis?",options:{A:"Eggs",B:"Metacercaria",C:"Dead adults",D:"Living adults"},answer:"C"},
+    {question:"What is the diagnostic stage of Halzoun form of fascioliasis?",options:{A:"Eggs",B:"Metacercaria",C:"Dead adults",D:"Living adults"},answer:"D"},
+    {question:"What is the main diagnostic feature in acute fascioliasis?",options:{A:"Leucopenia",B:"Eosinophilia",C:"Anaemia",D:"Haemobilia"},answer:"B"},
+    {question:"What is the diagnostic stage in case of enterocapsule test for fascioliasis?",options:{A:"Immature eggs",B:"Mature eggs",C:"Adult worms",D:"Young worms"},answer:"A"},
+  ],
+  "Lecture 10 - Echinococcus": [
+    {question:"What is the second most common organ where hydatid cysts develop?",options:{A:"Lung",B:"Brain",C:"Liver",D:"Kidney"},answer:"A"},
+    {question:"Which of the following is correct about hepatic hydatid cyst?",options:{A:"It causes immediate severe pain",B:"It often remains asymptomatic for years",C:"It rarely exists in the liver"},answer:"B"},
+    {question:"Which is a severe complication of a hydatid cyst rupturing that requires urgent medical help?",options:{A:"Obstructive jaundice",B:"Temporary hemoptysis",C:"Anaphylactic reaction",D:"Headache"},answer:"C"},
+    {question:"Which of the following disease shows the pathognomonic 'Water Lily' sign on CT scan?",options:{A:"Amebiasis",B:"Hydatid disease",C:"Cysticercosis"},answer:"B"},
+    {question:"Why is Albendazole given for a month even after successful surgical removal of a hydatid cyst?",options:{A:"Because surgery is only a temporary solution",B:"To avoid dissemination and prevent recurrence",C:"Because medical therapy is the only effective treatment"},answer:"B"},
+    {question:"Which anti-parasitic drugs are commonly recommended for medical therapy of hydatid disease in inoperable cases?",options:{A:"Praziquantel",B:"Albendazole",C:"Metronidazole",D:"Nitazoxanide"},answer:"B"},
+    {question:"Which of the following is the intermediate host of Echinococcus?",options:{A:"Dogs, and carnivores",B:"Pigs",C:"Freshwater vegetations",D:"Man, and herbivores"},answer:"D"},
+    {question:"Which of the following is the reservoir host of Echinococcus?",options:{A:"Sheep and cattle",B:"Man",C:"Canines"},answer:"A"},
+    {question:"What is the infective stage of hydatid disease?",options:{A:"Eggs",B:"Scolices",C:"Hydatid sand"},answer:"A"},
+    {question:"What is the diagnostic stage of hydatid disease?",options:{A:"Eggs",B:"Hydatid cyst"},answer:"B"},
+    {question:"What is the most common site of hydatid cyst?",options:{A:"Lungs",B:"Brain",C:"Liver",D:"Bone"},answer:"C"},
+    {question:"What is the complication of osseous hydatid cyst?",options:{A:"Sensory deficits",B:"Motor deficits",C:"Pathological fractures"},answer:"C"},
+    {question:"What is the main diagnostic technique in hydatid disease?",options:{A:"Imaging",B:"PAIR",C:"ELISA"},answer:"A"},
+    {question:"What is the hydatid sand?",options:{A:"Eggs of Echinococcus",B:"Free scolices of Echinococcus",C:"Free brood capsules",D:"Free brood capsules, scolices and daughter cysts"},answer:"D"},
+    {question:"What is the main treatment of 3cm solitary hydatid cyst, in the liver?",options:{A:"Cystectomy",B:"Albendazole",C:"PAIR",D:"Cystectomy and albendazole"},answer:"D"},
+  ],
+};
+
+/* ══════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════ */
+let currentQuestions = [];
+let currentIndex     = 0;
+let userAnswers      = {};   // {index: "A"|"B"|...}
+let markedSet        = new Set();
+let timeLeft         = 0;
+let timerInterval    = null;
+
+/* ══════════════════════════════════════════════════════════
+   INIT — populate lecture select
+══════════════════════════════════════════════════════════ */
+(function init() {
+  const sel = document.getElementById('lectureSelect');
+  Object.keys(lectures).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+})();
+
+/* ══════════════════════════════════════════════════════════
+   SCREEN SWITCHING
+══════════════════════════════════════════════════════════ */
+function showScreen(id) {
+  ['home','quiz','results'].forEach(s => {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   HOME → START
+══════════════════════════════════════════════════════════ */
+function startQuiz() {
+  const lec  = document.getElementById('lectureSelect').value;
+  const mins = parseInt(document.getElementById('timeInput').value, 10);
+
+  if (!lec)             return alert('Please choose a lecture first.');
+  if (!mins || mins<=0) return alert('Please enter a valid duration in minutes.');
+
+  currentQuestions = lectures[lec];
+  currentIndex     = 0;
+  userAnswers      = {};
+  markedSet        = new Set();
+  timeLeft         = mins * 60;
+
+  showScreen('quiz');
+  renderQuestion();
+  startTimer();
+}
+
+/* ══════════════════════════════════════════════════════════
+   TIMER
+══════════════════════════════════════════════════════════ */
+function startTimer() {
+  stopTimer();
+  updateTimerDisplay();
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) { timeLeft = 0; updateTimerDisplay(); stopTimer(); submitQuiz(); }
+    else { updateTimerDisplay(); }
+  }, 1000);
+}
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+function updateTimerDisplay() {
+  const m = String(Math.floor(timeLeft/60)).padStart(2,'0');
+  const s = String(timeLeft%60).padStart(2,'0');
+  const el = document.getElementById('timerDisplay');
+  el.textContent = `${m}:${s}`;
+  el.classList.toggle('urgent', timeLeft <= 60);
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER QUESTION
+══════════════════════════════════════════════════════════ */
+function renderQuestion() {
+  const q      = currentQuestions[currentIndex];
+  const total  = currentQuestions.length;
+  const opts   = Object.entries(q.options);
+
+  document.getElementById('qNumber').textContent = `Q${currentIndex+1} / ${total}`;
+  document.getElementById('qText').textContent   = q.question;
+
+  const list = document.getElementById('optionsList');
+  list.innerHTML = '';
+
+  opts.forEach(([key, val]) => {
+    const saved = userAnswers[currentIndex] || '';
+    const label = document.createElement('label');
+    label.className = 'option-label' + (saved === key ? ' selected' : '');
+
+    label.innerHTML = `
+      <input type="radio" name="q${currentIndex}" value="${key}" ${saved===key?'checked':''} />
+      <span class="opt-key">${key}.</span>
+      <span>${val}</span>
+    `;
+    label.addEventListener('click', () => selectAnswer(key));
+    list.appendChild(label);
+  });
+
+  updateMarkBtn();
+  renderNavigator();
+}
+
+function selectAnswer(key) {
+  userAnswers[currentIndex] = key;
+  document.querySelectorAll('.option-label').forEach(lbl => {
+    const inp = lbl.querySelector('input');
+    lbl.classList.toggle('selected', inp.value === key);
+  });
+  renderNavigator();
+}
+
+/* ══════════════════════════════════════════════════════════
+   NAVIGATOR
+══════════════════════════════════════════════════════════ */
+function renderNavigator() {
+  const grid = document.getElementById('navGrid');
+  grid.innerHTML = '';
+  currentQuestions.forEach((_, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'nav-btn ' + navState(i);
+    btn.textContent = i + 1;
+    btn.onclick = () => goTo(i);
+    grid.appendChild(btn);
+  });
+}
+function navState(i) {
+  if (i === currentIndex)  return 'state-current';
+  if (markedSet.has(i))    return 'state-marked';
+  if (userAnswers[i])      return 'state-answered';
+  return 'state-default';
+}
+
+/* ══════════════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════════════ */
+function goTo(i) {
+  currentIndex = i;
+  renderQuestion();
+}
+function prevQ() {
+  if (currentIndex > 0) goTo(currentIndex - 1);
+}
+function nextQ() {
+  if (currentIndex < currentQuestions.length - 1) goTo(currentIndex + 1);
+}
+
+/* ══════════════════════════════════════════════════════════
+   MARK
+══════════════════════════════════════════════════════════ */
+function toggleMark() {
+  if (markedSet.has(currentIndex)) markedSet.delete(currentIndex);
+  else markedSet.add(currentIndex);
+  updateMarkBtn();
+  renderNavigator();
+}
+function updateMarkBtn() {
+  const btn = document.getElementById('markBtn');
+  btn.classList.toggle('is-marked', markedSet.has(currentIndex));
+  btn.textContent = markedSet.has(currentIndex) ? '🔴 Unmark' : '🔴 Mark / Unmark';
+}
+
+/* ══════════════════════════════════════════════════════════
+   SUBMIT
+══════════════════════════════════════════════════════════ */
+function confirmSubmit() {
+  const unanswered = currentQuestions.length - Object.keys(userAnswers).length;
+  if (unanswered > 0) {
+    if (!confirm(`You still have ${unanswered} unanswered question(s). Submit anyway?`)) return;
+  }
+  submitQuiz();
+}
+
+function submitQuiz() {
+  stopTimer();
+  const total  = currentQuestions.length;
+  let   score  = 0;
+  currentQuestions.forEach((q, i) => {
+    if (userAnswers[i] === q.answer) score++;
+  });
+
+  const pct = Math.round(score / total * 100);
+  const emoji = pct === 100 ? '🏆' : pct >= 70 ? '🎉' : '📝';
+
+  document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results`;
+  const badge = document.getElementById('scoreBadge');
+  badge.textContent = `${score} / ${total}  (${pct}%)`;
+  badge.style.background = pct >= 70 ? '#A5D6A7' : '#FFCDD2';
+
+  buildResults(score, total);
+  showScreen('results');
+}
+
+function buildResults(score, total) {
+  const body = document.getElementById('resultsBody');
+  body.innerHTML = '';
+
+  currentQuestions.forEach((q, i) => {
+    const userAns  = userAnswers[i] || '';
+    const correct  = q.answer;
+    const isOk     = userAns === correct;
+    const isUnansw = userAns === '';
+    const isMark   = markedSet.has(i);
+
+    let cls, statusText, statusClass, stripColor;
+    if (isOk) {
+      cls='correct'; statusText='✔  Correct';    statusClass='correct'; stripColor='var(--correct-fg)';
+    } else if (isUnansw) {
+      cls='unanswered'; statusText='—  Not answered'; statusClass='unanswered'; stripColor='var(--unanswered-fg)';
+    } else {
+      cls='wrong'; statusText='✘  Incorrect';   statusClass='wrong';   stripColor='var(--wrong-fg)';
+    }
+
+    const card = document.createElement('div');
+    card.className = `r-card ${cls}`;
+    card.innerHTML = `
+      <div class="r-card-inner">
+        <div class="r-strip" style="background:${stripColor}"></div>
+        <div class="r-content">
+          <div class="r-card-header">
+            <div class="r-qnum">Q${i+1}${isMark?' &nbsp;🔴 Marked':''}</div>
+            <div class="r-status ${statusClass}">${statusText}</div>
+          </div>
+          <div class="r-question">${q.question}</div>
+          <div class="r-options"></div>
+        </div>
+      </div>
+    `;
+
+    const optsDiv = card.querySelector('.r-options');
+    Object.entries(q.options).forEach(([key, val]) => {
+      const isCorrectOpt = key === correct;
+      const isUserOpt    = key === userAns;
+
+      let bg='', fg='', pfx='';
+      if (isCorrectOpt) { bg='#C8E6C9'; fg='#1B5E20'; pfx='✔'; }
+      else if (isUserOpt) { bg='#FFCDD2'; fg='#B71C1C'; pfx='✘'; }
+
+      const row = document.createElement('div');
+      row.className = 'r-option';
+      if (bg) { row.style.background=bg; row.style.border=`1px solid ${fg}`; row.style.borderRadius='6px'; }
+      row.innerHTML = `<span class="r-opt-pfx" style="color:${fg||'var(--text-muted)'}">${pfx||' '}</span><strong style="color:${fg||'var(--text-muted)'};min-width:20px">${key}.</strong><span style="color:${fg||'var(--text-muted)'};${isCorrectOpt||isUserOpt?'font-weight:600':''}">${val}</span>`;
+      optsDiv.appendChild(row);
+    });
+
+    body.appendChild(card);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   BACK TO HOME
+══════════════════════════════════════════════════════════ */
+function goHome() {
+  stopTimer();
+  showScreen('home');
+}
+</script>
+</body>
+</html>
