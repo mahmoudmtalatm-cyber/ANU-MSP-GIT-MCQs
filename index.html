@@ -1665,6 +1665,8 @@ function confirmSubmit() {
 }
 
 function submitQuiz() {
+  const spent = Math.round((Date.now() - questionStart) / 1000);
+  questionTimes[currentIndex] = (questionTimes[currentIndex] || 0) + spent;
   stopTimer();
   const total = currentQuestions.length;
   let score = 0;
