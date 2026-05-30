@@ -1416,6 +1416,8 @@ let timerInterval    = null;
 let selectedSubject  = '';
 let questionTimes    = {};
 let questionStart    = 0;
+let correctToWrong   = 0;
+let wrongToCorrect   = 0;
 /* ══════════════════════════════════════════════════════════
    INIT — build subject grid
 ══════════════════════════════════════════════════════════ */
@@ -1524,6 +1526,8 @@ function startQuiz() {
   userAnswers      = {};
   markedSet        = new Set();
   questionTimes    = {};
+  correctToWrong   = 0;
+  wrongToCorrect   = 0;
   timeLeft         = mins * 60;
 
   showScreen('quiz');
@@ -1597,6 +1601,12 @@ function renderQuestion() {
 }
 
 function selectAnswer(key) {
+  const prev    = userAnswers[currentIndex] || '';
+  const correct = currentQuestions[currentIndex].answer;
+  if (prev && prev !== key) {
+    if (prev === correct)   correctToWrong++;
+    else if (key === correct) wrongToCorrect++;
+  }
   userAnswers[currentIndex] = key;
   document.querySelectorAll('.option-label').forEach(lbl => {
     const inp = lbl.querySelector('input');
@@ -1697,6 +1707,22 @@ function submitQuiz() {
 function buildResults() {
   const body = document.getElementById('resultsBody');
   body.innerHTML = '';
+  if (correctToWrong > 0 || wrongToCorrect > 0) {
+    const summary = document.createElement('div');
+    summary.style.cssText = 'background:#fff;border:1px solid #B0D4F0;border-radius:10px;padding:14px 20px;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:4px;';
+    summary.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:1.3rem">🔄</span>
+        <div>
+          <div style="font-size:.78rem;font-weight:700;color:#5A7080;text-transform:uppercase;letter-spacing:.8px;">Answer Changes</div>
+          <div style="display:flex;gap:16px;margin-top:4px;flex-wrap:wrap;">
+            <span style="font-weight:700;color:#C62828;">✘ Correct → Wrong: ${correctToWrong}</span>
+            <span style="font-weight:700;color:#2E7D32;">✔ Wrong → Correct: ${wrongToCorrect}</span>
+          </div>
+        </div>
+      </div>`;
+    body.appendChild(summary);
+  }
 
   currentQuestions.forEach((q, i) => {
     const userAns  = userAnswers[i] || '';
