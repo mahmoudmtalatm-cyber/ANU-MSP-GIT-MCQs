@@ -1414,7 +1414,8 @@ let markedSet        = new Set();
 let timeLeft         = 0;
 let timerInterval    = null;
 let selectedSubject  = '';
-
+let questionTimes    = {};
+let questionStart    = 0;
 /* ══════════════════════════════════════════════════════════
    INIT — build subject grid
 ══════════════════════════════════════════════════════════ */
@@ -1522,6 +1523,7 @@ function startQuiz() {
   currentIndex     = 0;
   userAnswers      = {};
   markedSet        = new Set();
+  questionTimes    = {};
   timeLeft         = mins * 60;
 
   showScreen('quiz');
@@ -1556,6 +1558,7 @@ function updateTimerDisplay() {
    RENDER QUESTION
 ══════════════════════════════════════════════════════════ */
 function renderQuestion() {
+  questionStart = Date.now();
   const q     = currentQuestions[currentIndex];
   const total = currentQuestions.length;
 
@@ -1626,7 +1629,12 @@ function navState(i) {
 /* ══════════════════════════════════════════════════════════
    NAVIGATION
 ══════════════════════════════════════════════════════════ */
-function goTo(i)  { currentIndex = i; renderQuestion(); }
+function goTo(i) {
+  const spent = Math.round((Date.now() - questionStart) / 1000);
+  questionTimes[currentIndex] = (questionTimes[currentIndex] || 0) + spent;
+  currentIndex = i;
+  renderQuestion();
+}
 function prevQ()  { if (currentIndex > 0) goTo(currentIndex - 1); }
 function nextQ()  { if (currentIndex < currentQuestions.length - 1) goTo(currentIndex + 1); }
 
@@ -1669,6 +1677,13 @@ function submitQuiz() {
   if (pct === 100) launchConfetti();
 
   document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results`;
+  const totalTime = Object.values(questionTimes).reduce((a,b) => a+b, 0);
+  const answered  = Object.keys(questionTimes).length || 1;
+  const avgTime   = Math.round(totalTime / answered);
+  const avgMins   = Math.floor(avgTime / 60);
+  const avgSecs   = String(avgTime % 60).padStart(2,'0');
+  const avgLabel  = avgMins > 0 ? `${avgMins}m ${avgSecs}s` : `${avgSecs}s`;
+  document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results  ·  ⏱ avg ${avgLabel}/question`;
   const badge = document.getElementById('scoreBadge');
   badge.textContent  = `${score} / ${total}  (${pct}%)`;
   badge.style.background = pct >= 70 ? '#A5D6A7' : '#FFCDD2';
