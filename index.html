@@ -518,7 +518,45 @@
         .stat-tile .stat-val { font-size: 1.1rem; }
         .subj-stat-name { min-width: 70px; font-size: .75rem; }
       }
-
+/* ── CHANGE FLOW ── */
+.change-flow-section {
+  background: var(--bg-card);
+  border: 1px solid #B0D4F0;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.change-flow-title {
+  font-size: .78rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px;
+}
+.change-flow-list { display: flex; flex-direction: column; gap: 8px; }
+.change-flow-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px; border-radius: 8px; border: 1px solid transparent;
+}
+.change-flow-item.c2w { background: #FFEBEE; border-color: #EF9A9A; }
+.change-flow-item.w2c { background: #E8F5E9; border-color: #A5D6A7; }
+.change-flow-item.w2w { background: #FFF8E1; border-color: #FFE082; }
+.cf-num {
+  font-size: .72rem; font-weight: 800; padding: 3px 8px;
+  border-radius: 12px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+}
+.c2w .cf-num { background: #C62828; color: white; }
+.w2c .cf-num { background: #2E7D32; color: white; }
+.w2w .cf-num { background: #E65100; color: white; }
+.cf-body { flex: 1; font-size: .87rem; line-height: 1.4; }
+.cf-qnum { font-weight: 700; color: var(--text-main); margin-bottom: 4px; font-size: .85rem; }
+.cf-from { color: #B71C1C; }
+.cf-arrow { color: var(--text-muted); margin: 0 5px; }
+.c2w .cf-to { color: #C62828; font-weight: 700; }
+.w2c .cf-to { color: #2E7D32; font-weight: 700; }
+.w2w .cf-to { color: #E65100; font-weight: 700; }
+.cf-verdict {
+  font-size: .77rem; font-weight: 700; margin-top: 4px;
+}
+.c2w .cf-verdict { color: #C62828; }
+.w2c .cf-verdict { color: #2E7D32; }
+.w2w .cf-verdict { color: #E65100; }
   </style>
 </head>
 <body>
@@ -1548,6 +1586,7 @@ let selectedSubject  = '';
 let questionTimes    = {};
 let questionStart    = 0;
 let currentLecture   = '';
+let changeLog        = [];
 let correctToWrong   = 0;
 let wrongToCorrect   = 0;
 /* ══════════════════════════════════════════════════════════
@@ -1661,6 +1700,7 @@ function startQuiz() {
   questionTimes    = {};
   correctToWrong   = 0;
   wrongToCorrect   = 0;
+  changeLog        = [];
   timeLeft         = mins * 60;
 
   showScreen('quiz');
@@ -1739,6 +1779,14 @@ function selectAnswer(key) {
   if (prev && prev !== key) {
     if (prev === correct)   correctToWrong++;
     else if (key === correct) wrongToCorrect++;
+    const _q    = currentQuestions[currentIndex];
+    const _type = prev === correct ? 'c2w' : key === correct ? 'w2c' : 'w2w';
+    changeLog.push({
+      qIndex:   currentIndex,
+      fromKey:  prev,       fromText: _q.options[prev],
+      toKey:    key,        toText:   _q.options[key],
+      type:     _type
+    });
   }
   userAnswers[currentIndex] = key;
   document.querySelectorAll('.option-label').forEach(lbl => {
@@ -1861,7 +1909,40 @@ function buildResults() {
       </div>`;
     body.appendChild(summary);
   }
-
+if (changeLog.length > 0) {
+    const flowSection = document.createElement('div');
+    flowSection.className = 'change-flow-section';
+    flowSection.innerHTML = `<div class="change-flow-title">🔄 Answer Changes Flow — ${changeLog.length} change${changeLog.length!==1?'s':''}</div>`;
+    const flowList = document.createElement('div');
+    flowList.className = 'change-flow-list';
+    const verdicts = {
+      c2w: '✘ You changed a correct answer to a wrong one',
+      w2c: '✔ You changed a wrong answer to the correct one',
+      w2w: '↔ You changed from one wrong answer to another'
+    };
+    changeLog.forEach((ch, idx) => {
+      const q       = currentQuestions[ch.qIndex];
+      const item    = document.createElement('div');
+      item.className = `change-flow-item ${ch.type}`;
+      const qShort  = q.question.length > 65 ? q.question.substring(0,65)+'…' : q.question;
+      const fShort  = ch.fromText.length > 55 ? ch.fromText.substring(0,55)+'…' : ch.fromText;
+      const tShort  = ch.toText.length   > 55 ? ch.toText.substring(0,55)+'…'   : ch.toText;
+      item.innerHTML = `
+        <span class="cf-num">Change ${idx+1}</span>
+        <div class="cf-body">
+          <div class="cf-qnum">Q${ch.qIndex+1}: ${qShort}</div>
+          <div>
+            <span class="cf-from">${ch.fromKey}. ${fShort}</span>
+            <span class="cf-arrow">→</span>
+            <span class="cf-to">${ch.toKey}. ${tShort}</span>
+          </div>
+          <div class="cf-verdict">${verdicts[ch.type]}</div>
+        </div>`;
+      flowList.appendChild(item);
+    });
+    flowSection.appendChild(flowList);
+    body.appendChild(flowSection);
+  }
   currentQuestions.forEach((q, i) => {
     const userAns  = userAnswers[i] || '';
     const correct  = q.answer;
