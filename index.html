@@ -562,6 +562,19 @@
 <body>
 <div id="app">
 <canvas id="confettiCanvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none;"></canvas>
+
+<!-- RETAKE SELECTOR MODAL -->
+<div id="retakeOverlay" class="stats-overlay hidden"
+     onclick="if(event.target===this)closeRetake()">
+  <div class="stats-modal">
+    <div class="stats-modal-header">
+      <h2>🔄&nbsp; Retake Wrong Questions</h2>
+      <button class="stats-close-btn" onclick="closeRetake()">✕</button>
+    </div>
+    <div class="stats-body" id="retakeBody"></div>
+  </div>
+</div>
+
 <!-- STATS MODAL -->
   <div id="statsOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeStats()">
     <div class="stats-modal">
@@ -581,6 +594,7 @@
       <h1>🏥&nbsp; ANU-MSP GIT MCQs</h1>
       <p>Choose your subject, pick a lecture, and test your knowledge</p>
         <button class="stats-open-btn" onclick="openStats()">📊&nbsp; My Statistics</button>
+        <button class="stats-open-btn" onclick="openRetake()">🔄&nbsp; Retake Wrong Qs</button>
     </div>
     <div class="home-body">
       <div class="card">
@@ -1684,6 +1698,26 @@ function showScreen(id) {
 /* ══════════════════════════════════════════════════════════
    HOME → START
 ══════════════════════════════════════════════════════════ */
+
+function startRetakeQuiz(questionsArray) {
+  if (!questionsArray || questionsArray.length === 0) {
+    return alert('No wrong questions found to retake.');
+  }
+  currentQuestions = questionsArray;
+  currentLecture   = 'Retake — Wrong Questions';
+  currentIndex     = 0;
+  userAnswers      = {};
+  markedSet        = new Set();
+  questionTimes    = {};
+  correctToWrong   = 0;
+  wrongToCorrect   = 0;
+  changeLog        = [];
+  timeLeft         = Math.max(questionsArray.length * 60, 120);
+  showScreen('quiz');
+  renderQuestion();
+  startTimer();
+}
+
 function startQuiz() {
   const lec  = document.getElementById('lectureSelect').value;
   const mins = parseInt(document.getElementById('timeInput').value, 10);
@@ -1700,6 +1734,7 @@ function startQuiz() {
   questionTimes    = {};
   correctToWrong   = 0;
   wrongToCorrect   = 0;
+  changeLog        = [];
   changeLog        = [];
   timeLeft         = mins * 60;
 
@@ -2060,7 +2095,7 @@ function launchConfetti() {
 /* ══════════════════════════════════════════════════════════
    PERSISTENT STATISTICS
 ══════════════════════════════════════════════════════════ */
-const STATS_KEY = 'anu_msp_stats_v1';
+const STATS_KEY = 'anu_msp_stats_v2';
 
 function defaultStats() {
   return {
@@ -2109,10 +2144,13 @@ function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, 
 
   const avgTime = timedQs > 0 ? Math.round(timeSecs / timedQs) : 0;
   st.history.unshift({
-    subject, lecture, score, total, pct, avgTime, c2w, w2c,
-    date: new Date().toLocaleDateString()
-  });
-  if (st.history.length > 10) st.history.pop();
+  subject, lecture, score, total, pct, avgTime, c2w, w2c,
+  date: new Date().toLocaleDateString(),
+  wrongIndices: currentQuestions
+    .map((q, i) => i)
+    .filter(i => (userAnswers[i] || '') !== currentQuestions[i].answer)
+});
+  if (st.history.length > 20) st.history.pop();
 
   persistStats(st);
 }
@@ -2242,7 +2280,7 @@ function renderStatsModal() {
     sec4.innerHTML = `<div class="stats-section-title">🕐 Recent Quizzes</div>`;
     const hl = document.createElement('div');
     hl.className = 'history-list';
-    st.history.slice(0, 5).forEach(h => {
+    st.history.slice(0, 10).forEach(h => {
       const item = document.createElement('div');
       item.className = 'history-item';
       const lecShort = h.lecture.length > 38 ? h.lecture.substring(0,38)+'…' : h.lecture;
@@ -2255,6 +2293,13 @@ function renderStatsModal() {
           <div class="h-lecture">⏱ ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
         </div>
         <div class="h-score" style="color:${h.pct>=70?'var(--correct-fg)':'var(--wrong-fg)'}">${h.score}/${h.total}<br><span style="font-size:.8rem">(${h.pct}%)</span></div>`;
+      const wrongCount = (h.wrongIndices || []).length;
+const retakeBtn = document.createElement('button');
+retakeBtn.style.cssText = 'margin-top:8px;padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.8rem;opacity:' + (wrongCount > 0 ? '1' : '.4') + ';';
+retakeBtn.textContent = `🔄 Retake ${wrongCount} wrong Q${wrongCount !== 1 ? 's' : ''}`;
+retakeBtn.disabled = wrongCount === 0;
+retakeBtn.onclick = (e) => { e.stopPropagation(); retakeSingleQuiz(h); };
+item.appendChild(retakeBtn);
       hl.appendChild(item);
     });
     sec4.appendChild(hl);
@@ -2268,7 +2313,108 @@ function renderStatsModal() {
   rb.onclick = resetStats;
   body.appendChild(rb);
 }
+function retakeSingleQuiz(h) {
+  const lectureQs = (subjects[h.subject] && subjects[h.subject].lectures[h.lecture]) || [];
+  const wrong = (h.wrongIndices || []).map(i => lectureQs[i]).filter(Boolean);
+  closeStats();
+  startRetakeQuiz(wrong);
+}
 
+function openRetake() {
+  renderRetakeSelector();
+  document.getElementById('retakeOverlay').classList.remove('hidden');
+}
+
+function closeRetake() {
+  document.getElementById('retakeOverlay').classList.add('hidden');
+}
+
+function renderRetakeSelector() {
+  const st   = loadStats();
+  const body = document.getElementById('retakeBody');
+  body.innerHTML = '';
+
+  if (!st.history.length) {
+    body.innerHTML = '<div class="no-stats-box"><div class="ns-icon">📋</div>No quiz history yet. Complete a quiz first.</div>';
+    return;
+  }
+
+  const info = document.createElement('p');
+  info.style.cssText = 'color:var(--text-muted);font-size:.88rem;margin-bottom:12px;';
+  info.textContent = 'Check one or more quizzes, then press the button to retake all their wrong questions combined.';
+  body.appendChild(info);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+
+  st.history.forEach((h, idx) => {
+    const count = (h.wrongIndices || []).length;
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;background:#F7FBFF;border:1px solid #D8EAF7;border-radius:8px;padding:10px 14px;cursor:' + (count > 0 ? 'pointer' : 'not-allowed') + ';opacity:' + (count > 0 ? '1' : '.5') + ';';
+    const lecShort = h.lecture.length > 42 ? h.lecture.substring(0, 42) + '…' : h.lecture;
+    row.innerHTML = `
+      <input type="checkbox" data-idx="${idx}" ${count === 0 ? 'disabled' : ''} style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0;" />
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:.88rem;">${h.subject}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:2px;">${lecShort}</div>
+        <div style="font-size:.78rem;margin-top:3px;">
+          ${h.date} &nbsp;·&nbsp; Score ${h.score}/${h.total} (${h.pct}%)
+          &nbsp;·&nbsp; <strong style="color:${count > 0 ? 'var(--wrong-fg)' : 'var(--text-muted)'}">${count} wrong</strong>
+        </div>
+      </div>`;
+    list.appendChild(row);
+  });
+
+  body.appendChild(list);
+
+  const selectAllRow = document.createElement('div');
+  selectAllRow.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1.5px solid var(--accent);background:#EEF7FF;color:var(--accent);font-weight:700;cursor:pointer;font-size:.85rem;';
+  selectAllBtn.textContent = '☑ Select All';
+  selectAllBtn.onclick = () => {
+    document.querySelectorAll('#retakeBody input[type=checkbox]:not(:disabled)')
+      .forEach(cb => cb.checked = true);
+  };
+
+  const clearBtn = document.createElement('button');
+  clearBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1.5px solid #B0D4F0;background:#F7FBFF;color:var(--text-muted);font-weight:700;cursor:pointer;font-size:.85rem;';
+  clearBtn.textContent = '☐ Clear All';
+  clearBtn.onclick = () => {
+    document.querySelectorAll('#retakeBody input[type=checkbox]')
+      .forEach(cb => cb.checked = false);
+  };
+
+  selectAllRow.appendChild(selectAllBtn);
+  selectAllRow.appendChild(clearBtn);
+  body.appendChild(selectAllRow);
+
+  const retakeBtn = document.createElement('button');
+  retakeBtn.className = 'btn btn-primary';
+  retakeBtn.style.marginTop = '12px';
+  retakeBtn.textContent = '🔄 Retake Selected Wrong Questions';
+  retakeBtn.onclick = () => {
+    const checked = [...document.querySelectorAll('#retakeBody input[type=checkbox]:checked')];
+    if (!checked.length) return alert('Please select at least one quiz.');
+    const allWrong = [];
+    const seen = new Set();
+    checked.forEach(cb => {
+      const h = st.history[+cb.dataset.idx];
+      const lectureQs = (subjects[h.subject] && subjects[h.subject].lectures[h.lecture]) || [];
+      (h.wrongIndices || []).forEach(i => {
+        const q = lectureQs[i];
+        if (q && !seen.has(q.question)) {
+          seen.add(q.question);
+          allWrong.push(q);
+        }
+      });
+    });
+    closeRetake();
+    startRetakeQuiz(allWrong);
+  };
+  body.appendChild(retakeBtn);
+}
 function goHome() {
   stopTimer();
   showScreen('home');
