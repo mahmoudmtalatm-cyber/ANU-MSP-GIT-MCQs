@@ -399,11 +399,141 @@
       .header-title { font-size: .95rem; }
       .home-hero h1 { font-size: 1.35rem; }
     }
+    
+          /* ── STATS MODAL ── */
+      .stats-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,.55);
+        z-index: 2000;
+        display: flex; align-items: flex-start; justify-content: center;
+        overflow-y: auto; padding: 20px;
+      }
+      .stats-modal {
+        background: var(--bg-card);
+        border-radius: 16px;
+        width: 100%; max-width: 640px;
+        box-shadow: 0 8px 40px rgba(0,0,0,.3);
+        overflow: hidden; margin: auto;
+      }
+      .stats-modal-header {
+        background: var(--accent); color: white;
+        padding: 16px 24px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .stats-modal-header h2 { font-size: 1.15rem; font-weight: 800; }
+      .stats-close-btn {
+        background: rgba(255,255,255,.2); border: none; color: white;
+        width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+        font-size: 1.2rem; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--font);
+      }
+      .stats-close-btn:hover { background: rgba(255,255,255,.35); }
+      .stats-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+      .stats-section { display: flex; flex-direction: column; }
+      .stats-section-title {
+        font-size: .78rem; font-weight: 700; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
+      }
+      .stats-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      }
+      .stat-tile {
+        background: #F0F8FF; border: 1px solid #B0D4F0;
+        border-radius: 10px; padding: 12px 10px; text-align: center;
+      }
+      .stat-tile .stat-val {
+        font-size: 1.35rem; font-weight: 800; color: var(--accent); line-height: 1;
+      }
+      .stat-tile .stat-lbl {
+        font-size: .72rem; color: var(--text-muted); font-weight: 600;
+        margin-top: 5px; line-height: 1.3;
+      }
+      .stats-change-row { display: flex; gap: 10px; }
+      .change-tile {
+        flex: 1; border-radius: 10px; padding: 14px 12px; text-align: center;
+      }
+      .change-tile.c2w { background: #FFEBEE; border: 1px solid #EF9A9A; }
+      .change-tile.w2c { background: #E8F5E9; border: 1px solid #A5D6A7; }
+      .change-tile .change-val { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+      .change-tile.c2w .change-val { color: #C62828; }
+      .change-tile.w2c .change-val { color: #2E7D32; }
+      .change-tile .change-lbl { font-size: .75rem; font-weight: 700; margin-top: 5px; }
+      .change-tile.c2w .change-lbl { color: #C62828; }
+      .change-tile.w2c .change-lbl { color: #2E7D32; }
+      .change-tile .change-pct { font-size: .82rem; font-weight: 700; margin-top: 3px; color: var(--text-muted); }
+      .net-label {
+        text-align: center; font-size: .88rem; font-weight: 700; margin-top: 8px;
+        padding: 7px 12px; border-radius: 8px;
+      }
+      .subject-stat-row {
+        display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+      }
+      .subj-stat-name {
+        font-weight: 700; font-size: .83rem; min-width: 100px;
+        color: var(--text-main); white-space: nowrap;
+      }
+      .subj-bar-wrap {
+        flex: 1; background: #E3F2FD; border-radius: 4px; height: 12px; overflow: hidden;
+      }
+      .subj-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s; }
+      .subj-stat-pct {
+        font-weight: 800; font-size: .85rem; color: var(--accent);
+        min-width: 38px; text-align: right;
+      }
+      .subj-quizzes { font-size: .75rem; color: var(--text-muted); min-width: 48px; text-align: right; }
+      .history-list { display: flex; flex-direction: column; gap: 7px; }
+      .history-item {
+        display: flex; align-items: center; justify-content: space-between;
+        background: #F7FBFF; border: 1px solid #D8EAF7;
+        border-radius: 8px; padding: 10px 14px;
+      }
+      .h-subject { font-weight: 700; font-size: .88rem; color: var(--text-main); }
+      .h-lecture { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+      .h-score { font-weight: 800; font-size: 1rem; white-space: nowrap; margin-left: 10px; }
+      .stats-reset-btn {
+        background: #FFEBEE; color: #C62828;
+        border: 1px solid #EF9A9A; border-radius: 8px;
+        padding: 11px; font-family: var(--font); font-size: .9rem;
+        font-weight: 700; cursor: pointer; width: 100%;
+        transition: background .15s;
+      }
+      .stats-reset-btn:hover { background: #FFCDD2; }
+      .no-stats-box {
+        text-align: center; padding: 32px 20px;
+        color: var(--text-muted); font-size: .95rem;
+      }
+      .no-stats-box .ns-icon { font-size: 2.5rem; margin-bottom: 8px; }
+      .stats-open-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.5);
+        color: white; padding: 7px 16px; border-radius: 8px;
+        font-family: var(--font); font-size: .88rem; font-weight: 700;
+        cursor: pointer; margin-top: 12px;
+        transition: background .15s;
+      }
+      .stats-open-btn:hover { background: rgba(255,255,255,.3); }
+      @media (max-width: 600px) {
+        .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        .stat-tile .stat-val { font-size: 1.1rem; }
+        .subj-stat-name { min-width: 70px; font-size: .75rem; }
+      }
+
   </style>
 </head>
 <body>
 <div id="app">
 <canvas id="confettiCanvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none;"></canvas>
+<!-- STATS MODAL -->
+  <div id="statsOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeStats()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>📊&nbsp; My Statistics</h2>
+        <button class="stats-close-btn" onclick="closeStats()">✕</button>
+      </div>
+      <div class="stats-body" id="statsBody"></div>
+    </div>
+  </div>
 
   <!-- ══════════════════════════════════════════════
        HOME SCREEN
@@ -412,6 +542,7 @@
     <div class="home-hero">
       <h1>🏥&nbsp; ANU-MSP GIT MCQs</h1>
       <p>Choose your subject, pick a lecture, and test your knowledge</p>
+        <button class="stats-open-btn" onclick="openStats()">📊&nbsp; My Statistics</button>
     </div>
     <div class="home-body">
       <div class="card">
@@ -1416,6 +1547,7 @@ let timerInterval    = null;
 let selectedSubject  = '';
 let questionTimes    = {};
 let questionStart    = 0;
+let currentLecture   = '';
 let correctToWrong   = 0;
 let wrongToCorrect   = 0;
 /* ══════════════════════════════════════════════════════════
@@ -1522,6 +1654,7 @@ function startQuiz() {
   if (!mins || mins <= 0) return alert('Please enter a valid duration in minutes.');
 
   currentQuestions = subjects[selectedSubject].lectures[lec];
+  currentLecture = lec;
   currentIndex     = 0;
   userAnswers      = {};
   markedSet        = new Set();
@@ -1699,6 +1832,11 @@ function submitQuiz() {
   const badge = document.getElementById('scoreBadge');
   badge.textContent  = `${score} / ${total}  (${pct}%)`;
   badge.style.background = pct >= 70 ? '#A5D6A7' : '#FFCDD2';
+  const _totalSecs  = Object.values(questionTimes).reduce((a,b)=>a+b,0);
+  const _timedQs    = Object.keys(questionTimes).length;
+  const _unanswered = currentQuestions.length - Object.keys(userAnswers).length;
+  const _wrong      = currentQuestions.length - score - _unanswered;
+  saveQuizStats(score, currentQuestions.length, _wrong, _unanswered, _totalSecs, _timedQs, correctToWrong, wrongToCorrect, selectedSubject, currentLecture);
 
   buildResults();
   showScreen('results');
@@ -1837,6 +1975,218 @@ function launchConfetti() {
 /* ══════════════════════════════════════════════════════════
    BACK TO HOME
 ══════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════
+   PERSISTENT STATISTICS
+══════════════════════════════════════════════════════════ */
+const STATS_KEY = 'anu_msp_stats_v1';
+
+function defaultStats() {
+  return {
+    totalQuizzes: 0, totalQuestions: 0,
+    totalCorrect: 0, totalWrong: 0, totalUnanswered: 0,
+    totalTimeSecs: 0, totalTimedQs: 0,
+    correctToWrong: 0, wrongToCorrect: 0,
+    totalScorePct: 0, bestScore: null, worstScore: null,
+    subjectStats: {}, history: []
+  };
+}
+
+function loadStats() {
+  try {
+    const raw = localStorage.getItem(STATS_KEY);
+    return raw ? Object.assign(defaultStats(), JSON.parse(raw)) : defaultStats();
+  } catch(e) { return defaultStats(); }
+}
+
+function persistStats(st) {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch(e) {}
+}
+
+function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
+  const st  = loadStats();
+  const pct = Math.round(score / total * 100);
+
+  st.totalQuizzes++;
+  st.totalQuestions  += total;
+  st.totalCorrect    += score;
+  st.totalWrong      += wrong;
+  st.totalUnanswered += unanswered;
+  st.totalTimeSecs   += timeSecs;
+  st.totalTimedQs    += timedQs;
+  st.correctToWrong  += c2w;
+  st.wrongToCorrect  += w2c;
+  st.totalScorePct   += pct;
+  if (st.bestScore  === null || pct > st.bestScore)  st.bestScore  = pct;
+  if (st.worstScore === null || pct < st.worstScore) st.worstScore = pct;
+
+  if (!st.subjectStats[subject])
+    st.subjectStats[subject] = { quizzes: 0, correct: 0, total: 0 };
+  st.subjectStats[subject].quizzes++;
+  st.subjectStats[subject].correct += score;
+  st.subjectStats[subject].total   += total;
+
+  const avgTime = timedQs > 0 ? Math.round(timeSecs / timedQs) : 0;
+  st.history.unshift({
+    subject, lecture, score, total, pct, avgTime, c2w, w2c,
+    date: new Date().toLocaleDateString()
+  });
+  if (st.history.length > 10) st.history.pop();
+
+  persistStats(st);
+}
+
+function openStats()  { renderStatsModal(); document.getElementById('statsOverlay').classList.remove('hidden'); }
+function closeStats() { document.getElementById('statsOverlay').classList.add('hidden'); }
+
+function resetStats() {
+  if (!confirm('Reset ALL statistics? This cannot be undone.')) return;
+  localStorage.removeItem(STATS_KEY);
+  renderStatsModal();
+}
+
+function fmtTime(secs) {
+  const m = Math.floor(secs / 60);
+  const s = String(secs % 60).padStart(2, '0');
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function renderStatsModal() {
+  const st   = loadStats();
+  const body = document.getElementById('statsBody');
+  body.innerHTML = '';
+
+  if (st.totalQuizzes === 0) {
+    body.innerHTML = `<div class="no-stats-box"><div class="ns-icon">📊</div>No data yet — complete a quiz to see your statistics.</div>`;
+    return;
+  }
+
+  const overallAcc  = Math.round(st.totalCorrect / st.totalQuestions * 100);
+  const avgScore    = Math.round(st.totalScorePct / st.totalQuizzes);
+  const avgTime     = st.totalTimedQs > 0 ? Math.round(st.totalTimeSecs / st.totalTimedQs) : 0;
+  const studyMins   = Math.floor(st.totalTimeSecs / 60);
+  const totalChanges = st.correctToWrong + st.wrongToCorrect;
+  const c2wPct = totalChanges > 0 ? Math.round(st.correctToWrong / totalChanges * 100) : 0;
+  const w2cPct = totalChanges > 0 ? Math.round(st.wrongToCorrect  / totalChanges * 100) : 0;
+  const net    = st.wrongToCorrect - st.correctToWrong;
+
+  /* — Overall Performance — */
+  const sec1 = document.createElement('div');
+  sec1.className = 'stats-section';
+  sec1.innerHTML = `<div class="stats-section-title">📈 Overall Performance</div>`;
+  const g1 = document.createElement('div');
+  g1.className = 'stats-grid';
+  g1.innerHTML = `
+    <div class="stat-tile"><div class="stat-val">${st.totalQuizzes}</div><div class="stat-lbl">Quizzes Taken</div></div>
+    <div class="stat-tile"><div class="stat-val">${overallAcc}%</div><div class="stat-lbl">Overall Accuracy</div></div>
+    <div class="stat-tile"><div class="stat-val">${avgScore}%</div><div class="stat-lbl">Avg Score</div></div>
+    <div class="stat-tile"><div class="stat-val">${st.bestScore !== null ? st.bestScore+'%' : '—'}</div><div class="stat-lbl">Best Score</div></div>
+    <div class="stat-tile"><div class="stat-val">${st.worstScore !== null ? st.worstScore+'%' : '—'}</div><div class="stat-lbl">Worst Score</div></div>
+    <div class="stat-tile"><div class="stat-val">${studyMins}m</div><div class="stat-lbl">Total Study Time</div></div>
+    <div class="stat-tile"><div class="stat-val">${st.totalQuestions}</div><div class="stat-lbl">Total Questions</div></div>
+    <div class="stat-tile"><div class="stat-val">${st.totalCorrect}</div><div class="stat-lbl">Correct</div></div>
+    <div class="stat-tile"><div class="stat-val">${fmtTime(avgTime)}</div><div class="stat-lbl">Avg Time / Q</div></div>
+  `;
+  sec1.appendChild(g1);
+  body.appendChild(sec1);
+
+  /* — Answer Changes — */
+  const sec2 = document.createElement('div');
+  sec2.className = 'stats-section';
+  sec2.innerHTML = `<div class="stats-section-title">🔄 Answer Changes (All Time) — ${totalChanges} total</div>`;
+  if (totalChanges === 0) {
+    sec2.innerHTML += `<div style="color:var(--text-muted);font-size:.88rem;">No answer changes recorded yet.</div>`;
+  } else {
+    const cr = document.createElement('div');
+    cr.className = 'stats-change-row';
+    cr.innerHTML = `
+      <div class="change-tile c2w">
+        <div class="change-val">${st.correctToWrong}</div>
+        <div class="change-lbl">✘ Correct → Wrong</div>
+        <div class="change-pct">${c2wPct}% of changes</div>
+      </div>
+      <div class="change-tile w2c">
+        <div class="change-val">${st.wrongToCorrect}</div>
+        <div class="change-lbl">✔ Wrong → Correct</div>
+        <div class="change-pct">${w2cPct}% of changes</div>
+      </div>`;
+    sec2.appendChild(cr);
+    const nl = document.createElement('div');
+    nl.className = 'net-label';
+    if (net > 0) {
+      nl.style.cssText = 'background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7';
+      nl.textContent   = `✔ Net gain: changing answers gave you +${net} extra correct`;
+    } else if (net < 0) {
+      nl.style.cssText = 'background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A';
+      nl.textContent   = `✘ Net loss: changing answers cost you ${Math.abs(net)} correct`;
+    } else {
+      nl.style.cssText = 'background:#F7FBFF;color:var(--text-muted);border:1px solid #B0D4F0';
+      nl.textContent   = `Neutral: answer changes had no net effect`;
+    }
+    sec2.appendChild(nl);
+  }
+  body.appendChild(sec2);
+
+  /* — Subject Performance — */
+  const subjects_used = Object.keys(st.subjectStats);
+  if (subjects_used.length > 0) {
+    const sec3 = document.createElement('div');
+    sec3.className = 'stats-section';
+    sec3.innerHTML = `<div class="stats-section-title">📚 Subject Performance</div>`;
+    subjects_used
+      .sort((a,b) => {
+        const pa = Math.round(st.subjectStats[a].correct/st.subjectStats[a].total*100);
+        const pb = Math.round(st.subjectStats[b].correct/st.subjectStats[b].total*100);
+        return pb - pa;
+      })
+      .forEach(subj => {
+        const s   = st.subjectStats[subj];
+        const pct = s.total > 0 ? Math.round(s.correct / s.total * 100) : 0;
+        const row = document.createElement('div');
+        row.className = 'subject-stat-row';
+        row.innerHTML = `
+          <div class="subj-stat-name">${subj}</div>
+          <div class="subj-bar-wrap"><div class="subj-bar" style="width:${pct}%"></div></div>
+          <div class="subj-stat-pct">${pct}%</div>
+          <div class="subj-quizzes">${s.quizzes} quiz${s.quizzes!==1?'zes':''}</div>`;
+        sec3.appendChild(row);
+      });
+    body.appendChild(sec3);
+  }
+
+  /* — Recent Quizzes — */
+  if (st.history.length > 0) {
+    const sec4 = document.createElement('div');
+    sec4.className = 'stats-section';
+    sec4.innerHTML = `<div class="stats-section-title">🕐 Recent Quizzes</div>`;
+    const hl = document.createElement('div');
+    hl.className = 'history-list';
+    st.history.slice(0, 5).forEach(h => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const lecShort = h.lecture.length > 38 ? h.lecture.substring(0,38)+'…' : h.lecture;
+      const changeNote = (h.c2w||0)+(h.w2c||0) > 0
+        ? ` · ✘${h.c2w||0} ✔${h.w2c||0} changes` : '';
+      item.innerHTML = `
+        <div>
+          <div class="h-subject">${h.subject}</div>
+          <div class="h-lecture">${lecShort}</div>
+          <div class="h-lecture">⏱ ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
+        </div>
+        <div class="h-score" style="color:${h.pct>=70?'var(--correct-fg)':'var(--wrong-fg)'}">${h.score}/${h.total}<br><span style="font-size:.8rem">(${h.pct}%)</span></div>`;
+      hl.appendChild(item);
+    });
+    sec4.appendChild(hl);
+    body.appendChild(sec4);
+  }
+
+  /* — Reset — */
+  const rb = document.createElement('button');
+  rb.className = 'stats-reset-btn';
+  rb.textContent = '🗑  Reset All Statistics';
+  rb.onclick = resetStats;
+  body.appendChild(rb);
+}
 
 function goHome() {
   stopTimer();
