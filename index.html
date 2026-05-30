@@ -1704,6 +1704,7 @@ function startRetakeQuiz(questionsArray) {
     return alert('No wrong questions found to retake.');
   }
   currentQuestions = questionsArray;
+  selectedSubject  = selectedSubject || 'Retake';
   currentLecture   = 'Retake — Wrong Questions';
   currentIndex     = 0;
   userAnswers      = {};
@@ -2146,9 +2147,8 @@ function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, 
   st.history.unshift({
   subject, lecture, score, total, pct, avgTime, c2w, w2c,
   date: new Date().toLocaleDateString(),
-  wrongIndices: currentQuestions
-    .map((q, i) => i)
-    .filter(i => (userAnswers[i] || '') !== currentQuestions[i].answer)
+  wrongQuestions: currentQuestions
+    .filter((q, i) => (userAnswers[i] || '') !== q.answer)
 });
   if (st.history.length > 20) st.history.pop();
 
@@ -2293,7 +2293,7 @@ function renderStatsModal() {
           <div class="h-lecture">⏱ ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
         </div>
         <div class="h-score" style="color:${h.pct>=70?'var(--correct-fg)':'var(--wrong-fg)'}">${h.score}/${h.total}<br><span style="font-size:.8rem">(${h.pct}%)</span></div>`;
-      const wrongCount = (h.wrongIndices || []).length;
+      const wrongCount = (h.wrongQuestions || []).length;
 const retakeBtn = document.createElement('button');
 retakeBtn.style.cssText = 'margin-top:8px;padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.8rem;opacity:' + (wrongCount > 0 ? '1' : '.4') + ';';
 retakeBtn.textContent = `🔄 Retake ${wrongCount} wrong Q${wrongCount !== 1 ? 's' : ''}`;
@@ -2314,8 +2314,7 @@ item.appendChild(retakeBtn);
   body.appendChild(rb);
 }
 function retakeSingleQuiz(h) {
-  const lectureQs = (subjects[h.subject] && subjects[h.subject].lectures[h.lecture]) || [];
-  const wrong = (h.wrongIndices || []).map(i => lectureQs[i]).filter(Boolean);
+  const wrong = (h.wrongQuestions || []).filter(Boolean);
   closeStats();
   startRetakeQuiz(wrong);
 }
@@ -2348,7 +2347,7 @@ function renderRetakeSelector() {
   list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
 
   st.history.forEach((h, idx) => {
-    const count = (h.wrongIndices || []).length;
+    const count = (h.wrongQuestions || []).length;
     const row = document.createElement('label');
     row.style.cssText = 'display:flex;align-items:center;gap:12px;background:#F7FBFF;border:1px solid #D8EAF7;border-radius:8px;padding:10px 14px;cursor:' + (count > 0 ? 'pointer' : 'not-allowed') + ';opacity:' + (count > 0 ? '1' : '.5') + ';';
     const lecShort = h.lecture.length > 42 ? h.lecture.substring(0, 42) + '…' : h.lecture;
@@ -2401,9 +2400,7 @@ function renderRetakeSelector() {
     const seen = new Set();
     checked.forEach(cb => {
       const h = st.history[+cb.dataset.idx];
-      const lectureQs = (subjects[h.subject] && subjects[h.subject].lectures[h.lecture]) || [];
-      (h.wrongIndices || []).forEach(i => {
-        const q = lectureQs[i];
+      (h.wrongQuestions || []).forEach(q => {
         if (q && !seen.has(q.question)) {
           seen.add(q.question);
           allWrong.push(q);
