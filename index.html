@@ -1793,7 +1793,7 @@ const subjects = {
 const curriculum = {
   "First Year":  {},
   "Second Year": {
-    "GIT and Nutrition":               ["Anatomy","Histology","Physiology","Biochemistry","Pharmacology","Microbiology","Pathology","Parasitology","General GIT"],
+    "GIT and Nutrition": ["Anatomy","Histology","Physiology","Biochemistry","Pharmacology","Microbiology","Pathology","Parasitology","General GIT"],
     "Endocrine System and Metabolism": []
   },
   "Third Year":  {}
@@ -1908,6 +1908,47 @@ function selectModule(mod) {
     grid.appendChild(btn);
   });
   subjectSection.classList.remove('hidden');
+}
+function selectSubject(name) {
+  selectedSubject = name;
+
+  document.querySelectorAll('.subject-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.subject === name)
+  );
+
+  const list = document.getElementById('lectureCheckList');
+  list.innerHTML = '';
+
+  const lectures = Object.keys(subjects[name].lectures);
+  if (!lectures.length) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:.9rem;padding:8px;">No lectures available.</div>';
+    updateLectureCount();
+    return;
+  }
+
+  if (!selectedLectures[name]) selectedLectures[name] = new Set();
+
+  lectures.forEach(lname => {
+    const qCount   = subjects[name].lectures[lname].length;
+    const isChecked = selectedLectures[name].has(lname);
+    const label    = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 4px;border-radius:6px;';
+    label.innerHTML = `
+      <input type="checkbox" value="${lname}" ${isChecked ? 'checked' : ''}
+        style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;" />
+      <span style="font-size:.88rem;font-weight:600;color:var(--text-main);flex:1;">${lname}</span>
+      <span style="font-size:.78rem;color:var(--accent);font-weight:700;">${qCount}q</span>
+    `;
+    label.querySelector('input').addEventListener('change', (e) => {
+      if (!selectedLectures[name]) selectedLectures[name] = new Set();
+      if (e.target.checked) selectedLectures[name].add(lname);
+      else selectedLectures[name].delete(lname);
+      updateLectureCount();
+    });
+    list.appendChild(label);
+  });
+
+  updateLectureCount();
 }
 function onLectureChange() { updateLectureCount(); }  // kept for safety
 
