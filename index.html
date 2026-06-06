@@ -742,6 +742,7 @@
 
 </div>
 <script src="data/git_module.js"></script>
+<script src="data/endocrine_module.js"></script>
 <script>
   function updateSubjectButtonStates() {
   document.querySelectorAll('.subject-btn').forEach(btn => {
@@ -775,21 +776,39 @@
    }
 ══════════════════════════════════════════════════════════ */
 const subjects = {
-  "Anatomy":      DATA_Anatomy,
-  "Histology":    DATA_Histology,
-  "Physiology":   DATA_Physiology,
-  "Biochemistry": DATA_Biochemistry,
-  "Pharmacology": DATA_Pharmacology,
-  "Microbiology": DATA_Microbiology,
-  "Pathology":    DATA_Pathology,
-  "Parasitology": DATA_Parasitology,
-  "General GIT":  DATA_GeneralGIT,
+  // GIT Module
+  "GIT_Anatomy":      DATA_Anatomy,
+  "GIT_Histology":    DATA_Histology,
+  "GIT_Physiology":   DATA_Physiology,
+  "GIT_Biochemistry": DATA_Biochemistry,
+  "GIT_Pharmacology": DATA_Pharmacology,
+  "GIT_Microbiology": DATA_Microbiology,
+  "GIT_Pathology":    DATA_Pathology,
+  "GIT_Parasitology": DATA_Parasitology,
+  "GIT_General":      DATA_GeneralGIT,
+
+  // Endocrine Module
+  "Endo_Anatomy":      DATA_Endo_Anatomy,
+  "Endo_Histology":    DATA_Endo_Histology,
+  "Endo_Physiology":   DATA_Endo_Physiology,
+  "Endo_Biochemistry": DATA_Endo_Biochemistry,
+  "Endo_Pharmacology": DATA_Endo_Pharmacology,
+  "Endo_Pathology":    DATA_Endo_Pathology,
+  "Endo_General":      DATA_Endo_General,
 };
 const curriculum = {
   "First Year":  {},
   "Second Year": {
-    "GIT and Nutrition": ["Anatomy","Histology","Physiology","Biochemistry","Pharmacology","Microbiology","Pathology","Parasitology","General GIT"],
-    "Endocrine System and Metabolism": []
+    "GIT and Nutrition": [
+      "GIT_Anatomy","GIT_Histology","GIT_Physiology",
+      "GIT_Biochemistry","GIT_Pharmacology","GIT_Microbiology",
+      "GIT_Pathology","GIT_Parasitology","GIT_General"
+    ],
+    "Endocrine System and Metabolism": [
+      "Endo_Anatomy","Endo_Histology","Endo_Physiology",
+      "Endo_Biochemistry","Endo_Pharmacology",
+      "Endo_Pathology","Endo_General"
+    ]
   },
   "Third Year":  {}
 };
@@ -898,7 +917,7 @@ function selectModule(mod) {
     const btn = document.createElement('button');
     btn.className = 'subject-btn';
     btn.dataset.subject = name;
-    btn.innerHTML = `<span class="subj-icon">${subjects[name].icon}</span>${name}`;
+    btn.innerHTML = `<span class="subj-icon">${subjects[name].icon}</span>${subjects[name].label || name}`;
     btn.onclick = () => selectSubject(name);
     grid.appendChild(btn);
   });
