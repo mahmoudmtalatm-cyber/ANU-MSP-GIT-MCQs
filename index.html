@@ -376,6 +376,77 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
+    /* ── WATER EASTER EGG ── */
+@keyframes waterRise {
+  0%   { transform: translateY(100%); }
+  100% { transform: translateY(-5%); }
+}
+@keyframes waveSway {
+  0%,100% { border-radius: 42% 58% 40% 60% / 45% 45% 55% 55%; }
+  50%      { border-radius: 58% 42% 60% 40% / 55% 55% 45% 45%; }
+}
+@keyframes flushSpin {
+  0%   { transform: rotate(0deg) scale(1); opacity: 1; }
+  60%  { transform: rotate(800deg) scale(0.15); opacity: 0.4; }
+  100% { transform: rotate(1200deg) scale(0); opacity: 0; }
+}
+@keyframes msgPop {
+  0%   { transform: scale(0.5) translateY(40px); opacity: 0; }
+  70%  { transform: scale(1.06) translateY(-5px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.water-flood-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  overflow: hidden; pointer-events: all;
+}
+.water-flood-body {
+  position: absolute; left: -10%; right: -10%;
+  height: 115%; bottom: 0;
+  transform: translateY(100%);
+  background: linear-gradient(180deg,
+    rgba(100,210,255,0.92) 0%,
+    rgba(27,138,196,0.97) 30%,
+    rgba(13,71,161,1) 100%);
+  animation: waterRise 2.6s cubic-bezier(.2,.8,.35,1) forwards;
+  animation-delay: 0.5s;
+}
+.water-flood-body::before {
+  content: '';
+  position: absolute; top: -28px; left: 0; right: 0; height: 56px;
+  background: rgba(100,210,255,0.95);
+  border-radius: 50%;
+  animation: waveSway 1.1s ease-in-out infinite;
+}
+.flush-app {
+  animation: flushSpin 2s cubic-bezier(.5,0,1,.85) forwards !important;
+  animation-delay: 0.3s !important;
+  transform-origin: center 80% !important;
+}
+.water-flood-message {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  animation: msgPop 0.65s cubic-bezier(.34,1.56,.64,1) forwards;
+  animation-delay: 3.4s;
+  padding: 20px;
+}
+.water-flood-msg-box {
+  background: white; border-radius: 24px;
+  padding: 40px 44px; text-align: center;
+  box-shadow: 0 24px 80px rgba(0,0,100,0.45);
+  max-width: 360px; font-family: var(--font);
+}
+.wf-icon { font-size: 3.2rem; margin-bottom: 14px; }
+.wf-title { font-size: 1.5rem; font-weight: 800; color: #1A2A3A; margin-bottom: 10px; }
+.wf-sub { font-size: .95rem; color: #5A7080; line-height: 1.55; margin-bottom: 22px; }
+.wf-btn {
+  background: var(--accent); color: white;
+  border: none; border-radius: 10px;
+  padding: 13px 30px; font-weight: 700; font-size: 1rem;
+  cursor: pointer; font-family: var(--font);
+  transition: background .15s;
+}
+.wf-btn:hover { background: var(--accent-dark); }
 
     /* Divider inside card */
     .card-divider {
@@ -1229,6 +1300,18 @@ function submitQuiz() {
   const pct   = Math.round(score / total * 100);
   const emoji = pct === 100 ? '🏆' : pct >= 70 ? '🎉' : '📝';
   if (pct === 100) launchConfetti();
+  // Easter egg: cumulative correct questions milestone
+const eggStats = loadStats();
+const prevTotal = eggStats.totalCorrect - score; // before this quiz
+const newTotal = eggStats.totalCorrect;
+const threshold = eggStats.eggThreshold || 200;
+
+if (prevTotal < threshold && newTotal >= threshold) {
+  const nextThreshold = threshold === 200 ? 400 : threshold + 400;
+  eggStats.eggThreshold = nextThreshold;
+  persistStats(eggStats);
+  launchWaterFlood();
+}
 
   document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results`;
   const totalTime = Object.values(questionTimes).reduce((a,b) => a+b, 0);
@@ -1736,6 +1819,30 @@ function renderRetakeSelector() {
     startRetakeQuiz(allWrong);
   };
   body.appendChild(retakeBtn);
+}
+function launchWaterFlood() {
+  document.getElementById('app').classList.add('flush-app');
+  const overlay = document.createElement('div');
+  overlay.className = 'water-flood-overlay';
+  overlay.id = 'waterFloodOverlay';
+  overlay.innerHTML = `
+    <div class="water-flood-body"></div>
+    <div class="water-flood-message">
+      <div class="water-flood-msg-box">
+        <div class="wf-icon">🚽</div>
+        <div class="wf-title">You Don't Need This Anymore!</div>
+        <div class="wf-sub">You've answered enough questions correctly to flush this whole app down the drain.<br><br>Go ace that exam! 💪</div>
+        <button class="wf-btn" onclick="dismissWaterFlood()">⟵ Back to Reality</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function dismissWaterFlood() {
+  const ov = document.getElementById('waterFloodOverlay');
+  if (ov) ov.remove();
+  document.getElementById('app').classList.remove('flush-app');
+  showScreen('results');
 }
 function goHome() {
   stopTimer();
