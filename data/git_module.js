@@ -1,5 +1,6 @@
 const DATA_Anatomy = {
   icon: "🦴",
+  label: "Anatomy",
   lectures: {
     "Chapter 2 (Anatomy of the upper gastrointestinal tract and the infratemporal fossa) - Chapter Questions": [
         {question:"The glossopharyngeal nerve gives motor supply to:",options:{A:"Stylopharyngeus muscle",B:"Palatopharyngeus muscle",C:"Buccinator muscle",D:"Mylohyoid muscle"},answer:"A"},
@@ -97,6 +98,7 @@ const DATA_Anatomy = {
 
 const DATA_Histology = {
   icon: "🔬",
+  label: "Histology",
   lectures: {
     "Questions on the Digestive System": [
         {question:"What is the characteristic feature of red margin of the lip?",options:{A:"It is covered by non-keratinized stratified squamous epithelium.",B:"The epithelium is indented by short connective tissue papillae.",C:"Its connective tissue papillae contain numerous blood capillaries.",D:"The lamina propria contains mucous acini of the labial salivary glands."},answer:"C"},
@@ -125,6 +127,7 @@ const DATA_Histology = {
 
 const DATA_Physiology = {
   icon: "⚡",
+  label: "Physiology",
   lectures: {
           "Questions 1-30": [
         {question:"What characterizes salivary secretion resulting from parasympathetic stimulation?",options:{A:"Viscid small in amount",B:"Watery Large volume",C:"Rich in mucin",D:"Accompanied with decreased salivary gland blood flow"},answer:"B"},
@@ -293,6 +296,7 @@ const DATA_Physiology = {
 
 const DATA_Biochemistry = {
   icon: "🧪",
+  label: "Biochemistry",
   lectures: {
     "Biochemistry Quiz - All Questions": [
         {question:"Which enzyme is involved in the conversion of glutamate to Ammonia?",options:{A:"Glutamate dehydrogenase",B:"Glutamate transaminase",C:"Glutamate decarboxylase",D:"Glutamate deaminase"},answer:"A"},
@@ -341,6 +345,7 @@ const DATA_Biochemistry = {
 
 const DATA_Pharmacology = {
   icon: "💊",
+  label: "Pharmacology",
   lectures: {
     "L1-7: Acid-Related Disorders, GI Motility & IBD": [
         {question:"What H2 receptor antagonist is used for the treatment of peptic ulcer?",options:{A:"Sucrafate",B:"Misoprostil",C:"Ranitidine",D:"Bismuth"},answer:"C"},
@@ -432,6 +437,7 @@ const DATA_Pharmacology = {
 
 const DATA_Microbiology = {
   icon: "🦠",
+  label: "Microbiology",
   lectures: {
    "Foodborne Intoxication": [
         {question:"Which organism causes foodborne intoxication due to toxins elaborated by bacterial growth in the intestine after food consumption?",options:{A:"Staphylococcus aureus",B:"Bacillus cereus",C:"Clostridium botulinum",D:"Clostridium perfringens"},answer:"D"},
@@ -495,6 +501,7 @@ const DATA_Microbiology = {
 
 const DATA_Pathology = {
   icon: "🏥",
+  label: "Pathology",
   lectures: {
     "GIT Study Questions": [
         {question:"What is the nature of Barrett disease of the esophagus?",options:{A:"Hyperplastic lesion",B:"Neoplastic condition",C:"Metaplastic change",D:"Granulomatous inflammation"},answer:"C"},
@@ -537,6 +544,7 @@ const DATA_Pathology = {
 
 const DATA_Parasitology = {
   icon: "🧫",
+  label: "Parasitology",
   lectures: {
     "Lecture 1 - Ascaris lumbricoides": [
         {question:"A patient with ascariasis experiences a cough and wheezing. This symptom is most likely due to which stage of the Ascaris life cycle?",options:{A:"Eggs",B:"Adult worms",C:"Larvae"},answer:"C"},
@@ -915,6 +923,7 @@ const DATA_Parasitology = {
 
 const DATA_GeneralGIT = {
   icon: "📋",
+  label: "General GIT",
   lectures: {
     "Mid Module Exam": [
         {question:"Which of the following is a branch from superior mesenteric artery?",options:{A:"Middle colic",B:"Superior rectal",C:"Sigmoidal",D:"Gastroduodenal"},answer:"A"},
