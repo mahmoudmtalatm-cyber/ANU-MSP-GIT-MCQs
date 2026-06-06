@@ -159,6 +159,12 @@
       transform: translateY(-2px);
       box-shadow: 0 3px 10px rgba(27,138,196,.15);
     }
+    .subject-btn.has-selection {
+  border-color: var(--accent);
+  background: #EEF7FF;
+  color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(27,138,196,.2);
+}
     .subject-btn.active {
       border-color: var(--accent);
       background: var(--accent);
@@ -737,6 +743,13 @@
 </div>
 
 <script>
+  function updateSubjectButtonStates() {
+  document.querySelectorAll('.subject-btn').forEach(btn => {
+    const name  = btn.dataset.subject;
+    const count = selectedLectures[name]?.size || 0;
+    btn.classList.toggle('has-selection', count > 0 && name !== selectedSubject);
+  });
+}
 /* ══════════════════════════════════════════════════════════
    SUBJECT & LECTURE DATA
    
@@ -1968,6 +1981,7 @@ function updateLectureCount() {
     badge.classList.remove('hidden');
     btn.disabled = false;
   }
+  updateSubjectButtonStates();
 }
 
 function selectAllLectures() {
