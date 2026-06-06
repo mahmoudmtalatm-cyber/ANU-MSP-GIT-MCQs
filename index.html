@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ANU-MSP GIT MCQs</title>
+  <title>ANU MSP Question Bank</title>
   <link rel="icon" href="logo.ico" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
   <style>
@@ -382,7 +382,29 @@
       color: var(--text-muted); font-size: .95rem;
     }
     .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 8px; }
-
+/* ── YEAR / MODULE GRIDS ── */
+    .year-grid {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+    }
+    .module-grid {
+      display: grid; grid-template-columns: repeat(2,1fr); gap: 10px;
+    }
+    .year-btn, .module-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; padding: 14px 8px; border: 2px solid #B0D4F0; border-radius: 10px;
+      background: #F7FBFF; cursor: pointer; font-family: var(--font);
+      font-size: .82rem; font-weight: 700; color: var(--text-muted);
+      text-align: center; line-height: 1.3; transition: all .18s;
+    }
+    .year-btn .y-icon, .module-btn .m-icon { font-size: 1.4rem; }
+    .year-btn:hover, .module-btn:hover {
+      border-color: var(--accent); background: #EEF7FF; color: var(--accent);
+      transform: translateY(-2px); box-shadow: 0 3px 10px rgba(27,138,196,.15);
+    }
+    .year-btn.active, .module-btn.active {
+      border-color: var(--accent); background: var(--accent); color: #fff;
+      box-shadow: 0 3px 12px rgba(27,138,196,.35);
+    }
     /* Mobile tweaks */
     @media (max-width: 600px) {
       .card { padding: 22px 16px; }
@@ -591,7 +613,7 @@
   ══════════════════════════════════════════════ -->
   <div id="home">
     <div class="home-hero">
-      <h1>🏥&nbsp; ANU-MSP GIT MCQs</h1>
+      <h1>🏥&nbsp; ANU MSP Question Bank</h1>
       <p>Choose your subject, pick a lecture, and test your knowledge</p>
         <button class="stats-open-btn" onclick="openStats()">📊&nbsp; My Statistics</button>
         <button class="stats-open-btn" onclick="openRetake()">🔄&nbsp; Retake Wrong Qs</button>
@@ -599,31 +621,59 @@
     <div class="home-body">
       <div class="card">
 
-        <!-- Step 1: Subject -->
+<!-- Step 1: Year -->
         <div class="field-group">
-          <div class="field-label">① Select Subject</div>
-          <div class="subject-grid" id="subjectGrid"></div>
+          <div class="field-label">① Select Year</div>
+          <div class="year-grid" id="yearGrid"></div>
+        </div>
+
+        <!-- Module section -->
+        <div id="moduleSection" class="hidden">
+          <div class="card-divider"></div>
+          <div class="field-group">
+            <div class="field-label">② Select Module</div>
+            <div class="module-grid" id="moduleGrid"></div>
+          </div>
+        </div>
+
+        <!-- Subject section -->
+        <div id="subjectSection" class="hidden">
+          <div class="card-divider"></div>
+          <div class="field-group">
+            <div class="field-label">③ Select Subject</div>
+            <div class="subject-grid" id="subjectGrid"></div>
+          </div>
         </div>
 
         <div class="card-divider"></div>
 
-        <!-- Step 2: Lecture -->
+        <!-- Step 4: Lecture -->
         <div class="field-group" id="lectureGroup">
-          <div class="field-label">② Select Lecture</div>
-          <div class="select-wrapper">
-            <select id="lectureSelect" onchange="onLectureChange()">
-              <option value="">— Choose a subject first —</option>
-            </select>
+          <div class="field-label">④ Select Lecture(s)</div>
+          <div id="lectureCheckList" style="max-height:220px;overflow-y:auto;border:1.5px solid #B0D4F0;border-radius:8px;background:#F7FBFF;padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+            <div style="color:var(--text-muted);font-size:.9rem;padding:8px;">— Choose a subject first —</div>
           </div>
-          <div class="q-count-badge hidden" id="qCountBadge">
-            📋 <span id="qCountText">0 questions</span>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+            <button class="btn" onclick="selectAllLectures()" style="background:#EEF7FF;color:var(--accent);border:1.5px solid var(--accent);padding:6px 14px;font-size:.82rem;border-radius:6px;">☑ All</button>
+            <button class="btn" onclick="clearAllLectures()" style="background:#F7FBFF;color:var(--text-muted);border:1.5px solid #B0D4F0;padding:6px 14px;font-size:.82rem;border-radius:6px;">☐ Clear</button>
+            <div class="q-count-badge hidden" id="qCountBadge" style="margin-top:0;">
+              📋 <span id="qCountText">0 questions</span>
+            </div>
           </div>
         </div>
 
-        <!-- Step 3: Time -->
+        <div class="card-divider"></div>
+
+        <!-- Step 3: Options -->
         <div class="field-group">
-          <div class="field-label">③ Quiz Duration (minutes)</div>
-          <input type="number" id="timeInput" value="10" min="1" max="120" />
+          <div class="field-label">⑤ Duration (minutes) &amp; Options</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input type="number" id="timeInput" value="10" min="1" max="120" style="flex:1;min-width:110px;" />
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:700;font-size:.9rem;color:var(--text-main);background:#F7FBFF;border:1.5px solid #B0D4F0;border-radius:8px;padding:10px 14px;white-space:nowrap;">
+              <input type="checkbox" id="shuffleToggle" style="width:16px;height:16px;accent-color:var(--accent);" />
+              🔀 Shuffle
+            </label>
+          </div>
         </div>
 
         <button class="btn btn-primary" id="startBtn" onclick="startQuiz()" disabled>▶&nbsp; Start Quiz</button>
@@ -643,7 +693,7 @@
   ══════════════════════════════════════════════ -->
   <div id="quiz" class="hidden">
     <div class="header">
-      <div class="header-title"><span>🏥</span>&nbsp; ANU-MSP GIT MCQs</div>
+      <div class="header-title"><span>🏥</span>&nbsp; ANU MSP Question Bank</div>
       <div class="timer" id="timerDisplay">00:00</div>
     </div>
     <div class="quiz-body">
@@ -1740,6 +1790,14 @@ const subjects = {
 
 
 };
+const curriculum = {
+  "First Year":  {},
+  "Second Year": {
+    "GIT and Nutrition":               ["Anatomy","Histology","Physiology","Biochemistry","Pharmacology","Microbiology","Pathology","Parasitology","General GIT"],
+    "Endocrine System and Metabolism": []
+  },
+  "Third Year":  {}
+};
 
 /* ══════════════════════════════════════════════════════════
    STATE
@@ -1751,23 +1809,27 @@ let markedSet        = new Set();
 let timeLeft         = 0;
 let timerInterval    = null;
 let selectedSubject  = '';
+let selectedYear     = '';
+let selectedModule   = '';
 let questionTimes    = {};
 let questionStart    = 0;
 let currentLecture   = '';
 let changeLog        = [];
+let selectedLectures = {}; // { subjectName: Set of lecture names }
 let correctToWrong   = 0;
 let wrongToCorrect   = 0;
 /* ══════════════════════════════════════════════════════════
    INIT — build subject grid
 ══════════════════════════════════════════════════════════ */
 (function init() {
-  const grid = document.getElementById('subjectGrid');
-  Object.entries(subjects).forEach(([name, data]) => {
+  const yearIcons = { "First Year":"1️⃣", "Second Year":"2️⃣", "Third Year":"3️⃣" };
+  const grid = document.getElementById('yearGrid');
+  Object.keys(curriculum).forEach(year => {
     const btn = document.createElement('button');
-    btn.className = 'subject-btn';
-    btn.dataset.subject = name;
-    btn.innerHTML = `<span class="subj-icon">${data.icon}</span>${name}`;
-    btn.onclick = () => selectSubject(name);
+    btn.className = 'year-btn';
+    btn.dataset.year = year;
+    btn.innerHTML = `<span class="y-icon">${yearIcons[year]||'📅'}</span>${year}`;
+    btn.onclick = () => selectYear(year);
     grid.appendChild(btn);
   });
 })();
@@ -1775,69 +1837,109 @@ let wrongToCorrect   = 0;
 /* ══════════════════════════════════════════════════════════
    SUBJECT SELECTION
 ══════════════════════════════════════════════════════════ */
-function selectSubject(name) {
-  selectedSubject = name;
+function selectYear(year) {
+  selectedYear    = year;
+  selectedModule  = '';
+  selectedSubject = '';
+  selectedLectures = {};
 
-  // Highlight active button
-  document.querySelectorAll('.subject-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.subject === name);
-  });
+  document.querySelectorAll('.year-btn').forEach(b => b.classList.toggle('active', b.dataset.year === year));
 
-  const sel = document.getElementById('lectureSelect');
-  const lectures = subjects[name].lectures;
-  const lectureNames = Object.keys(lectures);
-
-  sel.innerHTML = '';
-
-  if (lectureNames.length === 0) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = '— No lectures available yet —';
-    sel.appendChild(opt);
-    document.getElementById('qCountBadge').classList.add('hidden');
-    document.getElementById('startBtn').disabled = true;
-    return;
-  }
-
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = '— Choose a lecture —';
-  sel.appendChild(placeholder);
-
-  lectureNames.forEach(lname => {
-    const opt = document.createElement('option');
-    opt.value = lname;
-    opt.textContent = lname;
-    sel.appendChild(opt);
-  });
-
+  const moduleSection  = document.getElementById('moduleSection');
+  const subjectSection = document.getElementById('subjectSection');
+  document.getElementById('moduleGrid').innerHTML   = '';
+  document.getElementById('subjectGrid').innerHTML  = '';
+  document.getElementById('lectureCheckList').innerHTML =
+    '<div style="color:var(--text-muted);font-size:.9rem;padding:8px;">— Choose a subject first —</div>';
   document.getElementById('qCountBadge').classList.add('hidden');
   document.getElementById('startBtn').disabled = true;
+  subjectSection.classList.add('hidden');
+
+  const modules = Object.keys(curriculum[year] || {});
+  if (!modules.length) {
+    document.getElementById('moduleGrid').innerHTML =
+      '<div style="color:var(--text-muted);font-size:.9rem;padding:4px;">No modules available for this year yet.</div>';
+    moduleSection.classList.remove('hidden');
+    return;
+  }
+
+  const moduleIcons = {
+    "GIT and Nutrition":               "🏥",
+    "Endocrine System and Metabolism": "🧬"
+  };
+  modules.forEach(mod => {
+    const btn = document.createElement('button');
+    btn.className = 'module-btn';
+    btn.dataset.module = mod;
+    btn.innerHTML = `<span class="m-icon">${moduleIcons[mod]||'📚'}</span>${mod}`;
+    btn.onclick = () => selectModule(mod);
+    document.getElementById('moduleGrid').appendChild(btn);
+  });
+  moduleSection.classList.remove('hidden');
 }
 
-function onLectureChange() {
-  const sel = document.getElementById('lectureSelect');
-  const lname = sel.value;
+function selectModule(mod) {
+  selectedModule  = mod;
+  selectedSubject = '';
+  selectedLectures = {};
+
+  document.querySelectorAll('.module-btn').forEach(b => b.classList.toggle('active', b.dataset.module === mod));
+
+  const subjectSection = document.getElementById('subjectSection');
+  const grid = document.getElementById('subjectGrid');
+  grid.innerHTML = '';
+  document.getElementById('lectureCheckList').innerHTML =
+    '<div style="color:var(--text-muted);font-size:.9rem;padding:8px;">— Choose a subject first —</div>';
+  document.getElementById('qCountBadge').classList.add('hidden');
+  document.getElementById('startBtn').disabled = true;
+
+  const names = (curriculum[selectedYear][mod] || []).filter(n => subjects[n]);
+  if (!names.length) {
+    grid.innerHTML = '<div style="color:var(--text-muted);font-size:.9rem;padding:4px;">No subjects in this module yet.</div>';
+    subjectSection.classList.remove('hidden');
+    return;
+  }
+  names.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'subject-btn';
+    btn.dataset.subject = name;
+    btn.innerHTML = `<span class="subj-icon">${subjects[name].icon}</span>${name}`;
+    btn.onclick = () => selectSubject(name);
+    grid.appendChild(btn);
+  });
+  subjectSection.classList.remove('hidden');
+}
+function onLectureChange() { updateLectureCount(); }  // kept for safety
+
+function updateLectureCount() {
+  let total = 0;
+  Object.entries(selectedLectures).forEach(([subj, lecSet]) => {
+    lecSet.forEach(lname => {
+      const qs = subjects[subj]?.lectures[lname];
+      if (qs) total += qs.length;
+    });
+  });
   const badge = document.getElementById('qCountBadge');
-  const startBtn = document.getElementById('startBtn');
-
-  if (!lname || !selectedSubject) {
-    badge.classList.add('hidden');
-    startBtn.disabled = true;
-    return;
+  const btn   = document.getElementById('startBtn');
+  if (total === 0) { badge.classList.add('hidden'); btn.disabled = true; }
+  else {
+    document.getElementById('qCountText').textContent = `${total} question${total !== 1 ? 's' : ''}`;
+    badge.classList.remove('hidden');
+    btn.disabled = false;
   }
+}
 
-  const qs = subjects[selectedSubject].lectures[lname];
-  if (!qs || qs.length === 0) {
-    badge.classList.add('hidden');
-    startBtn.disabled = true;
-    return;
-  }
+function selectAllLectures() {
+  if (!selectedSubject) return;
+  if (!selectedLectures[selectedSubject]) selectedLectures[selectedSubject] = new Set();
+  Object.keys(subjects[selectedSubject].lectures).forEach(l => selectedLectures[selectedSubject].add(l));
+  selectSubject(selectedSubject);
+}
 
-  document.getElementById('qCountText').textContent =
-    `${qs.length} question${qs.length !== 1 ? 's' : ''}`;
-  badge.classList.remove('hidden');
-  startBtn.disabled = false;
+function clearAllLectures() {
+  if (!selectedSubject) return;
+  if (selectedLectures[selectedSubject]) selectedLectures[selectedSubject].clear();
+  selectSubject(selectedSubject);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1874,30 +1976,43 @@ function startRetakeQuiz(questionsArray) {
 }
 
 function startQuiz() {
-  const lec  = document.getElementById('lectureSelect').value;
-  const mins = parseInt(document.getElementById('timeInput').value, 10);
+  const mins    = parseInt(document.getElementById('timeInput').value, 10);
+  const shuffle = document.getElementById('shuffleToggle').checked;
 
-  if (!selectedSubject)  return alert('Please choose a subject first.');
-  if (!lec)              return alert('Please choose a lecture first.');
+  let combined = [], totalLecCount = 0;
+  const involvedSubjects = [];
+  Object.entries(selectedLectures).forEach(([subj, lecSet]) => {
+    if (!lecSet.size) return;
+    involvedSubjects.push(subj);
+    lecSet.forEach(lname => {
+      combined = combined.concat(subjects[subj]?.lectures[lname] || []);
+      totalLecCount++;
+    });
+  });
+
+  if (!combined.length)   return alert('Please select at least one lecture.');
   if (!mins || mins <= 0) return alert('Please enter a valid duration in minutes.');
 
-  currentQuestions = subjects[selectedSubject].lectures[lec];
-  currentLecture = lec;
-  currentIndex     = 0;
-  userAnswers      = {};
-  markedSet        = new Set();
-  questionTimes    = {};
-  correctToWrong   = 0;
-  wrongToCorrect   = 0;
-  changeLog        = [];
-  changeLog        = [];
-  timeLeft         = mins * 60;
+  if (shuffle) {
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
+    }
+  }
+
+  selectedSubject  = involvedSubjects.length === 1 ? involvedSubjects[0] : involvedSubjects.join(' + ');
+  currentLecture   = totalLecCount === 1
+    ? [...selectedLectures[involvedSubjects[0]]][0]
+    : `${totalLecCount} lectures (${involvedSubjects.join(', ')})`;
+  currentQuestions = combined;
+  currentIndex = 0; userAnswers = {}; markedSet = new Set();
+  questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
+  timeLeft = mins * 60;
 
   showScreen('quiz');
   renderQuestion();
   startTimer();
 }
-
 /* ══════════════════════════════════════════════════════════
    TIMER
 ══════════════════════════════════════════════════════════ */
