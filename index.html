@@ -376,6 +376,48 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
+    /* ── YOU DIED IDLE EASTER EGG ── */
+@keyframes youDiedFadeIn {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes youDiedTextIn {
+  0%   { opacity: 0; letter-spacing: 30px; }
+  100% { opacity: 1; letter-spacing: 22px; }
+}
+@keyframes youDiedSubIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+#youDiedOverlay {
+  position: fixed; inset: 0; z-index: 11000;
+  background: #000;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 20px;
+  animation: none; opacity: 1;  cursor: pointer;
+}
+#youDiedOverlay .yd-text {
+  font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+  font-size: clamp(2.8rem, 9vw, 5.5rem);
+  font-weight: 400;
+  color: #9b3a2a;
+  letter-spacing: 22px;
+  text-indent: 22px;
+  text-transform: uppercase;
+  text-shadow: none;
+  animation: youDiedTextIn 1.5s ease forwards;  user-select: none;
+}
+#youDiedOverlay .yd-sub {
+  font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+  font-size: clamp(.7rem, 2vw, .9rem);
+  color: #4a3728;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  animation: youDiedSubIn 1.5s ease forwards;  user-select: none;
+}
     /* ── WATER EASTER EGG ── */
 @keyframes waterRise {
   0%   { transform: translateY(100%); }
@@ -1844,6 +1886,44 @@ function dismissWaterFlood() {
   document.getElementById('app').classList.remove('flush-app');
   showScreen('results');
 }
+/* ══════════════════════════════════════════════════════════
+   YOU DIED IDLE EASTER EGG
+══════════════════════════════════════════════════════════ */
+(function initYouDied() {
+  const IDLE_SECS = 1200; // ← change idle seconds here
+
+  let idleTimer = null;
+
+  function showYouDied() {
+    if (document.getElementById('youDiedOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'youDiedOverlay';
+    overlay.innerHTML = `
+      <div class="yd-text">You Died</div>
+      <div class="yd-sub">Slain by inactivity &nbsp;·&nbsp; Tap or press any key to continue</div>
+    `;
+    overlay.addEventListener('click', dismissYouDied);
+    document.addEventListener('keydown', dismissYouDied, { once: true });
+    document.body.appendChild(overlay);
+  }
+
+  function dismissYouDied() {
+    const ov = document.getElementById('youDiedOverlay');
+    if (ov) ov.remove();
+    resetIdleTimer();
+  }
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(showYouDied, IDLE_SECS * 1000);
+  }
+
+  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(evt =>
+    document.addEventListener(evt, resetIdleTimer, { passive: true })
+  );
+
+  resetIdleTimer();
+})();
 function goHome() {
   stopTimer();
   showScreen('home');
