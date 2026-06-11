@@ -659,7 +659,91 @@
         .stat-tile .stat-val { font-size: 1.1rem; }
         .subj-stat-name { min-width: 70px; font-size: .75rem; }
       }
-/* ── CHANGE FLOW ── */
+/* ── CUSTOM QUIZZES (AI) ── */
+.cq-section {
+  background: var(--bg-card);
+  border: 1px solid #B0D4F0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 4px;
+}
+.cq-section-title {
+  font-size: .78rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
+}
+.cq-help-box {
+  background: #F0F8FF; border: 1px solid #B0D4F0; border-radius: 8px;
+  padding: 12px 14px; font-size: .85rem; line-height: 1.6; color: var(--text-main);
+  margin-bottom: 14px;
+}
+.cq-help-box ol { margin: 6px 0 0 20px; }
+.cq-help-box a { color: var(--accent); font-weight: 700; text-decoration: none; }
+.cq-help-box a:hover { text-decoration: underline; }
+.cq-input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.cq-input-row input[type="password"],
+.cq-input-row input[type="text"] {
+  flex: 1; min-width: 180px;
+  padding: 11px 13px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .92rem; color: var(--text-main);
+  background: #F7FBFF; outline: none;
+}
+.cq-input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.cq-btn {
+  background: var(--accent); color: white; border: none; border-radius: 8px;
+  padding: 11px 18px; font-family: var(--font); font-size: .9rem; font-weight: 700;
+  cursor: pointer; transition: filter .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.cq-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.cq-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cq-btn-secondary { background: #78909C; }
+.cq-btn-danger { background: #C62828; }
+.cq-dropzone {
+  border: 2px dashed #B0D4F0; border-radius: 10px; padding: 22px 14px;
+  text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  background: #F7FBFF; margin-bottom: 10px;
+}
+.cq-dropzone:hover, .cq-dropzone.drag-over { border-color: var(--accent); background: #EEF7FF; }
+.cq-dropzone .cq-dz-icon { font-size: 1.8rem; margin-bottom: 6px; }
+.cq-dropzone .cq-dz-text { font-size: .88rem; color: var(--text-muted); font-weight: 600; }
+.cq-dropzone .cq-dz-file { font-size: .85rem; color: var(--accent); font-weight: 700; margin-top: 6px; }
+.cq-status {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: 8px; font-size: .88rem; font-weight: 600;
+  margin: 10px 0;
+}
+.cq-status.info { background: #E3F2FD; color: #0D47A1; }
+.cq-status.error { background: #FFEBEE; color: #C62828; }
+.cq-status.success { background: #E8F5E9; color: #2E7D32; }
+.cq-spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 3px solid rgba(13,71,161,.25); border-top-color: #0D47A1;
+  animation: cqspin .8s linear infinite; flex-shrink: 0;
+}
+@keyframes cqspin { to { transform: rotate(360deg); } }
+.cq-quiz-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.cq-quiz-info { flex: 1; min-width: 140px; }
+.cq-quiz-name { font-weight: 700; font-size: .92rem; color: var(--text-main); }
+.cq-quiz-meta { font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
+.cq-quiz-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cq-quiz-actions input[type="number"] {
+  width: 64px; padding: 7px 8px; border: 1.5px solid #B0D4F0; border-radius: 6px;
+  font-family: var(--font); font-size: .82rem; background: #fff;
+}
+.cq-preview-list {
+  max-height: 260px; overflow-y: auto; border: 1px solid #D8EAF7; border-radius: 8px;
+  padding: 10px 12px; background: #F7FBFF; margin: 10px 0;
+}
+.cq-preview-q { font-size: .85rem; padding: 8px 0; border-bottom: 1px solid #E3F2FD; }
+.cq-preview-q:last-child { border-bottom: none; }
+.cq-preview-q .cq-pq-num { font-weight: 800; color: var(--accent); }
+.cq-preview-q .cq-pq-opt { padding-left: 16px; color: var(--text-muted); }
+.cq-preview-q .cq-pq-opt.cq-correct { color: var(--correct-fg); font-weight: 700; }
+
 .change-flow-section {
   background: var(--bg-card);
   border: 1px solid #B0D4F0;
@@ -698,6 +782,128 @@
 .c2w .cf-verdict { color: #C62828; }
 .w2c .cf-verdict { color: #2E7D32; }
 .w2w .cf-verdict { color: #E65100; }
+
+/* ── CQ MODE TABS ── */
+.cq-tabs {
+  display: flex; gap: 6px; margin-bottom: 14px;
+}
+.cq-tab-btn {
+  flex: 1; padding: 9px 10px; border-radius: 8px; border: 2px solid #B0D4F0;
+  background: #F7FBFF; font-family: var(--font); font-size: .82rem; font-weight: 700;
+  color: var(--text-muted); cursor: pointer; transition: all .15s; text-align: center;
+}
+.cq-tab-btn:hover { border-color: var(--accent); color: var(--accent); background: #EEF7FF; }
+.cq-tab-btn.active {
+  border-color: var(--accent); background: var(--accent); color: #fff;
+}
+
+/* ── GENERATE FROM LECTURE ── */
+.cq-textarea {
+  width: 100%; padding: 11px 13px;
+  border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .9rem; color: var(--text-main);
+  background: #F7FBFF; outline: none; resize: vertical; min-height: 80px;
+  margin-bottom: 10px; transition: border-color .2s, box-shadow .2s;
+}
+.cq-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.cq-field-hint {
+  font-size: .76rem; color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
+}
+.cq-qcount-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.cq-qcount-row label {
+  font-size: .82rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;
+}
+.cq-qcount-row input[type="number"] {
+  width: 90px; padding: 9px 11px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .9rem; background: #F7FBFF; outline: none;
+}
+.cq-qcount-row input[type="number"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.cq-badge-row {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.cq-badge {
+  background: #E3F2FD; color: #0D47A1; border-radius: 20px;
+  padding: 4px 11px; font-size: .75rem; font-weight: 700;
+}
+
+/* ── COMMUNITY QUIZZES ── */
+.cq-share-btn {
+  background: #7B1FA2; color: white; border: none; border-radius: 8px;
+  padding: 8px 14px; font-family: var(--font); font-size: .82rem; font-weight: 700;
+  cursor: pointer; transition: filter .15s;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.cq-share-btn:hover:not(:disabled) { filter: brightness(1.12); }
+.cq-share-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.community-quiz-item {
+  background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 10px;
+}
+.community-quiz-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.community-quiz-title { font-weight: 800; font-size: .95rem; color: var(--text-main); margin-bottom: 2px; }
+.community-quiz-meta { font-size: .76rem; color: var(--text-muted); margin-bottom: 8px; }
+.community-quiz-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.community-section-tabs {
+  display: flex; gap: 6px; margin-bottom: 14px;
+}
+.community-tab-btn {
+  flex: 1; padding: 9px 10px; border-radius: 8px; border: 2px solid #B0D4F0;
+  background: #F7FBFF; font-family: var(--font); font-size: .82rem; font-weight: 700;
+  color: var(--text-muted); cursor: pointer; transition: all .15s; text-align: center;
+}
+.community-tab-btn:hover { border-color: var(--accent); color: var(--accent); background: #EEF7FF; }
+.community-tab-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.community-empty {
+  text-align: center; padding: 28px 16px; color: var(--text-muted); font-size: .9rem;
+}
+.community-empty .ce-icon { font-size: 2rem; margin-bottom: 8px; }
+
+/* ── DISPLAY NAME MODAL ── */
+.dn-overlay {
+  position: fixed; inset: 0; z-index: 12000;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.dn-modal {
+  background: white; border-radius: 14px; padding: 28px 28px 24px;
+  max-width: 420px; width: 100%;
+  box-shadow: 0 8px 40px rgba(0,0,0,.22);
+}
+.dn-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; }
+.dn-sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+.dn-input {
+  width: 100%; padding: 11px 13px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .95rem; color: var(--text-main);
+  background: #F7FBFF; outline: none; margin-bottom: 14px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.dn-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.dn-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.dn-btn-cancel {
+  background: #F7FBFF; color: var(--text-muted); border: 1.5px solid #B0D4F0;
+  border-radius: 8px; padding: 10px 18px; font-family: var(--font); font-size: .88rem;
+  font-weight: 700; cursor: pointer;
+}
+.dn-btn-confirm {
+  background: var(--accent); color: white; border: none; border-radius: 8px;
+  padding: 10px 20px; font-family: var(--font); font-size: .88rem; font-weight: 700;
+  cursor: pointer; transition: filter .15s;
+}
+.dn-btn-confirm:hover { filter: brightness(1.08); }
+.dn-char-counter { font-size: .75rem; color: var(--text-muted); text-align: right; margin-top: -10px; margin-bottom: 12px; }
+
+/* ── SHARE CONFIRMATION CHIP ── */
+.share-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #F3E5F5; color: #7B1FA2; border: 1px solid #CE93D8;
+  border-radius: 20px; padding: 4px 12px; font-size: .78rem; font-weight: 700;
+  margin-top: 4px;
+}
   </style>
 </head>
 <body>
@@ -727,6 +933,43 @@
     </div>
   </div>
 
+<!-- CUSTOM QUIZZES MODAL -->
+  <div id="customQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeCustomQuizzes()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>🤖&nbsp; Custom Quizzes (AI)</h2>
+        <button class="stats-close-btn" onclick="closeCustomQuizzes()">✕</button>
+      </div>
+      <div class="stats-body" id="customQuizBody"></div>
+    </div>
+  </div>
+
+<!-- COMMUNITY QUIZZES MODAL -->
+  <div id="communityQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeCommunityQuizzes()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>🌐&nbsp; Community Quizzes</h2>
+        <button class="stats-close-btn" onclick="closeCommunityQuizzes()">✕</button>
+      </div>
+      <div class="stats-body" id="communityQuizBody"></div>
+    </div>
+  </div>
+
+<!-- DISPLAY NAME MODAL -->
+  <div id="displayNameOverlay" class="dn-overlay hidden">
+    <div class="dn-modal">
+      <div class="dn-title">&#128100; Choose a Display Name</div>
+      <div class="dn-sub">This name will appear publicly when you share quizzes. Your email address will never be shown.</div>
+      <input class="dn-input" id="displayNameInput" type="text" maxlength="30"
+             placeholder="e.g. MedStudent2026" oninput="updateDnCounter()" />
+      <div class="dn-char-counter"><span id="dnCharCount">0</span>/30</div>
+      <div class="dn-actions">
+        <button class="dn-btn-cancel" onclick="cancelDisplayName()">Cancel</button>
+        <button class="dn-btn-confirm" onclick="confirmDisplayName()">Save &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════════════════════════════════════
        HOME SCREEN
   ══════════════════════════════════════════════ -->
@@ -734,8 +977,11 @@
     <div class="home-hero">
       <h1>🏥&nbsp; ANU MSP Question Bank</h1>
       <p>Choose your subject, pick a lecture, and test your knowledge</p>
+      <div id="authAreaHome" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 6px;flex-wrap:wrap;"></div>
         <button class="stats-open-btn" onclick="openStats()">📊&nbsp; My Statistics</button>
         <button class="stats-open-btn" onclick="openRetake()">🔄&nbsp; Retake Wrong Qs</button>
+        <button class="stats-open-btn" onclick="openCustomQuizzes()">🤖&nbsp; Custom Quizzes</button>
+        <button class="stats-open-btn" onclick="openCommunityQuizzes()">🌐&nbsp; Community Quizzes</button>
     </div>
     <div class="home-body">
       <div class="card">
@@ -813,6 +1059,7 @@
   <div id="quiz" class="hidden">
     <div class="header">
       <div class="header-title"><span>🏥</span>&nbsp; ANU MSP Question Bank</div>
+      <div id="authAreaQuiz" style="display:flex;align-items:center;gap:8px;"></div>
       <div class="timer" id="timerDisplay">00:00</div>
     </div>
     <div class="quiz-body">
@@ -857,6 +1104,67 @@
 <script src="data/git_module.js"></script>
 <script src="data/endocrine_module.js"></script>
 <script>
+  /* ══════════════════════════════════════════════════════════
+   AUTH UI
+══════════════════════════════════════════════════════════ */
+function updateAuthUI(user) {
+  const homeArea = document.getElementById('authAreaHome');
+  const quizArea = document.getElementById('authAreaQuiz');
+
+  if (user) {
+    // Logged-in state
+    const loggedInHTML = `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <img src="${user.photoURL}"
+             style="width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.6);"
+             onerror="this.style.display='none'" />
+        <span style="color:white;font-size:.85rem;font-weight:700;">
+          ${user.displayName ? user.displayName.split(' ')[0] : 'User'}
+        </span>
+        <button onclick="fbSignOut()"
+                style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);
+                       color:white;padding:5px 12px;border-radius:6px;cursor:pointer;
+                       font-weight:700;font-size:.78rem;font-family:var(--font);">
+          Sign out
+        </button>
+      </div>`;
+    if (homeArea) homeArea.innerHTML = loggedInHTML;
+    if (quizArea) quizArea.innerHTML = loggedInHTML;
+  } else {
+    // Logged-out state
+    const signInHTML = `
+      <button onclick="fbSignIn()"
+              style="background:white;color:#1B8AC4;border:none;padding:8px 16px;
+                     border-radius:8px;cursor:pointer;font-weight:800;font-size:.85rem;
+                     display:flex;align-items:center;gap:7px;font-family:var(--font);
+                     box-shadow:0 2px 8px rgba(0,0,0,.15);">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+             style="width:17px;height:17px;" />
+        Sign in with Google
+      </button>`;
+    if (homeArea) homeArea.innerHTML = signInHTML;
+    if (quizArea) quizArea.innerHTML = signInHTML;
+  }
+}
+
+async function fbSignIn() {
+  try {
+    await window._signInWithPopup(window._auth, window._GoogleProvider);
+    // onAuthStateChanged fires automatically after this — no extra code needed
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user') {
+      alert('Sign-in failed: ' + e.message);
+    }
+  }
+}
+
+async function fbSignOut() {
+  if (!confirm('Sign out of your account?')) return;
+  await window._signOut(window._auth);
+  window._currentUser  = null;
+  window._cachedStats  = null;
+  updateAuthUI(null);
+}
   function updateSubjectButtonStates() {
   document.querySelectorAll('.subject-btn').forEach(btn => {
     const name  = btn.dataset.subject;
@@ -1559,15 +1867,48 @@ function defaultStats() {
   };
 }
 
-function loadStats() {
+// Called once after login — loads stats from Firestore into memory
+async function loadStatsFromFirestore() {
+  if (!window._currentUser) return;
   try {
-    const raw = localStorage.getItem(STATS_KEY);
-    return raw ? Object.assign(defaultStats(), JSON.parse(raw)) : defaultStats();
-  } catch(e) { return defaultStats(); }
+    const ref  = window._doc(window._db, 'stats', window._currentUser.uid);
+    const snap = await window._getDoc(ref);
+    if (snap.exists()) {
+      window._cachedStats = Object.assign(defaultStats(), snap.data());
+    } else {
+      window._cachedStats = defaultStats();
+    }
+  } catch(e) {
+    console.error('Failed to load stats from Firestore:', e);
+    window._cachedStats = defaultStats();
+  }
+}
+
+// Called everywhere stats are read — returns the in-memory cache
+function loadStats() {
+  if (window._currentUser) {
+    // Signed in — use Firestore cache (or empty if still loading)
+    return window._cachedStats || defaultStats();
+  } else {
+    // Not signed in — fall back to localStorage
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      return raw ? Object.assign(defaultStats(), JSON.parse(raw)) : defaultStats();
+    } catch(e) { return defaultStats(); }
+  }
 }
 
 function persistStats(st) {
-  try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch(e) {}
+  window._cachedStats = st; // always update the in-memory cache
+
+  if (window._currentUser) {
+    // Signed in — save to Firestore
+    const ref = window._doc(window._db, 'stats', window._currentUser.uid);
+    window._setDoc(ref, st).catch(e => console.error('Failed to save stats:', e));
+  } else {
+    // Not signed in — save to localStorage as fallback
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch(e) {}
+  }
 }
 
 function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
@@ -1605,12 +1946,41 @@ function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, 
   persistStats(st);
 }
 
-function openStats()  { renderStatsModal(); document.getElementById('statsOverlay').classList.remove('hidden'); }
+function openStats() {
+  document.getElementById('statsOverlay').classList.remove('hidden');
+
+  if (window._currentUser && !window._cachedStats) {
+    // Still loading from Firestore — show spinner
+    document.getElementById('statsBody').innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--text-muted);">
+        <div style="font-size:2rem;margin-bottom:12px;">⏳</div>
+        <div style="font-weight:700;">Loading your stats…</div>
+      </div>`;
+    // Try again shortly
+    setTimeout(() => {
+      if (document.getElementById('statsOverlay').classList.contains('hidden')) return;
+      renderStatsModal();
+    }, 1500);
+  } else {
+    renderStatsModal();
+  }
+}
 function closeStats() { document.getElementById('statsOverlay').classList.add('hidden'); }
 
 function resetStats() {
   if (!confirm('Reset ALL statistics? This cannot be undone.')) return;
-  localStorage.removeItem(STATS_KEY);
+
+  window._cachedStats = defaultStats();
+
+  if (window._currentUser) {
+    // Signed in — overwrite Firestore doc with empty stats
+    const ref = window._doc(window._db, 'stats', window._currentUser.uid);
+    window._setDoc(ref, defaultStats()).catch(e => console.error('Failed to reset stats:', e));
+  } else {
+    // Not signed in — clear localStorage
+    localStorage.removeItem(STATS_KEY);
+  }
+
   renderStatsModal();
 }
 
@@ -1924,10 +2294,1095 @@ function dismissWaterFlood() {
 
   resetIdleTimer();
 })();
+
+/* ══════════════════════════════════════════════════════════
+   CUSTOM QUIZZES — AI-POWERED (GEMINI)
+══════════════════════════════════════════════════════════ */
+const CQ_KEY           = 'anu_msp_custom_quizzes_v1';
+const CQ_API_KEY_STORE = 'anu_msp_gemini_api_key';
+const CQ_MODEL         = 'gemini-2.5-flash';
+
+let cqSelectedFile      = null;
+let cqGeneratedQuestions = null;
+let cqGeneratedTitle    = '';
+let cqBusy              = false;
+
+// ── NEW: Generate from lecture state ──
+let cqMode              = 'extract'; // 'extract' | 'generate'
+let cqLectureFile       = null;
+let cqCustomPrompt      = '';
+let cqQuestionCount     = '';
+
+function setCQMode(mode) {
+  cqMode = mode;
+  renderCustomQuizModal();
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function loadCustomQuizzes() {
+  return window._cachedCustomQuizzes || [];
+}
+
+async function loadCustomQuizzesFromFirestore() {
+  if (!window._currentUser) return;
+  try {
+    const col = window._collection(window._db, 'users', window._currentUser.uid, 'customQuizzes');
+    const snap = await window._getDocs(col);
+    const quizzes = [];
+    snap.forEach(d => quizzes.push(d.data()));
+    quizzes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    window._cachedCustomQuizzes = quizzes;
+  } catch (e) {
+    console.error('Failed to load custom quizzes:', e);
+    try {
+      const raw = localStorage.getItem(CQ_KEY);
+      window._cachedCustomQuizzes = raw ? JSON.parse(raw) : [];
+    } catch (_) { window._cachedCustomQuizzes = []; }
+  }
+}
+async function saveCustomQuizzesList(arr) {
+  window._cachedCustomQuizzes = arr;
+  if (window._currentUser) {
+    try {
+      const col = window._collection(window._db, 'users', window._currentUser.uid, 'customQuizzes');
+      const snap = await window._getDocs(col);
+      const existingIds = new Set();
+      snap.forEach(d => existingIds.add(d.id));
+      const newIds = new Set(arr.map(q => q.id));
+      for (const id of existingIds) {
+        if (!newIds.has(id)) {
+          await window._deleteDoc(window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', id));
+        }
+      }
+      for (const quiz of arr) {
+        const ref = window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', quiz.id);
+        await window._setDoc(ref, quiz);
+      }
+    } catch (e) { console.error('Failed to save custom quizzes:', e); }
+  } else {
+    try { localStorage.setItem(CQ_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+}
+function getGeminiKey() {
+  try { return localStorage.getItem(CQ_API_KEY_STORE) || ''; } catch (e) { return ''; }
+}
+function setGeminiKey(key) {
+  try { localStorage.setItem(CQ_API_KEY_STORE, (key || '').trim()); } catch (e) {}
+}
+
+function openCustomQuizzes() {
+  cqSelectedFile = null;
+  cqGeneratedQuestions = null;
+  cqGeneratedTitle = '';
+  cqBusy = false;
+  cqLectureFile = null;
+  cqCustomPrompt = '';
+  cqQuestionCount = '';
+  document.getElementById('customQuizOverlay').classList.remove('hidden');
+  renderCustomQuizModal();
+}
+function closeCustomQuizzes() {
+  document.getElementById('customQuizOverlay').classList.add('hidden');
+}
+
+function toggleCQKeyVisibility() {
+  const input = document.getElementById('cqApiKeyInput');
+  const btn   = document.getElementById('cqToggleKeyBtn');
+  if (!input) return;
+  if (input.type === 'password') { input.type = 'text';     btn.textContent = '🙈'; }
+  else                            { input.type = 'password'; btn.textContent = '👁'; }
+}
+
+function renderCustomQuizModal() {
+  const body     = document.getElementById('customQuizBody');
+  const savedKey = getGeminiKey();
+  const quizzes  = loadCustomQuizzes();
+
+  let html = '';
+
+  /* ── Saved custom quizzes ── */
+  html += `<div class="cq-section">
+    <div class="cq-section-title">📚 Your Custom Quizzes</div>`;
+  if (!quizzes.length) {
+    html += `<div class="empty-state" style="padding:12px;">
+      <div class="empty-icon">📭</div>
+      No custom quizzes yet — create one below using AI.
+    </div>`;
+  } else {
+    quizzes.forEach(q => {
+      const defMins = Math.max(5, q.questions.length);
+      html += `<div class="cq-quiz-item">
+        <div class="cq-quiz-info">
+          <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
+          <div class="cq-quiz-meta">${q.questions.length} question${q.questions.length !== 1 ? 's' : ''} &middot; created ${new Date(q.createdAt).toLocaleDateString()}${q.sharedAt ? ' &middot; <span class="share-chip">&#127758; Shared</span>' : ''}</div>
+        </div>
+        <div class="cq-quiz-actions">
+          <input type="number" id="cqMins_${q.id}" value="${defMins}" min="1" max="180" title="Duration (minutes)" />
+          <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;" title="Shuffle questions">
+            <input type="checkbox" id="cqShuffle_${q.id}" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
+          </label>
+          <button class="cq-btn" onclick="startCustomQuiz('${q.id}')">&#9654; Start</button>
+          <button class="cq-share-btn" onclick="shareCustomQuiz('${q.id}')" title="Share with community">&#128279; Share</button>
+          <button class="cq-btn cq-btn-danger" onclick="deleteCustomQuiz('${q.id}')">&#128465;</button>
+        </div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  /* ── Create new quiz with AI ── */
+  html += `<div class="cq-section">
+    <div class="cq-section-title">✨ Create a New Quiz with AI (Gemini)</div>
+
+    <!-- API Key -->
+    <div class="cq-help-box">
+      <strong>How to get a free Gemini API key:</strong>
+      <ol>
+        <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
+        <li>Sign in with your Google account</li>
+        <li>Click <strong>"Create API key"</strong> (choose or create a project if asked)</li>
+        <li>Copy the generated key and paste it into the box below</li>
+      </ol>
+      Your key is saved only in this browser and is sent directly to Google's API — it never passes through any other server.
+    </div>
+    <div class="cq-input-row">
+      <input type="password" id="cqApiKeyInput" placeholder="Paste your Gemini API key here"
+             value="${escapeHtml(savedKey)}" oninput="setGeminiKey(this.value)" />
+      <button class="cq-btn cq-btn-secondary" id="cqToggleKeyBtn" onclick="toggleCQKeyVisibility()" type="button">👁</button>
+    </div>
+
+    <!-- Mode tabs -->
+    <div class="cq-tabs">
+      <button class="cq-tab-btn ${cqMode === 'extract' ? 'active' : ''}" onclick="setCQMode('extract')">📋 Extract from MCQs</button>
+      <button class="cq-tab-btn ${cqMode === 'generate' ? 'active' : ''}" onclick="setCQMode('generate')">🧠 Generate from Lecture</button>
+    </div>
+
+    <!-- TAB: Extract from MCQs (original flow) -->
+    <div id="cqTabExtract" ${cqMode !== 'extract' ? 'style="display:none"' : ''}>
+      <div class="cq-field-hint">Upload an image or PDF that already contains MCQ questions — the AI will extract them exactly as written.</div>
+      <div class="cq-dropzone" id="cqDropzone" onclick="document.getElementById('cqFileInput').click()">
+        <div class="cq-dz-icon">📄🖼️</div>
+        <div class="cq-dz-text">Click to upload, or drag &amp; drop — an image or PDF of your quiz questions</div>
+        ${cqSelectedFile ? `<div class="cq-dz-file">✅ ${escapeHtml(cqSelectedFile.name)}</div>` : ''}
+      </div>
+      <input type="file" id="cqFileInput" accept="image/*,application/pdf" style="display:none;" onchange="handleCQFileSelect(event)" />
+      <div class="cq-input-row">
+        <input type="text" id="cqTitleInput" placeholder="Quiz title (e.g. 'Cardio Lecture 3')"
+               value="${escapeHtml(cqGeneratedTitle)}" oninput="cqGeneratedTitle = this.value" />
+        <button class="cq-btn" id="cqGenerateBtn" onclick="generateQuizFromAI()" ${cqBusy ? 'disabled' : ''}>
+          ${cqBusy ? '⏳ Generating…' : '✨ Extract Questions'}
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB: Generate from Lecture -->
+    <div id="cqTabGenerate" ${cqMode !== 'generate' ? 'style="display:none"' : ''}>
+      <div class="cq-badge-row">
+        <span class="cq-badge">🏥 Clinical scenarios included</span>
+        <span class="cq-badge">🎯 Hard difficulty</span>
+        <span class="cq-badge">🤖 AI-written questions</span>
+      </div>
+      <div class="cq-field-hint">Upload your lecture (PDF, image, or .txt file) — the AI will generate brand-new original questions from the content.</div>
+      <div class="cq-dropzone" id="cqLectureDropzone" onclick="document.getElementById('cqLectureFileInput').click()">
+        <div class="cq-dz-icon">📚🔬</div>
+        <div class="cq-dz-text">Click to upload, or drag &amp; drop — PDF, image, or .txt lecture file</div>
+        ${cqLectureFile ? `<div class="cq-dz-file">✅ ${escapeHtml(cqLectureFile.name)}</div>` : ''}
+      </div>
+      <input type="file" id="cqLectureFileInput" accept="image/*,application/pdf,text/plain,.txt" style="display:none;" onchange="handleLectureFileSelect(event)" />
+
+      <div class="cq-qcount-row">
+        <label for="cqQCountInput">Number of questions:</label>
+        <input type="number" id="cqQCountInput" placeholder="Auto" min="5" max="100"
+               value="${escapeHtml(cqQuestionCount)}" oninput="cqQuestionCount = this.value" />
+        <span class="cq-field-hint" style="margin:0;">(leave blank = AI decides based on content)</span>
+      </div>
+
+      <div class="cq-field-hint">Custom prompt / focus (optional):</div>
+      <textarea class="cq-textarea" id="cqCustomPromptInput"
+        placeholder="e.g. Focus on drug mechanisms and side effects. Include dosing questions."
+        oninput="cqCustomPrompt = this.value">${escapeHtml(cqCustomPrompt)}</textarea>
+
+      <div class="cq-input-row">
+        <input type="text" id="cqLectureTitleInput" placeholder="Quiz title (e.g. 'Respiratory Lecture 2')"
+               value="${escapeHtml(cqGeneratedTitle)}" oninput="cqGeneratedTitle = this.value" />
+        <button class="cq-btn" id="cqLectureGenBtn" onclick="generateQuizFromLecture()" ${cqBusy ? 'disabled' : ''}>
+          ${cqBusy ? '⏳ Generating…' : '🧠 Generate Questions'}
+        </button>
+      </div>
+    </div>
+
+    <div id="cqStatus"></div>
+    <div id="cqPreviewArea"></div>
+  </div>`;
+
+  body.innerHTML = html;
+
+  if (cqGeneratedQuestions) renderCQPreview();
+  setupCQDropzone();
+  setupLectureDropzone();
+}
+
+function setupCQDropzone() {
+  const dz = document.getElementById('cqDropzone');
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+  }));
+  dz.addEventListener('drop', e => {
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) acceptCQFile(file);
+  });
+}
+
+function setupLectureDropzone() {
+  const dz = document.getElementById('cqLectureDropzone');
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+  }));
+  dz.addEventListener('drop', e => {
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) acceptLectureFile(file);
+  });
+}
+
+function handleCQFileSelect(event) {
+  const file = event.target.files && event.target.files[0];
+  if (file) acceptCQFile(file);
+}
+
+function handleLectureFileSelect(event) {
+  const file = event.target.files && event.target.files[0];
+  if (file) acceptLectureFile(file);
+}
+
+function acceptLectureFile(file) {
+  const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = file.type.startsWith('image/');
+  const isTxt   = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+  const statusEl = document.getElementById('cqStatus');
+
+  if (!isPdf && !isImage && !isTxt) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a PDF, image (JPG/PNG/WEBP), or .txt file.</div>`;
+    return;
+  }
+  if (file.size > 19 * 1024 * 1024) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File is too large (max ~19MB).</div>`;
+    return;
+  }
+
+  cqLectureFile = file;
+  if (statusEl) statusEl.innerHTML = '';
+  renderCustomQuizModal();
+}
+
+function acceptCQFile(file) {
+  const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = file.type.startsWith('image/');
+  const statusEl = document.getElementById('cqStatus');
+
+  if (!isPdf && !isImage) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload an image (JPG/PNG/WEBP) or a PDF file.</div>`;
+    return;
+  }
+  if (file.size > 19 * 1024 * 1024) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File is too large (max ~19MB).</div>`;
+    return;
+  }
+
+  cqSelectedFile = file;
+  if (statusEl) statusEl.innerHTML = '';
+  renderCustomQuizModal();
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('Failed to read the file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+const CQ_EXTRACTION_PROMPT = `You are extracting multiple-choice quiz questions from an uploaded document (image or PDF).
+
+STRICT RULES — follow exactly, no exceptions:
+1. Extract EVERY single question that appears anywhere in the document. Do not skip, merge, summarize, or leave out any question — even ones that look incomplete, partial, blurry, or unusual.
+2. Reproduce each question's text EXACTLY as written in the source — same wording, numbers, punctuation, and even typos. Do NOT correct, rephrase, shorten, translate, or "improve" anything.
+3. Reproduce EVERY answer choice EXACTLY as written, in the same order, using the same labels (A, B, C, D, E, ... — convert numeric labels like 1,2,3 to A,B,C). Do not omit, reorder, merge, or reword any choice.
+4. If the document indicates which choice is correct (circled, bolded, underlined, highlighted, starred, checked, or listed in a separate answer key), use EXACTLY that choice as the "answer" for that question. Do not second-guess or change a marked answer.
+5. ONLY if a specific question has NO indicated correct answer anywhere in the document, then — and only then — use your own subject-matter knowledge to determine the single most likely correct answer for that question.
+6. Do not invent, add, duplicate, or remove any questions or options that are not present in the source document.
+
+Return ONLY a JSON array, one object per question, in exactly this format:
+[
+  {
+    "question": "exact question text",
+    "options": { "A": "exact choice text", "B": "exact choice text", "C": "exact choice text", "D": "exact choice text" },
+    "answer": "A"
+  }
+]
+
+The "answer" value must be one of the keys present in that question's "options" object. Output nothing besides this JSON array — no markdown fences, no commentary.`;
+
+const CQ_RESPONSE_SCHEMA = {
+  type: 'ARRAY',
+  items: {
+    type: 'OBJECT',
+    properties: {
+      question: { type: 'STRING' },
+      options: {
+        type: 'OBJECT',
+        properties: {
+          A: { type: 'STRING' }, B: { type: 'STRING' }, C: { type: 'STRING' }, D: { type: 'STRING' },
+          E: { type: 'STRING' }, F: { type: 'STRING' }, G: { type: 'STRING' }, H: { type: 'STRING' },
+          I: { type: 'STRING' }, J: { type: 'STRING' }
+        }
+      },
+      answer: { type: 'STRING' }
+    },
+    required: ['question', 'options', 'answer']
+  }
+};
+
+async function generateQuizFromAI() {
+  const apiKeyInput = document.getElementById('cqApiKeyInput');
+  const titleInput  = document.getElementById('cqTitleInput');
+  const statusEl    = document.getElementById('cqStatus');
+  const genBtn      = document.getElementById('cqGenerateBtn');
+
+  const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
+  const title  = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
+
+  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!cqSelectedFile){ statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload an image or PDF of your quiz first.</div>`; return; }
+  if (!title)         { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
+
+  setGeminiKey(apiKey);
+  cqGeneratedTitle = title;
+  cqBusy = true;
+  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
+  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file and extracting all questions… this can take a moment for longer documents.</div>`;
+
+  try {
+    const base64Data = await fileToBase64(cqSelectedFile);
+    const mimeType = cqSelectedFile.type ||
+      (cqSelectedFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: mimeType, data: base64Data } },
+            { text: CQ_EXTRACTION_PROMPT }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: CQ_RESPONSE_SCHEMA,
+          temperature: 0,
+          maxOutputTokens: 65536
+        }
+      })
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const msg = (data && data.error && data.error.message) || `Request failed (HTTP ${resp.status}).`;
+      throw new Error(msg);
+    }
+
+    const candidate = data && data.candidates && data.candidates[0];
+    if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or blocked — try a clearer image or PDF.');
+
+    const finishReason = candidate.finishReason;
+    const textOut = (candidate.content && candidate.content.parts || [])
+      .map(p => p.text || '').join('');
+    if (!textOut.trim()) throw new Error('Gemini returned an empty response. Please try again.');
+
+    let parsed;
+    try { parsed = JSON.parse(textOut); }
+    catch (e) { throw new Error('Could not understand the AI response. Please try again.'); }
+
+    if (!Array.isArray(parsed) || !parsed.length) {
+      throw new Error('No questions could be detected in the uploaded file.');
+    }
+
+    const cleaned = parsed.map(q => {
+      if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
+      const opts = {};
+      Object.entries(q.options).forEach(([k, v]) => {
+        if (typeof v === 'string' && v.trim() !== '') opts[k.toUpperCase()] = v;
+      });
+      if (!Object.keys(opts).length) return null;
+      let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
+      if (!opts[answer]) answer = Object.keys(opts)[0];
+      return { question: q.question, options: opts, answer };
+    }).filter(Boolean);
+
+    if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
+
+    cqGeneratedQuestions = cleaned;
+
+    let warn = '';
+    if (finishReason === 'MAX_TOKENS') {
+      warn = ` ⚠️ The response may have been cut off because the document is very large — please check below that the last question is complete, and split very long documents into smaller files if needed.`;
+    }
+
+    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}. Review below, then save.${warn}</div>`;
+    renderCQPreview();
+
+  } catch (err) {
+    statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+  } finally {
+    cqBusy = false;
+    const btn = document.getElementById('cqGenerateBtn');
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Quiz'; }
+  }
+}
+
+function buildGenerationPrompt(questionCount, customPrompt) {
+  const countInstruction = (questionCount && parseInt(questionCount) > 0)
+    ? `Generate exactly ${parseInt(questionCount)} questions.`
+    : `Decide the appropriate number of questions based on the content length — aim for roughly 1 question per major concept or topic, with a minimum of 10 and a maximum of 60.`;
+
+  const focusInstruction = (customPrompt && customPrompt.trim())
+    ? `Custom focus from the user: "${customPrompt.trim()}"`
+    : `Cover all major topics in the material comprehensively.`;
+
+  return `You are an expert medical exam question writer. Read the uploaded lecture material carefully and generate original, high-quality multiple-choice questions (MCQs) based ONLY on the content provided.
+
+QUESTION COUNT: ${countInstruction}
+
+DIFFICULTY: Hard — questions must require reasoning, clinical application, or integration of concepts. Avoid simple recall questions.
+
+QUESTION TYPES:
+- At least 50% of questions must be clinical scenario questions. These should start with a patient presentation, e.g.: "A 52-year-old male with a history of hypertension presents to the emergency department with sudden-onset chest pain radiating to the left arm..."
+- The remaining questions can test mechanisms, pathophysiology, pharmacology, or key concepts from the lecture.
+
+FOCUS: ${focusInstruction}
+
+STRICT RULES:
+1. Write ALL questions yourself — do NOT copy sentences from the lecture verbatim.
+2. Every question must have exactly 4 or 5 answer options (A, B, C, D — or A through E).
+3. Only one option is correct. Make the distractors plausible and clinically realistic.
+4. The correct answer must be definitively supported by the lecture content.
+5. Do NOT include any question that cannot be answered from the provided material.
+6. Do NOT add explanations, rationales, or commentary.
+
+Return ONLY a JSON array, one object per question, in exactly this format:
+[
+  {
+    "question": "full question text here",
+    "options": { "A": "option text", "B": "option text", "C": "option text", "D": "option text" },
+    "answer": "A"
+  }
+]
+
+The "answer" value must be one of the keys present in that question's "options" object. Output nothing besides the JSON array — no markdown fences, no preamble, no commentary.`;
+}
+
+function fileToText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result || '');
+    reader.onerror = () => reject(new Error('Failed to read the file.'));
+    reader.readAsText(file);
+  });
+}
+
+async function generateQuizFromLecture() {
+  const apiKeyInput   = document.getElementById('cqApiKeyInput');
+  const titleInput    = document.getElementById('cqLectureTitleInput');
+  const qCountInput   = document.getElementById('cqQCountInput');
+  const promptInput   = document.getElementById('cqCustomPromptInput');
+  const statusEl      = document.getElementById('cqStatus');
+  const genBtn        = document.getElementById('cqLectureGenBtn');
+
+  const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
+  const title  = (titleInput  ? titleInput.value  : cqGeneratedTitle).trim();
+  const qCount = (qCountInput ? qCountInput.value : cqQuestionCount).trim();
+  const prompt = (promptInput ? promptInput.value : cqCustomPrompt).trim();
+
+  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!cqLectureFile) { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a lecture file first.</div>`; return; }
+  if (!title)         { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
+
+  setGeminiKey(apiKey);
+  cqGeneratedTitle = title;
+  cqCustomPrompt   = prompt;
+  cqQuestionCount  = qCount;
+  cqBusy = true;
+  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
+  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your lecture and generating questions… this may take up to a minute for longer documents.</div>`;
+
+  try {
+    const isTxt = cqLectureFile.type === 'text/plain' || cqLectureFile.name.toLowerCase().endsWith('.txt');
+    const generationPrompt = buildGenerationPrompt(qCount, prompt);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    let requestBody;
+
+    if (isTxt) {
+      // Text file: send as plain text alongside the prompt
+      const lectureText = await fileToText(cqLectureFile);
+      if (!lectureText.trim()) throw new Error('The text file appears to be empty.');
+      requestBody = {
+        contents: [{
+          parts: [
+            { text: `LECTURE CONTENT:\n\n${lectureText}\n\n---\n\n${generationPrompt}` }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: CQ_RESPONSE_SCHEMA,
+          temperature: 0.7,
+          maxOutputTokens: 65536
+        }
+      };
+    } else {
+      // PDF or image: send as base64
+      const base64Data = await fileToBase64(cqLectureFile);
+      const mimeType = cqLectureFile.type ||
+        (cqLectureFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+      requestBody = {
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: mimeType, data: base64Data } },
+            { text: generationPrompt }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: CQ_RESPONSE_SCHEMA,
+          temperature: 0.7,
+          maxOutputTokens: 65536
+        }
+      };
+    }
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const msg = (data && data.error && data.error.message) || `Request failed (HTTP ${resp.status}).`;
+      throw new Error(msg);
+    }
+
+    const candidate = data && data.candidates && data.candidates[0];
+    if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or too large — try splitting it into smaller sections.');
+
+    const finishReason = candidate.finishReason;
+    const textOut = (candidate.content && candidate.content.parts || [])
+      .map(p => p.text || '').join('');
+    if (!textOut.trim()) throw new Error('Gemini returned an empty response. Please try again.');
+
+    let parsed;
+    try {
+      const clean = textOut.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch (e) { throw new Error('Could not understand the AI response. Please try again.'); }
+
+    if (!Array.isArray(parsed) || !parsed.length) {
+      throw new Error('No questions were generated. Try uploading a more detailed lecture or reducing the question count.');
+    }
+
+    const cleaned = parsed.map(q => {
+      if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
+      const opts = {};
+      Object.entries(q.options).forEach(([k, v]) => {
+        if (typeof v === 'string' && v.trim() !== '') opts[k.toUpperCase()] = v;
+      });
+      if (!Object.keys(opts).length) return null;
+      let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
+      if (!opts[answer]) answer = Object.keys(opts)[0];
+      return { question: q.question, options: opts, answer };
+    }).filter(Boolean);
+
+    if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
+
+    cqGeneratedQuestions = cleaned;
+
+    let warn = '';
+    if (finishReason === 'MAX_TOKENS') {
+      warn = ` ⚠️ The response may have been cut off — try splitting very long documents into smaller files.`;
+    }
+
+    const clinicalCount = cleaned.filter(q =>
+      /\b(patient|presents|year.old|male|female|man|woman|child|boy|girl|case|history|examination|complains|admitted|brought|referred)\b/i.test(q.question)
+    ).length;
+    const clinicalPct = Math.round((clinicalCount / cleaned.length) * 100);
+
+    statusEl.innerHTML = `<div class="cq-status success">✅ Generated ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''} (${clinicalPct}% clinical scenarios). Review below, then save.${warn}</div>`;
+    renderCQPreview();
+
+  } catch (err) {
+    statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+  } finally {
+    cqBusy = false;
+    const btn = document.getElementById('cqLectureGenBtn');
+    if (btn) { btn.disabled = false; btn.textContent = '🧠 Generate Questions'; }
+  }
+}
+
+function renderCQPreview() {
+  const area = document.getElementById('cqPreviewArea');
+  if (!area) return;
+  if (!cqGeneratedQuestions) { area.innerHTML = ''; return; }
+
+  let html = `<div class="cq-preview-list">`;
+  cqGeneratedQuestions.forEach((q, i) => {
+    html += `<div class="cq-preview-q"><div><span class="cq-pq-num">Q${i + 1}.</span> ${escapeHtml(q.question)}</div>`;
+    Object.entries(q.options).forEach(([k, v]) => {
+      const isCorrect = k === q.answer;
+      html += `<div class="cq-pq-opt${isCorrect ? ' cq-correct' : ''}">${escapeHtml(k)}. ${escapeHtml(v)}${isCorrect ? ' ✔' : ''}</div>`;
+    });
+    html += `</div>`;
+  });
+  html += `</div>
+  <div class="cq-input-row">
+    <button class="cq-btn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
+    <button class="cq-btn cq-btn-secondary" onclick="discardGeneratedQuiz()">✖ Discard</button>
+  </div>`;
+  area.innerHTML = html;
+}
+
+function discardGeneratedQuiz() {
+  cqGeneratedQuestions = null;
+  cqLectureFile = null;
+  renderCustomQuizModal();
+}
+
+async function saveGeneratedCustomQuiz() {
+  if (!cqGeneratedQuestions || !cqGeneratedQuestions.length) return;
+  const titleInput = document.getElementById('cqTitleInput');
+  const title = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
+
+  const quizzes = loadCustomQuizzes();
+  quizzes.unshift({
+    id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    title,
+    questions: cqGeneratedQuestions,
+    createdAt: Date.now()
+  });
+  await saveCustomQuizzesList(quizzes);
+
+  cqGeneratedQuestions = null;
+  cqSelectedFile = null;
+  cqLectureFile = null;
+  cqGeneratedTitle = '';
+
+  renderCustomQuizModal();
+  const statusEl = document.getElementById('cqStatus');
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Quiz "${escapeHtml(title)}" saved! Start it from the list above.</div>`;
+}
+
+async function deleteCustomQuiz(id) {
+  if (!confirm('Delete this custom quiz? This cannot be undone.')) return;
+  let quizzes = loadCustomQuizzes();
+  quizzes = quizzes.filter(q => q.id !== id);
+  await saveCustomQuizzesList(quizzes);
+  renderCustomQuizModal();
+}
+
+function startCustomQuiz(id) {
+  const quizzes = loadCustomQuizzes();
+  const quiz = quizzes.find(q => q.id === id);
+  if (!quiz || !quiz.questions || !quiz.questions.length) return;
+
+  const minsInput     = document.getElementById('cqMins_' + id);
+  const shuffleInput  = document.getElementById('cqShuffle_' + id);
+  let mins = minsInput ? parseInt(minsInput.value, 10) : NaN;
+  if (!mins || mins <= 0) mins = Math.max(5, quiz.questions.length);
+  const shuffle = shuffleInput ? shuffleInput.checked : false;
+
+  let combined = JSON.parse(JSON.stringify(quiz.questions));
+  if (shuffle) {
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
+    }
+  }
+
+  selectedSubject  = 'Custom Quizzes';
+  currentLecture   = quiz.title;
+  currentQuestions = combined;
+  currentIndex = 0; userAnswers = {}; markedSet = new Set();
+  questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
+  timeLeft = mins * 60;
+
+  closeCustomQuizzes();
+  showScreen('quiz');
+  renderQuestion();
+  startTimer();
+}
+
 function goHome() {
   stopTimer();
   showScreen('home');
 }
+
+/* ══════════════════════════════════════════════════════════
+   DISPLAY NAME — per-user, stored in Firestore
+══════════════════════════════════════════════════════════ */
+let _dnResolve = null; // resolve callback for the display name promise
+
+async function getOrPromptDisplayName() {
+  if (!window._currentUser) return null;
+  // Check cache
+  if (window._userDisplayName) return window._userDisplayName;
+  // Check Firestore
+  try {
+    const ref  = window._doc(window._db, 'userProfiles', window._currentUser.uid);
+    const snap = await window._getDoc(ref);
+    if (snap.exists() && snap.data().displayName) {
+      window._userDisplayName = snap.data().displayName;
+      return window._userDisplayName;
+    }
+  } catch(e) {}
+  // Prompt
+  return new Promise(resolve => {
+    _dnResolve = resolve;
+    const overlay = document.getElementById('displayNameOverlay');
+    const input   = document.getElementById('displayNameInput');
+    if (input) { input.value = ''; updateDnCounter(); }
+    overlay.classList.remove('hidden');
+  });
+}
+
+function updateDnCounter() {
+  const input = document.getElementById('displayNameInput');
+  const counter = document.getElementById('dnCharCount');
+  if (input && counter) counter.textContent = input.value.length;
+}
+
+function cancelDisplayName() {
+  document.getElementById('displayNameOverlay').classList.add('hidden');
+  if (_dnResolve) { _dnResolve(null); _dnResolve = null; }
+}
+
+async function confirmDisplayName() {
+  const input = document.getElementById('displayNameInput');
+  const name  = (input ? input.value.trim() : '');
+  if (!name || name.length < 2) {
+    input && (input.style.borderColor = '#C62828');
+    return;
+  }
+  if (name.length > 30) {
+    input && (input.style.borderColor = '#C62828');
+    return;
+  }
+  // Save to Firestore
+  try {
+    const ref = window._doc(window._db, 'userProfiles', window._currentUser.uid);
+    await window._setDoc(ref, { displayName: name }, { merge: true });
+  } catch(e) { console.error('Failed to save display name:', e); }
+  window._userDisplayName = name;
+  document.getElementById('displayNameOverlay').classList.add('hidden');
+  if (_dnResolve) { _dnResolve(name); _dnResolve = null; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SHARE CUSTOM QUIZ
+══════════════════════════════════════════════════════════ */
+async function shareCustomQuiz(id) {
+  if (!window._currentUser) {
+    alert('Please sign in to share quizzes with the community.');
+    return;
+  }
+  const quizzes = loadCustomQuizzes();
+  const quiz = quizzes.find(q => q.id === id);
+  if (!quiz) return;
+
+  const displayName = await getOrPromptDisplayName();
+  if (!displayName) return; // cancelled
+
+  if (!confirm(`Share "${quiz.title}" with the community? It will be visible to all signed-in users.\n\nYour display name "${displayName}" will be shown (not your email).`)) return;
+
+  try {
+    const sharedId = 'sq_' + window._currentUser.uid + '_' + id;
+    const sharedRef = window._doc(window._db, 'sharedQuizzes', sharedId);
+    await window._setDoc(sharedRef, {
+      id: sharedId,
+      originalId: id,
+      title: quiz.title,
+      questions: quiz.questions,
+      authorUid: window._currentUser.uid,
+      authorName: displayName,
+      sharedAt: Date.now(),
+      questionCount: quiz.questions.length
+    });
+
+    // Mark quiz as shared locally
+    quiz.sharedAt = Date.now();
+    await saveCustomQuizzesList(quizzes);
+    renderCustomQuizModal();
+
+    const statusEl = document.getElementById('cqStatus');
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">&#127758; "${escapeHtml(quiz.title)}" shared with the community!</div>`;
+  } catch(e) {
+    alert('Failed to share quiz: ' + (e.message || e));
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   COMMUNITY QUIZZES MODAL
+══════════════════════════════════════════════════════════ */
+let communityTab = 'browse'; // 'browse' | 'mine'
+
+function openCommunityQuizzes() {
+  if (!window._currentUser) {
+    alert('Please sign in to access Community Quizzes.');
+    return;
+  }
+  communityTab = 'browse';
+  document.getElementById('communityQuizOverlay').classList.remove('hidden');
+  renderCommunityQuizzes();
+}
+
+function closeCommunityQuizzes() {
+  document.getElementById('communityQuizOverlay').classList.add('hidden');
+}
+
+async function renderCommunityQuizzes() {
+  const body = document.getElementById('communityQuizBody');
+  body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="font-size:2rem;margin-bottom:10px;">&#8987;</div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
+
+  // Load shared quizzes from Firestore
+  let shared = [];
+  try {
+    const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
+    snap.forEach(d => shared.push(d.data()));
+    shared.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
+  } catch(e) {
+    body.innerHTML = `<div style="text-align:center;padding:32px;color:#C62828;">&#10060; Failed to load community quizzes. Please try again.</div>`;
+    return;
+  }
+
+  const myUid = window._currentUser ? window._currentUser.uid : null;
+  const myShared = shared.filter(q => q.authorUid === myUid);
+  const othersShared = shared.filter(q => q.authorUid !== myUid);
+
+  const displayList = communityTab === 'mine' ? myShared : shared;
+
+  let html = `
+    <div class="community-section-tabs">
+      <button class="community-tab-btn ${communityTab === 'browse' ? 'active' : ''}" onclick="communityTab='browse';renderCommunityQuizzes()">&#127758; Browse All (${shared.length})</button>
+      <button class="community-tab-btn ${communityTab === 'mine' ? 'active' : ''}" onclick="communityTab='mine';renderCommunityQuizzes()">&#128100; My Shared (${myShared.length})</button>
+    </div>`;
+
+  if (!displayList.length) {
+    html += `<div class="community-empty">
+      <div class="ce-icon">${communityTab === 'mine' ? '&#128100;' : '&#127758;'}</div>
+      ${communityTab === 'mine'
+        ? 'You haven\'t shared any quizzes yet. Create one and tap the &#128279; Share button!'
+        : 'No community quizzes yet — be the first to share one!'}
+    </div>`;
+  } else {
+    let _communityQuizzesCache = [];
+
+  displayList.forEach((q, idx) => {
+    _communityQuizzesCache[idx] = q;
+    window._commQuizCache = _communityQuizzesCache;
+    const isOwn = q.authorUid === myUid;
+    const date  = new Date(q.sharedAt).toLocaleDateString();
+    html += `<div class="community-quiz-item">
+        <div class="community-quiz-header">
+          <div>
+            <div class="community-quiz-title">${escapeHtml(q.title)}</div>
+            <div class="community-quiz-meta">
+              ${q.questionCount} question${q.questionCount !== 1 ? 's' : ''}
+              &nbsp;&middot;&nbsp; &#128100; ${escapeHtml(q.authorName)}
+              ${isOwn ? ' <span class="share-chip">You</span>' : ''}
+              &nbsp;&middot;&nbsp; &#128197; ${date}
+            </div>
+          </div>
+        </div>
+        <div class="community-quiz-actions">
+          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, q.questionCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid #B0D4F0;border-radius:6px;font-family:var(--font);font-size:.82rem;background:#fff;" />
+          <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="cqCommShuffle_${idx}" style="width:14px;height:14px;accent-color:var(--accent);" /> &#128256;
+          </label>
+          <button class="cq-btn" onclick="startCommunityQuizByIdx(${idx})">&#9654; Start</button>
+          <button class="cq-btn cq-btn-secondary" onclick="importCommunityQuiz('${escapeHtml(q.id)}')">&#128229; Save to Mine</button>
+          ${isOwn ? `<button class="cq-btn cq-btn-danger" onclick="deleteCommunityQuiz('${escapeHtml(q.id)}')">&#128465; Unshare</button>` : ''}
+        </div>
+      </div>`;
+  });
+  }
+
+  body.innerHTML = html;
+}
+
+function startCommunityQuizByIdx(idx) {
+  const quiz = (window._commQuizCache || [])[idx];
+  if (!quiz || !quiz.questions || !quiz.questions.length) return;
+
+  const minsInput    = document.getElementById('cqCommMins_' + idx);
+  const shuffleInput = document.getElementById('cqCommShuffle_' + idx);
+  let mins = minsInput ? parseInt(minsInput.value, 10) : NaN;
+  if (!mins || mins <= 0) mins = Math.max(5, quiz.questions.length);
+  const shuffle = shuffleInput ? shuffleInput.checked : false;
+
+  let combined = JSON.parse(JSON.stringify(quiz.questions));
+  if (shuffle) {
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
+    }
+  }
+
+  selectedSubject  = 'Community Quizzes';
+  currentLecture   = quiz.title + ' (by ' + quiz.authorName + ')';
+  currentQuestions = combined;
+  currentIndex = 0; userAnswers = {}; markedSet = new Set();
+  questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
+  timeLeft = mins * 60;
+
+  closeCommunityQuizzes();
+  showScreen('quiz');
+  renderQuestion();
+  startTimer();
+}
+
+async function importCommunityQuiz(sharedId) {
+  if (!window._currentUser) {
+    alert('Please sign in to save quizzes.');
+    return;
+  }
+  // Find the quiz from the already-rendered list by re-fetching
+  try {
+    const ref  = window._doc(window._db, 'sharedQuizzes', sharedId);
+    const snap = await window._getDoc(ref);
+    if (!snap.exists()) { alert('Quiz not found.'); return; }
+    const q = snap.data();
+
+    const quizzes = loadCustomQuizzes();
+    // Avoid duplicates
+    const alreadyExists = quizzes.some(cq => cq.originalSharedId === sharedId);
+    if (alreadyExists) { alert('You already have this quiz saved.'); return; }
+
+    quizzes.unshift({
+      id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      title: q.title + ' (Community)',
+      questions: q.questions,
+      createdAt: Date.now(),
+      originalSharedId: sharedId,
+      importedFrom: q.authorName
+    });
+    await saveCustomQuizzesList(quizzes);
+    alert(`"${q.title}" saved to your Custom Quizzes!`);
+  } catch(e) {
+    alert('Failed to import quiz: ' + (e.message || e));
+  }
+}
+
+async function deleteCommunityQuiz(sharedId) {
+  if (!window._currentUser) return;
+  if (!confirm('Remove this quiz from the community? Other users won\'t be able to find it anymore.')) return;
+  try {
+    const ref = window._doc(window._db, 'sharedQuizzes', sharedId);
+    const snap = await window._getDoc(ref);
+    if (snap.exists() && snap.data().authorUid !== window._currentUser.uid) {
+      alert('You can only remove your own shared quizzes.');
+      return;
+    }
+    await window._deleteDoc(ref);
+
+    // Clear sharedAt from local quiz cache
+    const quizzes = loadCustomQuizzes();
+    const localQuiz = quizzes.find(q => 'sq_' + window._currentUser.uid + '_' + q.id === sharedId);
+    if (localQuiz) { delete localQuiz.sharedAt; await saveCustomQuizzesList(quizzes); }
+
+    renderCommunityQuizzes();
+    renderCustomQuizModal();
+  } catch(e) {
+    alert('Failed to remove quiz: ' + (e.message || e));
+  }
+}
+</script>
+<script type="module">
+  import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ── REPLACE THIS WITH YOUR OWN CONFIG FROM STEP 1.7 ──
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDxAdqzVbo4HhxWAnTqEm7kfZvseYaQX88",
+  authDomain: "anu-msp-mcqs.firebaseapp.com",
+  projectId: "anu-msp-mcqs",
+  storageBucket: "anu-msp-mcqs.firebasestorage.app",
+  messagingSenderId: "82492063412",
+  appId: "1:82492063412:web:d051610631107b3e8da1e1",
+  measurementId: "G-B2EGBDNMMZ"
+};
+
+  // Initialize Firebase
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  // Expose to the rest of your app's scripts
+  window._auth             = auth;
+  window._db               = db;
+  window._GoogleProvider   = new GoogleAuthProvider();
+  window._doc              = doc;
+  window._getDoc           = getDoc;
+  window._setDoc           = setDoc;
+  window._collection       = collection;
+  window._getDocs          = getDocs;
+  window._deleteDoc        = deleteDoc;
+  window._signInWithPopup  = signInWithPopup;
+  window._signOut          = signOut;
+
+  // Watch login state — fires immediately on page load
+  onAuthStateChanged(auth, async user => {
+    window._currentUser = user || null;
+    updateAuthUI(user);
+    if (user) {
+      loadStatsFromFirestore();
+      loadCustomQuizzesFromFirestore();
+      // Pre-load display name so sharing feels instant
+      try {
+        const ref  = window._doc(window._db, 'userProfiles', user.uid);
+        const snap = await window._getDoc(ref);
+        if (snap.exists() && snap.data().displayName) {
+          window._userDisplayName = snap.data().displayName;
+        } else {
+          window._userDisplayName = null;
+        }
+      } catch(e) { window._userDisplayName = null; }
+    } else {
+      // No user — fall back to localStorage
+      window._cachedStats = null;
+      window._userDisplayName = null;
+    }
+  });
 </script>
 <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "f4142a9a44aa49c6a67437c3b8932b61"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
