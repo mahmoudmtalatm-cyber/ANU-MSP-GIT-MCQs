@@ -2426,6 +2426,12 @@ function buildExplainPrompt(q, userAnswer) {
     ? `The student answered: ${userAnswer}. ${q.options[userAnswer] || ''}`
     : 'The student did not answer this question.';
 
+  const wrongOptLines = Object.entries(q.options)
+    .filter(([k]) => k !== q.answer)
+    .map(([k, v]) => `
+WRONG — ${k}. ${v}:
+[1–2 sentences: why this option is incorrect and what makes it a plausible distractor]`).join('');
+
   return `You are a medical education expert. Explain this MCQ question clearly for a medical student.
 
 QUESTION:
@@ -2437,16 +2443,14 @@ ${optLines}
 CORRECT ANSWER: ${q.answer}. ${q.options[q.answer] || ''}
 ${userLine}
 
-Provide a concise explanation in this EXACT structure (use these exact section headers):
+Provide a concise explanation in this EXACT structure (use these exact section headers). You MUST include a section for EVERY answer choice, both correct and wrong:
 
 QUESTION OVERVIEW:
 [One sentence explaining what concept/clinical scenario this question is testing]
 
 CORRECT ANSWER — ${q.answer}. ${q.options[q.answer] || ''}:
-[2-3 sentences explaining WHY this is correct, with the key medical reasoning]
-${Object.entries(q.options).filter(([k]) => k !== q.answer).map(([k, v]) => `
-WRONG — ${k}. ${v}:
-[1 sentence: why this is incorrect]`).join('')}
+[2–3 sentences explaining WHY this is correct, with the key medical reasoning]
+${wrongOptLines}
 
 Keep each section concise. Use plain text only — no markdown, no bullet points, no asterisks.`;
 }
@@ -2536,13 +2540,16 @@ async function explainQuestion(i) {
       generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
     }, {
       onRetry: () => {
+        // Silently keep the loading spinner — no retry hint shown to user
         const p = document.getElementById(`explainPanel_${i}`);
-        if (p) p.innerHTML = `
-          <div class="ai-explain-panel">
-            <div class="ai-explain-panel-header">
-              <div class="ai-exp-spinner"></div> Still working… retrying automatically.
-            </div>
-          </div>`;
+        if (p && !p.querySelector('.ai-exp-spinner')) {
+          p.innerHTML = `
+            <div class="ai-explain-panel">
+              <div class="ai-explain-panel-header">
+                <div class="ai-exp-spinner"></div> Getting AI explanation…
+              </div>
+            </div>`;
+        }
       }
     });
 
@@ -2564,7 +2571,12 @@ async function explainQuestion(i) {
     if (p) {
       if (isKeyErr) {
         setExplainKey('');
-        renderExplainKeyPrompt(p, (key) => explainQuestion(i));
+        // Show inline key prompt; on save, automatically re-run this explanation
+        renderExplainKeyPrompt(p, (key) => {
+          // Clear the panel so explainQuestion starts fresh
+          p.innerHTML = '';
+          explainQuestion(i);
+        });
       } else {
         p.innerHTML = `
           <div class="ai-explain-panel">
@@ -2585,7 +2597,7 @@ function renderExplainText(text, q) {
   // Split into named sections
   const sectionPatterns = [
     { key: 'overview',  re: /QUESTION OVERVIEW\s*:\s*/i,     label: 'Question Overview', cls: 'question-label' },
-    { key: 'correct',   re: /CORRECT ANSWER[^:]*:\s*/i,      label: 'Correct Answer',    cls: 'correct-label'  },
+    { key: 'correct',   re: /CORRECT ANSWER[^:]*:\s*/i,      label: `✔ Correct — ${q.answer}. ${q.options[q.answer] || ''}`,    cls: 'correct-label'  },
   ];
   // Build wrong answer patterns from actual options
   const wrongSections = Object.entries(q.options)
@@ -2666,9 +2678,50 @@ async function explainAllQuestions() {
       continue;
     }
     // Trigger single explanation (reuses full retry logic)
-    // Temporarily make btn invisible to avoid toggle behaviour
     _explainCache[i] = undefined; // force re-fetch if needed
     await explainQuestion(i);
+
+    // After explainQuestion returns, check if a key prompt was shown (key error occurred)
+    // If so, pause the batch and wait for the user to enter a new key, then resume
+    const panel = document.getElementById(`explainPanel_${i}`);
+    if (panel && panel.querySelector('#explainKeyInput')) {
+      // Pause: replace the callback so that after key save, we resume the batch from index i
+      _explainAllBusy = false;
+      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Explaining All…'; }
+      window._explainKeySaveCallback = (key) => {
+        panel.innerHTML = '';
+        // Re-run from this question onward
+        (async () => {
+          _explainAllBusy = true;
+          for (let j = i; j < currentQuestions.length; j++) {
+            if (_explainCache[j] && _explainCache[j] !== 'loading') {
+              const p2 = document.getElementById(`explainPanel_${j}`);
+              if (p2 && !p2.innerHTML.trim()) p2.innerHTML = _explainCache[j];
+              const b2 = document.getElementById(`explainBtn_${j}`);
+              if (b2) b2.innerHTML = '🤖 Hide';
+              continue;
+            }
+            _explainCache[j] = undefined;
+            await explainQuestion(j);
+            // Check again if another key error appeared
+            const p3 = document.getElementById(`explainPanel_${j}`);
+            if (p3 && p3.querySelector('#explainKeyInput')) {
+              _explainAllBusy = false;
+              window._explainKeySaveCallback = () => {
+                p3.innerHTML = '';
+                explainAllQuestions();
+              };
+              return;
+            }
+            await new Promise(r => setTimeout(r, 300));
+          }
+          _explainAllBusy = false;
+          if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explained ✓'; }
+        })();
+      };
+      return;
+    }
+
     // Small delay to avoid rate limiting
     await new Promise(r => setTimeout(r, 300));
   }
