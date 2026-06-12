@@ -904,6 +904,90 @@
   border-radius: 20px; padding: 4px 12px; font-size: .78rem; font-weight: 700;
   margin-top: 4px;
 }
+
+/* ── AI EXPLANATION ── */
+.ai-explain-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #EDE7F6; color: #4527A0; border: 1.5px solid #B39DDB;
+  border-radius: 7px; padding: 5px 12px; font-family: var(--font);
+  font-size: .8rem; font-weight: 700; cursor: pointer;
+  transition: all .15s; margin-top: 8px;
+}
+.ai-explain-btn:hover:not(:disabled) { background: #D1C4E9; border-color: #7E57C2; }
+.ai-explain-btn:disabled { opacity: .55; cursor: not-allowed; }
+.ai-explain-btn.loading { background: #E8EAF6; color: #3949AB; }
+
+.ai-explain-panel {
+  margin-top: 10px; border-radius: 8px;
+  border: 1.5px solid #B39DDB; background: #F8F5FF;
+  overflow: hidden;
+}
+.ai-explain-panel-header {
+  background: #EDE7F6; padding: 8px 14px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: .8rem; font-weight: 800; color: #4527A0;
+  letter-spacing: .3px;
+}
+.ai-explain-panel-body {
+  padding: 12px 16px; font-size: .88rem; line-height: 1.7;
+  color: var(--text-main);
+}
+.ai-explain-panel-body strong { color: #4527A0; }
+.ai-explain-panel-body .exp-section {
+  margin-bottom: 10px; padding-bottom: 10px;
+  border-bottom: 1px solid #D7CBF5;
+}
+.ai-explain-panel-body .exp-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.ai-explain-panel-body .exp-label {
+  font-size: .75rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .8px; margin-bottom: 4px;
+}
+.ai-explain-panel-body .exp-label.correct-label { color: #2E7D32; }
+.ai-explain-panel-body .exp-label.wrong-label   { color: #C62828; }
+.ai-explain-panel-body .exp-label.question-label { color: #4527A0; }
+.ai-explain-panel .ai-exp-spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 3px solid rgba(69,39,160,.2); border-top-color: #4527A0;
+  animation: cqspin .8s linear infinite;
+}
+.ai-explain-panel .ai-exp-error {
+  color: #C62828; font-size: .84rem; font-weight: 600; padding: 10px 0;
+}
+.ai-explain-all-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #EDE7F6; color: #4527A0; border: 2px solid #9575CD;
+  border-radius: 8px; padding: 11px 22px; font-family: var(--font);
+  font-size: .95rem; font-weight: 700; cursor: pointer;
+  transition: all .15s;
+}
+.ai-explain-all-btn:hover:not(:disabled) { background: #D1C4E9; }
+.ai-explain-all-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* API key prompt for explanations */
+.ai-key-prompt {
+  background: #F8F5FF; border: 1.5px solid #B39DDB; border-radius: 10px;
+  padding: 16px 18px; margin: 10px 0;
+}
+.ai-key-prompt-title {
+  font-size: .88rem; font-weight: 800; color: #4527A0; margin-bottom: 6px;
+}
+.ai-key-prompt-sub {
+  font-size: .8rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5;
+}
+.ai-key-prompt-row {
+  display: flex; gap: 8px; align-items: center;
+}
+.ai-key-prompt-row input {
+  flex: 1; padding: 9px 12px; border: 1.5px solid #B39DDB; border-radius: 7px;
+  font-family: var(--font); font-size: .88rem; background: white; outline: none;
+}
+.ai-key-prompt-row input:focus { border-color: #7E57C2; box-shadow: 0 0 0 3px rgba(126,87,194,.15); }
+.ai-key-prompt-row button {
+  background: #7E57C2; color: white; border: none; border-radius: 7px;
+  padding: 9px 16px; font-family: var(--font); font-size: .88rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+.ai-key-prompt-row button:hover { background: #6A1B9A; }
   </style>
 </head>
 <body>
@@ -1097,6 +1181,7 @@
     <div class="results-body" id="resultsBody"></div>
     <div class="results-footer">
       <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
+      <button class="ai-explain-all-btn" id="explainAllBtn" onclick="explainAllQuestions()">🤖&nbsp; Explain All Questions</button>
     </div>
   </div>
 
@@ -1685,6 +1770,12 @@ if (prevTotal < threshold && newTotal >= threshold) {
 }
 
 function buildResults() {
+  // Clear explanation cache for new results
+  for (const k in _explainCache) delete _explainCache[k];
+  _explainAllBusy = false;
+  const explainAllBtn = document.getElementById('explainAllBtn');
+  if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '🤖&nbsp; Explain All Questions'; }
+
   const body = document.getElementById('resultsBody');
   body.innerHTML = '';
   if (correctToWrong > 0 || wrongToCorrect > 0) {
@@ -1795,6 +1886,19 @@ if (changeLog.length > 0) {
       `;
       optsDiv.appendChild(row);
     });
+
+    // AI Explain button
+    const explainBtn = document.createElement('button');
+    explainBtn.className = 'ai-explain-btn';
+    explainBtn.id = `explainBtn_${i}`;
+    explainBtn.innerHTML = '🤖 Explain';
+    explainBtn.onclick = () => explainQuestion(i);
+    card.querySelector('.r-content').appendChild(explainBtn);
+
+    // Placeholder for the explanation panel
+    const explainPanel = document.createElement('div');
+    explainPanel.id = `explainPanel_${i}`;
+    card.querySelector('.r-content').appendChild(explainPanel);
 
     body.appendChild(card);
   });
@@ -2294,6 +2398,284 @@ function dismissWaterFlood() {
 
   resetIdleTimer();
 })();
+
+/* ══════════════════════════════════════════════════════════
+   AI EXPLANATION — per-question and explain-all
+══════════════════════════════════════════════════════════ */
+
+const AI_EXPLAIN_KEY_STORE = 'anu_msp_gemini_api_key'; // shared with custom quizzes
+const AI_EXPLAIN_MODEL     = 'gemini-2.5-flash';
+
+// Track which questions are loaded/loading to avoid duplicate calls
+const _explainCache = {};   // { qIndex: 'loading' | html-string }
+let   _explainAllBusy = false;
+
+function getExplainKey() {
+  try { return localStorage.getItem(AI_EXPLAIN_KEY_STORE) || ''; } catch(e) { return ''; }
+}
+function setExplainKey(key) {
+  try { localStorage.setItem(AI_EXPLAIN_KEY_STORE, (key || '').trim()); } catch(e) {} 
+}
+
+/* ── Build Gemini prompt for one question ── */
+function buildExplainPrompt(q, userAnswer) {
+  const optLines = Object.entries(q.options)
+    .map(([k, v]) => `  ${k}. ${v}`)
+    .join('\n');
+  const userLine = userAnswer
+    ? `The student answered: ${userAnswer}. ${q.options[userAnswer] || ''}`
+    : 'The student did not answer this question.';
+
+  return `You are a medical education expert. Explain this MCQ question clearly for a medical student.
+
+QUESTION:
+${q.question}
+
+OPTIONS:
+${optLines}
+
+CORRECT ANSWER: ${q.answer}. ${q.options[q.answer] || ''}
+${userLine}
+
+Provide a concise explanation in this EXACT structure (use these exact section headers):
+
+QUESTION OVERVIEW:
+[One sentence explaining what concept/clinical scenario this question is testing]
+
+CORRECT ANSWER — ${q.answer}. ${q.options[q.answer] || ''}:
+[2-3 sentences explaining WHY this is correct, with the key medical reasoning]
+${Object.entries(q.options).filter(([k]) => k !== q.answer).map(([k, v]) => `
+WRONG — ${k}. ${v}:
+[1 sentence: why this is incorrect]`).join('')}
+
+Keep each section concise. Use plain text only — no markdown, no bullet points, no asterisks.`;
+}
+
+/* ── Render the API-key prompt inside an explain panel ── */
+function renderExplainKeyPrompt(panelEl, onSave) {
+  panelEl.innerHTML = `
+    <div class="ai-explain-panel">
+      <div class="ai-explain-panel-header">
+        <span>🔑</span> Gemini API Key Required
+      </div>
+      <div class="ai-explain-panel-body">
+        <div class="ai-key-prompt">
+          <div class="ai-key-prompt-title">Enter your Gemini API key to enable AI explanations</div>
+          <div class="ai-key-prompt-sub">Your key is saved in this browser only and sent directly to Google — never through any other server.<br>
+            Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#4527A0;font-weight:700;">aistudio.google.com/apikey</a>
+          </div>
+          <div class="ai-key-prompt-row">
+            <input type="password" id="explainKeyInput" placeholder="Paste your Gemini API key here" />
+            <button onclick="handleExplainKeySave()">Save &amp; Explain</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  // Store callback so handleExplainKeySave can call it
+  window._explainKeySaveCallback = onSave;
+}
+
+function handleExplainKeySave() {
+  const inp = document.getElementById('explainKeyInput');
+  const key = (inp ? inp.value : '').trim();
+  if (!key) { if(inp) inp.style.borderColor='#C62828'; return; }
+  setExplainKey(key);
+  // Also sync with the custom quiz key input if it's open
+  const cqInp = document.getElementById('cqApiKeyInput');
+  if (cqInp) cqInp.value = key;
+  if (window._explainKeySaveCallback) {
+    const cb = window._explainKeySaveCallback;
+    window._explainKeySaveCallback = null;
+    cb(key);
+  }
+}
+
+/* ── Core: fetch explanation for one question index ── */
+async function explainQuestion(i) {
+  const btn    = document.getElementById(`explainBtn_${i}`);
+  const panel  = document.getElementById(`explainPanel_${i}`);
+  if (!btn || !panel) return;
+
+  // Already shown — toggle off
+  if (_explainCache[i] && _explainCache[i] !== 'loading') {
+    if (panel.innerHTML.trim()) { panel.innerHTML = ''; btn.innerHTML = '🤖 Explain'; return; }
+    panel.innerHTML = _explainCache[i];
+    btn.innerHTML = '🤖 Hide';
+    return;
+  }
+  if (_explainCache[i] === 'loading') return;
+
+  const apiKey = getExplainKey();
+  const q = currentQuestions[i];
+
+  // No key — show inline prompt
+  if (!apiKey) {
+    renderExplainKeyPrompt(panel, (key) => explainQuestion(i));
+    return;
+  }
+
+  _explainCache[i] = 'loading';
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.innerHTML = '⏳ Explaining…';
+
+  panel.innerHTML = `
+    <div class="ai-explain-panel">
+      <div class="ai-explain-panel-header">
+        <div class="ai-exp-spinner"></div> Getting AI explanation…
+      </div>
+    </div>`;
+
+  try {
+    const userAnswer = userAnswers[i] || '';
+    const prompt     = buildExplainPrompt(q, userAnswer);
+    const url        = `https://generativelanguage.googleapis.com/v1beta/models/${AI_EXPLAIN_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const data = await callGeminiWithRetry(url, {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
+    }, {
+      onRetry: () => {
+        const p = document.getElementById(`explainPanel_${i}`);
+        if (p) p.innerHTML = `
+          <div class="ai-explain-panel">
+            <div class="ai-explain-panel-header">
+              <div class="ai-exp-spinner"></div> Still working… retrying automatically.
+            </div>
+          </div>`;
+      }
+    });
+
+    const text = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+    if (!text) throw new Error('Empty response from AI.');
+
+    const html = renderExplainText(text, q);
+    _explainCache[i] = html;
+
+    const p = document.getElementById(`explainPanel_${i}`);
+    if (p) p.innerHTML = html;
+    const b = document.getElementById(`explainBtn_${i}`);
+    if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Hide'; }
+
+  } catch(err) {
+    _explainCache[i] = null; // allow retry
+    const isKeyErr = err._keyError || /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
+    const p = document.getElementById(`explainPanel_${i}`);
+    if (p) {
+      if (isKeyErr) {
+        setExplainKey('');
+        renderExplainKeyPrompt(p, (key) => explainQuestion(i));
+      } else {
+        p.innerHTML = `
+          <div class="ai-explain-panel">
+            <div class="ai-explain-panel-header"><span>⚠️</span> Explanation failed</div>
+            <div class="ai-explain-panel-body">
+              <div class="ai-exp-error">${escapeHtml(err.message || String(err))}</div>
+            </div>
+          </div>`;
+      }
+    }
+    const b = document.getElementById(`explainBtn_${i}`);
+    if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Explain'; }
+  }
+}
+
+/* ── Parse AI text into structured HTML ── */
+function renderExplainText(text, q) {
+  // Split into named sections
+  const sectionPatterns = [
+    { key: 'overview',  re: /QUESTION OVERVIEW\s*:\s*/i,     label: 'Question Overview', cls: 'question-label' },
+    { key: 'correct',   re: /CORRECT ANSWER[^:]*:\s*/i,      label: 'Correct Answer',    cls: 'correct-label'  },
+  ];
+  // Build wrong answer patterns from actual options
+  const wrongSections = Object.entries(q.options)
+    .filter(([k]) => k !== q.answer)
+    .map(([k, v]) => ({
+      key: `wrong_${k}`,
+      re:  new RegExp(`WRONG[^:]*${k}[^:]*:\\s*`, 'i'),
+      label: `✘ Wrong — ${k}. ${v}`,
+      cls: 'wrong-label'
+    }));
+
+  const allSections = [...sectionPatterns, ...wrongSections];
+
+  // Find positions of each section header in text
+  const found = [];
+  allSections.forEach(s => {
+    const m = text.match(s.re);
+    if (m) {
+      const idx = text.search(s.re);
+      found.push({ ...s, start: idx, headerLen: m[0].length });
+    }
+  });
+  found.sort((a, b) => a.start - b.start);
+
+  // Extract body for each section
+  let html = '<div class="ai-explain-panel"><div class="ai-explain-panel-header"><span>🤖</span> AI Explanation</div><div class="ai-explain-panel-body">';
+  found.forEach((sec, idx) => {
+    const bodyStart = sec.start + sec.headerLen;
+    const bodyEnd   = idx + 1 < found.length ? found[idx + 1].start : text.length;
+    const body      = text.slice(bodyStart, bodyEnd).trim();
+    html += `<div class="exp-section">
+      <div class="exp-label ${sec.cls}">${escapeHtml(sec.label)}</div>
+      <div>${escapeHtml(body)}</div>
+    </div>`;
+  });
+
+  // If parsing found nothing, show raw text
+  if (!found.length) {
+    html += `<div class="exp-section"><div>${escapeHtml(text)}</div></div>`;
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+/* ── Explain ALL questions sequentially ── */
+async function explainAllQuestions() {
+  if (_explainAllBusy) return;
+
+  const apiKey = getExplainKey();
+  if (!apiKey) {
+    // Show key prompt in a temporary panel near the "Explain All" button
+    let tempPanel = document.getElementById('explainAllKeyPanel');
+    if (!tempPanel) {
+      tempPanel = document.createElement('div');
+      tempPanel.id = 'explainAllKeyPanel';
+      tempPanel.style.cssText = 'padding:0 24px 12px;';
+      const footer = document.querySelector('.results-footer');
+      if (footer) footer.insertAdjacentElement('afterend', tempPanel);
+    }
+    renderExplainKeyPrompt(tempPanel, (key) => { tempPanel.remove(); explainAllQuestions(); });
+    tempPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  _explainAllBusy = true;
+  const btn = document.getElementById('explainAllBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Explaining All…'; }
+
+  for (let i = 0; i < currentQuestions.length; i++) {
+    // Skip already-explained or loading
+    if (_explainCache[i] && _explainCache[i] !== 'loading') {
+      // Make sure it's visible
+      const p = document.getElementById(`explainPanel_${i}`);
+      if (p && !p.innerHTML.trim()) p.innerHTML = _explainCache[i];
+      const b = document.getElementById(`explainBtn_${i}`);
+      if (b) b.innerHTML = '🤖 Hide';
+      continue;
+    }
+    // Trigger single explanation (reuses full retry logic)
+    // Temporarily make btn invisible to avoid toggle behaviour
+    _explainCache[i] = undefined; // force re-fetch if needed
+    await explainQuestion(i);
+    // Small delay to avoid rate limiting
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  _explainAllBusy = false;
+  if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explained ✓'; }
+}
 
 /* ══════════════════════════════════════════════════════════
    CUSTOM QUIZZES — AI-POWERED (GEMINI)
