@@ -2656,6 +2656,53 @@ const CQ_RESPONSE_SCHEMA = {
   }
 };
 
+/* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
+   Only surfaces an error immediately if it's API-key-related
+   (HTTP 400 with API_KEY_INVALID / 401 / 403). ──────── */
+async function callGeminiWithRetry(url, bodyObj, { onRetry } = {}) {
+  const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
+                      'PERMISSION_DENIED', 'API key not valid'];
+
+  function isKeyError(status, data) {
+    if (status === 401 || status === 403) return true;
+    const msg = (data && data.error && data.error.message) || '';
+    const code = (data && data.error && data.error.code) || 0;
+    if (code === 400 && KEY_ERRORS.some(k => msg.includes(k))) return true;
+    return false;
+  }
+
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyObj)
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        const msg = (data && data.error && data.error.message) || `HTTP ${resp.status}`;
+        const err = new Error(msg);
+        err._httpStatus = resp.status;
+        err._apiData    = data;
+        // Always surface key errors immediately — no point retrying
+        if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
+        if (onRetry) onRetry(attempt);
+        await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt - 1), 30000)));
+        continue;
+      }
+
+      return data; // success
+    } catch (err) {
+      if (err._keyError) throw err; // propagate key errors immediately
+      if (onRetry) onRetry(attempt);
+      await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt - 1), 30000)));
+    }
+  }
+}
+
 async function generateQuizFromAI() {
   const apiKeyInput = document.getElementById('cqApiKeyInput');
   const titleInput  = document.getElementById('cqTitleInput');
@@ -2682,31 +2729,24 @@ async function generateQuizFromAI() {
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: mimeType, data: base64Data } },
-            { text: CQ_EXTRACTION_PROMPT }
-          ]
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: CQ_RESPONSE_SCHEMA,
-          temperature: 0,
-          maxOutputTokens: 65536
-        }
-      })
+    const data = await callGeminiWithRetry(url, {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: mimeType, data: base64Data } },
+          { text: CQ_EXTRACTION_PROMPT }
+        ]
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: CQ_RESPONSE_SCHEMA,
+        temperature: 0,
+        maxOutputTokens: 65536
+      }
+    }, {
+      onRetry: () => {
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file and extracting all questions… this may take a moment, please wait.</div>`;
+      }
     });
-
-    const data = await resp.json();
-
-    if (!resp.ok) {
-      const msg = (data && data.error && data.error.message) || `Request failed (HTTP ${resp.status}).`;
-      throw new Error(msg);
-    }
 
     const candidate = data && data.candidates && data.candidates[0];
     if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or blocked — try a clearer image or PDF.');
@@ -2727,9 +2767,10 @@ async function generateQuizFromAI() {
     const cleaned = parsed.map(q => {
       if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
       const opts = {};
-      Object.entries(q.options).forEach(([k, v]) => {
-        if (typeof v === 'string' && v.trim() !== '') opts[k.toUpperCase()] = v;
-      });
+      Object.entries(q.options)
+        .filter(([k, v]) => typeof v === 'string' && v.trim() !== '')
+        .sort(([a], [b]) => a.toUpperCase().localeCompare(b.toUpperCase()))
+        .forEach(([k, v]) => { opts[k.toUpperCase()] = v; });
       if (!Object.keys(opts).length) return null;
       let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
       if (!opts[answer]) answer = Object.keys(opts)[0];
@@ -2749,7 +2790,20 @@ async function generateQuizFromAI() {
     renderCQPreview();
 
   } catch (err) {
-    statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+    const isKeyErr = err._keyError ||
+      /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
+    if (isKeyErr) {
+      statusEl.innerHTML = `<div class="cq-status error">🔑 Your API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
+        <strong>Please enter a new Gemini API key above and try again.</strong><br>
+        <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a></small>
+      </div>`;
+      // Clear the stored bad key and focus the input
+      setGeminiKey('');
+      const inp = document.getElementById('cqApiKeyInput');
+      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+    } else {
+      statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+    }
   } finally {
     cqBusy = false;
     const btn = document.getElementById('cqGenerateBtn');
@@ -2877,18 +2931,11 @@ async function generateQuizFromLecture() {
       };
     }
 
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+    const data = await callGeminiWithRetry(url, requestBody, {
+      onRetry: () => {
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your lecture and generating questions… this may take a moment, please wait.</div>`;
+      }
     });
-
-    const data = await resp.json();
-
-    if (!resp.ok) {
-      const msg = (data && data.error && data.error.message) || `Request failed (HTTP ${resp.status}).`;
-      throw new Error(msg);
-    }
 
     const candidate = data && data.candidates && data.candidates[0];
     if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or too large — try splitting it into smaller sections.');
@@ -2911,9 +2958,10 @@ async function generateQuizFromLecture() {
     const cleaned = parsed.map(q => {
       if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
       const opts = {};
-      Object.entries(q.options).forEach(([k, v]) => {
-        if (typeof v === 'string' && v.trim() !== '') opts[k.toUpperCase()] = v;
-      });
+      Object.entries(q.options)
+        .filter(([k, v]) => typeof v === 'string' && v.trim() !== '')
+        .sort(([a], [b]) => a.toUpperCase().localeCompare(b.toUpperCase()))
+        .forEach(([k, v]) => { opts[k.toUpperCase()] = v; });
       if (!Object.keys(opts).length) return null;
       let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
       if (!opts[answer]) answer = Object.keys(opts)[0];
@@ -2938,7 +2986,20 @@ async function generateQuizFromLecture() {
     renderCQPreview();
 
   } catch (err) {
-    statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+    const isKeyErr = err._keyError ||
+      /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
+    if (isKeyErr) {
+      statusEl.innerHTML = `<div class="cq-status error">🔑 Your API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
+        <strong>Please enter a new Gemini API key above and try again.</strong><br>
+        <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a></small>
+      </div>`;
+      // Clear the stored bad key and focus the input
+      setGeminiKey('');
+      const inp = document.getElementById('cqApiKeyInput');
+      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+    } else {
+      statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+    }
   } finally {
     cqBusy = false;
     const btn = document.getElementById('cqLectureGenBtn');
