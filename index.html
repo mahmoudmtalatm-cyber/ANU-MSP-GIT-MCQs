@@ -963,6 +963,110 @@
 .ai-explain-all-btn:hover:not(:disabled) { background: #D1C4E9; }
 .ai-explain-all-btn:disabled { opacity: .5; cursor: not-allowed; }
 
+/* ── AI CHAT (per-question) ── */
+.ai-chat-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #E1F5FE; color: #01579B; border: 1.5px solid #81D4FA;
+  border-radius: 7px; padding: 5px 12px; font-family: var(--font);
+  font-size: .8rem; font-weight: 700; cursor: pointer;
+  transition: all .15s; margin-top: 8px; margin-left: 8px;
+}
+.ai-chat-btn:hover:not(:disabled) { background: #B3E5FC; border-color: #29B6F6; }
+
+.ai-chat-panel { margin-top: 10px; }
+.ai-chat-panel:empty { margin-top: 0; }
+.ai-chat-box {
+  border-radius: 8px; border: 1.5px solid #81D4FA;
+  background: #F4FBFF; overflow: hidden;
+}
+.ai-chat-header {
+  background: #E1F5FE; padding: 8px 14px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: .8rem; font-weight: 800; color: #01579B;
+  letter-spacing: .3px;
+}
+.ai-chat-messages {
+  max-height: 320px; overflow-y: auto;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.ai-chat-empty {
+  font-size: .85rem; color: var(--text-muted); line-height: 1.6;
+  text-align: center; padding: 6px 4px;
+}
+.ai-chat-msg { display: flex; }
+.ai-chat-msg.user { justify-content: flex-end; }
+.ai-chat-msg.model { justify-content: flex-start; }
+.ai-chat-bubble {
+  max-width: 85%; border-radius: 10px; padding: 8px 12px;
+  font-size: .87rem; line-height: 1.6; word-break: break-word;
+}
+.ai-chat-msg.user .ai-chat-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+.ai-chat-msg.model .ai-chat-bubble { background: #fff; color: var(--text-main); border: 1px solid #B3E5FC; border-bottom-left-radius: 3px; }
+.ai-chat-text + .ai-chat-text { margin-top: 6px; }
+.ai-chat-attach-thumb img {
+  max-width: 160px; max-height: 160px; border-radius: 6px; margin-top: 6px; display: block;
+}
+.ai-chat-file-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255,255,255,.25); border-radius: 6px;
+  padding: 3px 8px; font-size: .78rem; font-weight: 700; margin-top: 6px;
+}
+.ai-chat-msg.model .ai-chat-file-chip { background: #EEF7FF; color: var(--accent); }
+.ai-chat-bubble.ai-chat-loading {
+  display: flex; align-items: center; gap: 10px;
+}
+.ai-chat-bubble.ai-chat-error { color: #C62828; border-color: #FFCDD2 !important; background: #FFEBEE; }
+.ai-chat-error-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ai-chat-stop-btn, .ai-chat-retry-btn {
+  background: #C62828; color: #fff; border: none; border-radius: 6px;
+  padding: 4px 10px; font-size: .78rem; font-weight: 700; cursor: pointer;
+  font-family: var(--font); flex-shrink: 0;
+}
+.ai-chat-retry-btn { background: var(--accent); }
+
+.ai-chat-pending {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding: 0 14px 10px;
+}
+.ai-chat-pending-item {
+  position: relative; display: flex; align-items: center;
+  background: #fff; border: 1.5px solid #B3E5FC; border-radius: 8px;
+  padding: 4px 8px; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--accent);
+}
+.ai-chat-pending-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+.ai-chat-pending-item button {
+  background: #C62828; color: #fff; border: none; border-radius: 50%;
+  width: 18px; height: 18px; font-size: .7rem; font-weight: 800; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; line-height: 1; flex-shrink: 0;
+}
+
+.ai-chat-input-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-top: 1px solid #D6EEFB; background: #fff;
+}
+.ai-chat-attach-btn {
+  background: #EEF7FF; border: 1.5px solid #B3E5FC; border-radius: 7px;
+  width: 38px; height: 38px; flex-shrink: 0; font-size: 1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: background .15s;
+}
+.ai-chat-attach-btn:hover:not(:disabled) { background: #DCEFFF; }
+.ai-chat-attach-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ai-chat-text-input {
+  flex: 1; border: 1.5px solid #B3E5FC; border-radius: 7px;
+  padding: 9px 12px; font-family: var(--font); font-size: .9rem;
+  outline: none; background: #F7FBFF; color: var(--text-main);
+  transition: border-color .2s, box-shadow .2s;
+}
+.ai-chat-text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.12); }
+.ai-chat-text-input:disabled { opacity: .6; }
+.ai-chat-send-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 7px;
+  width: 38px; height: 38px; flex-shrink: 0; font-size: 1.05rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: background .15s;
+}
+.ai-chat-send-btn:hover:not(:disabled) { background: var(--accent-dark); }
+.ai-chat-send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
 /* API key prompt for explanations */
 .ai-key-prompt {
   background: #F8F5FF; border: 1.5px solid #B39DDB; border-radius: 10px;
@@ -1598,6 +1702,15 @@ function updateTimerDisplay() {
   el.classList.toggle('urgent', timeLeft <= 60);
 }
 
+/* ── Returns option [key, value] pairs in guaranteed original order.
+   Uses optionsOrder array if present, otherwise falls back to Object.entries. ── */
+function getOptionEntries(q) {
+  if (Array.isArray(q.optionsOrder) && q.optionsOrder.length) {
+    return q.optionsOrder.map(({ key, value }) => [key, value]);
+  }
+  return Object.entries(q.options);
+}
+
 /* ══════════════════════════════════════════════════════════
    RENDER QUESTION
 ══════════════════════════════════════════════════════════ */
@@ -1623,7 +1736,7 @@ function renderQuestion() {
   const list = document.getElementById('optionsList');
   list.innerHTML = '';
 
-  Object.entries(q.options).forEach(([key, val]) => {
+  getOptionEntries(q).forEach(([key, val]) => {
     const saved = userAnswers[currentIndex] || '';
     const label = document.createElement('label');
     label.className = 'option-label' + (saved === key ? ' selected' : '');
@@ -1770,11 +1883,20 @@ if (prevTotal < threshold && newTotal >= threshold) {
 }
 
 function buildResults() {
+  // Cancel any in-progress explanations from a previous result view
+  if (_allCancelToken) { _allCancelToken.cancelled = true; _allCancelToken = null; }
+  Object.keys(_singleCancelToken).forEach(k => { if (_singleCancelToken[k]) _singleCancelToken[k].cancelled = true; delete _singleCancelToken[k]; });
   // Clear explanation cache for new results
   for (const k in _explainCache) delete _explainCache[k];
+  for (const k in _explainRawText) delete _explainRawText[k];
+  // Cancel and clear any in-progress/previous chats
+  Object.keys(_chatCancelToken).forEach(k => { if (_chatCancelToken[k]) _chatCancelToken[k].cancelled = true; delete _chatCancelToken[k]; });
+  for (const k in _chatHistory) delete _chatHistory[k];
+  for (const k in _chatPending) delete _chatPending[k];
+  for (const k in _chatBusy) delete _chatBusy[k];
   _explainAllBusy = false;
   const explainAllBtn = document.getElementById('explainAllBtn');
-  if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '🤖&nbsp; Explain All Questions'; }
+  if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '🤖&nbsp; Explain All Questions'; explainAllBtn.onclick = explainAllQuestions; }
 
   const body = document.getElementById('resultsBody');
   body.innerHTML = '';
@@ -1868,7 +1990,7 @@ if (changeLog.length > 0) {
     `;
 
     const optsDiv = card.querySelector('.r-options');
-    Object.entries(q.options).forEach(([key, val]) => {
+    getOptionEntries(q).forEach(([key, val]) => {
       const isCorrectOpt = key === correct;
       const isUserOpt    = key === userAns;
 
@@ -1899,6 +2021,20 @@ if (changeLog.length > 0) {
     const explainPanel = document.createElement('div');
     explainPanel.id = `explainPanel_${i}`;
     card.querySelector('.r-content').appendChild(explainPanel);
+
+    // AI Chat button
+    const chatBtn = document.createElement('button');
+    chatBtn.className = 'ai-chat-btn';
+    chatBtn.id = `chatBtn_${i}`;
+    chatBtn.innerHTML = '💬 Chat';
+    chatBtn.onclick = () => toggleChatPanel(i);
+    card.querySelector('.r-content').appendChild(chatBtn);
+
+    // Placeholder for the chat panel
+    const chatPanel = document.createElement('div');
+    chatPanel.id = `chatPanel_${i}`;
+    chatPanel.className = 'ai-chat-panel';
+    card.querySelector('.r-content').appendChild(chatPanel);
 
     body.appendChild(card);
   });
@@ -2408,7 +2544,16 @@ const AI_EXPLAIN_MODEL     = 'gemini-2.5-flash';
 
 // Track which questions are loaded/loading to avoid duplicate calls
 const _explainCache = {};   // { qIndex: 'loading' | html-string }
+const _explainRawText = {}; // { qIndex: raw AI text } — used to give chat context
 let   _explainAllBusy = false;
+
+// ── Cancellation tokens ──
+// Each is a plain object { cancelled: false }.
+// explainQuestion sets _singleCancelToken[i] before calling the API.
+// explainAllQuestions sets _allCancelToken before the loop.
+// Stopping checks these between retries and after awaits.
+const _singleCancelToken = {};   // { [qIndex]: { cancelled: bool } }
+let   _allCancelToken    = null; // { cancelled: bool } | null
 
 function getExplainKey() {
   try { return localStorage.getItem(AI_EXPLAIN_KEY_STORE) || ''; } catch(e) { return ''; }
@@ -2419,14 +2564,14 @@ function setExplainKey(key) {
 
 /* ── Build Gemini prompt for one question ── */
 function buildExplainPrompt(q, userAnswer) {
-  const optLines = Object.entries(q.options)
+  const optLines = getOptionEntries(q)
     .map(([k, v]) => `  ${k}. ${v}`)
     .join('\n');
   const userLine = userAnswer
     ? `The student answered: ${userAnswer}. ${q.options[userAnswer] || ''}`
     : 'The student did not answer this question.';
 
-  const wrongOptLines = Object.entries(q.options)
+  const wrongOptLines = getOptionEntries(q)
     .filter(([k]) => k !== q.answer)
     .map(([k, v]) => `
 WRONG — ${k}. ${v}:
@@ -2494,6 +2639,11 @@ function handleExplainKeySave() {
   }
 }
 
+/* ── Stop a single in-progress explanation ── */
+function stopExplainQuestion(i) {
+  if (_singleCancelToken[i]) _singleCancelToken[i].cancelled = true;
+}
+
 /* ── Core: fetch explanation for one question index ── */
 async function explainQuestion(i) {
   const btn    = document.getElementById(`explainBtn_${i}`);
@@ -2518,17 +2668,27 @@ async function explainQuestion(i) {
     return;
   }
 
+  // Create a fresh cancel token for this question
+  const token = { cancelled: false };
+  _singleCancelToken[i] = token;
+
   _explainCache[i] = 'loading';
   btn.disabled = true;
   btn.classList.add('loading');
   btn.innerHTML = '⏳ Explaining…';
 
-  panel.innerHTML = `
+  const loadingHTML = () => `
     <div class="ai-explain-panel">
-      <div class="ai-explain-panel-header">
-        <div class="ai-exp-spinner"></div> Getting AI explanation…
+      <div class="ai-explain-panel-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <span style="display:flex;align-items:center;gap:8px;">
+          <div class="ai-exp-spinner"></div>
+          Getting AI explanation…
+        </span>
+        <button onclick="stopExplainQuestion(${i})" style="background:#C62828;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font);flex-shrink:0;">⏹ Stop</button>
       </div>
     </div>`;
+
+  panel.innerHTML = loadingHTML();
 
   try {
     const userAnswer = userAnswers[i] || '';
@@ -2539,25 +2699,25 @@ async function explainQuestion(i) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
     }, {
-      onRetry: () => {
-        // Silently keep the loading spinner — no retry hint shown to user
-        const p = document.getElementById(`explainPanel_${i}`);
-        if (p && !p.querySelector('.ai-exp-spinner')) {
-          p.innerHTML = `
-            <div class="ai-explain-panel">
-              <div class="ai-explain-panel-header">
-                <div class="ai-exp-spinner"></div> Getting AI explanation…
-              </div>
-            </div>`;
-        }
-      }
+      cancelToken: token
     });
 
     const text = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
     if (!text) throw new Error('Empty response from AI.');
 
+    // If the user hit Stop while this request was finishing up, don't render the result
+    if (token.cancelled) {
+      _explainCache[i] = null;
+      const p = document.getElementById(`explainPanel_${i}`);
+      if (p) p.innerHTML = '';
+      const b = document.getElementById(`explainBtn_${i}`);
+      if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Explain'; }
+      return;
+    }
+
     const html = renderExplainText(text, q);
     _explainCache[i] = html;
+    _explainRawText[i] = text;
 
     const p = document.getElementById(`explainPanel_${i}`);
     if (p) p.innerHTML = html;
@@ -2565,15 +2725,22 @@ async function explainQuestion(i) {
     if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Hide'; }
 
   } catch(err) {
+    if (err._cancelled) {
+      // User stopped — reset quietly
+      _explainCache[i] = null;
+      const p = document.getElementById(`explainPanel_${i}`);
+      if (p) p.innerHTML = '';
+      const b = document.getElementById(`explainBtn_${i}`);
+      if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Explain'; }
+      return;
+    }
     _explainCache[i] = null; // allow retry
     const isKeyErr = err._keyError || /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     const p = document.getElementById(`explainPanel_${i}`);
     if (p) {
       if (isKeyErr) {
         setExplainKey('');
-        // Show inline key prompt; on save, automatically re-run this explanation
         renderExplainKeyPrompt(p, (key) => {
-          // Clear the panel so explainQuestion starts fresh
           p.innerHTML = '';
           explainQuestion(i);
         });
@@ -2598,7 +2765,7 @@ function renderExplainText(text, q) {
   const sectionMeta = {};
   sectionMeta['__overview__'] = { label: 'Question Overview', cls: 'question-label' };
   sectionMeta['__correct__']  = { label: `✔ Correct — ${q.answer}. ${q.options[q.answer] || ''}`, cls: 'correct-label' };
-  Object.entries(q.options).forEach(([k, v]) => {
+  getOptionEntries(q).forEach(([k, v]) => {
     if (k !== q.answer) {
       sectionMeta[`__wrong_${k}__`] = { label: `✘ Wrong — ${k}. ${v}`, cls: 'wrong-label' };
     }
@@ -2609,8 +2776,7 @@ function renderExplainText(text, q) {
   const headerDefs = [
     { key: '__overview__', re: /QUESTION\s+OVERVIEW\s*:/i },
     { key: '__correct__',  re: /CORRECT\s+ANSWER\s*(?:—|-|–)?[^:\n]*:/i },
-    ...Object.keys(q.options)
-      .filter(k => k !== q.answer)
+    ...getOptionEntries(q).filter(([k]) => k !== q.answer).map(([k]) => k)
       .map(k => ({
         key: `__wrong_${k}__`,
         // Match "WRONG — K." or "WRONG — K ." or just "WRONG — K:" where K is the exact option key
@@ -2667,13 +2833,22 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/* ── Stop the explain-all batch ── */
+function stopExplainAll() {
+  if (_allCancelToken) _allCancelToken.cancelled = true;
+  // Also cancel any currently-running single explanation that the batch started
+  Object.values(_singleCancelToken).forEach(t => { if (t) t.cancelled = true; });
+  _explainAllBusy = false;
+  const btn = document.getElementById('explainAllBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explain All'; }
+}
+
 /* ── Explain ALL questions sequentially ── */
 async function explainAllQuestions() {
   if (_explainAllBusy) return;
 
   const apiKey = getExplainKey();
   if (!apiKey) {
-    // Show key prompt in a temporary panel near the "Explain All" button
     let tempPanel = document.getElementById('explainAllKeyPanel');
     if (!tempPanel) {
       tempPanel = document.createElement('div');
@@ -2688,70 +2863,354 @@ async function explainAllQuestions() {
   }
 
   _explainAllBusy = true;
+  // Fresh batch-level cancel token
+  const batchToken = { cancelled: false };
+  _allCancelToken  = batchToken;
+
   const btn = document.getElementById('explainAllBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Explaining All…'; }
+  if (btn) {
+    btn.disabled = false; // keep it clickable so it acts as Stop
+    btn.innerHTML = '⏹ Stop All';
+    btn.onclick   = stopExplainAll;
+  }
 
   for (let i = 0; i < currentQuestions.length; i++) {
-    // Skip already-explained or loading
+    // Bail out if the batch was cancelled between questions
+    if (batchToken.cancelled) break;
+
+    // Skip already-explained
     if (_explainCache[i] && _explainCache[i] !== 'loading') {
-      // Make sure it's visible
       const p = document.getElementById(`explainPanel_${i}`);
       if (p && !p.innerHTML.trim()) p.innerHTML = _explainCache[i];
       const b = document.getElementById(`explainBtn_${i}`);
       if (b) b.innerHTML = '🤖 Hide';
       continue;
     }
-    // Trigger single explanation (reuses full retry logic)
-    _explainCache[i] = undefined; // force re-fetch if needed
-    await explainQuestion(i);
 
-    // After explainQuestion returns, check if a key prompt was shown (key error occurred)
-    // If so, pause the batch and wait for the user to enter a new key, then resume
+    _explainCache[i] = undefined;
+    await explainQuestion(i);  // explainQuestion manages its own _singleCancelToken
+
+    // If cancelled mid-question, stop the batch
+    if (batchToken.cancelled) break;
+
+    // If a key prompt appeared, pause the batch and let the user enter a key
     const panel = document.getElementById(`explainPanel_${i}`);
     if (panel && panel.querySelector('#explainKeyInput')) {
-      // Pause: replace the callback so that after key save, we resume the batch from index i
       _explainAllBusy = false;
-      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Explaining All…'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explain All'; btn.onclick = explainAllQuestions; }
       window._explainKeySaveCallback = (key) => {
         panel.innerHTML = '';
-        // Re-run from this question onward
-        (async () => {
-          _explainAllBusy = true;
-          for (let j = i; j < currentQuestions.length; j++) {
-            if (_explainCache[j] && _explainCache[j] !== 'loading') {
-              const p2 = document.getElementById(`explainPanel_${j}`);
-              if (p2 && !p2.innerHTML.trim()) p2.innerHTML = _explainCache[j];
-              const b2 = document.getElementById(`explainBtn_${j}`);
-              if (b2) b2.innerHTML = '🤖 Hide';
-              continue;
-            }
-            _explainCache[j] = undefined;
-            await explainQuestion(j);
-            // Check again if another key error appeared
-            const p3 = document.getElementById(`explainPanel_${j}`);
-            if (p3 && p3.querySelector('#explainKeyInput')) {
-              _explainAllBusy = false;
-              window._explainKeySaveCallback = () => {
-                p3.innerHTML = '';
-                explainAllQuestions();
-              };
-              return;
-            }
-            await new Promise(r => setTimeout(r, 300));
-          }
-          _explainAllBusy = false;
-          if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explained ✓'; }
-        })();
+        explainAllQuestions(); // restart from scratch — already-done questions are cached
       };
       return;
     }
 
     // Small delay to avoid rate limiting
-    await new Promise(r => setTimeout(r, 300));
+    if (!batchToken.cancelled) await cancellableSleep(300, batchToken);
   }
 
   _explainAllBusy = false;
-  if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explained ✓'; }
+  _allCancelToken  = null;
+  if (btn) {
+    btn.disabled  = false;
+    btn.innerHTML = batchToken.cancelled ? '🤖 Explain All' : '🤖 Explained ✓';
+    btn.onclick   = explainAllQuestions;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   AI CHAT — per-question chat with attachments
+══════════════════════════════════════════════════════════ */
+const CHAT_MODEL = 'gemini-2.5-flash';
+const CHAT_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
+
+// Conversation state, keyed by question index
+const _chatHistory     = {}; // { qIndex: [{role:'user'|'model', parts:[{text}|{inline_data,_name}]}] }
+const _chatPending     = {}; // { qIndex: [{name, mimeType, dataUrl, base64}] } — attachments staged but not yet sent
+const _chatBusy        = {}; // { qIndex: bool }
+const _chatCancelToken = {}; // { qIndex: {cancelled:bool} }
+const _chatError       = {}; // { qIndex: errorMessage }
+
+/* ── Toggle the chat panel open/closed ── */
+function toggleChatPanel(i) {
+  const panel = document.getElementById(`chatPanel_${i}`);
+  const btn   = document.getElementById(`chatBtn_${i}`);
+  if (!panel) return;
+
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    panel.innerHTML = '';
+    if (btn) btn.innerHTML = '💬 Chat';
+    return;
+  }
+
+  panel.classList.add('open');
+  if (btn) btn.innerHTML = '💬 Hide Chat';
+  renderChatPanel(i);
+}
+
+/* ── Build the system instruction for the chat, including any existing explanation ── */
+function buildChatSystemInstruction(i) {
+  const q = currentQuestions[i];
+  const userAnswer = userAnswers[i] || '';
+  const optLines = getOptionEntries(q).map(([k, v]) => `  ${k}. ${v}`).join('\n');
+  const userLine = userAnswer
+    ? `The student answered: ${userAnswer}. ${q.options[userAnswer] || ''}`
+    : 'The student did not answer this question.';
+
+  let ctx = `You are a friendly, knowledgeable medical education tutor chatting with a student about one MCQ question. Stay focused on this question and related concepts unless the student clearly asks something else.
+
+QUESTION:
+${q.question}
+
+OPTIONS:
+${optLines}
+
+CORRECT ANSWER: ${q.answer}. ${q.options[q.answer] || ''}
+${userLine}`;
+
+  const rawExplain = _explainRawText[i];
+  if (rawExplain) {
+    ctx += `\n\nAN AI-GENERATED EXPLANATION HAS ALREADY BEEN SHOWN TO THE STUDENT FOR THIS QUESTION:
+${rawExplain}
+
+Build on this explanation rather than repeating it verbatim — clarify, expand, or address follow-up questions about it.`;
+  }
+
+  ctx += `\n\nThe student may attach images or files (e.g. photos of notes, diagrams, or screenshots) — consider their contents when responding. Keep replies concise and clear, in plain text only — no markdown, no asterisks.`;
+  return ctx;
+}
+
+/* ── Render the chat panel UI for question i ── */
+function renderChatPanel(i) {
+  const panel = document.getElementById(`chatPanel_${i}`);
+  if (!panel) return;
+
+  const history = _chatHistory[i] || [];
+  const pending = _chatPending[i] || [];
+  const busy    = !!_chatBusy[i];
+  const error   = _chatError[i];
+
+  let msgsHTML = '';
+  if (!history.length) {
+    msgsHTML = `<div class="ai-chat-empty">Ask anything about this question — request a simpler explanation, dig into a specific option, or attach an image (e.g. a diagram or your notes) for the AI to look at.</div>`;
+  } else {
+    history.forEach(m => {
+      const isUser = m.role === 'user';
+      let bodyHTML = '';
+      (m.parts || []).forEach(p => {
+        if (p.text) {
+          bodyHTML += `<div class="ai-chat-text">${escapeHtml(p.text).replace(/\n/g, '<br>')}</div>`;
+        } else if (p.inline_data) {
+          if ((p.inline_data.mime_type || '').startsWith('image/')) {
+            bodyHTML += `<div class="ai-chat-attach-thumb"><img src="data:${p.inline_data.mime_type};base64,${p.inline_data.data}" alt="attachment" /></div>`;
+          } else {
+            bodyHTML += `<div class="ai-chat-file-chip">📎 ${escapeHtml(p._name || 'attachment')}</div>`;
+          }
+        }
+      });
+      msgsHTML += `<div class="ai-chat-msg ${isUser ? 'user' : 'model'}"><div class="ai-chat-bubble">${bodyHTML}</div></div>`;
+    });
+  }
+
+  if (busy) {
+    msgsHTML += `
+      <div class="ai-chat-msg model">
+        <div class="ai-chat-bubble ai-chat-loading">
+          <div class="ai-exp-spinner"></div>
+          <span id="chatLoadingLabel_${i}">Thinking…</span>
+          <button class="ai-chat-stop-btn" onclick="stopChat(${i})">⏹ Stop</button>
+        </div>
+      </div>`;
+  } else if (error) {
+    msgsHTML += `
+      <div class="ai-chat-msg model">
+        <div class="ai-chat-bubble ai-chat-error">
+          <div class="ai-chat-error-row">
+            <span>⚠️ ${escapeHtml(error)}</span>
+            <button class="ai-chat-retry-btn" onclick="retryLastChatMessage(${i})">↻ Retry</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  let attachHTML = '';
+  if (pending.length) {
+    attachHTML = `<div class="ai-chat-pending">` + pending.map((a, idx) => {
+      if ((a.mimeType || '').startsWith('image/')) {
+        return `<div class="ai-chat-pending-item"><img src="${a.dataUrl}" alt="" /><button onclick="removeChatAttachment(${i},${idx})">✕</button></div>`;
+      }
+      return `<div class="ai-chat-pending-item"><span>📎 ${escapeHtml(a.name)}</span><button onclick="removeChatAttachment(${i},${idx})">✕</button></div>`;
+    }).join('') + `</div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="ai-chat-box">
+      <div class="ai-chat-header"><span>💬</span> Chat about this question</div>
+      <div class="ai-chat-messages" id="chatMessages_${i}">${msgsHTML}</div>
+      ${attachHTML}
+      <div class="ai-chat-input-row">
+        <input type="file" id="chatFileInput_${i}" multiple accept="image/*,.pdf,.txt,.csv" style="display:none" onchange="handleChatFileSelect(${i}, this)" />
+        <button class="ai-chat-attach-btn" type="button" title="Attach file" onclick="document.getElementById('chatFileInput_${i}').click()" ${busy ? 'disabled' : ''}>📎</button>
+        <input type="text" class="ai-chat-text-input" id="chatTextInput_${i}" placeholder="Ask a question…" ${busy ? 'disabled' : ''} onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage(${i});}" />
+        <button class="ai-chat-send-btn" type="button" title="Send" onclick="sendChatMessage(${i})" ${busy ? 'disabled' : ''}>➤</button>
+      </div>
+    </div>`;
+
+  const msgsEl = document.getElementById(`chatMessages_${i}`);
+  if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+/* ── Handle attaching files via the file picker ── */
+function handleChatFileSelect(i, inputEl) {
+  const files = Array.from((inputEl && inputEl.files) || []);
+  if (!files.length) return;
+  if (!_chatPending[i]) _chatPending[i] = [];
+
+  files.forEach(file => {
+    if (file.size > CHAT_MAX_ATTACHMENT_BYTES) {
+      alert(`"${file.name}" is too large (max 10MB).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const base64  = String(dataUrl).split(',')[1] || '';
+      _chatPending[i].push({
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        dataUrl,
+        base64
+      });
+      renderChatPanel(i);
+    };
+    reader.onerror = () => alert(`Failed to read "${file.name}".`);
+    reader.readAsDataURL(file);
+  });
+
+  inputEl.value = '';
+}
+
+/* ── Remove a staged (not-yet-sent) attachment ── */
+function removeChatAttachment(i, idx) {
+  if (_chatPending[i]) _chatPending[i].splice(idx, 1);
+  renderChatPanel(i);
+}
+
+/* ── Stop an in-progress chat request ── */
+function stopChat(i) {
+  if (_chatCancelToken[i]) _chatCancelToken[i].cancelled = true;
+}
+
+/* ── Strip our internal display-only fields before sending to the API ── */
+function buildApiContents(history) {
+  return history.map(m => ({
+    role: m.role,
+    parts: m.parts.map(p => p.inline_data ? { inline_data: { mime_type: p.inline_data.mime_type, data: p.inline_data.data } } : { text: p.text })
+  }));
+}
+
+/* ── Send the staged message (text + attachments) ── */
+async function sendChatMessage(i) {
+  if (_chatBusy[i]) return;
+
+  const input = document.getElementById(`chatTextInput_${i}`);
+  const text  = input ? input.value.trim() : '';
+  const pending = _chatPending[i] || [];
+  if (!text && !pending.length) return;
+
+  const apiKey = getExplainKey();
+  if (!apiKey) {
+    const panel = document.getElementById(`chatPanel_${i}`);
+    if (panel) {
+      renderExplainKeyPrompt(panel, () => {
+        renderChatPanel(i);
+        const inp = document.getElementById(`chatTextInput_${i}`);
+        if (inp) inp.value = text;
+        sendChatMessage(i);
+      });
+    }
+    return;
+  }
+
+  const parts = [];
+  if (text) parts.push({ text });
+  pending.forEach(a => parts.push({ inline_data: { mime_type: a.mimeType, data: a.base64 }, _name: a.name }));
+
+  if (!_chatHistory[i]) _chatHistory[i] = [];
+  _chatHistory[i].push({ role: 'user', parts });
+  _chatPending[i] = [];
+  _chatError[i] = null;
+  if (input) input.value = '';
+
+  await runChatRequest(i);
+}
+
+/* ── Retry the last (failed) request without re-sending a new user message ── */
+function retryLastChatMessage(i) {
+  if (_chatBusy[i]) return;
+  _chatError[i] = null;
+  runChatRequest(i);
+}
+
+/* ── Core: send the current history to Gemini and append the reply ── */
+async function runChatRequest(i) {
+  const apiKey = getExplainKey();
+  if (!apiKey) {
+    const panel = document.getElementById(`chatPanel_${i}`);
+    if (panel) renderExplainKeyPrompt(panel, () => runChatRequest(i));
+    return;
+  }
+
+  const history = _chatHistory[i] || [];
+  if (!history.length) return;
+
+  _chatBusy[i] = true;
+  _chatError[i] = null;
+  renderChatPanel(i);
+
+  const token = { cancelled: false };
+  _chatCancelToken[i] = token;
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CHAT_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const data = await callGeminiWithRetry(url, {
+      contents: buildApiContents(history),
+      systemInstruction: { parts: [{ text: buildChatSystemInstruction(i) }] },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 1536 }
+    }, {
+      cancelToken: token
+    });
+
+    const replyText = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+    if (!replyText) throw new Error('Empty response from AI.');
+
+    _chatBusy[i] = false;
+    if (token.cancelled) { renderChatPanel(i); return; }
+
+    _chatHistory[i].push({ role: 'model', parts: [{ text: replyText }] });
+    renderChatPanel(i);
+
+  } catch (err) {
+    _chatBusy[i] = false;
+
+    if (err._cancelled) {
+      renderChatPanel(i);
+      return;
+    }
+
+    const isKeyErr = err._keyError || /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
+    if (isKeyErr) {
+      setExplainKey('');
+      const panel = document.getElementById(`chatPanel_${i}`);
+      if (panel) renderExplainKeyPrompt(panel, () => runChatRequest(i));
+      return;
+    }
+
+    _chatError[i] = err.message || String(err);
+    renderChatPanel(i);
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -3118,7 +3577,7 @@ const CQ_RESPONSE_SCHEMA = {
 /* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
    Only surfaces an error immediately if it's API-key-related
    (HTTP 400 with API_KEY_INVALID / 401 / 403). ──────── */
-async function callGeminiWithRetry(url, bodyObj, { onRetry } = {}) {
+async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) {
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
 
@@ -3132,6 +3591,10 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry } = {}) {
 
   let attempt = 0;
   while (true) {
+    // Check for cancellation before every attempt (including between retries)
+    if (cancelToken && cancelToken.cancelled) {
+      const e = new Error('cancelled'); e._cancelled = true; throw e;
+    }
     attempt++;
     try {
       const resp = await fetch(url, {
@@ -3149,17 +3612,39 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry } = {}) {
         // Always surface key errors immediately — no point retrying
         if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
         if (onRetry) onRetry(attempt);
-        await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt - 1), 30000)));
+        // Cancellable sleep between retries
+        await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
         continue;
+      }
+
+      // Even on success, honor a cancellation that happened while this request was in flight
+      if (cancelToken && cancelToken.cancelled) {
+        const e = new Error('cancelled'); e._cancelled = true; throw e;
       }
 
       return data; // success
     } catch (err) {
-      if (err._keyError) throw err; // propagate key errors immediately
+      if (err._keyError || err._cancelled) throw err; // propagate immediately
       if (onRetry) onRetry(attempt);
-      await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt - 1), 30000)));
+      await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
     }
   }
+}
+
+/* Resolves after `ms` OR immediately if cancelToken.cancelled becomes true */
+function cancellableSleep(ms, cancelToken) {
+  return new Promise(resolve => {
+    if (cancelToken && cancelToken.cancelled) { resolve(); return; }
+    const t = setTimeout(resolve, ms);
+    if (cancelToken) {
+      // Poll every 100 ms so cancellation is near-instant even mid-sleep
+      const poll = setInterval(() => {
+        if (cancelToken.cancelled) { clearTimeout(t); clearInterval(poll); resolve(); }
+      }, 100);
+      // Also clear the poll when the timer fires naturally
+      setTimeout(() => clearInterval(poll), ms + 50);
+    }
+  });
 }
 
 async function generateQuizFromAI() {
@@ -3201,11 +3686,7 @@ async function generateQuizFromAI() {
         temperature: 0,
         maxOutputTokens: 65536
       }
-    }, {
-      onRetry: () => {
-        if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file and extracting all questions… this may take a moment, please wait.</div>`;
-      }
-    });
+    }, {});
 
     const candidate = data && data.candidates && data.candidates[0];
     if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or blocked — try a clearer image or PDF.');
@@ -3233,7 +3714,8 @@ async function generateQuizFromAI() {
       if (!Object.keys(opts).length) return null;
       let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
       if (!opts[answer]) answer = Object.keys(opts)[0];
-      return { question: q.question, options: opts, answer };
+      const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
+      return { question: q.question, options: opts, optionsOrder, answer };
     }).filter(Boolean);
 
     if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
@@ -3390,11 +3872,7 @@ async function generateQuizFromLecture() {
       };
     }
 
-    const data = await callGeminiWithRetry(url, requestBody, {
-      onRetry: () => {
-        if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your lecture and generating questions… this may take a moment, please wait.</div>`;
-      }
-    });
+    const data = await callGeminiWithRetry(url, requestBody, {});
 
     const candidate = data && data.candidates && data.candidates[0];
     if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or too large — try splitting it into smaller sections.');
@@ -3424,7 +3902,8 @@ async function generateQuizFromLecture() {
       if (!Object.keys(opts).length) return null;
       let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
       if (!opts[answer]) answer = Object.keys(opts)[0];
-      return { question: q.question, options: opts, answer };
+      const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
+      return { question: q.question, options: opts, optionsOrder, answer };
     }).filter(Boolean);
 
     if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
@@ -3474,7 +3953,7 @@ function renderCQPreview() {
   let html = `<div class="cq-preview-list">`;
   cqGeneratedQuestions.forEach((q, i) => {
     html += `<div class="cq-preview-q"><div><span class="cq-pq-num">Q${i + 1}.</span> ${escapeHtml(q.question)}</div>`;
-    Object.entries(q.options).forEach(([k, v]) => {
+    getOptionEntries(q).forEach(([k, v]) => {
       const isCorrect = k === q.answer;
       html += `<div class="cq-pq-opt${isCorrect ? ' cq-correct' : ''}">${escapeHtml(k)}. ${escapeHtml(v)}${isCorrect ? ' ✔' : ''}</div>`;
     });
@@ -3643,11 +4122,12 @@ async function shareCustomQuiz(id) {
   try {
     const sharedId = 'sq_' + window._currentUser.uid + '_' + id;
     const sharedRef = window._doc(window._db, 'sharedQuizzes', sharedId);
+
     await window._setDoc(sharedRef, {
       id: sharedId,
       originalId: id,
       title: quiz.title,
-      questions: quiz.questions,
+      questions: quiz.questions,  // optionsOrder is already embedded on every question
       authorUid: window._currentUser.uid,
       authorName: displayName,
       sharedAt: Date.now(),
@@ -3664,6 +4144,17 @@ async function shareCustomQuiz(id) {
   } catch(e) {
     alert('Failed to share quiz: ' + (e.message || e));
   }
+}
+
+/* ── Restore options object from optionsOrder array (set by shareCustomQuiz) ── */
+function restoreOptionsOrder(questions) {
+  return questions.map(q => {
+    if (!Array.isArray(q.optionsOrder) || !q.optionsOrder.length) return q;
+    const opts = {};
+    q.optionsOrder.forEach(({ key, value }) => { opts[key] = value; });
+    const { optionsOrder, ...rest } = q;
+    return { ...rest, options: opts };
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -3765,7 +4256,7 @@ function startCommunityQuizByIdx(idx) {
   if (!mins || mins <= 0) mins = Math.max(5, quiz.questions.length);
   const shuffle = shuffleInput ? shuffleInput.checked : false;
 
-  let combined = JSON.parse(JSON.stringify(quiz.questions));
+  let combined = restoreOptionsOrder(JSON.parse(JSON.stringify(quiz.questions)));
   if (shuffle) {
     for (let i = combined.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -3806,7 +4297,7 @@ async function importCommunityQuiz(sharedId) {
     quizzes.unshift({
       id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       title: q.title + ' (Community)',
-      questions: q.questions,
+      questions: restoreOptionsOrder(q.questions),
       createdAt: Date.now(),
       originalSharedId: sharedId,
       importedFrom: q.authorName
