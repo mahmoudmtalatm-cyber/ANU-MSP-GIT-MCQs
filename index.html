@@ -2594,53 +2594,77 @@ async function explainQuestion(i) {
 
 /* ── Parse AI text into structured HTML ── */
 function renderExplainText(text, q) {
-  // Split into named sections
-  const sectionPatterns = [
-    { key: 'overview',  re: /QUESTION OVERVIEW\s*:\s*/i,     label: 'Question Overview', cls: 'question-label' },
-    { key: 'correct',   re: /CORRECT ANSWER[^:]*:\s*/i,      label: `✔ Correct — ${q.answer}. ${q.options[q.answer] || ''}`,    cls: 'correct-label'  },
-  ];
-  // Build wrong answer patterns from actual options
-  const wrongSections = Object.entries(q.options)
-    .filter(([k]) => k !== q.answer)
-    .map(([k, v]) => ({
-      key: `wrong_${k}`,
-      re:  new RegExp(`WRONG[^:]*${k}[^:]*:\\s*`, 'i'),
-      label: `✘ Wrong — ${k}. ${v}`,
-      cls: 'wrong-label'
-    }));
-
-  const allSections = [...sectionPatterns, ...wrongSections];
-
-  // Find positions of each section header in text
-  const found = [];
-  allSections.forEach(s => {
-    const m = text.match(s.re);
-    if (m) {
-      const idx = text.search(s.re);
-      found.push({ ...s, start: idx, headerLen: m[0].length });
+  // Build a lookup map: option key → { label, cls }
+  const sectionMeta = {};
+  sectionMeta['__overview__'] = { label: 'Question Overview', cls: 'question-label' };
+  sectionMeta['__correct__']  = { label: `✔ Correct — ${q.answer}. ${q.options[q.answer] || ''}`, cls: 'correct-label' };
+  Object.entries(q.options).forEach(([k, v]) => {
+    if (k !== q.answer) {
+      sectionMeta[`__wrong_${k}__`] = { label: `✘ Wrong — ${k}. ${v}`, cls: 'wrong-label' };
     }
   });
-  found.sort((a, b) => a.start - b.start);
 
-  // Extract body for each section
-  let html = '<div class="ai-explain-panel"><div class="ai-explain-panel-header"><span>🤖</span> AI Explanation</div><div class="ai-explain-panel-body">';
-  found.forEach((sec, idx) => {
-    const bodyStart = sec.start + sec.headerLen;
-    const bodyEnd   = idx + 1 < found.length ? found[idx + 1].start : text.length;
-    const body      = text.slice(bodyStart, bodyEnd).trim();
-    html += `<div class="exp-section">
-      <div class="exp-label ${sec.cls}">${escapeHtml(sec.label)}</div>
-      <div>${escapeHtml(body)}</div>
-    </div>`;
+  // Build a single regex that matches ANY of the known headers, capturing which key matched.
+  // We use a unified scan: find every header occurrence in the text, tag it, then sort by position.
+  const headerDefs = [
+    { key: '__overview__', re: /QUESTION\s+OVERVIEW\s*:/i },
+    { key: '__correct__',  re: /CORRECT\s+ANSWER\s*(?:—|-|–)?[^:\n]*:/i },
+    ...Object.keys(q.options)
+      .filter(k => k !== q.answer)
+      .map(k => ({
+        key: `__wrong_${k}__`,
+        // Match "WRONG — K." or "WRONG — K ." or just "WRONG — K:" where K is the exact option key
+        // Use word boundary so "B" doesn't match "BC"
+        re: new RegExp(`WRONG\\s*(?:—|-|–)?\\s*${escapeRegex(k)}\\s*\\.?[^:\\n]*:`, 'i')
+      }))
+  ];
+
+  // Scan text for all header positions; a key may appear at most once — keep the FIRST occurrence
+  const hits = []; // { key, start, end (end of header marker) }
+  const seenKeys = new Set();
+
+  headerDefs.forEach(({ key, re }) => {
+    const reGlobal = new RegExp(re.source, 'gi');
+    let m;
+    while ((m = reGlobal.exec(text)) !== null) {
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        hits.push({ key, start: m.index, headerEnd: m.index + m[0].length });
+      }
+      break; // only first occurrence per section
+    }
   });
 
-  // If parsing found nothing, show raw text
-  if (!found.length) {
+  // Sort hits by their position in the text
+  hits.sort((a, b) => a.start - b.start);
+
+  // Extract body text between consecutive headers
+  let html = '<div class="ai-explain-panel"><div class="ai-explain-panel-header"><span>🤖</span> AI Explanation</div><div class="ai-explain-panel-body">';
+
+  if (hits.length === 0) {
+    // Parsing found nothing — show raw text as fallback
     html += `<div class="exp-section"><div>${escapeHtml(text)}</div></div>`;
+  } else {
+    hits.forEach((hit, idx) => {
+      const bodyStart = hit.headerEnd;
+      const bodyEnd   = idx + 1 < hits.length ? hits[idx + 1].start : text.length;
+      const body      = text.slice(bodyStart, bodyEnd).trim();
+      const meta      = sectionMeta[hit.key];
+      if (!meta) return;
+      html += `<div class="exp-section">
+        <div class="exp-label ${meta.cls}">${escapeHtml(meta.label)}</div>
+        <div>${escapeHtml(body)}</div>
+      </div>`;
+    });
   }
 
   html += '</div></div>';
   return html;
+}
+
+/* ── Escape special regex characters in a string ── */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /* ── Explain ALL questions sequentially ── */
