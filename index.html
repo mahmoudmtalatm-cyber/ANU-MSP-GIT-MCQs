@@ -744,7 +744,23 @@
 .cq-preview-q .cq-pq-opt { padding-left: 16px; color: var(--text-muted); }
 .cq-preview-q .cq-pq-opt.cq-correct { color: var(--correct-fg); font-weight: 700; }
 
-.change-flow-section {
+.cq-reextract-banner {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px; padding: 8px 12px;
+  background: #FFF8E1; border: 1px dashed #FFB300; border-radius: 8px;
+  font-size: .8rem; font-weight: 600; color: #795500;
+}
+.cq-reextract-banner .cq-btn {
+  font-size: .78rem; padding: 6px 12px;
+}
+.cq-reextract-drop {
+  margin-top: 8px; padding: 10px 14px;
+  border: 2px dashed #B0D4F0; border-radius: 8px;
+  background: #F7FBFF; font-size: .82rem; color: var(--text-muted);
+  font-weight: 600; cursor: pointer; text-align: center;
+  transition: border-color .15s, background .15s;
+}
+.cq-reextract-drop:hover { border-color: var(--accent); background: #EEF7FF; }
   background: var(--bg-card);
   border: 1px solid #B0D4F0;
   border-radius: 10px;
@@ -2577,8 +2593,12 @@ function buildExplainPrompt(q, userAnswer) {
 WRONG — ${k}. ${v}:
 [1–2 sentences: why this option is incorrect and what makes it a plausible distractor]`).join('');
 
-  return `You are a medical education expert. Explain this MCQ question clearly for a medical student.
+  const imageNote = q.image
+    ? '\nA visual element (image/diagram/figure) associated with this question is attached — refer to it in your explanation as needed.\n'
+    : '';
 
+  return `You are a medical education expert. Explain this MCQ question clearly for a medical student.
+${imageNote}
 QUESTION:
 ${q.question}
 
@@ -2695,8 +2715,17 @@ async function explainQuestion(i) {
     const prompt     = buildExplainPrompt(q, userAnswer);
     const url        = `https://generativelanguage.googleapis.com/v1beta/models/${AI_EXPLAIN_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+    // Build parts — prepend the question image if this question has one
+    const parts = [];
+    if (q.image) {
+      const base64 = q.image.split(',')[1] || '';
+      const mime   = q.image.match(/^data:([^;]+)/)?.[1] || 'image/png';
+      parts.push({ inline_data: { mime_type: mime, data: base64 } });
+    }
+    parts.push({ text: prompt });
+
     const data = await callGeminiWithRetry(url, {
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts }],
       generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
     }, {
       cancelToken: token
@@ -2969,6 +2998,10 @@ ${optLines}
 CORRECT ANSWER: ${q.answer}. ${q.options[q.answer] || ''}
 ${userLine}`;
 
+  if (q.image) {
+    ctx += `\n\nThis question includes a visual element (image, diagram, figure, X-ray, ECG, histology slide, etc.) that has been provided to you alongside this conversation. Use it when answering questions about the image or any visual findings.`;
+  }
+
   const rawExplain = _explainRawText[i];
   if (rawExplain) {
     ctx += `\n\nAN AI-GENERATED EXPLANATION HAS ALREADY BEEN SHOWN TO THE STUDENT FOR THIS QUESTION:
@@ -3175,8 +3208,24 @@ async function runChatRequest(i) {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CHAT_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+    // If this question has an embedded image, inject it as the first part of the
+    // first user turn so Gemini can see it throughout the conversation.
+    const q = currentQuestions[i];
+    let apiContents = buildApiContents(history);
+    if (q.image && apiContents.length > 0) {
+      const base64 = q.image.split(',')[1] || '';
+      const mime   = q.image.match(/^data:([^;]+)/)?.[1] || 'image/png';
+      const imagePart = { inline_data: { mime_type: mime, data: base64 } };
+      // Prepend image to the first user turn's parts
+      apiContents = apiContents.map((m, idx) =>
+        idx === 0 && m.role === 'user'
+          ? { ...m, parts: [imagePart, ...m.parts] }
+          : m
+      );
+    }
+
     const data = await callGeminiWithRetry(url, {
-      contents: buildApiContents(history),
+      contents: apiContents,
       systemInstruction: { parts: [{ text: buildChatSystemInstruction(i) }] },
       generationConfig: { temperature: 0.4, maxOutputTokens: 1536 }
     }, {
@@ -3242,6 +3291,97 @@ function escapeHtml(str) {
   }[c]));
 }
 
+/* ══════════════════════════════════════════════════════════
+   FIREBASE STORAGE — quiz image helpers
+══════════════════════════════════════════════════════════ */
+
+/* Save all base64 images in a quiz's questions to Firestore subcollection documents.
+   Each image goes into users/{uid}/customQuizzes/{quizId}/images/{idx}.
+   Replaces q.image (data URL) with q.imageUrl (firestore:// sentinel).
+   Returns the modified questions array (mutates in place too). */
+async function uploadQuizImagesToStorage(quizId, questions) {
+  if (!window._db || !window._currentUser) return questions;
+  for (let idx = 0; idx < questions.length; idx++) {
+    const q = questions[idx];
+    if (!q.image) continue; // nothing to save
+    try {
+      const compressed = await compressImageDataUrl(q.image);
+      const imgRef = window._doc(
+        window._db,
+        'users', window._currentUser.uid,
+        'customQuizzes', quizId,
+        'images', String(idx)
+      );
+      await window._setDoc(imgRef, { imageData: compressed });
+      q.imageUrl = `firestore://${quizId}/${idx}`; // sentinel: tells hydrate where to fetch from
+      delete q.image; // don't inline base64 in the parent quiz document
+    } catch (e) {
+      console.warn('Image save to Firestore failed for question', idx, e);
+      // Keep image as-is so quiz still works locally
+    }
+  }
+  return questions;
+}
+
+/* Delete all Firestore image subcollection docs for a quiz (called on delete). */
+async function deleteQuizImagesFromStorage(quizId) {
+  if (!window._db || !window._currentUser) return;
+  try {
+    const col = window._collection(
+      window._db,
+      'users', window._currentUser.uid,
+      'customQuizzes', quizId,
+      'images'
+    );
+    const snap = await window._getDocs(col);
+    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
+  } catch (e) {
+    console.warn('Image cleanup failed for quiz', quizId, e);
+  }
+}
+
+/* Fetch all images back into in-memory image (data URL) fields.
+   New quizzes use a firestore:// sentinel and read from the images subcollection.
+   Legacy quizzes with a real HTTPS Storage URL fall back to fetching that URL. */
+async function hydrateQuizImages(questions) {
+  await Promise.all(questions.map(async (q) => {
+    if (q.image || !q.imageUrl) return; // already hydrated or no image
+
+    if (q.imageUrl.startsWith('firestore://')) {
+      // New path: read from Firestore images subcollection
+      try {
+        const parts = q.imageUrl.replace('firestore://', '').split('/');
+        const storedQuizId = parts[0];
+        const imgIdx       = parts[1];
+        const imgRef = window._doc(
+          window._db,
+          'users', window._currentUser.uid,
+          'customQuizzes', storedQuizId,
+          'images', imgIdx
+        );
+        const snap = await window._getDoc(imgRef);
+        if (snap.exists()) q.image = snap.data().imageData;
+      } catch (e) {
+        console.warn('Firestore image fetch failed', q.imageUrl, e);
+      }
+    } else {
+      // Legacy path: real HTTPS URL from Firebase Storage
+      try {
+        const resp = await fetch(q.imageUrl);
+        const blob = await resp.blob();
+        await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => { q.image = reader.result; resolve(); };
+          reader.onerror = resolve;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn('Legacy Storage image fetch failed', q.imageUrl, e);
+      }
+    }
+  }));
+}
+
 function loadCustomQuizzes() {
   return window._cachedCustomQuizzes || [];
 }
@@ -3254,6 +3394,8 @@ async function loadCustomQuizzesFromFirestore() {
     const quizzes = [];
     snap.forEach(d => quizzes.push(d.data()));
     quizzes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    // Hydrate images from Storage in the background
+    await Promise.all(quizzes.map(quiz => hydrateQuizImages(quiz.questions || [])));
     window._cachedCustomQuizzes = quizzes;
   } catch (e) {
     console.error('Failed to load custom quizzes:', e);
@@ -3263,6 +3405,7 @@ async function loadCustomQuizzesFromFirestore() {
     } catch (_) { window._cachedCustomQuizzes = []; }
   }
 }
+
 async function saveCustomQuizzesList(arr) {
   window._cachedCustomQuizzes = arr;
   if (window._currentUser) {
@@ -3272,14 +3415,31 @@ async function saveCustomQuizzesList(arr) {
       const existingIds = new Set();
       snap.forEach(d => existingIds.add(d.id));
       const newIds = new Set(arr.map(q => q.id));
+
+      // Delete removed quizzes and their Storage images
       for (const id of existingIds) {
         if (!newIds.has(id)) {
           await window._deleteDoc(window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', id));
+          await deleteQuizImagesFromStorage(id);
         }
       }
+
       for (const quiz of arr) {
-        const ref = window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', quiz.id);
-        await window._setDoc(ref, quiz);
+        // Deep-clone so we don't mutate the in-memory cached copy
+        const quizToSave = JSON.parse(JSON.stringify(quiz));
+
+        // Upload any new base64 images to Storage, replacing them with URLs
+        await uploadQuizImagesToStorage(quizToSave.id, quizToSave.questions || []);
+
+        // Also update the in-memory cache with the imageUrls so next save is a no-op
+        quiz.questions.forEach((q, idx) => {
+          if (quizToSave.questions[idx]?.imageUrl) {
+            q.imageUrl = quizToSave.questions[idx].imageUrl;
+          }
+        });
+
+        const ref = window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', quizToSave.id);
+        await window._setDoc(ref, quizToSave);
       }
     } catch (e) { console.error('Failed to save custom quizzes:', e); }
   } else {
@@ -3542,13 +3702,15 @@ STRICT RULES — follow exactly, no exceptions:
 4. If the document indicates which choice is correct (circled, bolded, underlined, highlighted, starred, checked, or listed in a separate answer key), use EXACTLY that choice as the "answer" for that question. Do not second-guess or change a marked answer.
 5. ONLY if a specific question has NO indicated correct answer anywhere in the document, then — and only then — use your own subject-matter knowledge to determine the single most likely correct answer for that question.
 6. Do not invent, add, duplicate, or remove any questions or options that are not present in the source document.
+7. For each question, set "has_image" to true if the question is accompanied by an image, diagram, figure, table, chart, graph, X-ray, CT scan, ECG, histology slide, or any other visual element that is part of that question. Set it to false otherwise.
 
 Return ONLY a JSON array, one object per question, in exactly this format:
 [
   {
     "question": "exact question text",
     "options": { "A": "exact choice text", "B": "exact choice text", "C": "exact choice text", "D": "exact choice text" },
-    "answer": "A"
+    "answer": "A",
+    "has_image": false
   }
 ]
 
@@ -3568,7 +3730,8 @@ const CQ_RESPONSE_SCHEMA = {
           I: { type: 'STRING' }, J: { type: 'STRING' }
         }
       },
-      answer: { type: 'STRING' }
+      answer: { type: 'STRING' },
+      has_image: { type: 'BOOLEAN' }
     },
     required: ['question', 'options', 'answer']
   }
@@ -3647,6 +3810,194 @@ function cancellableSleep(ms, cancelToken) {
   });
 }
 
+/* ── Load an HTMLImageElement from a data-URL ── */
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = dataUrl;
+  });
+}
+
+/* ── Render a single PDF page to a canvas using pdf.js, return dataURL ── */
+async function renderPdfPageToDataUrl(base64Data, pageNum) {
+  // Lazy-load pdf.js from CDN
+  if (!window.pdfjsLib) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload  = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const pdfLib = window.pdfjsLib;
+  const binary = atob(base64Data);
+  const bytes  = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const pdf  = await pdfLib.getDocument({ data: bytes }).promise;
+  const page = await pdf.getPage(pageNum);
+  const scale    = 2;
+  const viewport = page.getViewport({ scale });
+  const canvas   = document.createElement('canvas');
+  canvas.width   = viewport.width;
+  canvas.height  = viewport.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+}
+
+/* ── Ask Gemini for bounding boxes of visual elements for each image-bearing question ── */
+async function getBoundingBoxes(questions, sourceBase64, sourceMimeType, apiKey) {
+  const imageQs = questions.map((q, i) => ({ idx: i, q })).filter(({ q }) => q.has_image);
+  if (!imageQs.length) return;
+
+  const descriptions = imageQs.map(({ idx, q }) =>
+    `Q${idx + 1}: "${q.question.substring(0, 200)}"`
+  ).join('\n');
+
+  const prompt = `You are given a document. For each question below, locate the visual element (image, diagram, figure, table, chart, X-ray, ECG, histology slide, graph, etc.) associated with it.
+
+For each question, return the bounding box of ONLY that visual element on the page where it appears, as normalized coordinates (0.0 to 1.0 relative to the full page width and height). Also return the 1-based page number where the visual element appears.
+
+Questions:
+${descriptions}
+
+Return ONLY a JSON array — one entry per question — in exactly this format:
+[
+  { "q_index": 1, "page": 1, "x": 0.05, "y": 0.10, "w": 0.90, "h": 0.35 }
+]
+
+Where:
+- q_index matches the Q number above (1-based)
+- page is the 1-based page number containing this visual element
+- x, y = top-left corner of the bounding box (normalized 0–1)
+- w, h = width and height of the bounding box (normalized 0–1)
+
+If you cannot find a visual element for a question, omit that entry from the array.
+Output nothing besides the JSON array.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: sourceMimeType, data: sourceBase64 } },
+            { text: prompt }
+          ]
+        }],
+        generationConfig: { temperature: 0, maxOutputTokens: 4096 }
+      })
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const textOut = ((data.candidates || [])[0]?.content?.parts || [])
+      .map(p => p.text || '').join('').trim();
+    if (!textOut) return;
+    const clean = textOut.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ── Crop a region from a rendered image using Canvas ── */
+async function cropRegionFromDataUrl(pageDataUrl, pageWidth, pageHeight, box) {
+  const img = await loadImageFromDataUrl(pageDataUrl);
+  const sx = Math.max(0, Math.round(box.x * pageWidth));
+  const sy = Math.max(0, Math.round(box.y * pageHeight));
+  const sw = Math.min(Math.round(box.w * pageWidth),  pageWidth  - sx);
+  const sh = Math.min(Math.round(box.h * pageHeight), pageHeight - sy);
+  if (sw <= 0 || sh <= 0) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width  = sw;
+  canvas.height = sh;
+  canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  return canvas.toDataURL('image/png');
+}
+
+/* ── Compress / resize a base64 data URL so it fits well under Firestore's 1 MB doc limit.
+   Target: ≤ 800 px on the longest side, JPEG quality 0.82.
+   Returns the compressed data URL (always image/jpeg). ── */
+async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
+  try {
+    const img = await loadImageFromDataUrl(dataUrl);
+    let { naturalWidth: w, naturalHeight: h } = img;
+    if (w > maxPx || h > maxPx) {
+      if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+      else        { w = Math.round(w * maxPx / h); h = maxPx; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width  = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', quality);
+  } catch (e) {
+    return dataUrl; // fallback: return original if compression fails
+  }
+}
+
+/* ── Main: extract images from source for all has_image questions ── */
+async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType, apiKey) {
+  const isPdf = sourceMimeType === 'application/pdf';
+
+  // Step 1: ask Gemini for bounding boxes of all image-bearing questions at once
+  const boxes = await getBoundingBoxes(questions, sourceBase64, sourceMimeType, apiKey);
+  if (!boxes || !Array.isArray(boxes) || !boxes.length) return;
+
+  // Build a map: question index (0-based) → box info
+  const boxMap = {};
+  boxes.forEach(b => {
+    if (typeof b.q_index === 'number') {
+      boxMap[b.q_index - 1] = b; // convert to 0-based
+    }
+  });
+
+  // Step 2: render pages and crop
+  const pageCache = {}; // page number → { dataUrl, width, height }
+
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    if (!q.has_image) continue;
+    const box = boxMap[i];
+    if (!box) continue;
+
+    try {
+      const pageNum = box.page || 1;
+
+      if (!pageCache[pageNum]) {
+        if (isPdf) {
+          pageCache[pageNum] = await renderPdfPageToDataUrl(sourceBase64, pageNum);
+        } else {
+          // Single image — treat as page 1
+          const img = await loadImageFromDataUrl(`data:${sourceMimeType};base64,${sourceBase64}`);
+          const canvas = document.createElement('canvas');
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          pageCache[pageNum] = {
+            dataUrl: canvas.toDataURL('image/png'),
+            width: img.naturalWidth,
+            height: img.naturalHeight
+          };
+        }
+      }
+
+      const { dataUrl, width, height } = pageCache[pageNum];
+      const cropped = await cropRegionFromDataUrl(dataUrl, width, height, box);
+      if (cropped) q.image = await compressImageDataUrl(cropped);
+
+    } catch (e) {
+      // Skip silently
+    }
+  }
+}
+
 async function generateQuizFromAI() {
   const apiKeyInput = document.getElementById('cqApiKeyInput');
   const titleInput  = document.getElementById('cqTitleInput');
@@ -3715,10 +4066,17 @@ async function generateQuizFromAI() {
       let answer = (typeof q.answer === 'string') ? q.answer.trim().toUpperCase() : '';
       if (!opts[answer]) answer = Object.keys(opts)[0];
       const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
-      return { question: q.question, options: opts, optionsOrder, answer };
+      return { question: q.question, options: opts, optionsOrder, answer, has_image: !!q.has_image };
     }).filter(Boolean);
 
     if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
+
+    // Extract embedded images for questions that have them
+    const imageQuestions = cleaned.filter(q => q.has_image);
+    if (imageQuestions.length > 0) {
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Extracting images for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}… please wait.</div>`;
+      await extractImagesForQuestions(cleaned, base64Data, mimeType, apiKey);
+    }
 
     cqGeneratedQuestions = cleaned;
 
@@ -3727,7 +4085,9 @@ async function generateQuizFromAI() {
       warn = ` ⚠️ The response may have been cut off because the document is very large — please check below that the last question is complete, and split very long documents into smaller files if needed.`;
     }
 
-    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}. Review below, then save.${warn}</div>`;
+    const imgCount = cleaned.filter(q => q.image).length;
+    const imgNote  = imgCount > 0 ? ` · 🖼️ ${imgCount} image${imgCount !== 1 ? 's' : ''} embedded` : '';
+    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${imgNote}. Review below, then save.${warn}</div>`;
     renderCQPreview();
 
   } catch (err) {
@@ -3953,6 +4313,13 @@ function renderCQPreview() {
   let html = `<div class="cq-preview-list">`;
   cqGeneratedQuestions.forEach((q, i) => {
     html += `<div class="cq-preview-q"><div><span class="cq-pq-num">Q${i + 1}.</span> ${escapeHtml(q.question)}</div>`;
+    if (q.image) {
+      html += `<div style="margin:8px 0 4px;border-radius:6px;overflow:hidden;border:1.5px solid #B0D4F0;background:#F0F8FF;display:inline-flex;max-width:100%;">
+        <img src="${q.image}" alt="Question image" style="max-width:100%;max-height:180px;object-fit:contain;display:block;" />
+      </div>`;
+    } else if (q.has_image) {
+      html += `<div style="margin:6px 0 4px;padding:6px 10px;background:#FFF3E0;border:1px dashed #E65100;border-radius:6px;font-size:.78rem;color:#E65100;font-weight:700;">⚠️ Image could not be extracted from source</div>`;
+    }
     getOptionEntries(q).forEach(([k, v]) => {
       const isCorrect = k === q.answer;
       html += `<div class="cq-pq-opt${isCorrect ? ' cq-correct' : ''}">${escapeHtml(k)}. ${escapeHtml(v)}${isCorrect ? ' ✔' : ''}</div>`;
@@ -4001,6 +4368,7 @@ async function deleteCustomQuiz(id) {
   if (!confirm('Delete this custom quiz? This cannot be undone.')) return;
   let quizzes = loadCustomQuizzes();
   quizzes = quizzes.filter(q => q.id !== id);
+  await deleteQuizImagesFromStorage(id);
   await saveCustomQuizzesList(quizzes);
   renderCustomQuizModal();
 }
@@ -4103,6 +4471,84 @@ async function confirmDisplayName() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   FIRESTORE UTILITIES
+══════════════════════════════════════════════════════════ */
+
+// Deep-clean an object for Firestore: remove undefined values so Firestore never rejects the doc.
+function cleanForFirestore(obj) {
+  if (Array.isArray(obj)) {
+    return obj.map(cleanForFirestore).filter(v => v !== undefined);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === undefined) continue;
+      out[k] = cleanForFirestore(v);
+    }
+    return out;
+  }
+  return obj;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SHARED QUIZ IMAGE HELPERS (subcollection per shared quiz)
+   Path: sharedQuizzes/{sharedId}/images/{questionIdx}
+══════════════════════════════════════════════════════════ */
+
+/* Upload images for a shared quiz into its images subcollection.
+   Compresses each image first, then replaces q.image with a sharedImageIdx sentinel. */
+async function uploadSharedQuizImages(sharedId, questions) {
+  for (let idx = 0; idx < questions.length; idx++) {
+    const q = questions[idx];
+    if (!q.image) continue;
+    try {
+      const compressed = await compressImageDataUrl(q.image);
+      const imgRef = window._doc(
+        window._db,
+        'sharedQuizzes', sharedId,
+        'images', String(idx)
+      );
+      await window._setDoc(imgRef, { imageData: compressed });
+      q.sharedImageIdx = idx; // sentinel for consumers
+      delete q.image;
+    } catch (e) {
+      console.warn('Shared image upload failed for question', idx, e);
+      // Keep inline as fallback
+    }
+  }
+}
+
+/* Fetch images for a shared quiz from its images subcollection. */
+async function hydrateSharedQuizImages(sharedId, questions) {
+  await Promise.all(questions.map(async (q) => {
+    if (q.image) return; // already in memory
+    if (typeof q.sharedImageIdx !== 'number') return; // no image
+    try {
+      const imgRef = window._doc(
+        window._db,
+        'sharedQuizzes', sharedId,
+        'images', String(q.sharedImageIdx)
+      );
+      const snap = await window._getDoc(imgRef);
+      if (snap.exists()) q.image = snap.data().imageData;
+    } catch (e) {
+      console.warn('Shared image fetch failed for question', q.sharedImageIdx, e);
+    }
+  }));
+}
+
+/* Delete all image subcollection docs for a shared quiz. */
+async function deleteSharedQuizImages(sharedId) {
+  try {
+    const col = window._collection(window._db, 'sharedQuizzes', sharedId, 'images');
+    const snap = await window._getDocs(col);
+    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
+  } catch (e) {
+    console.warn('Shared image cleanup failed for quiz', sharedId, e);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
    SHARE CUSTOM QUIZ
 ══════════════════════════════════════════════════════════ */
 async function shareCustomQuiz(id) {
@@ -4123,16 +4569,32 @@ async function shareCustomQuiz(id) {
     const sharedId = 'sq_' + window._currentUser.uid + '_' + id;
     const sharedRef = window._doc(window._db, 'sharedQuizzes', sharedId);
 
-    await window._setDoc(sharedRef, {
+    // Force-hydrate images from the personal subcollection before sharing,
+    // so q.image is guaranteed to be in memory even if background hydration
+    // hadn't finished (or never ran) when the user taps Share.
+    await hydrateQuizImages(quiz.questions);
+
+    // Deep-clone so we never mutate the in-memory cached quiz
+    const questionsForFirestore = JSON.parse(JSON.stringify(quiz.questions)).map(q => {
+      // Drop personal firestore:// sentinel — image is now hydrated into q.image
+      if (q.imageUrl && q.imageUrl.startsWith('firestore://')) delete q.imageUrl;
+      return q;
+    });
+
+    // Compress + upload each image to sharedQuizzes/{sharedId}/images/{idx},
+    // replacing q.image with a lightweight sharedImageIdx sentinel in the doc
+    await uploadSharedQuizImages(sharedId, questionsForFirestore);
+
+    await window._setDoc(sharedRef, cleanForFirestore({
       id: sharedId,
       originalId: id,
       title: quiz.title,
-      questions: quiz.questions,  // optionsOrder is already embedded on every question
+      questions: questionsForFirestore,
       authorUid: window._currentUser.uid,
       authorName: displayName,
       sharedAt: Date.now(),
       questionCount: quiz.questions.length
-    });
+    }));
 
     // Mark quiz as shared locally
     quiz.sharedAt = Date.now();
@@ -4246,7 +4708,7 @@ async function renderCommunityQuizzes() {
   body.innerHTML = html;
 }
 
-function startCommunityQuizByIdx(idx) {
+async function startCommunityQuizByIdx(idx) {
   const quiz = (window._commQuizCache || [])[idx];
   if (!quiz || !quiz.questions || !quiz.questions.length) return;
 
@@ -4257,6 +4719,10 @@ function startCommunityQuizByIdx(idx) {
   const shuffle = shuffleInput ? shuffleInput.checked : false;
 
   let combined = restoreOptionsOrder(JSON.parse(JSON.stringify(quiz.questions)));
+  // Hydrate images: new quizzes use the shared subcollection (sharedImageIdx sentinel);
+  // legacy quizzes may have inline base64 or Storage URLs.
+  await hydrateSharedQuizImages(quiz.id, combined);
+  await hydrateQuizImages(combined); // handles any legacy Storage URLs still present
   if (shuffle) {
     for (let i = combined.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -4294,10 +4760,15 @@ async function importCommunityQuiz(sharedId) {
     const alreadyExists = quizzes.some(cq => cq.originalSharedId === sharedId);
     if (alreadyExists) { alert('You already have this quiz saved.'); return; }
 
+    const importedQuestions = restoreOptionsOrder(q.questions);
+    // Hydrate images: new quizzes use the shared subcollection; legacy may use Storage URLs
+    await hydrateSharedQuizImages(sharedId, importedQuestions);
+    await hydrateQuizImages(importedQuestions); // handles legacy Storage URLs
+
     quizzes.unshift({
       id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       title: q.title + ' (Community)',
-      questions: restoreOptionsOrder(q.questions),
+      questions: importedQuestions,
       createdAt: Date.now(),
       originalSharedId: sharedId,
       importedFrom: q.authorName
@@ -4320,6 +4791,7 @@ async function deleteCommunityQuiz(sharedId) {
       return;
     }
     await window._deleteDoc(ref);
+    await deleteSharedQuizImages(sharedId); // remove images subcollection too
 
     // Clear sharedAt from local quiz cache
     const quizzes = loadCustomQuizzes();
@@ -4341,6 +4813,7 @@ async function deleteCommunityQuiz(sharedId) {
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+
   // ── REPLACE THIS WITH YOUR OWN CONFIG FROM STEP 1.7 ──
   // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
@@ -4354,10 +4827,9 @@ const firebaseConfig = {
 };
 
   // Initialize Firebase
-  const app  = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db   = getFirestore(app);
-
+  const app     = initializeApp(firebaseConfig);
+  const auth    = getAuth(app);
+  const db      = getFirestore(app);
   // Expose to the rest of your app's scripts
   window._auth             = auth;
   window._db               = db;
