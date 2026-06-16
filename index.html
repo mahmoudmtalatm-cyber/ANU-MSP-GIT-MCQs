@@ -1020,6 +1020,58 @@
 .cq-split-chip.warn { border-color: #E65100; color: #E65100; background: #FFF3E0; }
 .cq-split-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
+/* Visual scissors mode */
+.cq-split-visual-list { margin-top: 4px; }
+.cq-split-q-row {
+  background: #fff; border: 1.5px solid #E1BEE7; border-radius: 8px;
+  padding: 9px 13px; margin-bottom: 2px;
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: .82rem; font-weight: 600; color: var(--text-main); line-height: 1.4;
+  transition: background .12s;
+}
+.cq-split-q-num {
+  background: #6A1B9A; color: #fff; border-radius: 20px;
+  padding: 2px 8px; font-size: .72rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+}
+.cq-split-q-text { flex: 1; min-width: 0; }
+.cq-split-q-group-badge {
+  font-size: .7rem; font-weight: 800; border-radius: 20px; padding: 2px 9px;
+  border: 1.5px solid; flex-shrink: 0; margin-top: 1px; white-space: nowrap;
+}
+.cq-scissors-row {
+  display: flex; align-items: center; gap: 0; margin: 0; position: relative; cursor: pointer;
+  height: 28px;
+}
+.cq-scissors-line {
+  flex: 1; height: 2px; background: repeating-linear-gradient(
+    to right, #CE93D8 0, #CE93D8 7px, transparent 7px, transparent 13px
+  );
+  transition: background .15s;
+}
+.cq-scissors-btn {
+  width: 30px; height: 30px; border-radius: 50%; background: #fff;
+  border: 2px solid #CE93D8; display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; cursor: pointer; transition: all .15s; flex-shrink: 0;
+  position: relative; z-index: 1; line-height: 1;
+  box-shadow: 0 1px 4px rgba(106,27,154,.1);
+}
+.cq-scissors-btn:hover, .cq-scissors-row:hover .cq-scissors-btn { background: #6A1B9A; border-color: #6A1B9A; color: #fff; transform: scale(1.15); }
+.cq-scissors-row:hover .cq-scissors-line { background: repeating-linear-gradient(to right, #6A1B9A 0, #6A1B9A 7px, transparent 7px, transparent 13px); }
+.cq-scissors-row.cut .cq-scissors-btn { background: #6A1B9A; border-color: #4A148C; color: #fff; }
+.cq-scissors-row.cut .cq-scissors-line { background: repeating-linear-gradient(to right, #4A148C 0, #4A148C 7px, transparent 7px, transparent 13px); }
+.cq-split-group-label-row {
+  display: flex; align-items: center; gap: 7px; margin: 6px 0 4px; flex-wrap: wrap;
+}
+.cq-split-group-label-row label { font-size: .74rem; font-weight: 700; color: #6A1B9A; white-space: nowrap; }
+.cq-split-group-label-row input[type="text"] {
+  flex: 1; min-width: 140px; padding: 5px 9px; border: 1.5px solid #CE93D8; border-radius: 6px;
+  font-family: var(--font); font-size: .82rem; background: #fff; outline: none;
+}
+.cq-split-part-header {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 8px 0 4px;
+  border-radius: 7px; font-size: .76rem; font-weight: 800;
+}
+
 /* ── COMMUNITY QUIZZES ── */
 .cq-share-btn {
   background: #7B1FA2; color: white; border: none; border-radius: 8px;
@@ -3756,8 +3808,10 @@ let cqAiSolveAllToggle  = false;  // whether to also AI-solve questions that alr
 // ── Split quiz into multiple quizzes ──
 let cqSplitState = null;
 // shape when active: { context: 'preview'|'saved', quizId: null|string,
-//   mode: 'equal'|'custom', chunkSize: number,
-//   ranges: [{start:'', end:'', label:''}] }
+//   mode: 'equal'|'custom'|'visual', chunkSize: number,
+//   ranges: [{start:'', end:'', label:''}],
+//   visualCuts: Set of question indices (0-based) after which to cut,
+//   visualLabels: {cutIndex: string} — label for each resulting part }
 
 function setCQMode(mode) {
   cqMode = mode;
@@ -5535,7 +5589,9 @@ function openSplitPanel(context, quizId) {
     quizId: quizId || null,
     mode: 'equal',
     chunkSize: 20,
-    ranges: [{ start: '1', end: '', label: '' }]
+    ranges: [{ start: '1', end: '', label: '' }],
+    visualCuts: new Set(),
+    visualLabels: {}
   };
   if (context === 'preview') {
     renderCQPreview();
@@ -5558,7 +5614,155 @@ function closeSplitPanel() {
 function setSplitMode(mode) {
   if (!cqSplitState) return;
   cqSplitState.mode = mode;
+  if (mode === 'visual' && !cqSplitState.visualCuts) {
+    cqSplitState.visualCuts = new Set();
+    cqSplitState.visualLabels = {};
+  }
   _rerenderSplitOwner();
+}
+
+function toggleVisualCut(afterIndex) {
+  if (!cqSplitState) return;
+  if (!cqSplitState.visualCuts) cqSplitState.visualCuts = new Set();
+  if (cqSplitState.visualCuts.has(afterIndex)) {
+    cqSplitState.visualCuts.delete(afterIndex);
+    if (cqSplitState.visualLabels) delete cqSplitState.visualLabels[afterIndex];
+  } else {
+    cqSplitState.visualCuts.add(afterIndex);
+  }
+  // Re-render just the visual area without full modal re-render (for performance)
+  const containerId = 'cqSplitVisual_' + (cqSplitState.quizId || 'preview');
+  const el = document.getElementById(containerId);
+  if (el && el.parentNode) {
+    const srcQs = _getSplitSourceQuestions() || [];
+    const tmp = document.createElement('div');
+    tmp.innerHTML = _buildVisualSplitHTML(srcQs);
+    el.parentNode.replaceChild(tmp.firstElementChild, el);
+  } else {
+    _rerenderSplitOwner();
+  }
+  _updateSplitSummary();
+}
+
+function updateVisualLabel(afterIndex, val) {
+  if (!cqSplitState) return;
+  if (!cqSplitState.visualLabels) cqSplitState.visualLabels = {};
+  cqSplitState.visualLabels[afterIndex] = val;
+  _updateSplitSummary();
+}
+
+function _updateSplitSummary() {
+  if (!cqSplitState) return;
+  const total = (_getSplitSourceQuestions() || []).length;
+  const summaryEl = document.getElementById('cqSplitSummary_' + (cqSplitState.quizId || 'preview'));
+  if (summaryEl) summaryEl.innerHTML = _buildSplitSummaryHTML(total);
+}
+
+// Returns an array of {colorBg, colorBorder, colorText} for up to 12 groups
+const SPLIT_PART_COLORS = [
+  { bg: '#E3F2FD', border: '#1976D2', text: '#0D47A1' },
+  { bg: '#E8F5E9', border: '#388E3C', text: '#1B5E20' },
+  { bg: '#FFF3E0', border: '#F57C00', text: '#E65100' },
+  { bg: '#FCE4EC', border: '#C2185B', text: '#880E4F' },
+  { bg: '#E0F2F1', border: '#00796B', text: '#004D40' },
+  { bg: '#F3E5F5', border: '#7B1FA2', text: '#4A148C' },
+  { bg: '#FFFDE7', border: '#F9A825', text: '#F57F17' },
+  { bg: '#E8EAF6', border: '#3949AB', text: '#1A237E' },
+  { bg: '#FBE9E7', border: '#D84315', text: '#BF360C' },
+  { bg: '#E0F7FA', border: '#0097A7', text: '#006064' },
+];
+
+function _getVisualChunksFromCuts(total) {
+  if (!cqSplitState || !cqSplitState.visualCuts) return [];
+  const cuts = Array.from(cqSplitState.visualCuts).sort((a, b) => a - b);
+  const chunks = [];
+  let start = 0;
+  for (const cutAfter of cuts) {
+    if (cutAfter >= 0 && cutAfter < total - 1) {
+      chunks.push({ start, end: cutAfter }); // 0-based inclusive
+      start = cutAfter + 1;
+    }
+  }
+  chunks.push({ start, end: total - 1 });
+  return chunks;
+}
+
+function _buildVisualSplitHTML(questions) {
+  if (!cqSplitState) return '';
+  const total = questions.length;
+  const cuts = cqSplitState.visualCuts || new Set();
+  const labels = cqSplitState.visualLabels || {};
+
+  // Compute which group each question belongs to for color coding
+  const chunks = _getVisualChunksFromCuts(total);
+  const qGroupMap = {}; // qIndex -> chunkIndex
+  chunks.forEach((c, ci) => {
+    for (let i = c.start; i <= c.end; i++) qGroupMap[i] = ci;
+  });
+
+  let html = `<div class="cq-split-visual-list" id="cqSplitVisual_${cqSplitState.quizId || 'preview'}">`;
+
+  // Hint
+  html += `<div style="font-size:.75rem;color:#6A1B9A;font-weight:700;margin-bottom:8px;line-height:1.5;">
+    Click ✂️ between questions to mark a split point. Click again to remove it.
+    ${cuts.size === 0 ? '<span style="color:#E65100;"> — No cuts yet.</span>' : `<span style="color:#2E7D32;"> — ${cuts.size} cut${cuts.size !== 1 ? 's' : ''} = ${chunks.length} quizzes.</span>`}
+  </div>`;
+
+  questions.forEach((q, i) => {
+    const groupIdx = qGroupMap[i] ?? 0;
+    const color = SPLIT_PART_COLORS[groupIdx % SPLIT_PART_COLORS.length];
+    const isLastInGroup = cuts.has(i);
+    const isNewGroup = i > 0 && cuts.has(i - 1);
+
+    // Show part header at group starts
+    if (i === 0 || isNewGroup) {
+      const partIdx = groupIdx;
+      const labelKey = i === 0 ? -1 : (i - 1); // the cut index before this group
+      // For part 0, no cut before it; for others, the cut is at i-1
+      const actualCutKey = i === 0 ? null : i - 1;
+      const labelVal = actualCutKey !== null ? (labels[actualCutKey + '_after'] || '') : (labels['start'] || '');
+      const partColor = SPLIT_PART_COLORS[partIdx % SPLIT_PART_COLORS.length];
+      html += `<div class="cq-split-part-header" style="background:${partColor.bg};border:1.5px solid ${partColor.border};">
+        <span style="font-size:.72rem;font-weight:800;color:${partColor.text};">
+          📋 Quiz ${partIdx + 1}
+        </span>
+        <input type="text" placeholder="Optional title for Quiz ${partIdx + 1}…"
+          value="${escapeHtml(labelVal)}"
+          oninput="updateVisualPartLabel(${partIdx}, this.value)"
+          style="flex:1;min-width:120px;padding:3px 8px;border:1.5px solid ${partColor.border};border-radius:6px;
+            font-family:var(--font);font-size:.78rem;background:#fff;outline:none;" />
+      </div>`;
+    }
+
+    // Question row
+    const qText = q.question ? (q.question.length > 100 ? q.question.slice(0, 100) + '…' : q.question) : '(no text)';
+    const partColor = SPLIT_PART_COLORS[groupIdx % SPLIT_PART_COLORS.length];
+    html += `<div class="cq-split-q-row" style="border-color:${partColor.border};background:${partColor.bg};">
+      <span class="cq-split-q-num" style="background:${partColor.border};">Q${i + 1}</span>
+      <span class="cq-split-q-text">${escapeHtml(qText)}</span>
+    </div>`;
+
+    // Scissors row (between questions, not after last)
+    if (i < total - 1) {
+      const isCut = cuts.has(i);
+      html += `<div class="cq-scissors-row${isCut ? ' cut' : ''}" onclick="toggleVisualCut(${i})" title="${isCut ? 'Remove cut here' : 'Cut here — split into separate quiz'}">
+        <div class="cq-scissors-line"></div>
+        <button class="cq-scissors-btn" type="button">✂️</button>
+        <div class="cq-scissors-line"></div>
+        ${isCut ? `<span style="position:absolute;left:50%;transform:translateX(-50%) translateX(22px);font-size:.68rem;font-weight:800;color:#4A148C;white-space:nowrap;pointer-events:none;">— split here —</span>` : ''}
+      </div>`;
+    }
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+function updateVisualPartLabel(partIdx, val) {
+  if (!cqSplitState) return;
+  if (!cqSplitState.visualPartLabels) cqSplitState.visualPartLabels = {};
+  cqSplitState.visualPartLabels[partIdx] = val;
+  _updateSplitSummary();
 }
 
 function setSplitChunkSize(val) {
@@ -5626,6 +5830,15 @@ function _buildSplitSummaryHTML(total) {
   let chunks;
   if (cqSplitState.mode === 'equal') {
     chunks = _computeEqualChunks(total, cqSplitState.chunkSize);
+  } else if (cqSplitState.mode === 'visual') {
+    // Build 1-based chunks from visualCuts
+    const rawChunks = _getVisualChunksFromCuts(total); // 0-based inclusive
+    const labels = cqSplitState.visualPartLabels || {};
+    chunks = rawChunks.map((c, i) => ({
+      start: c.start + 1,
+      end: c.end + 1,
+      label: labels[i] || ''
+    }));
   } else {
     chunks = _computeCustomChunks();
   }
@@ -5651,7 +5864,10 @@ function renderSplitPanel(context, quizId, totalQuestions) {
   if (cqSplitState.context !== context || cqSplitState.quizId !== (quizId || null)) return '';
   const panelId = 'cqSplitPanel_' + (quizId || 'preview');
   const summaryId = 'cqSplitSummary_' + (quizId || 'preview');
-  const isEqual = cqSplitState.mode === 'equal';
+  const mode = cqSplitState.mode || 'equal';
+  const isEqual = mode === 'equal';
+  const isCustom = mode === 'custom';
+  const isVisual = mode === 'visual';
   const total = totalQuestions || 0;
 
   let html = `<div class="cq-split-panel" id="${panelId}">
@@ -5661,7 +5877,8 @@ function renderSplitPanel(context, quizId, totalQuestions) {
     </div>
     <div class="cq-split-mode-tabs">
       <button class="cq-split-mode-btn${isEqual ? ' active' : ''}" onclick="setSplitMode('equal')">📐 Equal Chunks</button>
-      <button class="cq-split-mode-btn${!isEqual ? ' active' : ''}" onclick="setSplitMode('custom')">✏️ Custom Ranges</button>
+      <button class="cq-split-mode-btn${isCustom ? ' active' : ''}" onclick="setSplitMode('custom')">✏️ Custom Ranges</button>
+      <button class="cq-split-mode-btn${isVisual ? ' active' : ''}" onclick="setSplitMode('visual')">✂️ Visual Split</button>
     </div>`;
 
   if (isEqual) {
@@ -5673,7 +5890,7 @@ function renderSplitPanel(context, quizId, totalQuestions) {
         (${total} total → ${_computeEqualChunks(total, cqSplitState.chunkSize).length} quiz${_computeEqualChunks(total, cqSplitState.chunkSize).length !== 1 ? 'zes' : ''})
       </span>
     </div>`;
-  } else {
+  } else if (isCustom) {
     html += `<div style="font-size:.76rem;color:#6A1B9A;font-weight:700;margin-bottom:8px;">
       Define ranges (1–${total}). Each range becomes a separate quiz.
     </div>`;
@@ -5691,6 +5908,9 @@ function renderSplitPanel(context, quizId, totalQuestions) {
       </div>`;
     });
     html += `<button class="cq-split-add-range-btn" onclick="addSplitRange()">＋ Add Range</button>`;
+  } else if (isVisual) {
+    const srcQs = _getSplitSourceQuestions() || [];
+    html += _buildVisualSplitHTML(srcQs);
   }
 
   html += `<div class="cq-split-summary" id="${summaryId}">${_buildSplitSummaryHTML(total)}</div>`;
@@ -5711,6 +5931,15 @@ async function executeSplitQuiz() {
   let chunks;
   if (cqSplitState.mode === 'equal') {
     chunks = _computeEqualChunks(total, cqSplitState.chunkSize);
+  } else if (cqSplitState.mode === 'visual') {
+    const rawChunks = _getVisualChunksFromCuts(total); // 0-based inclusive
+    if (!rawChunks.length) { alert('No cuts defined yet. Click the ✂️ scissors between questions to split.'); return; }
+    const labels = cqSplitState.visualPartLabels || {};
+    chunks = rawChunks.map((c, i) => ({
+      start: c.start + 1,
+      end: c.end + 1,
+      label: labels[i] || ''
+    }));
   } else {
     chunks = _computeCustomChunks();
     // Validate
@@ -5739,7 +5968,7 @@ async function executeSplitQuiz() {
   const quizzes = loadCustomQuizzes();
   const newQuizzes = chunks.map((c, i) => ({
     id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i,
-    title: (cqSplitState.mode === 'custom' && c.label)
+    title: ((cqSplitState.mode === 'custom' || cqSplitState.mode === 'visual') && c.label)
       ? c.label
       : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`,
     questions: srcQuestions.slice(c.start - 1, c.end),
