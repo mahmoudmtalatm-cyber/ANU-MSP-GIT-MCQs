@@ -1701,7 +1701,9 @@
     <div class="results-footer">
       <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
       <button class="ai-explain-all-btn" id="explainAllBtn" onclick="explainAllQuestions()">🤖&nbsp; Explain All Questions</button>
+      <button id="resultsSplitBtn" onclick="openSplitPanel('active')" style="background:#7B1FA2;color:#fff;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">✂️ Split Quiz</button>
     </div>
+    <div id="resultsSplitContainer" style="margin:0 16px 16px;"></div>
   </div>
 
 </div>
@@ -1877,6 +1879,7 @@ let changeLog        = [];
 let selectedLectures = {}; // { subjectName: Set of lecture names }
 let correctToWrong   = 0;
 let wrongToCorrect   = 0;
+let currentQuizSource = 'curriculum'; // 'curriculum' | 'custom' | 'community'
 /* ══════════════════════════════════════════════════════════
    INIT — build subject grid
 ══════════════════════════════════════════════════════════ */
@@ -2112,6 +2115,7 @@ function startQuiz() {
   currentIndex = 0; userAnswers = {}; markedSet = new Set();
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
+  currentQuizSource = 'curriculum';
 
   showScreen('quiz');
   renderQuestion();
@@ -2318,6 +2322,16 @@ if (prevTotal < threshold && newTotal >= threshold) {
 
   buildResults();
   showScreen('results');
+
+  // Split Quiz button: curriculum quizzes are admin-only; custom & community are available to all
+  const splitBtn = document.getElementById('resultsSplitBtn');
+  if (splitBtn) {
+    if (currentQuizSource === 'curriculum') {
+      splitBtn.classList.toggle('hidden', !isAdminUser(window._currentUser));
+    } else {
+      splitBtn.classList.remove('hidden');
+    }
+  }
 }
 
 function buildResults() {
@@ -5583,7 +5597,7 @@ async function saveGeneratedCustomQuiz() {
 ══════════════════════════════════════════════════════════ */
 
 function openSplitPanel(context, quizId) {
-  // context: 'preview' | 'saved'
+  // context: 'preview' | 'saved' | 'active'
   cqSplitState = {
     context,
     quizId: quizId || null,
@@ -5595,20 +5609,32 @@ function openSplitPanel(context, quizId) {
   };
   if (context === 'preview') {
     renderCQPreview();
+  } else if (context === 'active') {
+    _renderActiveSplitPanel();
   } else {
     renderCustomQuizModal();
   }
   // Scroll split panel into view
   setTimeout(() => {
-    const el = document.getElementById('cqSplitPanel_' + (quizId || 'preview'));
+    const panelKey = context === 'active' ? 'active' : (quizId || 'preview');
+    const el = document.getElementById('cqSplitPanel_' + panelKey);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 80);
+}
+
+function _renderActiveSplitPanel() {
+  const container = document.getElementById('resultsSplitContainer');
+  if (!container) return;
+  const total = currentQuestions ? currentQuestions.length : 0;
+  container.innerHTML = renderSplitPanel('active', null, total);
 }
 
 function closeSplitPanel() {
   cqSplitState = null;
   renderCQPreview && renderCQPreview();
   renderCustomQuizModal && renderCustomQuizModal();
+  const activeContainer = document.getElementById('resultsSplitContainer');
+  if (activeContainer) activeContainer.innerHTML = '';
 }
 
 function setSplitMode(mode) {
@@ -5796,12 +5822,14 @@ function updateSplitRange(idx, field, val) {
 function _rerenderSplitOwner() {
   if (!cqSplitState) return;
   if (cqSplitState.context === 'preview') renderCQPreview();
+  else if (cqSplitState.context === 'active') _renderActiveSplitPanel();
   else renderCustomQuizModal();
 }
 
 function _getSplitSourceQuestions() {
   if (!cqSplitState) return null;
   if (cqSplitState.context === 'preview') return cqGeneratedQuestions || [];
+  if (cqSplitState.context === 'active') return currentQuestions || [];
   const quizzes = loadCustomQuizzes();
   const q = quizzes.find(x => x.id === cqSplitState.quizId);
   return q ? q.questions : [];
@@ -5862,8 +5890,8 @@ function _buildSplitSummaryHTML(total) {
 function renderSplitPanel(context, quizId, totalQuestions) {
   if (!cqSplitState) return '';
   if (cqSplitState.context !== context || cqSplitState.quizId !== (quizId || null)) return '';
-  const panelId = 'cqSplitPanel_' + (quizId || 'preview');
-  const summaryId = 'cqSplitSummary_' + (quizId || 'preview');
+  const panelId = 'cqSplitPanel_' + (context === 'active' ? 'active' : (quizId || 'preview'));
+  const summaryId = 'cqSplitSummary_' + (context === 'active' ? 'active' : (quizId || 'preview'));
   const mode = cqSplitState.mode || 'equal';
   const isEqual = mode === 'equal';
   const isCustom = mode === 'custom';
@@ -5957,6 +5985,8 @@ async function executeSplitQuiz() {
   if (cqSplitState.context === 'preview') {
     const titleInput = document.getElementById('cqTitleInput');
     baseTitle = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
+  } else if (cqSplitState.context === 'active') {
+    baseTitle = currentLecture || 'Active Quiz';
   } else {
     const quizzes = loadCustomQuizzes();
     const src = quizzes.find(x => x.id === cqSplitState.quizId);
@@ -5987,10 +6017,19 @@ async function executeSplitQuiz() {
     cqGeneratedTitle = '';
   }
 
+  const wasActive = cqSplitState.context === 'active';
   cqSplitState = null;
-  renderCustomQuizModal();
-  const statusEl = document.getElementById('cqStatus');
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
+
+  if (wasActive) {
+    const activeContainer = document.getElementById('resultsSplitContainer');
+    if (activeContainer) {
+      activeContainer.innerHTML = `<div style="margin:12px 0;padding:12px 16px;background:#e8f5e9;border:1.5px solid #4CAF50;border-radius:8px;color:#2e7d32;font-weight:600;">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"! Find them in Custom Quizzes.</div>`;
+    }
+  } else {
+    renderCustomQuizModal();
+    const statusEl = document.getElementById('cqStatus');
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
+  }
 }
 
 async function deleteCustomQuiz(id) {
@@ -6027,6 +6066,7 @@ function startCustomQuiz(id) {
   currentIndex = 0; userAnswers = {}; markedSet = new Set();
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
+  currentQuizSource = 'custom';
 
   closeCustomQuizzes();
   showScreen('quiz');
@@ -6436,6 +6476,7 @@ async function startCommunityQuizByIdx(idx) {
   currentIndex = 0; userAnswers = {}; markedSet = new Set();
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
+  currentQuizSource = 'community';
 
   closeCommunityQuizzes();
   showScreen('quiz');
