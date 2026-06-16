@@ -966,6 +966,60 @@
   padding: 4px 11px; font-size: .75rem; font-weight: 700;
 }
 
+/* ── SPLIT QUIZ PANEL ── */
+.cq-split-panel {
+  margin-top: 10px; padding: 14px 16px;
+  background: #F3E5F5; border: 1.5px solid #CE93D8; border-radius: 10px;
+  animation: fadeIn .15s ease;
+}
+.cq-split-panel-title {
+  font-size: .82rem; font-weight: 800; color: #6A1B9A; margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.cq-split-mode-tabs {
+  display: flex; gap: 6px; margin-bottom: 12px;
+}
+.cq-split-mode-btn {
+  padding: 5px 13px; border: 1.5px solid #CE93D8; border-radius: 20px;
+  background: #fff; color: #6A1B9A; font-family: var(--font); font-size: .78rem;
+  font-weight: 700; cursor: pointer; transition: all .15s;
+}
+.cq-split-mode-btn.active { background: #6A1B9A; color: #fff; border-color: #6A1B9A; }
+.cq-split-range-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.cq-split-range-row label { font-size: .78rem; font-weight: 700; color: #4A148C; white-space: nowrap; }
+.cq-split-range-row input[type="number"] {
+  width: 68px; padding: 7px 8px; border: 1.5px solid #CE93D8; border-radius: 6px;
+  font-family: var(--font); font-size: .85rem; background: #fff; outline: none;
+}
+.cq-split-range-row input[type="text"] {
+  flex: 1; min-width: 110px; padding: 7px 9px; border: 1.5px solid #CE93D8; border-radius: 6px;
+  font-family: var(--font); font-size: .85rem; background: #fff; outline: none;
+}
+.cq-split-add-range-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px;
+  background: #EDE7F6; color: #4527A0; border: 1.5px dashed #9575CD; border-radius: 7px;
+  font-family: var(--font); font-size: .78rem; font-weight: 700; cursor: pointer; transition: all .15s;
+  margin-top: 2px;
+}
+.cq-split-add-range-btn:hover { background: #D1C4E9; border-style: solid; }
+.cq-split-remove-btn {
+  background: none; border: none; color: #CE93D8; font-size: .95rem;
+  cursor: pointer; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: color .15s;
+}
+.cq-split-remove-btn:hover { color: #C62828; }
+.cq-split-summary {
+  font-size: .78rem; color: #4A148C; font-weight: 600; margin: 10px 0 6px;
+  line-height: 1.7; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+.cq-split-chip {
+  display: inline-block; background: #fff; border: 1.5px solid #CE93D8; border-radius: 14px;
+  padding: 2px 10px; font-weight: 700; color: #6A1B9A; font-size: .76rem; white-space: nowrap;
+}
+.cq-split-chip.warn { border-color: #E65100; color: #E65100; background: #FFF3E0; }
+.cq-split-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
 /* ── COMMUNITY QUIZZES ── */
 .cq-share-btn {
   background: #7B1FA2; color: white; border: none; border-radius: 8px;
@@ -3699,6 +3753,12 @@ let cqAiAnswerSource    = '';     // optional source text the AI should rely on
 let cqAiSourceFiles     = [];     // optional source images/PDFs (array of {base64, mimeType, name})
 let cqAiSolveAllToggle  = false;  // whether to also AI-solve questions that already have a key
 
+// ── Split quiz into multiple quizzes ──
+let cqSplitState = null;
+// shape when active: { context: 'preview'|'saved', quizId: null|string,
+//   mode: 'equal'|'custom', chunkSize: number,
+//   ranges: [{start:'', end:'', label:''}] }
+
 function setCQMode(mode) {
   cqMode = mode;
   renderCustomQuizModal();
@@ -3925,8 +3985,10 @@ function renderCustomQuizModal() {
           </label>
           <button class="cq-btn" onclick="startCustomQuiz('${q.id}')">&#9654; Start</button>
           <button class="cq-share-btn" onclick="shareCustomQuiz('${q.id}')" title="Share with community">&#128279; Share</button>
+          <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('saved','${q.id}')" title="Split into multiple quizzes" style="background:#7B1FA2;color:#fff;">✂️ Split</button>
           <button class="cq-btn cq-btn-danger" onclick="deleteCustomQuiz('${q.id}')">&#128465;</button>
         </div>
+        ${renderSplitPanel('saved', q.id, q.questions.length)}
       </div>`;
     });
   }
@@ -5161,8 +5223,12 @@ function renderCQPreview() {
     <button class="cq-btn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
     <button class="cq-btn cq-btn-secondary" onclick="cqAddBlankQuestion()"
       style="background:#4CAF50;">＋ Add Question</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('preview', null)"
+      style="background:#7B1FA2;color:#fff;">✂️ Split into Multiple</button>
     <button class="cq-btn cq-btn-secondary" onclick="discardGeneratedQuiz()">✖ Discard</button>
   </div>`;
+
+  html += renderSplitPanel('preview', null, cqGeneratedQuestions.length);
 
   area.innerHTML = html;
 }
@@ -5456,6 +5522,246 @@ async function saveGeneratedCustomQuiz() {
   renderCustomQuizModal();
   const statusEl = document.getElementById('cqStatus');
   if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Quiz "${escapeHtml(title)}" saved! Start it from the list above.</div>`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SPLIT QUIZ — helpers + UI
+══════════════════════════════════════════════════════════ */
+
+function openSplitPanel(context, quizId) {
+  // context: 'preview' | 'saved'
+  cqSplitState = {
+    context,
+    quizId: quizId || null,
+    mode: 'equal',
+    chunkSize: 20,
+    ranges: [{ start: '1', end: '', label: '' }]
+  };
+  if (context === 'preview') {
+    renderCQPreview();
+  } else {
+    renderCustomQuizModal();
+  }
+  // Scroll split panel into view
+  setTimeout(() => {
+    const el = document.getElementById('cqSplitPanel_' + (quizId || 'preview'));
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 80);
+}
+
+function closeSplitPanel() {
+  cqSplitState = null;
+  renderCQPreview && renderCQPreview();
+  renderCustomQuizModal && renderCustomQuizModal();
+}
+
+function setSplitMode(mode) {
+  if (!cqSplitState) return;
+  cqSplitState.mode = mode;
+  _rerenderSplitOwner();
+}
+
+function setSplitChunkSize(val) {
+  if (!cqSplitState) return;
+  cqSplitState.chunkSize = parseInt(val, 10) || 10;
+  _rerenderSplitOwner();
+}
+
+function addSplitRange() {
+  if (!cqSplitState) return;
+  cqSplitState.ranges.push({ start: '', end: '', label: '' });
+  _rerenderSplitOwner();
+}
+
+function removeSplitRange(idx) {
+  if (!cqSplitState) return;
+  cqSplitState.ranges.splice(idx, 1);
+  if (!cqSplitState.ranges.length) cqSplitState.ranges.push({ start: '', end: '', label: '' });
+  _rerenderSplitOwner();
+}
+
+function updateSplitRange(idx, field, val) {
+  if (!cqSplitState || !cqSplitState.ranges[idx]) return;
+  cqSplitState.ranges[idx][field] = val;
+  // Live-update summary without full re-render (just update summary div)
+  const total = _getSplitSourceQuestions()?.length || 0;
+  const summaryEl = document.getElementById('cqSplitSummary_' + (cqSplitState.quizId || 'preview'));
+  if (summaryEl) summaryEl.innerHTML = _buildSplitSummaryHTML(total);
+}
+
+function _rerenderSplitOwner() {
+  if (!cqSplitState) return;
+  if (cqSplitState.context === 'preview') renderCQPreview();
+  else renderCustomQuizModal();
+}
+
+function _getSplitSourceQuestions() {
+  if (!cqSplitState) return null;
+  if (cqSplitState.context === 'preview') return cqGeneratedQuestions || [];
+  const quizzes = loadCustomQuizzes();
+  const q = quizzes.find(x => x.id === cqSplitState.quizId);
+  return q ? q.questions : [];
+}
+
+function _computeEqualChunks(total, chunkSize) {
+  const chunks = [];
+  if (!chunkSize || chunkSize < 1 || total < 1) return chunks;
+  for (let s = 1; s <= total; s += chunkSize) {
+    chunks.push({ start: s, end: Math.min(s + chunkSize - 1, total) });
+  }
+  return chunks;
+}
+
+function _computeCustomChunks() {
+  if (!cqSplitState) return [];
+  return cqSplitState.ranges.map(r => ({
+    start: parseInt(r.start, 10),
+    end: parseInt(r.end, 10),
+    label: r.label.trim()
+  })).filter(c => !isNaN(c.start) && !isNaN(c.end) && c.start >= 1 && c.end >= c.start);
+}
+
+function _buildSplitSummaryHTML(total) {
+  if (!cqSplitState || !total) return '';
+  let chunks;
+  if (cqSplitState.mode === 'equal') {
+    chunks = _computeEqualChunks(total, cqSplitState.chunkSize);
+  } else {
+    chunks = _computeCustomChunks();
+  }
+  if (!chunks.length) return `<span style="color:#E65100;font-size:.78rem;font-weight:700;">⚠️ No valid ranges defined yet.</span>`;
+  const coveredSet = new Set();
+  chunks.forEach(c => { for (let i = c.start; i <= Math.min(c.end, total); i++) coveredSet.add(i); });
+  const uncovered = total - coveredSet.size;
+  let html = `Will create <strong>${chunks.length}</strong> quiz${chunks.length !== 1 ? 'zes' : ''}: `;
+  chunks.forEach((c, i) => {
+    const outOfRange = c.start > total || c.end > total;
+    html += `<span class="cq-split-chip${outOfRange ? ' warn' : ''}">
+      ${c.label || ('Part ' + (i + 1))}: Q${c.start}–Q${Math.min(c.end, total)} (${Math.min(c.end, total) - c.start + 1} Qs)
+    </span>`;
+  });
+  if (uncovered > 0 && cqSplitState.mode === 'custom') {
+    html += `<span class="cq-split-chip warn">⚠️ ${uncovered} question${uncovered !== 1 ? 's' : ''} not covered</span>`;
+  }
+  return html;
+}
+
+function renderSplitPanel(context, quizId, totalQuestions) {
+  if (!cqSplitState) return '';
+  if (cqSplitState.context !== context || cqSplitState.quizId !== (quizId || null)) return '';
+  const panelId = 'cqSplitPanel_' + (quizId || 'preview');
+  const summaryId = 'cqSplitSummary_' + (quizId || 'preview');
+  const isEqual = cqSplitState.mode === 'equal';
+  const total = totalQuestions || 0;
+
+  let html = `<div class="cq-split-panel" id="${panelId}">
+    <div class="cq-split-panel-title">
+      <span>✂️ Split into Multiple Quizzes</span>
+      <button class="cq-btn cq-btn-secondary" onclick="closeSplitPanel()" style="padding:4px 10px;font-size:.75rem;">✕ Cancel</button>
+    </div>
+    <div class="cq-split-mode-tabs">
+      <button class="cq-split-mode-btn${isEqual ? ' active' : ''}" onclick="setSplitMode('equal')">📐 Equal Chunks</button>
+      <button class="cq-split-mode-btn${!isEqual ? ' active' : ''}" onclick="setSplitMode('custom')">✏️ Custom Ranges</button>
+    </div>`;
+
+  if (isEqual) {
+    html += `<div class="cq-split-range-row">
+      <label>Questions per quiz:</label>
+      <input type="number" min="1" max="${total}" value="${cqSplitState.chunkSize}"
+        oninput="setSplitChunkSize(this.value)" />
+      <span style="font-size:.78rem;color:#6A1B9A;font-weight:600;">
+        (${total} total → ${_computeEqualChunks(total, cqSplitState.chunkSize).length} quiz${_computeEqualChunks(total, cqSplitState.chunkSize).length !== 1 ? 'zes' : ''})
+      </span>
+    </div>`;
+  } else {
+    html += `<div style="font-size:.76rem;color:#6A1B9A;font-weight:700;margin-bottom:8px;">
+      Define ranges (1–${total}). Each range becomes a separate quiz.
+    </div>`;
+    cqSplitState.ranges.forEach((r, i) => {
+      html += `<div class="cq-split-range-row">
+        <label>Q</label>
+        <input type="number" min="1" max="${total}" value="${escapeHtml(r.start)}" placeholder="From"
+          oninput="updateSplitRange(${i},'start',this.value)" />
+        <label>–</label>
+        <input type="number" min="1" max="${total}" value="${escapeHtml(r.end)}" placeholder="To"
+          oninput="updateSplitRange(${i},'end',this.value)" />
+        <input type="text" value="${escapeHtml(r.label)}" placeholder="Title (optional)"
+          oninput="updateSplitRange(${i},'label',this.value)" />
+        <button class="cq-split-remove-btn" onclick="removeSplitRange(${i})" title="Remove this range">✕</button>
+      </div>`;
+    });
+    html += `<button class="cq-split-add-range-btn" onclick="addSplitRange()">＋ Add Range</button>`;
+  }
+
+  html += `<div class="cq-split-summary" id="${summaryId}">${_buildSplitSummaryHTML(total)}</div>`;
+  html += `<div class="cq-split-actions">
+    <button class="cq-btn" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>
+    <button class="cq-btn cq-btn-secondary" onclick="closeSplitPanel()">Cancel</button>
+  </div>`;
+  html += `</div>`;
+  return html;
+}
+
+async function executeSplitQuiz() {
+  if (!cqSplitState) return;
+  const srcQuestions = _getSplitSourceQuestions();
+  if (!srcQuestions || !srcQuestions.length) return;
+  const total = srcQuestions.length;
+
+  let chunks;
+  if (cqSplitState.mode === 'equal') {
+    chunks = _computeEqualChunks(total, cqSplitState.chunkSize);
+  } else {
+    chunks = _computeCustomChunks();
+    // Validate
+    const invalid = chunks.filter(c => c.start < 1 || c.end > total || c.start > c.end);
+    if (invalid.length) {
+      alert(`Some ranges are out of bounds (valid range: 1–${total}). Please fix them.`);
+      return;
+    }
+  }
+
+  if (!chunks.length) { alert('No valid ranges to create quizzes from.'); return; }
+
+  // Determine base title
+  let baseTitle;
+  if (cqSplitState.context === 'preview') {
+    const titleInput = document.getElementById('cqTitleInput');
+    baseTitle = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
+  } else {
+    const quizzes = loadCustomQuizzes();
+    const src = quizzes.find(x => x.id === cqSplitState.quizId);
+    baseTitle = src ? src.title : 'Custom Quiz';
+  }
+
+  if (!confirm(`This will create ${chunks.length} new quiz${chunks.length !== 1 ? 'zes' : ''} from "${baseTitle}". Continue?`)) return;
+
+  const quizzes = loadCustomQuizzes();
+  const newQuizzes = chunks.map((c, i) => ({
+    id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i,
+    title: (cqSplitState.mode === 'custom' && c.label)
+      ? c.label
+      : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`,
+    questions: srcQuestions.slice(c.start - 1, c.end),
+    createdAt: Date.now() + i
+  }));
+
+  // Insert new quizzes at top
+  newQuizzes.reverse().forEach(q => quizzes.unshift(q));
+  await saveCustomQuizzesList(quizzes);
+
+  // If preview context, also clear preview state
+  if (cqSplitState.context === 'preview') {
+    cqGeneratedQuestions = null;
+    cqSelectedFile = null;
+    cqLectureFile = null;
+    cqGeneratedTitle = '';
+  }
+
+  cqSplitState = null;
+  renderCustomQuizModal();
+  const statusEl = document.getElementById('cqStatus');
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
 }
 
 async function deleteCustomQuiz(id) {
