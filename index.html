@@ -3197,12 +3197,9 @@ async function _getExplainFromPool(questionText) {
   } catch(e) { return null; }
 }
 
-function getExplainKey() {
-  try { return localStorage.getItem(AI_EXPLAIN_KEY_STORE) || ''; } catch(e) { return ''; }
-}
-function setExplainKey(key) {
-  try { localStorage.setItem(AI_EXPLAIN_KEY_STORE, (key || '').trim()); } catch(e) {} 
-}
+/* Explain key now reuses the multi-key pool */
+function getExplainKey() { return getGeminiKey(); }
+function setExplainKey(key) { setGeminiKey(key); }
 
 /* ── Build Gemini prompt for one question ── */
 function buildExplainPrompt(q, userAnswer) {
@@ -4137,11 +4134,135 @@ async function saveCustomQuizzesList(arr) {
     try { localStorage.setItem(CQ_KEY, JSON.stringify(arr)); } catch (e) {}
   }
 }
-function getGeminiKey() {
-  try { return localStorage.getItem(CQ_API_KEY_STORE) || ''; } catch (e) { return ''; }
+/* ══════════════════════════════════════════════════════════
+   MULTI-KEY POOL MANAGER
+   Keys are stored as an array of objects:
+     { key: string, label: string, status: 'ok'|'rate_limited'|'invalid', rateLimitedUntil: number }
+   Smart routing:
+   - Round-robin across all 'ok' keys
+   - If a key gets 429 → mark rate_limited for 65s, skip it and try next
+   - If a key gets 401/403 → mark invalid permanently
+   - If ALL keys are rate_limited → wait for the earliest one to recover
+   - Falls back to the old single-key store for backward compatibility
+══════════════════════════════════════════════════════════ */
+const CQ_KEY_POOL_STORE = 'anu_msp_gemini_key_pool';
+
+function _loadKeyPool() {
+  try {
+    const raw = localStorage.getItem(CQ_KEY_POOL_STORE);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  // Migrate legacy single key
+  try {
+    const legacy = localStorage.getItem(CQ_API_KEY_STORE);
+    if (legacy) return [{ key: legacy, label: 'Key 1', status: 'ok', rateLimitedUntil: 0 }];
+  } catch (e) {}
+  return [];
 }
+
+function _saveKeyPool(pool) {
+  try { localStorage.setItem(CQ_KEY_POOL_STORE, JSON.stringify(pool)); } catch (e) {}
+}
+
+// Internal pointer for round-robin
+let _keyPoolIndex = 0;
+
+/* Returns the best available key string, or '' if none */
+function getGeminiKey() {
+  const pool = _loadKeyPool();
+  if (!pool.length) return '';
+  const now = Date.now();
+  // Recover any rate-limited keys whose window has passed
+  pool.forEach(k => { if (k.status === 'rate_limited' && now >= (k.rateLimitedUntil || 0)) k.status = 'ok'; });
+  _saveKeyPool(pool);
+  // Find next available key via round-robin
+  const okKeys = pool.filter(k => k.status === 'ok');
+  if (!okKeys.length) {
+    // All rate-limited — return the one whose cooldown expires soonest
+    const soonest = pool.filter(k => k.status === 'rate_limited').sort((a,b) => (a.rateLimitedUntil||0) - (b.rateLimitedUntil||0))[0];
+    return soonest ? soonest.key : '';
+  }
+  _keyPoolIndex = _keyPoolIndex % okKeys.length;
+  return okKeys[_keyPoolIndex].key;
+}
+
+/* Called after a successful request to advance the round-robin pointer */
+function _advanceKeyPool() {
+  const pool = _loadKeyPool();
+  const okCount = pool.filter(k => k.status === 'ok').length;
+  if (okCount > 1) _keyPoolIndex = (_keyPoolIndex + 1) % okCount;
+}
+
+/* Called on 429 — mark the key as rate-limited for 65 seconds */
+function _markKeyRateLimited(key) {
+  const pool = _loadKeyPool();
+  const entry = pool.find(k => k.key === key);
+  if (entry) {
+    entry.status = 'rate_limited';
+    entry.rateLimitedUntil = Date.now() + 65000;
+    _saveKeyPool(pool);
+  }
+  // Reset round-robin so next call picks a fresh ok key
+  _keyPoolIndex = 0;
+}
+
+/* Called on 401/403 — mark the key as permanently invalid */
+function _markKeyInvalid(key) {
+  const pool = _loadKeyPool();
+  const entry = pool.find(k => k.key === key);
+  if (entry) { entry.status = 'invalid'; _saveKeyPool(pool); }
+  _keyPoolIndex = 0;
+}
+
+/* Compatibility shim — sets or adds a single key (used by legacy code paths) */
 function setGeminiKey(key) {
-  try { localStorage.setItem(CQ_API_KEY_STORE, (key || '').trim()); } catch (e) {}
+  const k = (key || '').trim();
+  if (!k) return;
+  const pool = _loadKeyPool();
+  if (!pool.find(e => e.key === k)) {
+    pool.push({ key: k, label: `Key ${pool.length + 1}`, status: 'ok', rateLimitedUntil: 0 });
+    _saveKeyPool(pool);
+  }
+  try { localStorage.setItem(CQ_API_KEY_STORE, k); } catch(e) {}
+}
+
+/* Add a new key to the pool */
+function addGeminiKey(key, label) {
+  const k = (key || '').trim();
+  if (!k) return false;
+  const pool = _loadKeyPool();
+  if (pool.find(e => e.key === k)) return false; // duplicate
+  pool.push({ key: k, label: label || `Key ${pool.length + 1}`, status: 'ok', rateLimitedUntil: 0 });
+  _saveKeyPool(pool);
+  return true;
+}
+
+/* Remove a key from the pool by index */
+function removeGeminiKey(idx) {
+  const pool = _loadKeyPool();
+  pool.splice(idx, 1);
+  _saveKeyPool(pool);
+  _keyPoolIndex = 0;
+}
+
+/* Rename a key label */
+function renameGeminiKey(idx, label) {
+  const pool = _loadKeyPool();
+  if (pool[idx]) { pool[idx].label = label || pool[idx].label; _saveKeyPool(pool); }
+}
+
+/* Retry a rate-limited or invalid key (reset to ok) */
+function retryGeminiKey(idx) {
+  const pool = _loadKeyPool();
+  if (pool[idx]) { pool[idx].status = 'ok'; pool[idx].rateLimitedUntil = 0; _saveKeyPool(pool); }
+  renderCustomQuizModal && renderCustomQuizModal();
+}
+
+/* Returns how many keys are currently usable */
+function _countOkKeys() {
+  const pool = _loadKeyPool();
+  const now = Date.now();
+  return pool.filter(k => k.status === 'ok' || (k.status === 'rate_limited' && now >= (k.rateLimitedUntil||0))).length;
 }
 
 function openCustomQuizzes() {
@@ -4967,7 +5088,9 @@ async function _waitForGeminiSlot(cancelToken) {
    that need real wall-clock time to clear rather than a quick retry.
    Only key errors (401/403/invalid key) are surfaced immediately, since no
    amount of retrying fixes a bad key. ──────── */
-async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) {
+async function callGeminiWithRetry(urlParam, bodyObj, { onRetry, cancelToken } = {}) {
+  let url = urlParam; // make mutable for key rotation
+  let usedKey = getGeminiKey(); // track which key is in use
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
 
@@ -5028,14 +5151,49 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
         const err = new Error(msg);
         err._httpStatus = resp.status;
         err._apiData    = data;
-        // Always surface key errors immediately — no point retrying
-        if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
 
-        const isRateLimited = resp.status === 429 || resp.status === 503;
+        // Key errors: mark the key as invalid, then try the next key in the pool
+        if (isKeyError(resp.status, data)) {
+          _markKeyInvalid(usedKey);
+          const nextKey = getGeminiKey();
+          if (nextKey && nextKey !== usedKey) {
+            // Rebuild the URL with the new key
+            usedKey = nextKey;
+            url = url.replace(/key=[^&]+/, `key=${encodeURIComponent(nextKey)}`);
+            if (onRetry) onRetry(attempt);
+            continue; // retry immediately with new key
+          }
+          throw Object.assign(err, { _keyError: true }); // no more keys
+        }
+
+        // Rate limit: mark current key, rotate to next key immediately
+        if (resp.status === 429) {
+          _markKeyRateLimited(usedKey);
+          const nextKey = getGeminiKey();
+          if (nextKey && nextKey !== usedKey) {
+            usedKey = nextKey;
+            url = url.replace(/key=[^&]+/, `key=${encodeURIComponent(nextKey)}`);
+            if (onRetry) onRetry(attempt);
+            await cancellableSleep(300, cancelToken); // tiny pause before switching
+            continue; // retry with new key, no long wait
+          }
+          // All keys exhausted — fall back to timed backoff on the current key
+          const serverHintMs = retryAfterMs(resp);
+          if (onRetry) onRetry(attempt);
+          _lastGeminiCallAt = Date.now() + backoffMs(attempt, true, serverHintMs) - MIN_GEMINI_CALL_GAP_MS;
+          await cancellableSleep(backoffMs(attempt, true, serverHintMs), cancelToken);
+          // After wait, reset all rate-limited keys so they can be tried again
+          const pool = _loadKeyPool();
+          pool.forEach(k => { if (k.status === 'rate_limited') { k.status = 'ok'; k.rateLimitedUntil = 0; } });
+          _saveKeyPool(pool);
+          usedKey = getGeminiKey();
+          url = url.replace(/key=[^&]+/, `key=${encodeURIComponent(usedKey)}`);
+          continue;
+        }
+
+        const isRateLimited = resp.status === 503;
         const serverHintMs  = retryAfterMs(resp);
         if (onRetry) onRetry(attempt);
-        // Push the next allowed call slot out too, so other queued calls
-        // (e.g. from concurrent loops) also respect the cooldown.
         _lastGeminiCallAt = Date.now() + backoffMs(attempt, isRateLimited, serverHintMs) - MIN_GEMINI_CALL_GAP_MS;
         await cancellableSleep(backoffMs(attempt, isRateLimited, serverHintMs), cancelToken);
         continue;
@@ -5046,6 +5204,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
         const e = new Error('cancelled'); e._cancelled = true; throw e;
       }
 
+      _advanceKeyPool(); // rotate for next call
       return data; // success
     } catch (err) {
       if (err._keyError || err._cancelled) throw err; // propagate immediately
@@ -5923,48 +6082,31 @@ QUESTIONS TO EVALUATE (image follows each question):`;
       }
 
       // ── Text-only re-evaluation for remaining uncertain questions (no image) ──
+      // Reuses runTextBatch so all uncertain questions are sent in batches of 25
+      // (one API call per batch) instead of one call per question.
       const textReaskPool = cleaned
         .map((q, i) => ({ q, origIdx: i }))
         .filter(({ origIdx }) => allFlags[origIdx] === 2);
 
       if (textReaskPool.length > 0) {
         console.log(`[lecture-filter] text re-evaluation: ${textReaskPool.length} uncertain question(s) without image`);
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🔍 Double-checking ${textReaskPool.length} borderline question${textReaskPool.length !== 1 ? 's' : ''}…</div>`;
-        for (const { q, origIdx } of textReaskPool) {
-          const optLines = Object.entries(q.options || {}).map(([k, v]) => `   ${k}. ${v}`).join('\n');
-          const reaskText = `
-
-QUESTION TO RE-EVALUATE:
-${q.question}
-${optLines}
-
-Is this question's topic covered in the lecture topic index above?
-Answer ONLY with JSON: {"result": 1} if yes (including synonyms/sub-topics), {"result": 0} if genuinely not covered.`;
-
-          let reaskParts;
-          if (lectureFileUri) {
-            reaskParts = [
-              { text: 'You are a precise academic relevance filter. Given this lecture topic index:' },
-              { file_data: { mime_type: 'text/plain', file_uri: lectureFileUri } },
-              { text: reaskText }
-            ];
+        const p3Total = Math.ceil(textReaskPool.length / FILTER_CHUNK_SIZE);
+        for (let bi = 0; bi < p3Total; bi++) {
+          const batchItems = textReaskPool.slice(bi * FILTER_CHUNK_SIZE, (bi + 1) * FILTER_CHUNK_SIZE);
+          const batchQs    = batchItems.map(({ q }) => q);
+          statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🔍 Double-checking ${textReaskPool.length} borderline question${textReaskPool.length !== 1 ? 's' : ''}…${p3Total > 1 ? ` (batch ${bi + 1}/${p3Total})` : ''}</div>`;
+          const flags = await runTextBatch(batchQs, `text re-eval batch ${bi + 1}`);
+          if (flags) {
+            batchItems.forEach(({ origIdx }, i) => {
+              const val = flags[i];
+              // Phase-3 re-eval: collapse 2 (unsure) -> keep (1)
+              allFlags[origIdx] = (val === 0) ? 0 : 1;
+              console.log(`[lecture-filter] text re-eval Q${origIdx + 1} -> ${allFlags[origIdx]}`);
+            });
           } else {
-            reaskParts = [{ text: `You are a precise academic relevance filter. Given this lecture topic index:\n${lectureTopicIndex}${reaskText}` }];
-          }
-
-          try {
-            const data = await callGeminiWithRetry(url, {
-              contents: [{ parts: reaskParts }],
-              generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 64 }
-            }, {});
-            const rc = data && data.candidates && data.candidates[0];
-            const rt = rc ? (rc.content && rc.content.parts || []).map(p => p.text || '').join('') : '';
-            const rp = JSON.parse(rt.replace(/```json|```/g, '').trim());
-            allFlags[origIdx] = (rp && (rp.result === 0 || rp.result === 1)) ? rp.result : 1;
-            console.log(`[lecture-filter] text re-eval Q${origIdx + 1} → ${allFlags[origIdx]}`);
-          } catch (e) {
-            console.warn(`[lecture-filter] text re-eval Q${origIdx + 1} failed, keeping:`, e);
-            allFlags[origIdx] = 1;
+            // Batch failed entirely -- keep all questions in this batch
+            batchItems.forEach(({ origIdx }) => { allFlags[origIdx] = 1; });
+            filterBatchFailed = true;
           }
         }
       }
