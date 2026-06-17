@@ -3748,7 +3748,7 @@ function renderChatPanel(i) {
       <div class="ai-chat-messages" id="chatMessages_${i}">${msgsHTML}</div>
       ${attachHTML}
       <div class="ai-chat-input-row">
-        <input type="file" id="chatFileInput_${i}" multiple accept="image/*,.pdf,.txt,.csv,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:none" onchange="handleChatFileSelect(${i}, this)" />
+        <input type="file" id="chatFileInput_${i}" multiple accept="image/*,.pdf,.txt,.csv" style="display:none" onchange="handleChatFileSelect(${i}, this)" />
         <button class="ai-chat-attach-btn" type="button" title="Attach file" onclick="document.getElementById('chatFileInput_${i}').click()" ${busy ? 'disabled' : ''}>📎</button>
         <input type="text" class="ai-chat-text-input" id="chatTextInput_${i}" placeholder="Ask a question…" ${busy ? 'disabled' : ''} onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage(${i});}" />
         <button class="ai-chat-send-btn" type="button" title="Send" onclick="sendChatMessage(${i})" ${busy ? 'disabled' : ''}>➤</button>
@@ -3760,33 +3760,20 @@ function renderChatPanel(i) {
 }
 
 /* ── Handle attaching files via the file picker ── */
-async function handleChatFileSelect(i, inputEl) {
+function handleChatFileSelect(i, inputEl) {
   const files = Array.from((inputEl && inputEl.files) || []);
   if (!files.length) return;
   if (!_chatPending[i]) _chatPending[i] = [];
-  inputEl.value = '';
 
-  for (let file of files) {
+  files.forEach(file => {
     if (file.size > CHAT_MAX_ATTACHMENT_BYTES) {
       alert(`"${file.name}" is too large (max 10MB).`);
-      continue;
+      return;
     }
-    if (isPptxFile(file)) {
-      try {
-        file = await convertIfPptx(file, null);
-      } catch (e) {
-        alert(`Couldn't convert "${file.name}" from PowerPoint: ${e.message || 'unknown error'}`);
-        continue;
-      }
-    }
-    try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('read failed'));
-        reader.readAsDataURL(file);
-      });
-      const base64 = String(dataUrl).split(',')[1] || '';
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const base64  = String(dataUrl).split(',')[1] || '';
       _chatPending[i].push({
         name: file.name,
         mimeType: file.type || 'application/octet-stream',
@@ -3794,10 +3781,12 @@ async function handleChatFileSelect(i, inputEl) {
         base64
       });
       renderChatPanel(i);
-    } catch (e) {
-      alert(`Failed to read "${file.name}".`);
-    }
-  }
+    };
+    reader.onerror = () => alert(`Failed to read "${file.name}".`);
+    reader.readAsDataURL(file);
+  });
+
+  inputEl.value = '';
 }
 
 /* ── Remove a staged (not-yet-sent) attachment ── */
@@ -4477,15 +4466,14 @@ function cqRemoveFilterFile(idx) {
   renderCustomQuizModal();
 }
 
-async function acceptCQFilterFile(file) {
+function acceptCQFilterFile(file) {
   const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
   const isTxt   = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-  const isPptx  = isPptxFile(file);
   const statusEl = document.getElementById('cqStatus');
 
-  if (!isPdf && !isImage && !isTxt && !isPptx) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Lecture filter files must be PDF, image (JPG/PNG/WEBP), PowerPoint (.pptx), or .txt.</div>`;
+  if (!isPdf && !isImage && !isTxt) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Lecture filter files must be PDF, image (JPG/PNG/WEBP), or .txt.</div>`;
     return;
   }
   if (file.size > 19 * 1024 * 1024) {
@@ -4494,16 +4482,7 @@ async function acceptCQFilterFile(file) {
   }
   if (cqFilterFiles.some(f => f.name === file.name && f.size === file.size)) return; // dedupe
 
-  let useFile = file;
-  if (isPptx) {
-    try {
-      useFile = await convertIfPptx(file, statusEl);
-    } catch (e) {
-      return;
-    }
-  }
-
-  cqFilterFiles.push(useFile);
+  cqFilterFiles.push(file);
   if (statusEl) statusEl.innerHTML = '';
   renderCustomQuizModal();
 }
@@ -4513,15 +4492,14 @@ function handleLectureFileSelect(event) {
   if (file) acceptLectureFile(file);
 }
 
-async function acceptLectureFile(file) {
+function acceptLectureFile(file) {
   const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
   const isTxt   = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-  const isPptx  = isPptxFile(file);
   const statusEl = document.getElementById('cqStatus');
 
-  if (!isPdf && !isImage && !isTxt && !isPptx) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a PDF, image (JPG/PNG/WEBP), PowerPoint (.pptx), or .txt file.</div>`;
+  if (!isPdf && !isImage && !isTxt) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a PDF, image (JPG/PNG/WEBP), or .txt file.</div>`;
     return;
   }
   if (file.size > 19 * 1024 * 1024) {
@@ -4529,28 +4507,18 @@ async function acceptLectureFile(file) {
     return;
   }
 
-  let useFile = file;
-  if (isPptx) {
-    try {
-      useFile = await convertIfPptx(file, statusEl);
-    } catch (e) {
-      return;
-    }
-  }
-
-  cqLectureFile = useFile;
+  cqLectureFile = file;
   if (statusEl) statusEl.innerHTML = '';
   renderCustomQuizModal();
 }
 
-async function acceptCQFile(file) {
+function acceptCQFile(file) {
   const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
-  const isPptx  = isPptxFile(file);
   const statusEl = document.getElementById('cqStatus');
 
-  if (!isPdf && !isImage && !isPptx) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload images (JPG/PNG/WEBP), PDF, or PowerPoint (.pptx) files.</div>`;
+  if (!isPdf && !isImage) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload images (JPG/PNG/WEBP) or PDF files.</div>`;
     return;
   }
   if (file.size > 19 * 1024 * 1024) {
@@ -4559,16 +4527,7 @@ async function acceptCQFile(file) {
   }
   if (cqSelectedFiles.some(f => f.name === file.name && f.size === file.size)) return; // dedupe
 
-  let useFile = file;
-  if (isPptx) {
-    try {
-      useFile = await convertIfPptx(file, statusEl);
-    } catch (e) {
-      return;
-    }
-  }
-
-  cqSelectedFiles.push(useFile);
+  cqSelectedFiles.push(file);
   if (statusEl) statusEl.innerHTML = '';
   renderCustomQuizModal();
 }
@@ -4581,323 +4540,6 @@ function fileToBase64(file) {
     reader.onerror = () => reject(new Error('Failed to read the file.'));
     reader.readAsDataURL(file);
   });
-}
-
-/* ════════════════════════════════════════════════════════════════
-   PPTX → PDF client-side conversion
-   PowerPoint files are converted into a real PDF in the browser
-   (one page per slide, with all embedded images and slide text laid
-   out on the page) so they can flow through the exact same PDF
-   pipeline used everywhere else — meaning image extraction, visual
-   question matching, and lecture analysis all work for .pptx files
-   exactly as they do for PDFs, with no separate code path.
-   ════════════════════════════════════════════════════════════════ */
-
-const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-
-function isPptxFile(file) {
-  if (!file) return false;
-  return file.type === PPTX_MIME || file.name.toLowerCase().endsWith('.pptx');
-}
-
-let _jszipLoadPromise = null;
-function loadJSZip() {
-  if (window.JSZip) return Promise.resolve(window.JSZip);
-  if (_jszipLoadPromise) return _jszipLoadPromise;
-  _jszipLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-    script.onload  = () => resolve(window.JSZip);
-    script.onerror = () => reject(new Error('Failed to load JSZip from CDN.'));
-    document.head.appendChild(script);
-  });
-  return _jszipLoadPromise;
-}
-
-let _jspdfLoadPromise = null;
-function loadJSPDF() {
-  if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
-  if (_jspdfLoadPromise) return _jspdfLoadPromise;
-  _jspdfLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js';
-    script.onload  = () => resolve(window.jspdf.jsPDF);
-    script.onerror = () => reject(new Error('Failed to load jsPDF from CDN.'));
-    document.head.appendChild(script);
-  });
-  return _jspdfLoadPromise;
-}
-
-/* Pull plain text out of a slide's XML, in document order, paragraph by paragraph. */
-function extractSlideText(slideXmlDoc) {
-  const paragraphs = Array.from(slideXmlDoc.getElementsByTagName('a:p'));
-  const lines = [];
-  paragraphs.forEach(p => {
-    const runs = Array.from(p.getElementsByTagName('a:t'));
-    const text = runs.map(r => r.textContent || '').join('').trim();
-    if (text) lines.push(text);
-  });
-  return lines;
-}
-
-/* Map each slide's r:embed / r:id image references to actual media filenames via its .rels file. */
-function buildRelMap(relsXmlDoc) {
-  const map = {};
-  if (!relsXmlDoc) return map;
-  Array.from(relsXmlDoc.getElementsByTagName('Relationship')).forEach(rel => {
-    const id     = rel.getAttribute('Id');
-    const target = rel.getAttribute('Target') || '';
-    const type    = rel.getAttribute('Type')  || '';
-    if (id && type.indexOf('/image') !== -1) {
-      map[id] = target.replace(/^\.\.\//, '');
-    }
-  });
-  return map;
-}
-
-/* Find every image relationship id referenced anywhere inside a slide's XML (a:blip r:embed=...). */
-function extractSlideImageRelIds(slideXmlDoc) {
-  const ids = [];
-  Array.from(slideXmlDoc.getElementsByTagName('a:blip')).forEach(blip => {
-    const embed = blip.getAttribute('r:embed') || blip.getAttribute('r:link');
-    if (embed) ids.push(embed);
-  });
-  return ids;
-}
-
-function guessImageMime(filename) {
-  const ext = (filename.split('.').pop() || '').toLowerCase();
-  if (ext === 'png') return 'image/png';
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
-  if (ext === 'gif') return 'image/gif';
-  if (ext === 'bmp') return 'image/bmp';
-  if (ext === 'webp') return 'image/webp';
-  if (ext === 'emf') return 'image/emf';   // not browser-decodable — handled explicitly below
-  if (ext === 'wmf') return 'image/wmf';   // not browser-decodable — handled explicitly below
-  if (ext === 'tif' || ext === 'tiff') return 'image/tiff'; // not browser-decodable either
-  return 'image/png';
-}
-
-/* Formats the browser's <img>/canvas pipeline cannot decode at all. */
-function isUndecodableImageMime(mime) {
-  return mime === 'image/emf' || mime === 'image/wmf' || mime === 'image/tiff';
-}
-
-/*
- * Convert a .pptx File into a .pdf File: one PDF page per slide, with the
- * slide's text at the top and every embedded image (the actual photos,
- * diagrams, charts, scans, etc. — not a recreation of the slide layout)
- * laid out below it so vision models can see exactly what's on the slide.
- */
-async function convertPptxToPdfFile(file, onProgress) {
-  const [JSZip, jsPDF] = await Promise.all([loadJSZip(), loadJSPDF()]);
-  const arrayBuffer = await file.arrayBuffer();
-  const zip = await JSZip.loadAsync(arrayBuffer);
-  const totalSkippedImages = [];
-
-  // Determine slide order from presentation.xml + presentation.xml.rels
-  const presXml = await zip.file('ppt/presentation.xml').async('string');
-  const presRelsXml = await zip.file('ppt/_rels/presentation.xml.rels').async('string');
-  const parser = new DOMParser();
-  const presDoc = parser.parseFromString(presXml, 'application/xml');
-  const presRelsDoc = parser.parseFromString(presRelsXml, 'application/xml');
-
-  const presRelMap = {};
-  Array.from(presRelsDoc.getElementsByTagName('Relationship')).forEach(rel => {
-    presRelMap[rel.getAttribute('Id')] = rel.getAttribute('Target');
-  });
-
-  const slideIdEntries = Array.from(presDoc.getElementsByTagName('p:sldId'));
-  let slidePaths = slideIdEntries
-    .map(node => {
-      const rEmbed = node.getAttribute('r:id');
-      const target = presRelMap[rEmbed];
-      return target ? ('ppt/' + target.replace(/^\.\.\//, '').replace(/^\//, '')) : null;
-    })
-    .filter(Boolean);
-
-  // Fallback: if presentation.xml parsing didn't yield slides, sort by filename number
-  if (!slidePaths.length) {
-    slidePaths = Object.keys(zip.files)
-      .filter(p => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-      .sort((a, b) => {
-        const na = parseInt(a.match(/slide(\d+)\.xml/)[1], 10);
-        const nb = parseInt(b.match(/slide(\d+)\.xml/)[1], 10);
-        return na - nb;
-      });
-  }
-
-  if (!slidePaths.length) throw new Error('No slides found in this PowerPoint file.');
-
-  const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const margin = 36;
-  const usableW = pageW - margin * 2;
-
-  for (let s = 0; s < slidePaths.length; s++) {
-    if (onProgress) onProgress(s + 1, slidePaths.length);
-    const slidePath = slidePaths[s];
-    const slideFile = zip.file(slidePath);
-    if (!slideFile) continue;
-    const slideXml = await slideFile.async('string');
-    const slideDoc = parser.parseFromString(slideXml, 'application/xml');
-
-    // Relationships for this slide (to resolve images)
-    const slideName = slidePath.split('/').pop();
-    const relsPath = `ppt/slides/_rels/${slideName}.rels`;
-    let relMap = {};
-    const relsFile = zip.file(relsPath);
-    if (relsFile) {
-      const relsXml = await relsFile.async('string');
-      relMap = buildRelMap(parser.parseFromString(relsXml, 'application/xml'));
-    }
-
-    const textLines = extractSlideText(slideDoc);
-    const imageRelIds = extractSlideImageRelIds(slideDoc);
-
-    if (s > 0) pdf.addPage();
-    let cursorY = margin;
-
-    // Slide number / title header
-    pdf.setFontSize(10);
-    pdf.setTextColor(120, 120, 120);
-    pdf.text(`Slide ${s + 1}`, margin, cursorY);
-    cursorY += 16;
-
-    // Render text lines (first line styled as a title)
-    pdf.setTextColor(20, 20, 20);
-    textLines.forEach((line, li) => {
-      pdf.setFontSize(li === 0 ? 16 : 11);
-      pdf.setFont(undefined, li === 0 ? 'bold' : 'normal');
-      const wrapped = pdf.splitTextToSize(line, usableW);
-      wrapped.forEach(wline => {
-        if (cursorY > pageH - margin) { pdf.addPage(); cursorY = margin; }
-        pdf.text(wline, margin, cursorY);
-        cursorY += li === 0 ? 20 : 15;
-      });
-      cursorY += 4;
-    });
-
-    cursorY += 6;
-
-    // Render every embedded image on the slide at a readable size
-    let skippedImages = [];
-    for (const relId of imageRelIds) {
-      const target = relMap[relId];
-      if (!target) continue;
-      const mediaPath = `ppt/media/${target.split('/').pop()}`;
-      const mediaFile = zip.file(mediaPath);
-      if (!mediaFile) continue;
-      const mime = guessImageMime(mediaPath);
-
-      // EMF/WMF/TIFF can't be decoded by the browser's Image/canvas APIs at all.
-      // Rather than silently dropping them, leave a visible note on the slide
-      // so nothing disappears without a trace.
-      if (isUndecodableImageMime(mime)) {
-        skippedImages.push(mediaPath.split('/').pop());
-        continue;
-      }
-
-      try {
-        const base64 = await mediaFile.async('base64');
-        const rawDataUrl = `data:${mime};base64,${base64}`;
-
-        const img = await new Promise((resolve, reject) => {
-          const im = new Image();
-          im.onload = () => resolve(im);
-          im.onerror = reject;
-          im.src = rawDataUrl;
-        });
-
-        // jsPDF's addImage only reliably accepts PNG/JPEG data URLs. GIF, BMP,
-        // and WEBP decode fine in <img> but aren't accepted directly, so route
-        // everything through a canvas and re-encode as PNG before drawing.
-        let drawDataUrl = rawDataUrl;
-        let drawFormat = 'PNG';
-        if (mime !== 'image/png' && mime !== 'image/jpeg') {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          drawDataUrl = canvas.toDataURL('image/png');
-        } else {
-          drawFormat = mime === 'image/png' ? 'PNG' : 'JPEG';
-        }
-
-        const dims = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
-        let drawW = usableW;
-        let drawH = drawW * (dims.h / dims.w);
-        const maxH = pageH - margin * 2;
-        if (drawH > maxH) { drawH = maxH; drawW = drawH * (dims.w / dims.h); }
-        if (cursorY + drawH > pageH - margin) { pdf.addPage(); cursorY = margin; }
-        pdf.addImage(drawDataUrl, drawFormat, margin, cursorY, drawW, drawH);
-        cursorY += drawH + 12;
-      } catch (e) {
-        // Decode genuinely failed (corrupt file, unsupported variant, etc.) —
-        // still surface it instead of disappearing silently.
-        skippedImages.push(mediaPath.split('/').pop());
-      }
-    }
-
-    if (skippedImages.length) {
-      totalSkippedImages.push({ slide: s + 1, files: skippedImages });
-      if (cursorY > pageH - margin - 14) { pdf.addPage(); cursorY = margin; }
-      pdf.setFontSize(9);
-      pdf.setFont(undefined, 'italic');
-      pdf.setTextColor(170, 60, 60);
-      const note = `⚠ ${skippedImages.length} image${skippedImages.length > 1 ? 's' : ''} on this slide could not be converted (${skippedImages.join(', ')}) and may be missing.`;
-      pdf.splitTextToSize(note, usableW).forEach(wline => {
-        if (cursorY > pageH - margin) { pdf.addPage(); cursorY = margin; }
-        pdf.text(wline, margin, cursorY);
-        cursorY += 12;
-      });
-    }
-  }
-
-  const pdfBlob = pdf.output('blob');
-  const pdfFile = new File(
-    [pdfBlob],
-    file.name.replace(/\.pptx$/i, '') + '.pdf',
-    { type: 'application/pdf' }
-  );
-  pdfFile._pptxSkippedImages = totalSkippedImages; // non-enumerable info for the UI layer
-  return pdfFile;
-}
-
-/*
- * Drop-in helper: if the given file is a .pptx, converts it to a PDF File
- * and returns that; otherwise returns the original file unchanged.
- * statusEl (optional) gets a progress message while converting.
- */
-async function convertIfPptx(file, statusEl) {
-  if (!isPptxFile(file)) return file;
-  if (statusEl) {
-    statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📊 Converting "${escapeHtml(file.name)}" from PowerPoint to PDF…</div>`;
-  }
-  try {
-    const pdfFile = await convertPptxToPdfFile(file, (cur, total) => {
-      if (statusEl) {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📊 Converting "${escapeHtml(file.name)}" — slide ${cur} of ${total}…</div>`;
-      }
-    });
-    const skipped = pdfFile._pptxSkippedImages || [];
-    if (statusEl) {
-      if (skipped.length) {
-        const slideList = skipped.map(s => `slide ${s.slide}`).join(', ');
-        statusEl.innerHTML = `<div class="cq-status error">⚠️ "${escapeHtml(file.name)}" converted, but some images (on ${escapeHtml(slideList)}) use a format (EMF/WMF/TIFF) that can't be read in-browser and were noted as missing on those slides instead. Everything else converted normally.</div>`;
-      } else {
-        statusEl.innerHTML = '';
-      }
-    }
-    return pdfFile;
-  } catch (e) {
-    if (statusEl) {
-      statusEl.innerHTML = `<div class="cq-status error">⚠️ Couldn't convert "${escapeHtml(file.name)}" (${escapeHtml(e.message || 'unknown error')}).</div>`;
-    }
-    throw e;
-  }
 }
 
 const CQ_EXTRACTION_PROMPT = `You are extracting multiple-choice quiz questions from an uploaded document (image or PDF).
@@ -5209,15 +4851,7 @@ async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType
 // Source file helpers for AI Answer Mode
 async function handleCqAiSourceFiles(event) {
   const files = Array.from(event.target.files || []);
-  const statusEl = document.getElementById('cqStatus');
-  for (let file of files) {
-    if (isPptxFile(file)) {
-      try {
-        file = await convertIfPptx(file, statusEl);
-      } catch (e) {
-        continue;
-      }
-    }
+  for (const file of files) {
     const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
