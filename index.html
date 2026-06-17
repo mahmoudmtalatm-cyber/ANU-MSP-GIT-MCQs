@@ -4944,9 +4944,29 @@ const CQ_RESPONSE_SCHEMA = {
   }
 };
 
-/* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
-   Only surfaces an error immediately if it's API-key-related
-   (HTTP 400 with API_KEY_INVALID / 401 / 403). ──────── */
+/* ── Global call-spacing gate: ensures consecutive Gemini calls never fire
+   closer together than MIN_GEMINI_CALL_GAP_MS, regardless of how many
+   files/batches are queued up. This prevents bursts of calls (one per file,
+   one per filter batch, etc.) from tripping the per-minute quota in the
+   first place, rather than just reacting to 429s after the fact. ──────── */
+const MIN_GEMINI_CALL_GAP_MS = 4000;
+let _lastGeminiCallAt = 0;
+async function _waitForGeminiSlot(cancelToken) {
+  const now = Date.now();
+  const elapsed = now - _lastGeminiCallAt;
+  if (elapsed < MIN_GEMINI_CALL_GAP_MS) {
+    await cancellableSleep(MIN_GEMINI_CALL_GAP_MS - elapsed, cancelToken);
+  }
+  _lastGeminiCallAt = Date.now();
+}
+
+/* ── Retry helper: retries indefinitely and silently — no error is ever
+   surfaced to the UI from here, no matter how many attempts it takes.
+   Rate-limit responses (429) and transient server errors (5xx) back off
+   more patiently than other errors, since those are quota-window issues
+   that need real wall-clock time to clear rather than a quick retry.
+   Only key errors (401/403/invalid key) are surfaced immediately, since no
+   amount of retrying fixes a bad key. ──────── */
 async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) {
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
@@ -4959,6 +4979,29 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
     return false;
   }
 
+  // Parses a Retry-After header (seconds, or an HTTP date) into milliseconds.
+  function retryAfterMs(resp) {
+    if (!resp || !resp.headers || typeof resp.headers.get !== 'function') return null;
+    const ra = resp.headers.get('Retry-After');
+    if (!ra) return null;
+    const secs = Number(ra);
+    if (!isNaN(secs)) return Math.max(0, secs * 1000);
+    const dateMs = Date.parse(ra);
+    if (!isNaN(dateMs)) return Math.max(0, dateMs - Date.now());
+    return null;
+  }
+
+  // Backoff schedule: rate-limit/server errors get longer, more patient waits
+  // (quota windows are typically per-minute, so short backoffs just keep
+  // hitting the same closed window). Other transient errors use a shorter
+  // schedule. Both retry forever — this function never gives up and never
+  // throws for these cases, by design.
+  function backoffMs(attempt, isRateLimited, serverHintMs) {
+    if (serverHintMs != null) return Math.min(serverHintMs + 500, 90000);
+    if (isRateLimited) return Math.min(8000 * Math.pow(1.6, attempt - 1), 75000);
+    return Math.min(2000 * Math.pow(2, attempt - 1), 30000);
+  }
+
   let attempt = 0;
   while (true) {
     // Check for cancellation before every attempt (including between retries)
@@ -4967,12 +5010,18 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
     }
     attempt++;
     try {
+      // Space out calls so we don't burst past the per-minute quota.
+      await _waitForGeminiSlot(cancelToken);
+      if (cancelToken && cancelToken.cancelled) {
+        const e = new Error('cancelled'); e._cancelled = true; throw e;
+      }
+
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyObj)
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok) {
         const msg = (data && data.error && data.error.message) || `HTTP ${resp.status}`;
@@ -4981,9 +5030,14 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
         err._apiData    = data;
         // Always surface key errors immediately — no point retrying
         if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
+
+        const isRateLimited = resp.status === 429 || resp.status === 503;
+        const serverHintMs  = retryAfterMs(resp);
         if (onRetry) onRetry(attempt);
-        // Cancellable sleep between retries
-        await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
+        // Push the next allowed call slot out too, so other queued calls
+        // (e.g. from concurrent loops) also respect the cooldown.
+        _lastGeminiCallAt = Date.now() + backoffMs(attempt, isRateLimited, serverHintMs) - MIN_GEMINI_CALL_GAP_MS;
+        await cancellableSleep(backoffMs(attempt, isRateLimited, serverHintMs), cancelToken);
         continue;
       }
 
@@ -5487,67 +5541,180 @@ async function generateQuizFromAI() {
     // ── Step 2: optional lecture filter — keep only MCQs relevant to the uploaded lectures ──
     let filteredOutCount = 0;
     if (cqFilterFiles.length > 0) {
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''} against your ${cqFilterFiles.length} lecture file${cqFilterFiles.length !== 1 ? 's' : ''}…</div>`;
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📖 Reading your lecture file${cqFilterFiles.length !== 1 ? 's' : ''}…</div>`;
 
-      const lectureParts = [];
+      // ── Step 2a: extract lecture content as plain text ONCE, up front.
+      // .txt files are read directly. Binary lecture files (PDF/image/pptx) are
+      // sent to Gemini a single time to be transcribed into text. This means the
+      // filtering calls below only ever send plain text — never binary
+      // inline_data — which was conflicting with responseMimeType:'application/json'
+      // and producing unparseable/garbage responses. It also means large lecture
+      // files are uploaded once instead of being re-sent on every filter batch.
+      let lectureText = '';
       for (const lf of cqFilterFiles) {
         const isTxt = lf.type === 'text/plain' || lf.name.toLowerCase().endsWith('.txt');
         if (isTxt) {
           const txt = await fileToText(lf);
-          lectureParts.push({ text: `--- LECTURE FILE: ${lf.name} ---\n${txt}\n--- END LECTURE FILE ---` });
+          lectureText += `--- LECTURE FILE: ${lf.name} ---\n${txt}\n--- END LECTURE FILE ---\n\n`;
         } else {
           const lb64 = await fileToBase64(lf);
           const lmime = lf.type || (lf.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-          lectureParts.push({ text: `--- LECTURE FILE: ${lf.name} ---` });
-          lectureParts.push({ inline_data: { mime_type: lmime, data: lb64 } });
+          let extractedTxt = '';
+          try {
+            const extractData = await callGeminiWithRetry(url, {
+              contents: [{
+                parts: [
+                  { inline_data: { mime_type: lmime, data: lb64 } },
+                  { text: 'Transcribe the full content of this lecture document as plain text. Cover every topic, heading, and concept it discusses. Output plain text only — no commentary, no markdown formatting, no code fences.' }
+                ]
+              }],
+              generationConfig: { temperature: 0, maxOutputTokens: 8192 }
+            }, {});
+            const ecandidate = extractData && extractData.candidates && extractData.candidates[0];
+            extractedTxt = ecandidate ? (ecandidate.content && ecandidate.content.parts || []).map(p => p.text || '').join('') : '';
+          } catch (extractErr) {
+            console.warn(`Lecture extraction failed for ${lf.name}:`, extractErr);
+          }
+          lectureText += `--- LECTURE FILE: ${lf.name} ---\n${extractedTxt || '(no text could be extracted from this file)'}\n--- END LECTURE FILE ---\n\n`;
         }
       }
 
-      const filterPrompt = `You are a strict relevance filter for multiple-choice exam questions.
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''} against your ${cqFilterFiles.length} lecture file${cqFilterFiles.length !== 1 ? 's' : ''}…</div>`;
+      console.log(`[lecture-filter] combined lectureText length: ${lectureText.length} chars (~${Math.round(lectureText.length / 4)} tokens) across ${cqFilterFiles.length} file(s)`);
 
-You will be given:
-1. The full content of one or more lecture files (the curriculum the user actually studied).
-2. A numbered list of MCQ questions (question text only) that were extracted from a quiz file. Some of these questions may belong to a completely different course/curriculum than the lectures provided.
+      // ── Step 2b-pre: upload lectureText to Gemini File API ONCE so it is not
+      //    re-sent as inline text on every batch request. Falls back to inline
+      //    text automatically if the upload fails for any reason. ──
+      let lectureFileUri = null;
+      try {
+        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading lecture content once for efficient filtering…</div>`;
+        const lectureBlob = new Blob([lectureText], { type: 'text/plain' });
+        const uploadMeta  = JSON.stringify({ file: { display_name: 'lecture_context.txt' } });
+        const formData    = new FormData();
+        formData.append('metadata', new Blob([uploadMeta], { type: 'application/json' }));
+        formData.append('file', lectureBlob, 'lecture_context.txt');
+        const uploadResp  = await fetch(
+          `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`,
+          { method: 'POST', body: formData }
+        );
+        if (uploadResp.ok) {
+          const uploadData = await uploadResp.json();
+          lectureFileUri   = uploadData && uploadData.file && uploadData.file.uri;
+          console.log('[lecture-filter] File API upload succeeded, uri:', lectureFileUri);
+        } else {
+          console.warn('[lecture-filter] File API upload HTTP error:', uploadResp.status, await uploadResp.text());
+        }
+      } catch (uploadErr) {
+        console.warn('[lecture-filter] File API upload failed, falling back to inline text:', uploadErr);
+      }
 
+      // ── Step 2b: batch filtering — process questions in chunks of 50 ──
+      const FILTER_CHUNK_SIZE = 50;
+      const allFlags = [];
+      let filterBatchFailed = false;
+      const totalBatches = Math.ceil(cleaned.length / FILTER_CHUNK_SIZE);
+
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        const batchStart = batchIdx * FILTER_CHUNK_SIZE;
+        const batchEnd   = Math.min(batchStart + FILTER_CHUNK_SIZE, cleaned.length);
+        const batchQs    = cleaned.slice(batchStart, batchEnd);
+
+        if (totalBatches > 1) {
+          statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering questions against lecture files… (batch ${batchIdx + 1} of ${totalBatches})</div>`;
+        }
+
+        // Build prompt parts. If File API upload succeeded, reference the lecture
+        // via file_data instead of embedding the full text inline every batch.
+        const questionListText = batchQs.map((q, i) => `${batchStart + i + 1}. ${q.question}`).join('\n');
+        const taskInstructions = `
 TASK: For each numbered question, decide whether its core subject matter is covered by the provided lecture content.
-- Output 1 if the question's topic clearly relates to something taught in the lectures.
-- Output 0 if the question is about a different topic/subject not covered in the lectures, or if you are not reasonably confident it relates.
+- Output 1 ONLY if you can point to a specific topic, heading, or concept in the lecture content above that this question is directly testing.
+- Output 0 if the question's topic is not clearly present in the lecture content, even if it seems like a plausible related topic in the same general field.
 
-Be strict: when in doubt, output 0. The goal is to remove MCQs that don't belong with this curriculum, not to keep everything.
+Do not assume relevance just because the lectures and questions are in the same broad subject area (e.g. both "medicine" or both "biology") — judge each question against the SPECIFIC topics actually present in the lecture content, not the general field. It is expected and normal for some questions to be irrelevant; do not default to keeping everything.
 
-Return ONLY a JSON array of 0s and 1s, the same length and order as the question list, with no other text, no markdown fences, and no explanation.
+Return ONLY a JSON array of 0s and 1s, with exactly ${batchQs.length} elements (one per question below), in the same order, with no other text, no markdown fences, and no explanation.
 Example output for 5 questions: [1,0,1,1,0]
 
 QUESTIONS TO EVALUATE:
-${cleaned.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`;
+${questionListText}`;
 
-      const filterData = await callGeminiWithRetry(url, {
-        contents: [{
-          parts: [
-            ...lectureParts,
-            { text: filterPrompt }
-          ]
-        }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
-      }, {});
-
-      const fcandidate = filterData && filterData.candidates && filterData.candidates[0];
-      if (fcandidate) {
-        const ftextOut = (fcandidate.content && fcandidate.content.parts || []).map(p => p.text || '').join('');
-        let flags = null;
-        try { flags = JSON.parse(ftextOut.replace(/```json|```/g, '').trim()); } catch (fe) { flags = null; }
-
-        if (Array.isArray(flags) && flags.length === cleaned.length) {
-          const before = cleaned.length;
-          cleaned = cleaned.filter((_, i) => flags[i] === 1 || flags[i] === true);
-          filteredOutCount = before - cleaned.length;
-          if (!cleaned.length) {
-            throw new Error('No questions remained after filtering against the uploaded lecture(s) — the MCQ file(s) may not overlap with this curriculum. Try different files, or remove the lecture filter to keep all questions.');
-          }
+        let filterParts;
+        if (lectureFileUri) {
+          filterParts = [
+            { text: 'You are a strict relevance filter for multiple-choice exam questions.\n\nYou will be given:\n1. The full content of one or more lecture files (the curriculum the user actually studied).\n2. A numbered list of MCQ questions (question text only) extracted from a quiz file.\n\nLECTURE CONTENT:' },
+            { file_data: { mime_type: 'text/plain', file_uri: lectureFileUri } },
+            { text: taskInstructions }
+          ];
         } else {
-          statusEl.insertAdjacentHTML('beforeend',
-            `<div class="cq-status warning" style="margin-top:6px;">⚠️ Lecture filter could not be applied (unexpected AI response) — all extracted questions were kept.</div>`);
+          // Fallback: inline text (original behaviour)
+          filterParts = [{ text: `You are a strict relevance filter for multiple-choice exam questions.\n\nYou will be given:\n1. The full content of one or more lecture files (the curriculum the user actually studied).\n2. A numbered list of MCQ questions (question text only) that were extracted from a quiz file. Some of these questions may belong to a completely different course/curriculum than the lectures provided.\n\nLECTURE CONTENT:\n${lectureText}` + taskInstructions }];
         }
+
+        let batchFlags = null;
+        try {
+          const filterData = await callGeminiWithRetry(url, {
+            contents: [{
+              parts: filterParts
+            }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 1024 }
+          }, {});
+
+          const fcandidate = filterData && filterData.candidates && filterData.candidates[0];
+          if (fcandidate) {
+            const ftextOut = (fcandidate.content && fcandidate.content.parts || []).map(p => p.text || '').join('');
+            console.log(`[lecture-filter] batch ${batchIdx + 1}/${totalBatches} raw output:`, ftextOut);
+            try {
+              // Repair truncated JSON arrays: strip fences, ensure the string ends with ]
+              let cleaned_json = ftextOut.replace(/```json|```/g, '').trim();
+              // If the array was cut off mid-stream, close it so JSON.parse can succeed
+              if (cleaned_json.startsWith('[') && !cleaned_json.endsWith(']')) {
+                cleaned_json = cleaned_json.replace(/[,\s]+$/, '') + ']';
+              }
+              const parsed = JSON.parse(cleaned_json);
+              if (Array.isArray(parsed) && parsed.length === batchQs.length) {
+                batchFlags = parsed;
+              } else if (Array.isArray(parsed) && parsed.length > 0) {
+                // Partial response — pad with 1s (keep questions) to avoid silent data loss
+                batchFlags = batchQs.map((_, i) => parsed[i] !== undefined ? parsed[i] : 1);
+              } else {
+                console.warn(`[lecture-filter] batch ${batchIdx + 1} parsed but not a usable array:`, parsed);
+              }
+            } catch (fe) { console.warn(`[lecture-filter] batch ${batchIdx + 1} JSON parse failed:`, fe, ftextOut); batchFlags = null; }
+          } else {
+            console.warn(`[lecture-filter] batch ${batchIdx + 1} returned no candidate`, filterData);
+          }
+        } catch (batchErr) {
+          console.warn(`Filter batch ${batchIdx + 1} failed:`, batchErr);
+          batchFlags = null;
+        }
+
+        if (batchFlags === null) {
+          // If a batch fails, keep all questions in that batch to avoid silent loss
+          filterBatchFailed = true;
+          batchFlags = new Array(batchQs.length).fill(1);
+        }
+
+        const batchOnes = batchFlags.filter(f => f === 1 || f === true).length;
+        console.log(`[lecture-filter] batch ${batchIdx + 1}/${totalBatches}: kept ${batchOnes}/${batchFlags.length}`);
+
+        allFlags.push(...batchFlags);
+      }
+
+      if (allFlags.length === cleaned.length) {
+        const before = cleaned.length;
+        cleaned = cleaned.filter((_, i) => allFlags[i] === 1 || allFlags[i] === true);
+        filteredOutCount = before - cleaned.length;
+        if (!cleaned.length) {
+          throw new Error('No questions remained after filtering against the uploaded lecture(s) — the MCQ file(s) may not overlap with this curriculum. Try different files, or remove the lecture filter to keep all questions.');
+        }
+        if (filterBatchFailed) {
+          statusEl.insertAdjacentHTML('beforeend',
+            `<div class="cq-status warning" style="margin-top:6px;">⚠️ One or more filter batches encountered an error — questions from those batches were kept to avoid data loss.</div>`);
+        }
+      } else {
+        statusEl.insertAdjacentHTML('beforeend',
+          `<div class="cq-status warning" style="margin-top:6px;">⚠️ Lecture filter could not be fully applied (unexpected AI response) — all extracted questions were kept.</div>`);
       }
     }
 
