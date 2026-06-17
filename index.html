@@ -723,6 +723,88 @@
 .cq-help-box ol { margin: 6px 0 0 20px; }
 .cq-help-box a { color: var(--accent); font-weight: 700; text-decoration: none; }
 .cq-help-box a:hover { text-decoration: underline; }
+/* ── KEY MANAGER ── */
+.km-panel {
+  background: #F7FBFF;
+  border: 1.5px solid #B0D4F0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.km-title {
+  font-size: .82rem; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .7px;
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.km-key-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+.km-key-row {
+  display: flex; align-items: center; gap: 6px;
+  background: #fff; border: 1.5px solid #D0E8F8;
+  border-radius: 8px; padding: 7px 10px;
+  transition: border-color .15s;
+}
+.km-key-row.ok   { border-left: 4px solid #43A047; }
+.km-key-row.rate_limited { border-left: 4px solid #FB8C00; }
+.km-key-row.invalid      { border-left: 4px solid #E53935; opacity: .75; }
+.km-key-label {
+  flex: 1; font-size: .82rem; font-weight: 700;
+  color: var(--text-main); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 90px;
+  cursor: pointer;
+}
+.km-key-val {
+  flex: 3; font-size: .75rem; font-family: monospace;
+  color: var(--text-muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.km-badge {
+  font-size: .68rem; font-weight: 800; border-radius: 20px;
+  padding: 2px 8px; white-space: nowrap; flex-shrink: 0;
+}
+.km-badge.ok           { background: #E8F5E9; color: #2E7D32; }
+.km-badge.rate_limited { background: #FFF3E0; color: #E65100; }
+.km-badge.invalid      { background: #FFEBEE; color: #C62828; }
+.km-badge.active       { background: #E3F2FD; color: #1565C0; }
+.km-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.km-icon-btn {
+  background: none; border: none; cursor: pointer; font-size: .95rem;
+  padding: 2px 4px; border-radius: 5px; line-height: 1;
+  transition: background .12s;
+}
+.km-icon-btn:hover { background: #EEF7FF; }
+.km-add-row {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+}
+.km-add-input {
+  flex: 1; min-width: 160px;
+  padding: 9px 12px;
+  border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .88rem;
+  color: var(--text-main); background: #fff;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+}
+.km-add-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.km-label-input {
+  width: 90px;
+  padding: 9px 10px;
+  border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .82rem;
+  color: var(--text-main); background: #fff;
+  outline: none; transition: border-color .2s;
+}
+.km-label-input:focus { border-color: var(--accent); }
+.km-status-summary {
+  font-size: .78rem; color: var(--text-muted);
+  margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.km-no-keys {
+  text-align: center; padding: 12px 8px;
+  font-size: .83rem; color: var(--text-muted);
+  border: 1.5px dashed #B0D4F0; border-radius: 8px;
+  background: #fff;
+}
+
 .cq-input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .cq-input-row input[type="password"],
 .cq-input-row input[type="text"] {
@@ -3272,9 +3354,7 @@ function handleExplainKeySave() {
   const key = (inp ? inp.value : '').trim();
   if (!key) { if(inp) inp.style.borderColor='#C62828'; return; }
   setExplainKey(key);
-  // Also sync with the custom quiz key input if it's open
-  const cqInp = document.getElementById('cqApiKeyInput');
-  if (cqInp) cqInp.value = key;
+  _refreshKmPanel();
   if (window._explainKeySaveCallback) {
     const cb = window._explainKeySaveCallback;
     window._explainKeySaveCallback = null;
@@ -3430,7 +3510,7 @@ async function explainQuestion(i, forceRegenerate = false) {
     const p = document.getElementById(`explainPanel_${i}`);
     if (p) {
       if (isKeyErr) {
-        setExplainKey('');
+        _refreshKmPanel();
         renderExplainKeyPrompt(p, (key) => {
           p.innerHTML = '';
           explainQuestion(i);
@@ -3924,7 +4004,7 @@ async function runChatRequest(i) {
 
     const isKeyErr = err._keyError || /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (isKeyErr) {
-      setExplainKey('');
+      _refreshKmPanel();
       const panel = document.getElementById(`chatPanel_${i}`);
       if (panel) renderExplainKeyPrompt(panel, () => runChatRequest(i));
       return;
@@ -4265,6 +4345,137 @@ function _countOkKeys() {
   return pool.filter(k => k.status === 'ok' || (k.status === 'rate_limited' && now >= (k.rateLimitedUntil||0))).length;
 }
 
+/* ══════════════════════════════════════════════════════════
+   KEY MANAGER — UI renderer and helpers
+══════════════════════════════════════════════════════════ */
+function renderKeyManagerHTML() {
+  const pool    = _loadKeyPool();
+  const activeK = getGeminiKey();
+  const now     = Date.now();
+
+  let rows = '';
+  if (!pool.length) {
+    rows = '<div class="km-no-keys">🔑 No API keys added yet — add your first key below.</div>';
+  } else {
+    pool.forEach((entry, idx) => {
+      const status = (entry.status === 'rate_limited' && now >= (entry.rateLimitedUntil || 0))
+        ? 'ok' : entry.status;
+      const isActive = entry.key === activeK && status === 'ok';
+      const maskedKey = entry.key.length > 8
+        ? entry.key.slice(0, 4) + '••••••••' + entry.key.slice(-4)
+        : '••••••••';
+      const badgeLabel = status === 'ok' ? '✅ OK' : status === 'rate_limited' ? '⏳ Rate Limited' : '❌ Invalid';
+      const timeLeft = status === 'rate_limited'
+        ? Math.max(0, Math.ceil(((entry.rateLimitedUntil || 0) - now) / 1000)) + 's'
+        : '';
+      rows += `<div class="km-key-row ${status}" title="${escapeHtml(entry.key)}">
+        <span class="km-key-label" onclick="kmRenameKey(${idx})" title="Click to rename">${escapeHtml(entry.label || `Key ${idx+1}`)}</span>
+        <span class="km-key-val">${maskedKey}</span>
+        <span class="km-badge ${status}">${badgeLabel}${timeLeft ? ' · ' + timeLeft : ''}</span>
+        ${isActive ? '<span class="km-badge active">▶ Active</span>' : ''}
+        <div class="km-row-actions">
+          ${status !== 'ok' ? `<button class="km-icon-btn" onclick="kmRetryKey(${idx})" title="Retry this key">🔄</button>` : ''}
+          <button class="km-icon-btn" onclick="kmCopyKey(${idx})" title="Copy key">📋</button>
+          <button class="km-icon-btn" onclick="kmRemoveKey(${idx})" title="Remove key" style="color:#E53935;">🗑️</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  const okCount  = pool.filter(k => k.status === 'ok' || (k.status === 'rate_limited' && now >= (k.rateLimitedUntil||0))).length;
+  const rlCount  = pool.filter(k => k.status === 'rate_limited' && now < (k.rateLimitedUntil||0)).length;
+  const badCount = pool.filter(k => k.status === 'invalid').length;
+  const summary  = pool.length
+    ? `<span>🔑 ${pool.length} key${pool.length !== 1 ? 's' : ''} total</span>` +
+      (okCount  ? ` <span>✅ ${okCount} ready</span>` : '') +
+      (rlCount  ? ` <span>⏳ ${rlCount} rate-limited</span>` : '') +
+      (badCount ? ` <span>❌ ${badCount} invalid</span>` : '')
+    : '<span>Add at least one key to use AI features.</span>';
+
+  return `
+    <div class="km-title">🔑 Gemini API Key Pool
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener"
+         style="font-size:.72rem;font-weight:600;color:var(--accent);text-decoration:none;margin-left:auto;"
+         title="Get a free key">Get free key ↗</a>
+    </div>
+    <div class="km-key-list">${rows}</div>
+    <div class="km-add-row">
+      <input class="km-add-input" type="password" id="kmNewKeyInput"
+             placeholder="Paste a Gemini API key…"
+             onkeydown="if(event.key==='Enter')kmAddKey()" />
+      <input class="km-label-input" type="text" id="kmNewKeyLabel"
+             placeholder="Label (opt.)"
+             onkeydown="if(event.key==='Enter')kmAddKey()" />
+      <button class="cq-btn" onclick="kmAddKey()" style="padding:9px 16px;font-size:.85rem;">➕ Add Key</button>
+      <button class="km-icon-btn" onclick="kmToggleNewKeyVis()" title="Show/hide" style="font-size:1.1rem;">👁</button>
+    </div>
+    <div class="km-status-summary">${summary}</div>
+    <div style="font-size:.7rem;color:var(--text-muted);margin-top:6px;line-height:1.5;">
+      Keys stored only in this browser, sent directly to Google. Multiple keys rotate automatically — if one hits a rate limit the next is used instantly.
+    </div>`;
+}
+
+function _refreshKmPanel() {
+  const panel = document.getElementById('kmPanel');
+  if (panel) panel.innerHTML = renderKeyManagerHTML();
+}
+
+function kmAddKey() {
+  const inp   = document.getElementById('kmNewKeyInput');
+  const lblEl = document.getElementById('kmNewKeyLabel');
+  if (!inp) return;
+  const key   = inp.value.trim();
+  const label = lblEl ? lblEl.value.trim() : '';
+  if (!key) { inp.focus(); return; }
+  const added = addGeminiKey(key, label || undefined);
+  if (!added) {
+    inp.style.borderColor = '#E53935';
+    setTimeout(() => { inp.style.borderColor = ''; }, 2000);
+    return;
+  }
+  inp.value = '';
+  if (lblEl) lblEl.value = '';
+  _refreshKmPanel();
+}
+
+function kmRemoveKey(idx) {
+  if (!confirm('Remove this API key from the pool?')) return;
+  removeGeminiKey(idx);
+  _refreshKmPanel();
+}
+
+function kmRetryKey(idx) {
+  retryGeminiKey(idx);
+  _refreshKmPanel();
+}
+
+function kmCopyKey(idx) {
+  const pool = _loadKeyPool();
+  if (!pool[idx]) return;
+  navigator.clipboard.writeText(pool[idx].key).catch(() => {});
+  const rows = document.querySelectorAll('#kmPanel .km-key-row');
+  if (rows[idx]) {
+    const orig = rows[idx].style.background;
+    rows[idx].style.background = '#E8F5E9';
+    setTimeout(() => { rows[idx].style.background = orig; }, 600);
+  }
+}
+
+function kmRenameKey(idx) {
+  const pool = _loadKeyPool();
+  if (!pool[idx]) return;
+  const newLabel = prompt('Rename this key:', pool[idx].label || `Key ${idx + 1}`);
+  if (newLabel !== null && newLabel.trim()) {
+    renameGeminiKey(idx, newLabel.trim());
+    _refreshKmPanel();
+  }
+}
+
+function kmToggleNewKeyVis() {
+  const inp = document.getElementById('kmNewKeyInput');
+  if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
 function openCustomQuizzes() {
   cqSelectedFiles = [];
   cqFilterFiles = [];
@@ -4282,11 +4493,8 @@ function closeCustomQuizzes() {
 }
 
 function toggleCQKeyVisibility() {
-  const input = document.getElementById('cqApiKeyInput');
-  const btn   = document.getElementById('cqToggleKeyBtn');
-  if (!input) return;
-  if (input.type === 'password') { input.type = 'text';     btn.textContent = '🙈'; }
-  else                            { input.type = 'password'; btn.textContent = '👁'; }
+  const inp = document.getElementById('kmNewKeyInput');
+  if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
 function renderCustomQuizModal() {
@@ -4332,21 +4540,9 @@ function renderCustomQuizModal() {
   html += `<div class="cq-section">
     <div class="cq-section-title">✨ Create a New Quiz with AI (Gemini)</div>
 
-    <!-- API Key -->
-    <div class="cq-help-box">
-      <strong>How to get a free Gemini API key:</strong>
-      <ol>
-        <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
-        <li>Sign in with your Google account</li>
-        <li>Click <strong>"Create API key"</strong> (choose or create a project if asked)</li>
-        <li>Copy the generated key and paste it into the box below</li>
-      </ol>
-      Your key is saved only in this browser and is sent directly to Google's API — it never passes through any other server.
-    </div>
-    <div class="cq-input-row">
-      <input type="password" id="cqApiKeyInput" placeholder="Paste your Gemini API key here"
-             value="${escapeHtml(savedKey)}" oninput="setGeminiKey(this.value)" />
-      <button class="cq-btn cq-btn-secondary" id="cqToggleKeyBtn" onclick="toggleCQKeyVisibility()" type="button">👁</button>
+    <!-- API Key Manager -->
+    <div class="km-panel" id="kmPanel">
+      \${renderKeyManagerHTML()}
     </div>
 
     <!-- Mode tabs -->
@@ -5705,19 +5901,17 @@ async function cqAiSolveOne(i) {
 
 
 async function generateQuizFromAI() {
-  const apiKeyInput = document.getElementById('cqApiKeyInput');
   const titleInput  = document.getElementById('cqTitleInput');
   const statusEl    = document.getElementById('cqStatus');
   const genBtn      = document.getElementById('cqGenerateBtn');
 
-  const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
+  const apiKey = getGeminiKey().trim();
   const title  = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
 
-  if (!apiKey)                { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!apiKey)                { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add at least one Gemini API key in the key manager above.</div>`; return; }
   if (!cqSelectedFiles.length) { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload at least one image or PDF of your quiz.</div>`; return; }
   if (!title)                  { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
 
-  setGeminiKey(apiKey);
   cqGeneratedTitle = title;
   cqBusy = true;
   if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
@@ -6183,13 +6377,10 @@ QUESTIONS TO EVALUATE (image follows each question):`;
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (isKeyErr) {
       statusEl.innerHTML = `<div class="cq-status error">🔑 Your API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
-        <strong>Please enter a new Gemini API key above and try again.</strong><br>
+        <strong>The bad key has been flagged. Add a new key in the key manager above and try again.</strong><br>
         <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a></small>
       </div>`;
-      // Clear the stored bad key and focus the input
-      setGeminiKey('');
-      const inp = document.getElementById('cqApiKeyInput');
-      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+      _refreshKmPanel();
     } else {
       statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
     }
@@ -6251,23 +6442,21 @@ function fileToText(file) {
 }
 
 async function generateQuizFromLecture() {
-  const apiKeyInput   = document.getElementById('cqApiKeyInput');
   const titleInput    = document.getElementById('cqLectureTitleInput');
   const qCountInput   = document.getElementById('cqQCountInput');
   const promptInput   = document.getElementById('cqCustomPromptInput');
   const statusEl      = document.getElementById('cqStatus');
   const genBtn        = document.getElementById('cqLectureGenBtn');
 
-  const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
+  const apiKey = getGeminiKey().trim();
   const title  = (titleInput  ? titleInput.value  : cqGeneratedTitle).trim();
   const qCount = (qCountInput ? qCountInput.value : cqQuestionCount).trim();
   const prompt = (promptInput ? promptInput.value : cqCustomPrompt).trim();
 
-  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add at least one Gemini API key in the key manager above.</div>`; return; }
   if (!cqLectureFile) { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a lecture file first.</div>`; return; }
   if (!title)         { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
 
-  setGeminiKey(apiKey);
   cqGeneratedTitle = title;
   cqCustomPrompt   = prompt;
   cqQuestionCount  = qCount;
@@ -6374,13 +6563,10 @@ async function generateQuizFromLecture() {
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (isKeyErr) {
       statusEl.innerHTML = `<div class="cq-status error">🔑 Your API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
-        <strong>Please enter a new Gemini API key above and try again.</strong><br>
+        <strong>The bad key has been flagged. Add a new key in the key manager above and try again.</strong><br>
         <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a></small>
       </div>`;
-      // Clear the stored bad key and focus the input
-      setGeminiKey('');
-      const inp = document.getElementById('cqApiKeyInput');
-      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+      _refreshKmPanel();
     } else {
       statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
     }
