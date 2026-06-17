@@ -5294,6 +5294,51 @@ function cqRemoveSourceFile(idx) {
 // sourceText: optional reference text
 // sourceFiles: optional array of {base64, mimeType, name}
 // onlyIfNoKey: if true, only process questions with no_answer_key (legacy behaviour)
+// Upload a file to the Gemini File API and wait until it is ACTIVE.
+// Returns the file URI on success, or null on failure (caller falls back to inline).
+// For text/plain the file is active immediately; for PDF/image we poll up to ~30 s.
+async function uploadToFileApi(blob, mimeType, displayName, apiKey) {
+  try {
+    const meta     = JSON.stringify({ file: { display_name: displayName } });
+    const formData = new FormData();
+    formData.append('metadata', new Blob([meta], { type: 'application/json' }));
+    formData.append('file', blob, displayName);
+    const uploadResp = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`,
+      { method: 'POST', body: formData }
+    );
+    if (!uploadResp.ok) {
+      console.warn('[fileapi] upload HTTP error:', uploadResp.status, await uploadResp.text());
+      return null;
+    }
+    const uploadData = await uploadResp.json();
+    const fileUri    = uploadData && uploadData.file && uploadData.file.uri;
+    const fileName   = uploadData && uploadData.file && uploadData.file.name; // e.g. "files/abc123"
+    if (!fileUri) { console.warn('[fileapi] no URI in upload response', uploadData); return null; }
+
+    // Text files are active instantly; binary files need processing time.
+    if (mimeType === 'text/plain') return fileUri;
+
+    // Poll until ACTIVE (or FAILED), max ~30 s
+    const pollUrl = `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${encodeURIComponent(apiKey)}`;
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const pollResp = await fetch(pollUrl);
+      if (!pollResp.ok) break;
+      const pollData = await pollResp.json();
+      const state    = pollData && pollData.state;
+      if (state === 'ACTIVE') { console.log('[fileapi] file ACTIVE:', fileUri); return fileUri; }
+      if (state === 'FAILED') { console.warn('[fileapi] file processing FAILED:', pollData); return null; }
+      console.log('[fileapi] still processing, state:', state, '— retrying…');
+    }
+    console.warn('[fileapi] timed out waiting for file to become ACTIVE');
+    return null;
+  } catch (err) {
+    console.warn('[fileapi] upload/poll error:', err);
+    return null;
+  }
+}
+
 async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl) {
   if (!targetIdxs || !targetIdxs.length) return;
 
@@ -5313,17 +5358,49 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
       'Some questions may include an image — analyse it carefully. ' +
       'Respond ONLY with a JSON array.';
 
-  // Build source parts (shared across all chunks)
+  // ── Upload source material to File API once so it is not re-sent every batch.
+  //    Per-question images (q.image) are small and stay inline — never uploaded.
+  //    Falls back to inline_data automatically if any upload fails. ──
   const sourceParts = [];
+
   if (sourceText && sourceText.trim()) {
-    sourceParts.push({ text: '## Reference Source Material (Text)\n' + sourceText.trim() + '\n\n---\n' });
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading source text once…</div>`;
+    const txtBlob = new Blob([sourceText.trim()], { type: 'text/plain' });
+    const txtUri  = await uploadToFileApi(txtBlob, 'text/plain', 'source_text.txt', apiKey);
+    if (txtUri) {
+      sourceParts.push({ text: '## Reference Source Material (Text):' });
+      sourceParts.push({ file_data: { mime_type: 'text/plain', file_uri: txtUri } });
+      sourceParts.push({ text: '---' });
+      console.log('[solve] sourceText uploaded via File API');
+    } else {
+      // Fallback: inline
+      sourceParts.push({ text: '## Reference Source Material (Text)\n' + sourceText.trim() + '\n\n---\n' });
+      console.warn('[solve] sourceText falling back to inline');
+    }
   }
+
   if (sourceFiles && sourceFiles.length > 0) {
     sourceParts.push({ text: '## Reference Source Material (Images/PDFs):' });
-    sourceFiles.forEach((sf, sfi) => {
+    for (let sfi = 0; sfi < sourceFiles.length; sfi++) {
+      const sf = sourceFiles[sfi];
+      if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading source file ${sfi + 1}/${sourceFiles.length} (${sf.name}) — waiting for image processing…</div>`;
+      // Convert base64 back to blob for upload
+      const byteChars = atob(sf.base64);
+      const byteArr   = new Uint8Array(byteChars.length);
+      for (let b = 0; b < byteChars.length; b++) byteArr[b] = byteChars.charCodeAt(b);
+      const fileBlob  = new Blob([byteArr], { type: sf.mimeType });
+      const fileUri   = await uploadToFileApi(fileBlob, sf.mimeType, sf.name, apiKey);
       sourceParts.push({ text: 'Source file ' + (sfi + 1) + ' (' + sf.name + '):' });
-      sourceParts.push({ inline_data: { mime_type: sf.mimeType, data: sf.base64 } });
-    });
+      if (fileUri) {
+        // file_data: Gemini reads the full file including all images inside PDFs
+        sourceParts.push({ file_data: { mime_type: sf.mimeType, file_uri: fileUri } });
+        console.log('[solve] source file uploaded via File API:', sf.name);
+      } else {
+        // Fallback: inline_data — identical vision quality, just re-sent every batch
+        sourceParts.push({ inline_data: { mime_type: sf.mimeType, data: sf.base64 } });
+        console.warn('[solve] source file falling back to inline:', sf.name);
+      }
+    }
     sourceParts.push({ text: '---' });
   }
 
@@ -5336,35 +5413,58 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           'No explanation, no preamble, no markdown.'
   };
 
-  // Chunk into batches of 20 to stay well within token limits
-  const CHUNK_SIZE = 20;
-  const chunks = [];
-  for (let i = 0; i < targetIdxs.length; i += CHUNK_SIZE) {
-    chunks.push(targetIdxs.slice(i, i + CHUNK_SIZE));
+  // Two chunk sizes: smaller when questions have images (token budget for inline_data)
+  const CHUNK_SIZE        = 20;
+  const CHUNK_SIZE_IMAGES =  8;
+
+  // Split into two ordered pools — text-only and image-bearing — preserving original indices
+  const textChunkItems  = targetIdxs.filter(qi => !questions[qi].image);
+  const imageChunkItems = targetIdxs.filter(qi =>  !!questions[qi].image);
+
+  // Build chunk lists for each pool
+  const allChunks = [];
+  for (let i = 0; i < textChunkItems.length;  i += CHUNK_SIZE)        allChunks.push({ idxs: textChunkItems.slice(i,  i + CHUNK_SIZE),        hasImages: false });
+  for (let i = 0; i < imageChunkItems.length; i += CHUNK_SIZE_IMAGES) allChunks.push({ idxs: imageChunkItems.slice(i, i + CHUNK_SIZE_IMAGES), hasImages: true  });
+
+  // Pre-build inline fallback sourceParts (used for image chunks to avoid file_data + inline_data conflict)
+  // This replaces any file_data entries with their inline equivalent using the original sourceFiles data
+  const sourceParts_inline = [];
+  if (sourceText && sourceText.trim()) {
+    sourceParts_inline.push({ text: '## Reference Source Material (Text)\n' + sourceText.trim() + '\n\n---\n' });
+  }
+  if (sourceFiles && sourceFiles.length > 0) {
+    sourceParts_inline.push({ text: '## Reference Source Material (Images/PDFs):' });
+    sourceFiles.forEach((sf, sfi) => {
+      sourceParts_inline.push({ text: 'Source file ' + (sfi + 1) + ' (' + sf.name + '):' });
+      sourceParts_inline.push({ inline_data: { mime_type: sf.mimeType, data: sf.base64 } });
+    });
+    sourceParts_inline.push({ text: '---' });
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
   let totalSolved = 0;
   const errors = [];
 
-  for (let ci = 0; ci < chunks.length; ci++) {
-    const chunk = chunks[ci];
+  for (let ci = 0; ci < allChunks.length; ci++) {
+    const { idxs: chunk, hasImages: chunkHasImages } = allChunks[ci];
 
-    if (statusEl && chunks.length > 1) {
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is solving questions… (batch ${ci + 1} of ${chunks.length})</div>`;
+    if (statusEl && allChunks.length > 1) {
+      const label = chunkHasImages ? '🖼️ image questions' : '📝 text questions';
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is solving ${label}… (batch ${ci + 1} of ${allChunks.length})</div>`;
     }
 
-    const parts = [...sourceParts, instructionPart];
+    // For image chunks: use inline source parts to avoid file_data + inline_data conflict
+    const activeParts = chunkHasImages ? [...sourceParts_inline, instructionPart] : [...sourceParts, instructionPart];
 
     chunk.forEach((qi, serial) => {
       const q = questions[qi];
       const opts = Object.entries(q.options).map(([k, v]) => '  ' + k + '. ' + v).join('\n');
-      parts.push({ text: 'Question ' + (serial + 1) + ' [index:' + qi + ']:\n' + q.question + '\n' + opts });
+      activeParts.push({ text: 'Question ' + (serial + 1) + ' [index:' + qi + ']:\n' + q.question + '\n' + opts });
       if (q.image) {
         const match = q.image.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          parts.push({ text: '(Image for question ' + (serial + 1) + ':)' });
-          parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+          activeParts.push({ text: '(Image for question ' + (serial + 1) + ':)' });
+          activeParts.push({ inline_data: { mime_type: match[1], data: match[2] } });
         }
       }
     });
@@ -5372,8 +5472,11 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     try {
       const data = await callGeminiWithRetry(url, {
         system_instruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
+        contents: [{ role: 'user', parts: activeParts }],
+        // Drop responseMimeType for image chunks — vision + JSON mode is unreliable
+        generationConfig: chunkHasImages
+          ? { temperature: 0, maxOutputTokens: 8192 }
+          : { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
       }, {});
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
@@ -5389,7 +5492,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           try { answers = JSON.parse(cleanText.substring(0, lastBrace + 1) + ']'); } catch (_) {}
         }
         if (!answers) {
-          errors.push(`Batch ${ci + 1}: Could not parse AI response (response may have been truncated).`);
+          errors.push(`Batch ${ci + 1}/${allChunks.length}: Could not parse AI response (response may have been truncated).`);
           continue;
         }
       }
@@ -5406,11 +5509,11 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           }
         });
       } else {
-        errors.push(`Batch ${ci + 1}: AI returned unexpected format (not an array).`);
+        errors.push(`Batch ${ci + 1}/${allChunks.length}: AI returned unexpected format (not an array).`);
       }
     } catch (e) {
       console.warn('cqAiSolveQuestions batch ' + (ci + 1) + ' failed:', e);
-      errors.push(`Batch ${ci + 1}: ${e.message || String(e)}`);
+      errors.push(`Batch ${ci + 1}/${allChunks.length}: ${e.message || String(e)}`);
     }
   }
 
@@ -5582,17 +5685,54 @@ async function generateQuizFromAI() {
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''} against your ${cqFilterFiles.length} lecture file${cqFilterFiles.length !== 1 ? 's' : ''}…</div>`;
       console.log(`[lecture-filter] combined lectureText length: ${lectureText.length} chars (~${Math.round(lectureText.length / 4)} tokens) across ${cqFilterFiles.length} file(s)`);
 
-      // ── Step 2b-pre: upload lectureText to Gemini File API ONCE so it is not
-      //    re-sent as inline text on every batch request. Falls back to inline
-      //    text automatically if the upload fails for any reason. ──
+      // ── Step 2b-pre: Extract a structured topic index from the lecture ONCE.
+      //    This converts the raw lecture text into a clean, numbered list of
+      //    specific topics, concepts, and headings. Filtering against this index
+      //    is faster and more precise than matching against raw lecture prose —
+      //    it avoids false negatives caused by phrasing differences (e.g. the
+      //    lecture says "stroke volume × HR" but the question says "cardiac output").
+      //    Falls back to raw lectureText if the extraction call fails.
+      let lectureTopicIndex = '';
+      try {
+        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📚 Building topic index from lecture…</div>`;
+        const topicData = await callGeminiWithRetry(url, {
+          contents: [{ parts: [{ text: `You are a curriculum analyst. Read the following lecture content and extract a comprehensive, structured index of every specific topic, concept, term, mechanism, disease, drug, procedure, or heading it covers.
+
+Rules:
+- Each entry must be a concrete, specific concept (e.g. "Frank-Starling mechanism", "beta-1 receptor antagonists", "myocardial infarction ECG changes") — not vague categories
+- Include synonyms and alternative phrasings where relevant (e.g. "cardiac output (stroke volume × heart rate)")
+- One concept per line, numbered
+- No explanations, no prose, no markdown — just the numbered list
+
+LECTURE CONTENT:
+${lectureText}
+
+Output the numbered topic index now:` }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 4096 }
+        }, {});
+        const topicCandidate = topicData && topicData.candidates && topicData.candidates[0];
+        const topicOut = topicCandidate ? (topicCandidate.content && topicCandidate.content.parts || []).map(p => p.text || '').join('') : '';
+        if (topicOut.trim().length > 100) {
+          lectureTopicIndex = topicOut.trim();
+          console.log(`[lecture-filter] topic index built: ${lectureTopicIndex.length} chars, ~${Math.round(lectureTopicIndex.length/4)} tokens`);
+        } else {
+          console.warn('[lecture-filter] topic index too short, falling back to raw lectureText');
+          lectureTopicIndex = lectureText;
+        }
+      } catch (topicErr) {
+        console.warn('[lecture-filter] topic index extraction failed, using raw lectureText:', topicErr);
+        lectureTopicIndex = lectureText;
+      }
+
+      // ── Step 2b-pre2: upload the topic index to File API once ──
       let lectureFileUri = null;
       try {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading lecture content once for efficient filtering…</div>`;
-        const lectureBlob = new Blob([lectureText], { type: 'text/plain' });
-        const uploadMeta  = JSON.stringify({ file: { display_name: 'lecture_context.txt' } });
+        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading lecture topic index…</div>`;
+        const lectureBlob = new Blob([lectureTopicIndex], { type: 'text/plain' });
+        const uploadMeta  = JSON.stringify({ file: { display_name: 'lecture_topic_index.txt' } });
         const formData    = new FormData();
         formData.append('metadata', new Blob([uploadMeta], { type: 'application/json' }));
-        formData.append('file', lectureBlob, 'lecture_context.txt');
+        formData.append('file', lectureBlob, 'lecture_topic_index.txt');
         const uploadResp  = await fetch(
           `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`,
           { method: 'POST', body: formData }
@@ -5600,7 +5740,7 @@ async function generateQuizFromAI() {
         if (uploadResp.ok) {
           const uploadData = await uploadResp.json();
           lectureFileUri   = uploadData && uploadData.file && uploadData.file.uri;
-          console.log('[lecture-filter] File API upload succeeded, uri:', lectureFileUri);
+          console.log('[lecture-filter] topic index uploaded, uri:', lectureFileUri);
         } else {
           console.warn('[lecture-filter] File API upload HTTP error:', uploadResp.status, await uploadResp.text());
         }
@@ -5608,109 +5748,243 @@ async function generateQuizFromAI() {
         console.warn('[lecture-filter] File API upload failed, falling back to inline text:', uploadErr);
       }
 
-      // ── Step 2b: batch filtering — process questions in chunks of 50 ──
-      const FILTER_CHUNK_SIZE = 50;
-      const allFlags = [];
+      // ── Step 2b: two-phase filtering ──
+      //
+      // PHASE 1 — text-only pass over ALL questions (batches of 25).
+      //   Every question is evaluated using only its text + answer options.
+      //   Uses the File API URI for the lecture index — cheap and fast.
+      //   Scores: 1 = keep, 0 = drop, 2 = uncertain (needs more info).
+      //
+      // PHASE 2 — visual pass over uncertain image-bearing questions only.
+      //   Questions that scored 2 AND have an embedded image are re-evaluated
+      //   with their image attached (batches of 8, inline text for lecture index).
+      //   Uncertain questions WITHOUT an image fall back to the existing
+      //   text-only individual re-evaluation.
+      //
+      // This means images are sent to Gemini only when the text alone was
+      // insufficient — minimising cost and API calls.
+
+      const FILTER_CHUNK_SIZE        = 25; // phase 1 text batches
+      const FILTER_CHUNK_SIZE_IMAGES =  8; // phase 2 image batches
+
+      // allFlags[i] holds the final 0/1 result for cleaned[i]
+      const allFlags = new Array(cleaned.length).fill(null);
       let filterBatchFailed = false;
-      const totalBatches = Math.ceil(cleaned.length / FILTER_CHUNK_SIZE);
 
-      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-        const batchStart = batchIdx * FILTER_CHUNK_SIZE;
-        const batchEnd   = Math.min(batchStart + FILTER_CHUNK_SIZE, cleaned.length);
-        const batchQs    = cleaned.slice(batchStart, batchEnd);
+      // ── Helper: run one text-only batch, returns array of 0/1/2 flags ──
+      async function runTextBatch(batchQs, batchLabel) {
+        const questionListText = batchQs.map((q, i) => {
+          const optLines = Object.entries(q.options || {}).map(([k, v]) => `   ${k}. ${v}`).join('\n');
+          const hasImgNote = q.image ? ' [has associated image — text only in this pass]' : '';
+          return `${i + 1}. ${q.question}${hasImgNote}\n${optLines}`;
+        }).join('\n\n');
 
-        if (totalBatches > 1) {
-          statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering questions against lecture files… (batch ${batchIdx + 1} of ${totalBatches})</div>`;
-        }
+        const taskText = `
+TOPIC INDEX (all specific topics covered in the lecture):`;
+        const taskText2 = `
 
-        // Build prompt parts. If File API upload succeeded, reference the lecture
-        // via file_data instead of embedding the full text inline every batch.
-        const questionListText = batchQs.map((q, i) => `${batchStart + i + 1}. ${q.question}`).join('\n');
-        const taskInstructions = `
-TASK: For each numbered question, decide whether its core subject matter is covered by the provided lecture content.
-- Output 1 ONLY if you can point to a specific topic, heading, or concept in the lecture content above that this question is directly testing.
-- Output 0 if the question's topic is not clearly present in the lecture content, even if it seems like a plausible related topic in the same general field.
+TASK: For each numbered question, decide if its core subject is covered by the lecture topics above.
 
-Do not assume relevance just because the lectures and questions are in the same broad subject area (e.g. both "medicine" or both "biology") — judge each question against the SPECIFIC topics actually present in the lecture content, not the general field. It is expected and normal for some questions to be irrelevant; do not default to keeping everything.
+Scoring rules:
+- 1 = YES: the question's topic (or a clear synonym/related term) appears in the topic index
+- 0 = NO: the topic is genuinely absent from the lecture — not just phrased differently
+- 2 = UNSURE: you cannot confidently decide from the question text alone (e.g. the question says "What does the image show?" with no other context)
 
-Return ONLY a JSON array of 0s and 1s, with exactly ${batchQs.length} elements (one per question below), in the same order, with no other text, no markdown fences, and no explanation.
-Example output for 5 questions: [1,0,1,1,0]
+Important:
+- Match on MEANING not exact words. "Cardiac output" and "stroke volume × heart rate" are the same concept → match.
+- If the question tests a sub-topic of something in the index, that counts as a match → 1.
+- Only score 0 when confident the topic is absent. Only score 2 when the text is genuinely ambiguous.
+
+Return ONLY a JSON array with exactly ${batchQs.length} elements (0, 1, or 2), one per question, same order. No other text.
+Example for 4 questions: [1,0,2,1]
 
 QUESTIONS TO EVALUATE:
 ${questionListText}`;
 
-        let filterParts;
+        let parts;
         if (lectureFileUri) {
-          filterParts = [
-            { text: 'You are a strict relevance filter for multiple-choice exam questions.\n\nYou will be given:\n1. The full content of one or more lecture files (the curriculum the user actually studied).\n2. A numbered list of MCQ questions (question text only) extracted from a quiz file.\n\nLECTURE CONTENT:' },
+          parts = [
+            { text: 'You are a precise academic relevance filter.' + taskText },
             { file_data: { mime_type: 'text/plain', file_uri: lectureFileUri } },
-            { text: taskInstructions }
+            { text: taskText2 }
           ];
         } else {
-          // Fallback: inline text (original behaviour)
-          filterParts = [{ text: `You are a strict relevance filter for multiple-choice exam questions.\n\nYou will be given:\n1. The full content of one or more lecture files (the curriculum the user actually studied).\n2. A numbered list of MCQ questions (question text only) that were extracted from a quiz file. Some of these questions may belong to a completely different course/curriculum than the lectures provided.\n\nLECTURE CONTENT:\n${lectureText}` + taskInstructions }];
+          parts = [{ text: `You are a precise academic relevance filter.${taskText}\n${lectureTopicIndex}${taskText2}` }];
         }
 
-        let batchFlags = null;
         try {
-          const filterData = await callGeminiWithRetry(url, {
-            contents: [{
-              parts: filterParts
-            }],
+          const data = await callGeminiWithRetry(url, {
+            contents: [{ parts }],
             generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 1024 }
           }, {});
-
-          const fcandidate = filterData && filterData.candidates && filterData.candidates[0];
-          if (fcandidate) {
-            const ftextOut = (fcandidate.content && fcandidate.content.parts || []).map(p => p.text || '').join('');
-            console.log(`[lecture-filter] batch ${batchIdx + 1}/${totalBatches} raw output:`, ftextOut);
-            try {
-              // Repair truncated JSON arrays: strip fences, ensure the string ends with ]
-              let cleaned_json = ftextOut.replace(/```json|```/g, '').trim();
-              // If the array was cut off mid-stream, close it so JSON.parse can succeed
-              if (cleaned_json.startsWith('[') && !cleaned_json.endsWith(']')) {
-                cleaned_json = cleaned_json.replace(/[,\s]+$/, '') + ']';
-              }
-              const parsed = JSON.parse(cleaned_json);
-              if (Array.isArray(parsed) && parsed.length === batchQs.length) {
-                batchFlags = parsed;
-              } else if (Array.isArray(parsed) && parsed.length > 0) {
-                // Partial response — pad with 1s (keep questions) to avoid silent data loss
-                batchFlags = batchQs.map((_, i) => parsed[i] !== undefined ? parsed[i] : 1);
-              } else {
-                console.warn(`[lecture-filter] batch ${batchIdx + 1} parsed but not a usable array:`, parsed);
-              }
-            } catch (fe) { console.warn(`[lecture-filter] batch ${batchIdx + 1} JSON parse failed:`, fe, ftextOut); batchFlags = null; }
-          } else {
-            console.warn(`[lecture-filter] batch ${batchIdx + 1} returned no candidate`, filterData);
-          }
-        } catch (batchErr) {
-          console.warn(`Filter batch ${batchIdx + 1} failed:`, batchErr);
-          batchFlags = null;
+          const candidate = data && data.candidates && data.candidates[0];
+          if (!candidate) return null;
+          const textOut = (candidate.content && candidate.content.parts || []).map(p => p.text || '').join('');
+          console.log(`[lecture-filter] ${batchLabel} raw:`, textOut);
+          let cj = textOut.replace(/```json|```/g, '').trim();
+          if (cj.startsWith('[') && !cj.endsWith(']')) cj = cj.replace(/[,\s]+$/, '') + ']';
+          const parsed = JSON.parse(cj);
+          if (Array.isArray(parsed) && parsed.length >= batchQs.length) return parsed.slice(0, batchQs.length);
+          if (Array.isArray(parsed) && parsed.length > 0) return batchQs.map((_, i) => parsed[i] !== undefined ? parsed[i] : 2);
+          return null;
+        } catch (e) {
+          console.warn(`[lecture-filter] ${batchLabel} failed:`, e);
+          return null;
         }
-
-        if (batchFlags === null) {
-          // If a batch fails, keep all questions in that batch to avoid silent loss
-          filterBatchFailed = true;
-          batchFlags = new Array(batchQs.length).fill(1);
-        }
-
-        const batchOnes = batchFlags.filter(f => f === 1 || f === true).length;
-        console.log(`[lecture-filter] batch ${batchIdx + 1}/${totalBatches}: kept ${batchOnes}/${batchFlags.length}`);
-
-        allFlags.push(...batchFlags);
       }
+
+      // ── PHASE 1: text-only pass over all questions ──
+      const p1Total = Math.ceil(cleaned.length / FILTER_CHUNK_SIZE);
+      for (let bi = 0; bi < p1Total; bi++) {
+        const start   = bi * FILTER_CHUNK_SIZE;
+        const batchQs = cleaned.slice(start, Math.min(start + FILTER_CHUNK_SIZE, cleaned.length));
+        if (p1Total > 1) {
+          statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering questions against lecture… (${bi + 1}/${p1Total})</div>`;
+        }
+        const flags = await runTextBatch(batchQs, `phase-1 batch ${bi + 1}/${p1Total}`);
+        if (flags === null) {
+          filterBatchFailed = true;
+          batchQs.forEach((_, i) => { allFlags[start + i] = 2; }); // treat failure as uncertain
+        } else {
+          flags.forEach((f, i) => { allFlags[start + i] = f; });
+        }
+      }
+
+      // ── PHASE 2: visual re-evaluation for uncertain image-bearing questions ──
+      // Collect all uncertain questions that have an image
+      const visualReaskPool = cleaned
+        .map((q, i) => ({ q, origIdx: i }))
+        .filter(({ q, origIdx }) => allFlags[origIdx] === 2 && !!q.image);
+
+      if (visualReaskPool.length > 0) {
+        console.log(`[lecture-filter] phase-2: ${visualReaskPool.length} uncertain image question(s) will be re-evaluated visually`);
+        const p2Total = Math.ceil(visualReaskPool.length / FILTER_CHUNK_SIZE_IMAGES);
+        for (let bi = 0; bi < p2Total; bi++) {
+          const batchItems = visualReaskPool.slice(bi * FILTER_CHUNK_SIZE_IMAGES, (bi + 1) * FILTER_CHUNK_SIZE_IMAGES);
+          const batchQs    = batchItems.map(({ q }) => q);
+          statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🖼️ Re-evaluating ${visualReaskPool.length} borderline image question${visualReaskPool.length !== 1 ? 's' : ''} visually… (${bi + 1}/${p2Total})</div>`;
+
+          // Build parts: inline lecture index + interleaved question images
+          const introText = `You are a precise academic relevance filter.
+TOPIC INDEX (all specific topics covered in the lecture):
+${lectureTopicIndex}
+
+TASK: For each numbered question, decide if its core subject is covered by the lecture topics above.
+These questions were ambiguous from text alone — use the attached image for each to identify the topic.
+
+Scoring rules:
+- 1 = YES: the topic (or synonym/sub-topic) is covered in the index
+- 0 = NO: the topic is genuinely absent
+
+Important:
+- Each question's image follows its text inline.
+- Use the image content (e.g. ECG → cardiac electrophysiology, histology slide → relevant organ/pathology).
+- Match on meaning, not exact words.
+
+Return ONLY a JSON array with exactly ${batchQs.length} elements (1 or 0), one per question, same order. No other text.
+Example for 3 questions: [1,0,1]
+
+QUESTIONS TO EVALUATE (image follows each question):`;
+
+          const parts = [{ text: introText }];
+          batchQs.forEach((q, i) => {
+            const optLines = Object.entries(q.options || {}).map(([k, v]) => `   ${k}. ${v}`).join('\n');
+            parts.push({ text: `\n${i + 1}. ${q.question}\n${optLines}` });
+            const b64  = q.image.split(',')[1] || '';
+            const mime = q.image.match(/^data:([^;]+)/)?.[1] || 'image/jpeg';
+            parts.push({ inline_data: { mime_type: mime, data: b64 } });
+          });
+
+          try {
+            const data = await callGeminiWithRetry(url, {
+              contents: [{ parts }],
+              generationConfig: { temperature: 0, maxOutputTokens: 256 } // no responseMimeType with images
+            }, {});
+            const candidate = data && data.candidates && data.candidates[0];
+            const textOut   = candidate ? (candidate.content && candidate.content.parts || []).map(p => p.text || '').join('') : '';
+            console.log(`[lecture-filter] phase-2 batch ${bi + 1} raw:`, textOut);
+            let cj = textOut.replace(/```json|```/g, '').trim();
+            if (cj.startsWith('[') && !cj.endsWith(']')) cj = cj.replace(/[,\s]+$/, '') + ']';
+            const parsed = JSON.parse(cj);
+            if (Array.isArray(parsed)) {
+              batchItems.forEach(({ origIdx }, i) => {
+                const val = parsed[i];
+                allFlags[origIdx] = (val === 0 || val === 1) ? val : 1; // default keep if unclear
+              });
+            } else {
+              batchItems.forEach(({ origIdx }) => { allFlags[origIdx] = 1; }); // keep on parse failure
+            }
+          } catch (e) {
+            console.warn(`[lecture-filter] phase-2 batch ${bi + 1} failed, keeping:`, e);
+            batchItems.forEach(({ origIdx }) => { allFlags[origIdx] = 1; });
+            filterBatchFailed = true;
+          }
+        }
+      }
+
+      // ── Text-only re-evaluation for remaining uncertain questions (no image) ──
+      const textReaskPool = cleaned
+        .map((q, i) => ({ q, origIdx: i }))
+        .filter(({ origIdx }) => allFlags[origIdx] === 2);
+
+      if (textReaskPool.length > 0) {
+        console.log(`[lecture-filter] text re-evaluation: ${textReaskPool.length} uncertain question(s) without image`);
+        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🔍 Double-checking ${textReaskPool.length} borderline question${textReaskPool.length !== 1 ? 's' : ''}…</div>`;
+        for (const { q, origIdx } of textReaskPool) {
+          const optLines = Object.entries(q.options || {}).map(([k, v]) => `   ${k}. ${v}`).join('\n');
+          const reaskText = `
+
+QUESTION TO RE-EVALUATE:
+${q.question}
+${optLines}
+
+Is this question's topic covered in the lecture topic index above?
+Answer ONLY with JSON: {"result": 1} if yes (including synonyms/sub-topics), {"result": 0} if genuinely not covered.`;
+
+          let reaskParts;
+          if (lectureFileUri) {
+            reaskParts = [
+              { text: 'You are a precise academic relevance filter. Given this lecture topic index:' },
+              { file_data: { mime_type: 'text/plain', file_uri: lectureFileUri } },
+              { text: reaskText }
+            ];
+          } else {
+            reaskParts = [{ text: `You are a precise academic relevance filter. Given this lecture topic index:\n${lectureTopicIndex}${reaskText}` }];
+          }
+
+          try {
+            const data = await callGeminiWithRetry(url, {
+              contents: [{ parts: reaskParts }],
+              generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 64 }
+            }, {});
+            const rc = data && data.candidates && data.candidates[0];
+            const rt = rc ? (rc.content && rc.content.parts || []).map(p => p.text || '').join('') : '';
+            const rp = JSON.parse(rt.replace(/```json|```/g, '').trim());
+            allFlags[origIdx] = (rp && (rp.result === 0 || rp.result === 1)) ? rp.result : 1;
+            console.log(`[lecture-filter] text re-eval Q${origIdx + 1} → ${allFlags[origIdx]}`);
+          } catch (e) {
+            console.warn(`[lecture-filter] text re-eval Q${origIdx + 1} failed, keeping:`, e);
+            allFlags[origIdx] = 1;
+          }
+        }
+      }
+
+      // Fallback: any slot still null defaults to keep
+      for (let i = 0; i < allFlags.length; i++) if (allFlags[i] === null) allFlags[i] = 1;
+
+      const kept = allFlags.filter(f => f === 1).length;
+      console.log(`[lecture-filter] final: keeping ${kept}/${cleaned.length} questions`);
 
       if (allFlags.length === cleaned.length) {
         const before = cleaned.length;
-        cleaned = cleaned.filter((_, i) => allFlags[i] === 1 || allFlags[i] === true);
+        cleaned = cleaned.filter((_, i) => allFlags[i] === 1);
         filteredOutCount = before - cleaned.length;
         if (!cleaned.length) {
           throw new Error('No questions remained after filtering against the uploaded lecture(s) — the MCQ file(s) may not overlap with this curriculum. Try different files, or remove the lecture filter to keep all questions.');
         }
         if (filterBatchFailed) {
           statusEl.insertAdjacentHTML('beforeend',
-            `<div class="cq-status warning" style="margin-top:6px;">⚠️ One or more filter batches encountered an error — questions from those batches were kept to avoid data loss.</div>`);
+            `<div class="cq-status warning" style="margin-top:6px;">⚠️ One or more filter batches encountered an error — those questions were kept to avoid data loss.</div>`);
         }
       } else {
         statusEl.insertAdjacentHTML('beforeend',
@@ -5718,7 +5992,7 @@ ${questionListText}`;
       }
     }
 
-    cqGeneratedQuestions = cleaned;
+        cqGeneratedQuestions = cleaned;
 
     // Handle questions without answer keys
     const noKeyQs = cleaned.filter(q => q.no_answer_key);
