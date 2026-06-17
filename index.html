@@ -1107,6 +1107,105 @@
 }
 .community-empty .ce-icon { font-size: 2rem; margin-bottom: 8px; }
 
+/* ── COMMUNITY SEARCH & FILTER BAR ── */
+.comm-filter-bar {
+  display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;
+}
+.comm-search-wrap {
+  position: relative;
+}
+.comm-search-wrap .comm-search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: .95rem; pointer-events: none; opacity: .5;
+}
+.comm-search-input {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 36px 9px 34px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .88rem; background: #fff; color: var(--text-main);
+  outline: none; transition: border-color .15s;
+}
+.comm-search-input:focus { border-color: var(--accent); }
+.comm-search-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; font-size: 1rem;
+  color: var(--text-muted); padding: 2px 4px; line-height: 1;
+  display: none;
+}
+.comm-filter-row {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.comm-filter-select {
+  flex: 1; min-width: 120px;
+  padding: 8px 10px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .82rem; background: #fff; color: var(--text-main);
+  outline: none; cursor: pointer; transition: border-color .15s;
+}
+.comm-filter-select:focus { border-color: var(--accent); }
+.comm-results-count {
+  font-size: .76rem; color: var(--text-muted); padding: 2px 0;
+}
+
+/* Category badge on quiz cards */
+.comm-cat-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: .72rem; font-weight: 700; background: #EEF7FF;
+  color: var(--accent); border: 1px solid #B0D4F0; margin-right: 4px;
+}
+.comm-tags-row {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+}
+.comm-tag {
+  display: inline-block; padding: 2px 7px; border-radius: 20px;
+  font-size: .7rem; font-weight: 600; background: #F3E5F5;
+  color: #7B1FA2; border: 1px solid #E1BEE7; cursor: pointer;
+  transition: background .12s;
+}
+.comm-tag:hover { background: #E1BEE7; }
+
+/* ── SHARE QUIZ MODAL ── */
+.sq-overlay {
+  position: fixed; inset: 0; z-index: 13000;
+  background: rgba(0,0,0,.48); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.sq-modal {
+  background: #fff; border-radius: 16px; padding: 28px 24px 22px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.22); width: 100%; max-width: 400px;
+  border-top: 4px solid #7B1FA2;
+}
+.sq-title { font-size: 1.05rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
+.sq-sub  { font-size: .8rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.4; }
+.sq-quiz-name {
+  font-weight: 700; color: var(--accent);
+  background: #EEF7FF; border-radius: 6px; padding: 6px 10px;
+  margin-bottom: 16px; font-size: .9rem; word-break: break-word;
+}
+.sq-field-label {
+  font-size: .74rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-muted); margin-bottom: 5px;
+}
+.sq-select, .sq-input {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 11px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .88rem; background: #fff; color: var(--text-main);
+  outline: none; transition: border-color .15s; margin-bottom: 14px;
+}
+.sq-select:focus, .sq-input:focus { border-color: #7B1FA2; }
+.sq-hint { font-size: .74rem; color: var(--text-muted); margin-top: -10px; margin-bottom: 14px; }
+.sq-actions { display: flex; gap: 8px; margin-top: 6px; }
+.sq-btn-cancel {
+  flex: 1; padding: 10px; border: 2px solid #B0D4F0; border-radius: 9px;
+  background: #fff; font-family: var(--font); font-size: .88rem; font-weight: 700;
+  color: var(--text-muted); cursor: pointer; transition: all .15s;
+}
+.sq-btn-cancel:hover { border-color: #90a4ae; color: #607d8b; }
+.sq-btn-share {
+  flex: 2; padding: 10px; border: none; border-radius: 9px;
+  background: #7B1FA2; color: #fff; font-family: var(--font); font-size: .88rem;
+  font-weight: 700; cursor: pointer; transition: filter .15s;
+}
+.sq-btn-share:hover { filter: brightness(1.1); }
+
 /* ── DISPLAY NAME MODAL ── */
 .dn-overlay {
   position: fixed; inset: 0; z-index: 12000;
@@ -1491,6 +1590,11 @@
   cursor: pointer; white-space: nowrap;
 }
 .ai-key-prompt-row button:hover { background: #6A1B9A; }
+@media (max-width: 480px) {
+  .comm-filter-row { flex-direction: column; }
+  .comm-filter-select { min-width: unset; width: 100%; }
+  .sq-modal { padding: 22px 16px 18px; }
+}
   </style>
 </head>
 <body>
@@ -1539,6 +1643,34 @@
         <button class="stats-close-btn" onclick="closeCommunityQuizzes()">✕</button>
       </div>
       <div class="stats-body" id="communityQuizBody"></div>
+    </div>
+  </div>
+
+<!-- SHARE QUIZ MODAL -->
+  <div id="shareQuizOverlay" class="sq-overlay hidden">
+    <div class="sq-modal">
+      <div class="sq-title">🌐 Share with Community</div>
+      <div class="sq-sub">Your quiz will be visible to all signed-in users. Your display name will be shown.</div>
+      <div class="sq-quiz-name" id="sqQuizName"></div>
+      <div class="sq-field-label">Year</div>
+      <select class="sq-select" id="sqYear" onchange="sqOnYearChange(this.value)">
+        <option value="">— Select a year —</option>
+      </select>
+      <div class="sq-field-label">Module</div>
+      <select class="sq-select" id="sqModule" onchange="sqOnModuleChange(this.value)" disabled>
+        <option value="">— Select a module —</option>
+      </select>
+      <div class="sq-field-label">Subject</div>
+      <select class="sq-select" id="sqSubject" disabled>
+        <option value="">— Select a subject —</option>
+      </select>
+      <div class="sq-field-label">Tags <span style="font-weight:400;text-transform:none;">(optional)</span></div>
+      <input class="sq-input" id="sqTags" type="text" maxlength="80" placeholder="e.g. renal, exam1, OSCE" />
+      <div class="sq-hint">Comma-separated keywords to help others find your quiz</div>
+      <div class="sq-actions">
+        <button class="sq-btn-cancel" onclick="cancelShareQuiz()">Cancel</button>
+        <button class="sq-btn-share" onclick="confirmShareQuiz()">🌐 Share Quiz</button>
+      </div>
     </div>
   </div>
 
@@ -6291,6 +6423,10 @@ async function deletePublishedLectureImages(subject, lectureId) {
 /* ══════════════════════════════════════════════════════════
    SHARE CUSTOM QUIZ
 ══════════════════════════════════════════════════════════ */
+// Share Quiz modal state
+let _shareQuizResolve = null;
+let _shareQuizId = null;
+
 async function shareCustomQuiz(id) {
   if (!window._currentUser) {
     alert('Please sign in to share quizzes with the community.');
@@ -6303,26 +6439,21 @@ async function shareCustomQuiz(id) {
   const displayName = await getOrPromptDisplayName();
   if (!displayName) return; // cancelled
 
-  if (!confirm(`Share "${quiz.title}" with the community? It will be visible to all signed-in users.\n\nYour display name "${displayName}" will be shown (not your email).`)) return;
+  // Open share-quiz modal to collect category + tags
+  const shareDetails = await openShareQuizModal(quiz.title);
+  if (!shareDetails) return; // user cancelled
 
   try {
     const sharedId = 'sq_' + window._currentUser.uid + '_' + id;
     const sharedRef = window._doc(window._db, 'sharedQuizzes', sharedId);
 
-    // Force-hydrate images from the personal subcollection before sharing,
-    // so q.image is guaranteed to be in memory even if background hydration
-    // hadn't finished (or never ran) when the user taps Share.
     await hydrateQuizImages(quiz.questions);
 
-    // Deep-clone so we never mutate the in-memory cached quiz
     const questionsForFirestore = JSON.parse(JSON.stringify(quiz.questions)).map(q => {
-      // Drop personal firestore:// sentinel — image is now hydrated into q.image
       if (q.imageUrl && q.imageUrl.startsWith('firestore://')) delete q.imageUrl;
       return q;
     });
 
-    // Compress + upload each image to sharedQuizzes/{sharedId}/images/{idx},
-    // replacing q.image with a lightweight sharedImageIdx sentinel in the doc
     await uploadSharedQuizImages(sharedId, questionsForFirestore);
 
     await window._setDoc(sharedRef, cleanForFirestore({
@@ -6333,12 +6464,18 @@ async function shareCustomQuiz(id) {
       authorUid: window._currentUser.uid,
       authorName: displayName,
       sharedAt: Date.now(),
-      questionCount: quiz.questions.length
+      questionCount: quiz.questions.length,
+      category: shareDetails.category || '',
+      year: shareDetails.year || '',
+      module: shareDetails.module || '',
+      subjectKey: shareDetails.subjectKey || '',
+      subjectLabel: shareDetails.subjectLabel || '',
+      tags: shareDetails.tags || []
     }));
 
-    // Mark quiz as shared locally
     quiz.sharedAt = Date.now();
     await saveCustomQuizzesList(quizzes);
+    _allSharedQuizzes = []; // invalidate cache so community list refreshes on next open
     renderCustomQuizModal();
 
     const statusEl = document.getElementById('cqStatus');
@@ -6346,6 +6483,89 @@ async function shareCustomQuiz(id) {
   } catch(e) {
     alert('Failed to share quiz: ' + (e.message || e));
   }
+}
+
+function openShareQuizModal(quizTitle) {
+  return new Promise(resolve => {
+    _shareQuizResolve = resolve;
+    document.getElementById('sqQuizName').textContent = quizTitle;
+    document.getElementById('sqTags').value = '';
+
+    // Populate Year dropdown from live curriculum object
+    const yearSel = document.getElementById('sqYear');
+    const modSel  = document.getElementById('sqModule');
+    const subjSel = document.getElementById('sqSubject');
+
+    const years = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
+    yearSel.innerHTML = '<option value="">— Select a year —</option>' +
+      years.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join('');
+    yearSel.value = '';
+    modSel.innerHTML = '<option value="">— Select a module —</option>';
+    modSel.disabled = true;
+    subjSel.innerHTML = '<option value="">— Select a subject —</option>';
+    subjSel.disabled = true;
+
+    document.getElementById('shareQuizOverlay').classList.remove('hidden');
+    setTimeout(() => yearSel.focus(), 50);
+  });
+}
+
+function sqOnYearChange(year) {
+  const modSel  = document.getElementById('sqModule');
+  const subjSel = document.getElementById('sqSubject');
+  modSel.innerHTML = '<option value="">— Select a module —</option>';
+  subjSel.innerHTML = '<option value="">— Select a subject —</option>';
+  subjSel.disabled = true;
+  if (!year) { modSel.disabled = true; return; }
+  const mods = Object.keys(curriculum[year] || {});
+  modSel.innerHTML += mods.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+  modSel.disabled = false;
+  modSel.value = '';
+}
+
+function sqOnModuleChange(mod) {
+  const year    = document.getElementById('sqYear').value;
+  const subjSel = document.getElementById('sqSubject');
+  subjSel.innerHTML = '<option value="">— Select a subject —</option>';
+  if (!year || !mod) { subjSel.disabled = true; return; }
+  const keys = (curriculum[year][mod] || []).filter(k => subjects[k]);
+  subjSel.innerHTML += keys.map(k => {
+    const label = subjects[k].label || k;
+    const icon  = subjects[k].icon  || '';
+    return `<option value="${escapeHtml(k)}">${icon} ${escapeHtml(label)}</option>`;
+  }).join('');
+  subjSel.disabled = false;
+  subjSel.value = '';
+}
+
+function confirmShareQuiz() {
+  const year     = document.getElementById('sqYear').value.trim();
+  const mod      = document.getElementById('sqModule').value.trim();
+  const subjKey  = document.getElementById('sqSubject').value.trim();
+  const rawTags  = document.getElementById('sqTags').value;
+  const tags = rawTags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+
+  if (!year || !mod || !subjKey) {
+    alert('Please select a Year, Module, and Subject before sharing.');
+    return;
+  }
+
+  const subjLabel = (subjects[subjKey] && (subjects[subjKey].label || subjKey)) || subjKey;
+  document.getElementById('shareQuizOverlay').classList.add('hidden');
+  if (_shareQuizResolve) {
+    _shareQuizResolve({
+      year, module: mod, subjectKey: subjKey, subjectLabel: subjLabel,
+      // flat category string for backwards-compatible search/display
+      category: `${year} › ${mod} › ${subjLabel}`,
+      tags
+    });
+    _shareQuizResolve = null;
+  }
+}
+
+function cancelShareQuiz() {
+  document.getElementById('shareQuizOverlay').classList.add('hidden');
+  if (_shareQuizResolve) { _shareQuizResolve(null); _shareQuizResolve = null; }
 }
 
 /* ── Restore options object from optionsOrder array (set by shareCustomQuiz) ── */
@@ -6363,6 +6583,12 @@ function restoreOptionsOrder(questions) {
    COMMUNITY QUIZZES MODAL
 ══════════════════════════════════════════════════════════ */
 let communityTab = 'browse'; // 'browse' | 'mine'
+let communitySearchQuery = '';
+let communityYearFilter    = '';
+let communityModuleFilter  = '';
+let communitySubjectFilter = '';
+let communitySort = 'newest';
+let _allSharedQuizzes = []; // cache for client-side filtering
 
 function openCommunityQuizzes() {
   if (!window._currentUser) {
@@ -6370,6 +6596,11 @@ function openCommunityQuizzes() {
     return;
   }
   communityTab = 'browse';
+  communitySearchQuery = '';
+  communityYearFilter    = '';
+  communityModuleFilter  = '';
+  communitySubjectFilter = '';
+  communitySort = 'newest';
   document.getElementById('communityQuizOverlay').classList.remove('hidden');
   renderCommunityQuizzes();
 }
@@ -6378,74 +6609,197 @@ function closeCommunityQuizzes() {
   document.getElementById('communityQuizOverlay').classList.add('hidden');
 }
 
-async function renderCommunityQuizzes() {
-  const body = document.getElementById('communityQuizBody');
-  body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="font-size:2rem;margin-bottom:10px;">&#8987;</div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
+function communityOnSearchInput(val) {
+  communitySearchQuery = val;
+  document.getElementById('commClearBtn').style.display = val ? 'block' : 'none';
+  window._commSearchFocused = true;
+  const el = document.getElementById('commSearchInput');
+  window._commSearchPos = el ? el.selectionStart : null;
+  renderCommunityQuizzes();
+}
 
-  // Load shared quizzes from Firestore
-  let shared = [];
-  try {
-    const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
-    snap.forEach(d => shared.push(d.data()));
-    shared.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
-  } catch(e) {
-    body.innerHTML = `<div style="text-align:center;padding:32px;color:#C62828;">&#10060; Failed to load community quizzes. Please try again.</div>`;
-    return;
+async function renderCommunityQuizzes(forceReload) {
+  const body = document.getElementById('communityQuizBody');
+
+  // Only fetch from Firestore when opening fresh or forced
+  if (!_allSharedQuizzes.length || forceReload) {
+    body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="font-size:2rem;margin-bottom:10px;">&#8987;</div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
+    try {
+      const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
+      _allSharedQuizzes = [];
+      snap.forEach(d => _allSharedQuizzes.push(d.data()));
+    } catch(e) {
+      body.innerHTML = `<div style="text-align:center;padding:32px;color:#C62828;">&#10060; Failed to load community quizzes. Please try again.</div>`;
+      return;
+    }
   }
 
   const myUid = window._currentUser ? window._currentUser.uid : null;
+  const shared = _allSharedQuizzes;
   const myShared = shared.filter(q => q.authorUid === myUid);
-  const othersShared = shared.filter(q => q.authorUid !== myUid);
 
-  const displayList = communityTab === 'mine' ? myShared : shared;
+  // --- Filtering ---
+  let pool = communityTab === 'mine' ? myShared : shared;
+
+  // Search
+  const q = communitySearchQuery.toLowerCase().trim();
+  if (q) {
+    pool = pool.filter(item => {
+      const inTitle  = (item.title || '').toLowerCase().includes(q);
+      const inAuthor = (item.authorName || '').toLowerCase().includes(q);
+      const inCat   = (item.category || '').toLowerCase().includes(q);
+      const inTags  = (item.tags || []).some(t => t.includes(q));
+      return inTitle || inAuthor || inCat || inTags;
+    });
+  }
+
+  // Hierarchical curriculum filter
+  if (communityYearFilter) {
+    pool = pool.filter(item => (item.year || '') === communityYearFilter);
+  }
+  if (communityModuleFilter) {
+    pool = pool.filter(item => (item.module || '') === communityModuleFilter);
+  }
+  if (communitySubjectFilter) {
+    pool = pool.filter(item => (item.subjectKey || '') === communitySubjectFilter);
+  }
+
+  // Sorting
+  if (communitySort === 'newest') {
+    pool = [...pool].sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
+  } else if (communitySort === 'oldest') {
+    pool = [...pool].sort((a, b) => (a.sharedAt || 0) - (b.sharedAt || 0));
+  } else if (communitySort === 'az') {
+    pool = [...pool].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  } else if (communitySort === 'questions') {
+    pool = [...pool].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0));
+  }
+
+  // Build cascading filter options from live curriculum + shared quiz metadata
+  const allYears   = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
+  const allModules = communityYearFilter
+    ? Object.keys(curriculum[communityYearFilter] || {})
+    : [...new Set(shared.map(i => i.module).filter(Boolean))].sort();
+  const allSubjects = (communityYearFilter && communityModuleFilter)
+    ? (curriculum[communityYearFilter][communityModuleFilter] || []).filter(k => subjects[k])
+    : [...new Set(shared.map(i => i.subjectKey).filter(Boolean))];
+
+  // --- Build HTML ---
+  const searchVal = escapeHtml(communitySearchQuery);
+  const clearStyle = communitySearchQuery ? 'display:block' : 'display:none';
 
   let html = `
     <div class="community-section-tabs">
-      <button class="community-tab-btn ${communityTab === 'browse' ? 'active' : ''}" onclick="communityTab='browse';renderCommunityQuizzes()">&#127758; Browse All (${shared.length})</button>
+      <button class="community-tab-btn ${communityTab === 'browse' ? 'active' : ''}" onclick="communityTab='browse';communitySearchQuery='';communityYearFilter='';communityModuleFilter='';communitySubjectFilter='';renderCommunityQuizzes()">&#127758; Browse All (${shared.length})</button>
       <button class="community-tab-btn ${communityTab === 'mine' ? 'active' : ''}" onclick="communityTab='mine';renderCommunityQuizzes()">&#128100; My Shared (${myShared.length})</button>
+    </div>
+
+    <div class="comm-filter-bar">
+      <div class="comm-search-wrap">
+        <span class="comm-search-icon">🔍</span>
+        <input class="comm-search-input" id="commSearchInput" type="text"
+               placeholder="Search by title, author, category or tag…"
+               value="${searchVal}"
+               oninput="communityOnSearchInput(this.value)" />
+        <button class="comm-search-clear" id="commClearBtn" style="${clearStyle}"
+                onclick="communitySearchQuery='';document.getElementById('commSearchInput').value='';this.style.display='none';renderCommunityQuizzes()">✕</button>
+      </div>
+      <div class="comm-filter-row">
+        <select class="comm-filter-select" id="commYearFilter"
+                onchange="communityYearFilter=this.value;communityModuleFilter='';communitySubjectFilter='';renderCommunityQuizzes()">
+          <option value="">All Years</option>
+          ${allYears.map(y => `<option value="${escapeHtml(y)}" ${communityYearFilter === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" id="commModuleFilter"
+                onchange="communityModuleFilter=this.value;communitySubjectFilter='';renderCommunityQuizzes()"
+                ${!communityYearFilter ? 'disabled' : ''}>
+          <option value="">All Modules</option>
+          ${allModules.map(m => `<option value="${escapeHtml(m)}" ${communityModuleFilter === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" id="commSubjectFilter"
+                onchange="communitySubjectFilter=this.value;renderCommunityQuizzes()"
+                ${!communityModuleFilter ? 'disabled' : ''}>
+          <option value="">All Subjects</option>
+          ${allSubjects.map(k => {
+            const lbl = (subjects[k] && (subjects[k].label || k)) || k;
+            const ico = (subjects[k] && subjects[k].icon) || '';
+            return `<option value="${escapeHtml(k)}" ${communitySubjectFilter === k ? 'selected' : ''}>${ico} ${escapeHtml(lbl)}</option>`;
+          }).join('')}
+        </select>
+        <select class="comm-filter-select" id="commSortSelect"
+                onchange="communitySort=this.value;renderCommunityQuizzes()">
+          <option value="newest" ${communitySort==='newest'?'selected':''}>🕐 Newest</option>
+          <option value="oldest" ${communitySort==='oldest'?'selected':''}>🕐 Oldest</option>
+          <option value="az"     ${communitySort==='az'?'selected':''}>🔤 A → Z</option>
+          <option value="questions" ${communitySort==='questions'?'selected':''}>📝 Most Questions</option>
+        </select>
+      </div>
+      <div class="comm-results-count">${pool.length} quiz${pool.length !== 1 ? 'zes' : ''} shown</div>
     </div>`;
 
-  if (!displayList.length) {
+  if (!pool.length) {
     html += `<div class="community-empty">
-      <div class="ce-icon">${communityTab === 'mine' ? '&#128100;' : '&#127758;'}</div>
-      ${communityTab === 'mine'
-        ? 'You haven\'t shared any quizzes yet. Create one and tap the &#128279; Share button!'
-        : 'No community quizzes yet — be the first to share one!'}
+      <div class="ce-icon">${communitySearchQuery || communityYearFilter || communityModuleFilter || communitySubjectFilter ? '🔍' : (communityTab === 'mine' ? '&#128100;' : '&#127758;')}</div>
+      ${communitySearchQuery || communityYearFilter || communityModuleFilter || communitySubjectFilter
+        ? 'No quizzes match your search. Try different keywords or clear the filters.'
+        : communityTab === 'mine'
+          ? 'You haven\'t shared any quizzes yet. Create one and tap the &#128279; Share button!'
+          : 'No community quizzes yet — be the first to share one!'}
     </div>`;
   } else {
-    let _communityQuizzesCache = [];
+    const _communityQuizzesCache = [];
 
-  displayList.forEach((q, idx) => {
-    _communityQuizzesCache[idx] = q;
-    window._commQuizCache = _communityQuizzesCache;
-    const isOwn = q.authorUid === myUid;
-    const date  = new Date(q.sharedAt).toLocaleDateString();
-    html += `<div class="community-quiz-item">
+    pool.forEach((item, idx) => {
+      _communityQuizzesCache[idx] = item;
+      const isOwn = item.authorUid === myUid;
+      const date  = new Date(item.sharedAt).toLocaleDateString();
+      const catBadge = (item.year || item.subjectLabel)
+        ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
+        : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
+      const tagsHtml = (item.tags && item.tags.length)
+        ? `<div class="comm-tags-row">${item.tags.map(t =>
+            `<span class="comm-tag" onclick="communitySearchQuery='${escapeHtml(t)}';renderCommunityQuizzes()" title="Filter by tag">#${escapeHtml(t)}</span>`
+          ).join('')}</div>` : '';
+
+      html += `<div class="community-quiz-item">
         <div class="community-quiz-header">
-          <div>
-            <div class="community-quiz-title">${escapeHtml(q.title)}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="community-quiz-title">${escapeHtml(item.title)}</div>
             <div class="community-quiz-meta">
-              ${q.questionCount} question${q.questionCount !== 1 ? 's' : ''}
-              &nbsp;&middot;&nbsp; &#128100; ${escapeHtml(q.authorName)}
+              ${catBadge}
+              ${item.questionCount} question${item.questionCount !== 1 ? 's' : ''}
+              &nbsp;&middot;&nbsp; &#128100; ${escapeHtml(item.authorName)}
               ${isOwn ? ' <span class="share-chip">You</span>' : ''}
               &nbsp;&middot;&nbsp; &#128197; ${date}
             </div>
+            ${tagsHtml}
           </div>
         </div>
         <div class="community-quiz-actions">
-          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, q.questionCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid #B0D4F0;border-radius:6px;font-family:var(--font);font-size:.82rem;background:#fff;" />
+          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, item.questionCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid #B0D4F0;border-radius:6px;font-family:var(--font);font-size:.82rem;background:#fff;" />
           <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;">
             <input type="checkbox" id="cqCommShuffle_${idx}" style="width:14px;height:14px;accent-color:var(--accent);" /> &#128256;
           </label>
           <button class="cq-btn" onclick="startCommunityQuizByIdx(${idx})">&#9654; Start</button>
-          <button class="cq-btn cq-btn-secondary" onclick="importCommunityQuiz('${escapeHtml(q.id)}')">&#128229; Save to Mine</button>
-          ${isOwn ? `<button class="cq-btn cq-btn-danger" onclick="deleteCommunityQuiz('${escapeHtml(q.id)}')">&#128465; Unshare</button>` : ''}
+          <button class="cq-btn cq-btn-secondary" onclick="importCommunityQuiz('${escapeHtml(item.id)}')">&#128229; Save to Mine</button>
+          ${isOwn ? `<button class="cq-btn cq-btn-danger" onclick="deleteCommunityQuiz('${escapeHtml(item.id)}')">&#128465; Unshare</button>` : ''}
         </div>
       </div>`;
-  });
+    });
+
+    window._commQuizCache = _communityQuizzesCache;
   }
 
   body.innerHTML = html;
+
+  // Restore search input focus/caret if user was typing
+  const searchEl = document.getElementById('commSearchInput');
+  if (searchEl && document.activeElement !== searchEl && window._commSearchFocused) {
+    const pos = window._commSearchPos || searchEl.value.length;
+    searchEl.focus();
+    try { searchEl.setSelectionRange(pos, pos); } catch(e) {}
+    window._commSearchFocused = false;
+  }
 }
 
 async function startCommunityQuizByIdx(idx) {
@@ -6539,6 +6893,8 @@ async function deleteCommunityQuiz(sharedId) {
     const localQuiz = quizzes.find(q => 'sq_' + window._currentUser.uid + '_' + q.id === sharedId);
     if (localQuiz) { delete localQuiz.sharedAt; await saveCustomQuizzesList(quizzes); }
 
+    // Invalidate client cache so list refreshes from Firestore
+    _allSharedQuizzes = [];
     renderCommunityQuizzes();
     renderCustomQuizModal();
   } catch(e) {
