@@ -6077,29 +6077,45 @@ Output the numbered topic index now:` }] }],
         lectureTopicIndex = lectureText;
       }
 
-      // ── Step 2b-pre2: upload the topic index to File API once ──
-      let lectureFileUri = null;
-      try {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading lecture topic index…</div>`;
-        const lectureBlob = new Blob([lectureTopicIndex], { type: 'text/plain' });
-        const uploadMeta  = JSON.stringify({ file: { display_name: 'lecture_topic_index.txt' } });
-        const formData    = new FormData();
-        formData.append('metadata', new Blob([uploadMeta], { type: 'application/json' }));
-        formData.append('file', lectureBlob, 'lecture_topic_index.txt');
-        const uploadResp  = await fetch(
-          `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`,
-          { method: 'POST', body: formData }
-        );
-        if (uploadResp.ok) {
-          const uploadData = await uploadResp.json();
-          lectureFileUri   = uploadData && uploadData.file && uploadData.file.uri;
-          console.log('[lecture-filter] topic index uploaded, uri:', lectureFileUri);
-        } else {
-          console.warn('[lecture-filter] File API upload HTTP error:', uploadResp.status, await uploadResp.text());
+      // ── Step 2b-pre2: upload the topic index to File API ──
+      // File API files are scoped to the uploading key's project.
+      // We track which key was used so we can re-upload if the active key rotates.
+      let lectureFileUri    = null;
+      let lectureFileApiKey = null; // which key owns the current URI
+
+      async function ensureLectureFileUri() {
+        const currentKey = getGeminiKey();
+        // Re-upload if we have no URI yet, or if the active key changed
+        if (lectureFileUri && lectureFileApiKey === currentKey) return lectureFileUri;
+        try {
+          const lectureBlob = new Blob([lectureTopicIndex], { type: 'text/plain' });
+          const uploadMeta  = JSON.stringify({ file: { display_name: 'lecture_topic_index.txt' } });
+          const formData    = new FormData();
+          formData.append('metadata', new Blob([uploadMeta], { type: 'application/json' }));
+          formData.append('file', lectureBlob, 'lecture_topic_index.txt');
+          const uploadResp  = await fetch(
+            `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(currentKey)}`,
+            { method: 'POST', body: formData }
+          );
+          if (uploadResp.ok) {
+            const uploadData  = await uploadResp.json();
+            lectureFileUri    = uploadData && uploadData.file && uploadData.file.uri;
+            lectureFileApiKey = currentKey;
+            console.log('[lecture-filter] topic index uploaded, uri:', lectureFileUri, 'key:', currentKey.slice(0,8) + '…');
+          } else {
+            console.warn('[lecture-filter] File API upload HTTP error:', uploadResp.status);
+            lectureFileUri = null;
+          }
+        } catch (uploadErr) {
+          console.warn('[lecture-filter] File API upload failed, falling back to inline text:', uploadErr);
+          lectureFileUri = null;
         }
-      } catch (uploadErr) {
-        console.warn('[lecture-filter] File API upload failed, falling back to inline text:', uploadErr);
+        return lectureFileUri;
       }
+
+      // Initial upload
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📤 Uploading lecture topic index…</div>`;
+      await ensureLectureFileUri();
 
       // ── Step 2b: two-phase filtering ──
       //
@@ -6154,11 +6170,13 @@ Example for 4 questions: [1,0,2,1]
 QUESTIONS TO EVALUATE:
 ${questionListText}`;
 
+        // Re-upload if the active key has rotated since last upload
+        const currentUri = await ensureLectureFileUri();
         let parts;
-        if (lectureFileUri) {
+        if (currentUri) {
           parts = [
             { text: 'You are a precise academic relevance filter.' + taskText },
-            { file_data: { mime_type: 'text/plain', file_uri: lectureFileUri } },
+            { file_data: { mime_type: 'text/plain', file_uri: currentUri } },
             { text: taskText2 }
           ];
         } else {
