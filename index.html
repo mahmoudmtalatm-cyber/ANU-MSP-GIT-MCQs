@@ -3748,7 +3748,7 @@ function renderChatPanel(i) {
       <div class="ai-chat-messages" id="chatMessages_${i}">${msgsHTML}</div>
       ${attachHTML}
       <div class="ai-chat-input-row">
-        <input type="file" id="chatFileInput_${i}" multiple accept="image/*,.pdf,.txt,.csv,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:none" onchange="handleChatFileSelect(${i}, this)" />
+        <input type="file" id="chatFileInput_${i}" multiple accept="image/*,.pdf,.txt,.csv" style="display:none" onchange="handleChatFileSelect(${i}, this)" />
         <button class="ai-chat-attach-btn" type="button" title="Attach file" onclick="document.getElementById('chatFileInput_${i}').click()" ${busy ? 'disabled' : ''}>📎</button>
         <input type="text" class="ai-chat-text-input" id="chatTextInput_${i}" placeholder="Ask a question…" ${busy ? 'disabled' : ''} onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage(${i});}" />
         <button class="ai-chat-send-btn" type="button" title="Send" onclick="sendChatMessage(${i})" ${busy ? 'disabled' : ''}>➤</button>
@@ -3760,33 +3760,20 @@ function renderChatPanel(i) {
 }
 
 /* ── Handle attaching files via the file picker ── */
-async function handleChatFileSelect(i, inputEl) {
+function handleChatFileSelect(i, inputEl) {
   const files = Array.from((inputEl && inputEl.files) || []);
   if (!files.length) return;
   if (!_chatPending[i]) _chatPending[i] = [];
-  inputEl.value = '';
 
-  for (let file of files) {
+  files.forEach(file => {
     if (file.size > CHAT_MAX_ATTACHMENT_BYTES) {
       alert(`"${file.name}" is too large (max 10MB).`);
-      continue;
+      return;
     }
-    if (isPptxFile(file)) {
-      try {
-        file = await convertIfPptx(file, null);
-      } catch (e) {
-        alert(`Couldn't convert "${file.name}" from PowerPoint: ${e.message || 'unknown error'}`);
-        continue;
-      }
-    }
-    try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('read failed'));
-        reader.readAsDataURL(file);
-      });
-      const base64 = String(dataUrl).split(',')[1] || '';
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const base64  = String(dataUrl).split(',')[1] || '';
       _chatPending[i].push({
         name: file.name,
         mimeType: file.type || 'application/octet-stream',
@@ -3794,10 +3781,12 @@ async function handleChatFileSelect(i, inputEl) {
         base64
       });
       renderChatPanel(i);
-    } catch (e) {
-      alert(`Failed to read "${file.name}".`);
-    }
-  }
+    };
+    reader.onerror = () => alert(`Failed to read "${file.name}".`);
+    reader.readAsDataURL(file);
+  });
+
+  inputEl.value = '';
 }
 
 /* ── Remove a staged (not-yet-sent) attachment ── */
@@ -3945,8 +3934,7 @@ const CQ_KEY           = 'anu_msp_custom_quizzes_v1';
 const CQ_API_KEY_STORE = 'anu_msp_gemini_api_key';
 const CQ_MODEL         = 'gemini-2.5-flash';
 
-let cqSelectedFiles     = [];   // multiple MCQ source files
-let cqFilterFiles       = [];   // lecture files used to filter extracted MCQs by relevance
+let cqSelectedFile      = null;
 let cqGeneratedQuestions = null;
 let cqGeneratedTitle    = '';
 let cqBusy              = false;
@@ -4145,8 +4133,7 @@ function setGeminiKey(key) {
 }
 
 function openCustomQuizzes() {
-  cqSelectedFiles = [];
-  cqFilterFiles = [];
+  cqSelectedFile = null;
   cqGeneratedQuestions = null;
   cqGeneratedTitle = '';
   cqBusy = false;
@@ -4236,57 +4223,13 @@ function renderCustomQuizModal() {
 
     <!-- TAB: Extract from MCQs (original flow) -->
     <div id="cqTabExtract" ${cqMode !== 'extract' ? 'style="display:none"' : ''}>
-      <div class="cq-field-hint">Upload one or more images or PDFs that contain MCQ questions — the AI will extract them all and merge the results.</div>
-
-      <!-- MCQ source files dropzone (multi) -->
+      <div class="cq-field-hint">Upload an image or PDF that already contains MCQ questions — the AI will extract them exactly as written.</div>
       <div class="cq-dropzone" id="cqDropzone" onclick="document.getElementById('cqFileInput').click()">
         <div class="cq-dz-icon">📄🖼️</div>
-        <div class="cq-dz-text">Click to upload, or drag &amp; drop — images or PDFs of your quiz questions (multiple allowed)</div>
-        ${cqSelectedFiles.length ? `
-          <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center;">
-            ${cqSelectedFiles.map((f, fi) => `
-              <div style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.85);
-                border:1px solid var(--accent);border-radius:20px;padding:3px 10px;font-size:.73rem;color:var(--accent);font-weight:700;">
-                ${f.type.startsWith('image/') ? '🖼️' : '📄'} ${escapeHtml(f.name)}
-                <button onclick="event.stopPropagation();cqRemoveMcqFile(${fi})" type="button"
-                  style="background:none;border:none;cursor:pointer;color:#888;font-size:.8rem;padding:0 0 0 3px;line-height:1;">✕</button>
-              </div>`).join('')}
-          </div>` : ''}
+        <div class="cq-dz-text">Click to upload, or drag &amp; drop — an image or PDF of your quiz questions</div>
+        ${cqSelectedFile ? `<div class="cq-dz-file">✅ ${escapeHtml(cqSelectedFile.name)}</div>` : ''}
       </div>
-      <input type="file" id="cqFileInput" accept="image/*,application/pdf" multiple style="display:none;" onchange="handleCQFileSelect(event)" />
-
-      <!-- Lecture filter section -->
-      <div style="margin:10px 0 4px;padding:12px 14px;background:${cqFilterFiles.length ? '#E3F2FD' : 'var(--card)'};border:1.5px ${cqFilterFiles.length ? 'solid #1565C0' : 'dashed var(--border)'};border-radius:10px;transition:all .2s;">
-        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:180px;">
-            <div style="font-size:.82rem;font-weight:800;color:${cqFilterFiles.length ? '#0D47A1' : 'var(--text)'};letter-spacing:.2px;">
-              🎯 Lecture Filter <span style="font-weight:400;font-size:.75rem;color:var(--text-muted);">(optional)</span>
-            </div>
-            <div style="font-size:.73rem;color:var(--text-muted);margin-top:3px;line-height:1.4;">
-              Upload your lecture files — only MCQs related to these lectures will be kept. Useful when the uploaded quiz file mixes in questions from other curricula.
-            </div>
-          </div>
-          <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;
-            background:${cqFilterFiles.length ? '#BBDEFB' : '#f0f4ff'};border:1.5px dashed ${cqFilterFiles.length ? '#1565C0' : '#90CAF9'};
-            border-radius:8px;padding:7px 14px;font-size:.78rem;font-weight:700;
-            color:${cqFilterFiles.length ? '#0D47A1' : '#1976D2'};white-space:nowrap;transition:all .15s;flex-shrink:0;"
-            onmouseover="this.style.background='#BBDEFB'" onmouseout="this.style.background='${cqFilterFiles.length ? '#BBDEFB' : '#f0f4ff'}'">
-            ➕ Add Lecture File
-            <input type="file" accept="image/*,application/pdf,text/plain,.txt" multiple style="display:none;"
-              onchange="handleCQFilterFileSelect(event)" />
-          </label>
-        </div>
-        ${cqFilterFiles.length ? `
-        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;">
-          ${cqFilterFiles.map((f, fi) => `
-            <div style="display:flex;align-items:center;gap:5px;background:#BBDEFB;
-              border:1px solid #1565C0;border-radius:20px;padding:3px 10px;font-size:.73rem;color:#0D47A1;font-weight:700;">
-              ${f.type && f.type.startsWith('image/') ? '🖼️' : (f.type === 'text/plain' || f.name.toLowerCase().endsWith('.txt')) ? '📝' : '📄'} ${escapeHtml(f.name)}
-              <button onclick="cqRemoveFilterFile(${fi})" type="button"
-                style="background:none;border:none;cursor:pointer;color:#1565C0;font-size:.85rem;padding:0 2px;line-height:1;">✕</button>
-            </div>`).join('')}
-        </div>` : ''}
-      </div>
+      <input type="file" id="cqFileInput" accept="image/*,application/pdf" style="display:none;" onchange="handleCQFileSelect(event)" />
 
       <!-- AI Answer Mode toggle -->
       <div style="margin:10px 0 4px;padding:12px 14px;background:${cqAiAnswerToggle ? '#EDE7F6' : 'var(--card)'};border:1.5px solid ${cqAiAnswerToggle ? '#9C27B0' : 'var(--border)'};border-radius:10px;transition:all .2s;">
@@ -4435,8 +4378,8 @@ function setupCQDropzone() {
     e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
   }));
   dz.addEventListener('drop', e => {
-    const files = e.dataTransfer && e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
-    files.forEach(f => acceptCQFile(f));
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) acceptCQFile(file);
   });
 }
 
@@ -4456,56 +4399,8 @@ function setupLectureDropzone() {
 }
 
 function handleCQFileSelect(event) {
-  const files = event.target.files ? Array.from(event.target.files) : [];
-  files.forEach(f => acceptCQFile(f));
-  event.target.value = ''; // allow re-selecting the same file(s) later
-}
-
-function handleCQFilterFileSelect(event) {
-  const files = event.target.files ? Array.from(event.target.files) : [];
-  files.forEach(f => acceptCQFilterFile(f));
-  event.target.value = '';
-}
-
-function cqRemoveMcqFile(idx) {
-  cqSelectedFiles.splice(idx, 1);
-  renderCustomQuizModal();
-}
-
-function cqRemoveFilterFile(idx) {
-  cqFilterFiles.splice(idx, 1);
-  renderCustomQuizModal();
-}
-
-async function acceptCQFilterFile(file) {
-  const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  const isImage = file.type.startsWith('image/');
-  const isTxt   = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-  const isPptx  = isPptxFile(file);
-  const statusEl = document.getElementById('cqStatus');
-
-  if (!isPdf && !isImage && !isTxt && !isPptx) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Lecture filter files must be PDF, image (JPG/PNG/WEBP), PowerPoint (.pptx), or .txt.</div>`;
-    return;
-  }
-  if (file.size > 19 * 1024 * 1024) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File too large (max ~19MB): ${escapeHtml(file.name)}</div>`;
-    return;
-  }
-  if (cqFilterFiles.some(f => f.name === file.name && f.size === file.size)) return; // dedupe
-
-  let useFile = file;
-  if (isPptx) {
-    try {
-      useFile = await convertIfPptx(file, statusEl);
-    } catch (e) {
-      return;
-    }
-  }
-
-  cqFilterFiles.push(useFile);
-  if (statusEl) statusEl.innerHTML = '';
-  renderCustomQuizModal();
+  const file = event.target.files && event.target.files[0];
+  if (file) acceptCQFile(file);
 }
 
 function handleLectureFileSelect(event) {
@@ -4513,15 +4408,14 @@ function handleLectureFileSelect(event) {
   if (file) acceptLectureFile(file);
 }
 
-async function acceptLectureFile(file) {
+function acceptLectureFile(file) {
   const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
   const isTxt   = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-  const isPptx  = isPptxFile(file);
   const statusEl = document.getElementById('cqStatus');
 
-  if (!isPdf && !isImage && !isTxt && !isPptx) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a PDF, image (JPG/PNG/WEBP), PowerPoint (.pptx), or .txt file.</div>`;
+  if (!isPdf && !isImage && !isTxt) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a PDF, image (JPG/PNG/WEBP), or .txt file.</div>`;
     return;
   }
   if (file.size > 19 * 1024 * 1024) {
@@ -4529,50 +4423,29 @@ async function acceptLectureFile(file) {
     return;
   }
 
-  let useFile = file;
-  if (isPptx) {
-    try {
-      useFile = await convertIfPptx(file, statusEl);
-    } catch (e) {
-      return;
-    }
-  }
-
-  cqLectureFile = useFile;
+  cqLectureFile = file;
   if (statusEl) statusEl.innerHTML = '';
   renderCustomQuizModal();
 }
 
-async function acceptCQFile(file) {
+function acceptCQFile(file) {
   const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
-  const isPptx  = isPptxFile(file);
   const statusEl = document.getElementById('cqStatus');
 
-  if (!isPdf && !isImage && !isPptx) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload images (JPG/PNG/WEBP), PDF, or PowerPoint (.pptx) files.</div>`;
+  if (!isPdf && !isImage) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload an image (JPG/PNG/WEBP) or a PDF file.</div>`;
     return;
   }
   if (file.size > 19 * 1024 * 1024) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File too large (max ~19MB): ${escapeHtml(file.name)}</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File is too large (max ~19MB).</div>`;
     return;
   }
-  if (cqSelectedFiles.some(f => f.name === file.name && f.size === file.size)) return; // dedupe
 
-  let useFile = file;
-  if (isPptx) {
-    try {
-      useFile = await convertIfPptx(file, statusEl);
-    } catch (e) {
-      return;
-    }
-  }
-
-  cqSelectedFiles.push(useFile);
+  cqSelectedFile = file;
   if (statusEl) statusEl.innerHTML = '';
   renderCustomQuizModal();
 }
-
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -4581,323 +4454,6 @@ function fileToBase64(file) {
     reader.onerror = () => reject(new Error('Failed to read the file.'));
     reader.readAsDataURL(file);
   });
-}
-
-/* ════════════════════════════════════════════════════════════════
-   PPTX → PDF client-side conversion
-   PowerPoint files are converted into a real PDF in the browser
-   (one page per slide, with all embedded images and slide text laid
-   out on the page) so they can flow through the exact same PDF
-   pipeline used everywhere else — meaning image extraction, visual
-   question matching, and lecture analysis all work for .pptx files
-   exactly as they do for PDFs, with no separate code path.
-   ════════════════════════════════════════════════════════════════ */
-
-const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-
-function isPptxFile(file) {
-  if (!file) return false;
-  return file.type === PPTX_MIME || file.name.toLowerCase().endsWith('.pptx');
-}
-
-let _jszipLoadPromise = null;
-function loadJSZip() {
-  if (window.JSZip) return Promise.resolve(window.JSZip);
-  if (_jszipLoadPromise) return _jszipLoadPromise;
-  _jszipLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-    script.onload  = () => resolve(window.JSZip);
-    script.onerror = () => reject(new Error('Failed to load JSZip from CDN.'));
-    document.head.appendChild(script);
-  });
-  return _jszipLoadPromise;
-}
-
-let _jspdfLoadPromise = null;
-function loadJSPDF() {
-  if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
-  if (_jspdfLoadPromise) return _jspdfLoadPromise;
-  _jspdfLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js';
-    script.onload  = () => resolve(window.jspdf.jsPDF);
-    script.onerror = () => reject(new Error('Failed to load jsPDF from CDN.'));
-    document.head.appendChild(script);
-  });
-  return _jspdfLoadPromise;
-}
-
-/* Pull plain text out of a slide's XML, in document order, paragraph by paragraph. */
-function extractSlideText(slideXmlDoc) {
-  const paragraphs = Array.from(slideXmlDoc.getElementsByTagName('a:p'));
-  const lines = [];
-  paragraphs.forEach(p => {
-    const runs = Array.from(p.getElementsByTagName('a:t'));
-    const text = runs.map(r => r.textContent || '').join('').trim();
-    if (text) lines.push(text);
-  });
-  return lines;
-}
-
-/* Map each slide's r:embed / r:id image references to actual media filenames via its .rels file. */
-function buildRelMap(relsXmlDoc) {
-  const map = {};
-  if (!relsXmlDoc) return map;
-  Array.from(relsXmlDoc.getElementsByTagName('Relationship')).forEach(rel => {
-    const id     = rel.getAttribute('Id');
-    const target = rel.getAttribute('Target') || '';
-    const type    = rel.getAttribute('Type')  || '';
-    if (id && type.indexOf('/image') !== -1) {
-      map[id] = target.replace(/^\.\.\//, '');
-    }
-  });
-  return map;
-}
-
-/* Find every image relationship id referenced anywhere inside a slide's XML (a:blip r:embed=...). */
-function extractSlideImageRelIds(slideXmlDoc) {
-  const ids = [];
-  Array.from(slideXmlDoc.getElementsByTagName('a:blip')).forEach(blip => {
-    const embed = blip.getAttribute('r:embed') || blip.getAttribute('r:link');
-    if (embed) ids.push(embed);
-  });
-  return ids;
-}
-
-function guessImageMime(filename) {
-  const ext = (filename.split('.').pop() || '').toLowerCase();
-  if (ext === 'png') return 'image/png';
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
-  if (ext === 'gif') return 'image/gif';
-  if (ext === 'bmp') return 'image/bmp';
-  if (ext === 'webp') return 'image/webp';
-  if (ext === 'emf') return 'image/emf';   // not browser-decodable — handled explicitly below
-  if (ext === 'wmf') return 'image/wmf';   // not browser-decodable — handled explicitly below
-  if (ext === 'tif' || ext === 'tiff') return 'image/tiff'; // not browser-decodable either
-  return 'image/png';
-}
-
-/* Formats the browser's <img>/canvas pipeline cannot decode at all. */
-function isUndecodableImageMime(mime) {
-  return mime === 'image/emf' || mime === 'image/wmf' || mime === 'image/tiff';
-}
-
-/*
- * Convert a .pptx File into a .pdf File: one PDF page per slide, with the
- * slide's text at the top and every embedded image (the actual photos,
- * diagrams, charts, scans, etc. — not a recreation of the slide layout)
- * laid out below it so vision models can see exactly what's on the slide.
- */
-async function convertPptxToPdfFile(file, onProgress) {
-  const [JSZip, jsPDF] = await Promise.all([loadJSZip(), loadJSPDF()]);
-  const arrayBuffer = await file.arrayBuffer();
-  const zip = await JSZip.loadAsync(arrayBuffer);
-  const totalSkippedImages = [];
-
-  // Determine slide order from presentation.xml + presentation.xml.rels
-  const presXml = await zip.file('ppt/presentation.xml').async('string');
-  const presRelsXml = await zip.file('ppt/_rels/presentation.xml.rels').async('string');
-  const parser = new DOMParser();
-  const presDoc = parser.parseFromString(presXml, 'application/xml');
-  const presRelsDoc = parser.parseFromString(presRelsXml, 'application/xml');
-
-  const presRelMap = {};
-  Array.from(presRelsDoc.getElementsByTagName('Relationship')).forEach(rel => {
-    presRelMap[rel.getAttribute('Id')] = rel.getAttribute('Target');
-  });
-
-  const slideIdEntries = Array.from(presDoc.getElementsByTagName('p:sldId'));
-  let slidePaths = slideIdEntries
-    .map(node => {
-      const rEmbed = node.getAttribute('r:id');
-      const target = presRelMap[rEmbed];
-      return target ? ('ppt/' + target.replace(/^\.\.\//, '').replace(/^\//, '')) : null;
-    })
-    .filter(Boolean);
-
-  // Fallback: if presentation.xml parsing didn't yield slides, sort by filename number
-  if (!slidePaths.length) {
-    slidePaths = Object.keys(zip.files)
-      .filter(p => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-      .sort((a, b) => {
-        const na = parseInt(a.match(/slide(\d+)\.xml/)[1], 10);
-        const nb = parseInt(b.match(/slide(\d+)\.xml/)[1], 10);
-        return na - nb;
-      });
-  }
-
-  if (!slidePaths.length) throw new Error('No slides found in this PowerPoint file.');
-
-  const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const margin = 36;
-  const usableW = pageW - margin * 2;
-
-  for (let s = 0; s < slidePaths.length; s++) {
-    if (onProgress) onProgress(s + 1, slidePaths.length);
-    const slidePath = slidePaths[s];
-    const slideFile = zip.file(slidePath);
-    if (!slideFile) continue;
-    const slideXml = await slideFile.async('string');
-    const slideDoc = parser.parseFromString(slideXml, 'application/xml');
-
-    // Relationships for this slide (to resolve images)
-    const slideName = slidePath.split('/').pop();
-    const relsPath = `ppt/slides/_rels/${slideName}.rels`;
-    let relMap = {};
-    const relsFile = zip.file(relsPath);
-    if (relsFile) {
-      const relsXml = await relsFile.async('string');
-      relMap = buildRelMap(parser.parseFromString(relsXml, 'application/xml'));
-    }
-
-    const textLines = extractSlideText(slideDoc);
-    const imageRelIds = extractSlideImageRelIds(slideDoc);
-
-    if (s > 0) pdf.addPage();
-    let cursorY = margin;
-
-    // Slide number / title header
-    pdf.setFontSize(10);
-    pdf.setTextColor(120, 120, 120);
-    pdf.text(`Slide ${s + 1}`, margin, cursorY);
-    cursorY += 16;
-
-    // Render text lines (first line styled as a title)
-    pdf.setTextColor(20, 20, 20);
-    textLines.forEach((line, li) => {
-      pdf.setFontSize(li === 0 ? 16 : 11);
-      pdf.setFont(undefined, li === 0 ? 'bold' : 'normal');
-      const wrapped = pdf.splitTextToSize(line, usableW);
-      wrapped.forEach(wline => {
-        if (cursorY > pageH - margin) { pdf.addPage(); cursorY = margin; }
-        pdf.text(wline, margin, cursorY);
-        cursorY += li === 0 ? 20 : 15;
-      });
-      cursorY += 4;
-    });
-
-    cursorY += 6;
-
-    // Render every embedded image on the slide at a readable size
-    let skippedImages = [];
-    for (const relId of imageRelIds) {
-      const target = relMap[relId];
-      if (!target) continue;
-      const mediaPath = `ppt/media/${target.split('/').pop()}`;
-      const mediaFile = zip.file(mediaPath);
-      if (!mediaFile) continue;
-      const mime = guessImageMime(mediaPath);
-
-      // EMF/WMF/TIFF can't be decoded by the browser's Image/canvas APIs at all.
-      // Rather than silently dropping them, leave a visible note on the slide
-      // so nothing disappears without a trace.
-      if (isUndecodableImageMime(mime)) {
-        skippedImages.push(mediaPath.split('/').pop());
-        continue;
-      }
-
-      try {
-        const base64 = await mediaFile.async('base64');
-        const rawDataUrl = `data:${mime};base64,${base64}`;
-
-        const img = await new Promise((resolve, reject) => {
-          const im = new Image();
-          im.onload = () => resolve(im);
-          im.onerror = reject;
-          im.src = rawDataUrl;
-        });
-
-        // jsPDF's addImage only reliably accepts PNG/JPEG data URLs. GIF, BMP,
-        // and WEBP decode fine in <img> but aren't accepted directly, so route
-        // everything through a canvas and re-encode as PNG before drawing.
-        let drawDataUrl = rawDataUrl;
-        let drawFormat = 'PNG';
-        if (mime !== 'image/png' && mime !== 'image/jpeg') {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          drawDataUrl = canvas.toDataURL('image/png');
-        } else {
-          drawFormat = mime === 'image/png' ? 'PNG' : 'JPEG';
-        }
-
-        const dims = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
-        let drawW = usableW;
-        let drawH = drawW * (dims.h / dims.w);
-        const maxH = pageH - margin * 2;
-        if (drawH > maxH) { drawH = maxH; drawW = drawH * (dims.w / dims.h); }
-        if (cursorY + drawH > pageH - margin) { pdf.addPage(); cursorY = margin; }
-        pdf.addImage(drawDataUrl, drawFormat, margin, cursorY, drawW, drawH);
-        cursorY += drawH + 12;
-      } catch (e) {
-        // Decode genuinely failed (corrupt file, unsupported variant, etc.) —
-        // still surface it instead of disappearing silently.
-        skippedImages.push(mediaPath.split('/').pop());
-      }
-    }
-
-    if (skippedImages.length) {
-      totalSkippedImages.push({ slide: s + 1, files: skippedImages });
-      if (cursorY > pageH - margin - 14) { pdf.addPage(); cursorY = margin; }
-      pdf.setFontSize(9);
-      pdf.setFont(undefined, 'italic');
-      pdf.setTextColor(170, 60, 60);
-      const note = `⚠ ${skippedImages.length} image${skippedImages.length > 1 ? 's' : ''} on this slide could not be converted (${skippedImages.join(', ')}) and may be missing.`;
-      pdf.splitTextToSize(note, usableW).forEach(wline => {
-        if (cursorY > pageH - margin) { pdf.addPage(); cursorY = margin; }
-        pdf.text(wline, margin, cursorY);
-        cursorY += 12;
-      });
-    }
-  }
-
-  const pdfBlob = pdf.output('blob');
-  const pdfFile = new File(
-    [pdfBlob],
-    file.name.replace(/\.pptx$/i, '') + '.pdf',
-    { type: 'application/pdf' }
-  );
-  pdfFile._pptxSkippedImages = totalSkippedImages; // non-enumerable info for the UI layer
-  return pdfFile;
-}
-
-/*
- * Drop-in helper: if the given file is a .pptx, converts it to a PDF File
- * and returns that; otherwise returns the original file unchanged.
- * statusEl (optional) gets a progress message while converting.
- */
-async function convertIfPptx(file, statusEl) {
-  if (!isPptxFile(file)) return file;
-  if (statusEl) {
-    statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📊 Converting "${escapeHtml(file.name)}" from PowerPoint to PDF…</div>`;
-  }
-  try {
-    const pdfFile = await convertPptxToPdfFile(file, (cur, total) => {
-      if (statusEl) {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 📊 Converting "${escapeHtml(file.name)}" — slide ${cur} of ${total}…</div>`;
-      }
-    });
-    const skipped = pdfFile._pptxSkippedImages || [];
-    if (statusEl) {
-      if (skipped.length) {
-        const slideList = skipped.map(s => `slide ${s.slide}`).join(', ');
-        statusEl.innerHTML = `<div class="cq-status error">⚠️ "${escapeHtml(file.name)}" converted, but some images (on ${escapeHtml(slideList)}) use a format (EMF/WMF/TIFF) that can't be read in-browser and were noted as missing on those slides instead. Everything else converted normally.</div>`;
-      } else {
-        statusEl.innerHTML = '';
-      }
-    }
-    return pdfFile;
-  } catch (e) {
-    if (statusEl) {
-      statusEl.innerHTML = `<div class="cq-status error">⚠️ Couldn't convert "${escapeHtml(file.name)}" (${escapeHtml(e.message || 'unknown error')}).</div>`;
-    }
-    throw e;
-  }
 }
 
 const CQ_EXTRACTION_PROMPT = `You are extracting multiple-choice quiz questions from an uploaded document (image or PDF).
@@ -5209,15 +4765,7 @@ async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType
 // Source file helpers for AI Answer Mode
 async function handleCqAiSourceFiles(event) {
   const files = Array.from(event.target.files || []);
-  const statusEl = document.getElementById('cqStatus');
-  for (let file of files) {
-    if (isPptxFile(file)) {
-      try {
-        file = await convertIfPptx(file, statusEl);
-      } catch (e) {
-        continue;
-      }
-    }
+  for (const file of files) {
     const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -5397,158 +4945,76 @@ async function generateQuizFromAI() {
   const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
   const title  = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
 
-  if (!apiKey)                { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
-  if (!cqSelectedFiles.length) { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload at least one image or PDF of your quiz.</div>`; return; }
-  if (!title)                  { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
+  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!cqSelectedFile){ statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload an image or PDF of your quiz first.</div>`; return; }
+  if (!title)         { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
 
   setGeminiKey(apiKey);
   cqGeneratedTitle = title;
   cqBusy = true;
   if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file and extracting all questions… this can take a moment for longer documents.</div>`;
 
   try {
-    // ── Step 1: extract questions from every uploaded MCQ file, merge results ──
-    let cleaned = [];
-    let finishReason = null;
-    const firstFileRef = { base64Data: null, mimeType: null }; // kept for backward-compat re-extract flows
+    const base64Data = await fileToBase64(cqSelectedFile);
+    const mimeType = cqSelectedFile.type ||
+      (cqSelectedFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
-    for (let fi = 0; fi < cqSelectedFiles.length; fi++) {
-      const file = cqSelectedFiles[fi];
-      const fileLabel = cqSelectedFiles.length > 1 ? ` (file ${fi + 1} of ${cqSelectedFiles.length}: ${escapeHtml(file.name)})` : '';
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file and extracting all questions${fileLabel}… this can take a moment for longer documents.</div>`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-      const base64Data = await fileToBase64(file);
-      const mimeType = file.type ||
-        (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-      if (fi === 0) { firstFileRef.base64Data = base64Data; firstFileRef.mimeType = mimeType; }
-
-      const data = await callGeminiWithRetry(url, {
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: mimeType, data: base64Data } },
-            { text: CQ_EXTRACTION_PROMPT }
-          ]
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0,
-          maxOutputTokens: 65536
-        }
-      }, {});
-
-      const candidate = data && data.candidates && data.candidates[0];
-      if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or blocked — try a clearer image or PDF.`);
-
-      if (candidate.finishReason === 'MAX_TOKENS') finishReason = 'MAX_TOKENS';
-      const textOut = (candidate.content && candidate.content.parts || [])
-        .map(p => p.text || '').join('');
-      if (!textOut.trim()) throw new Error(`Gemini returned an empty response for "${file.name}". Please try again.`);
-
-      let parsed;
-      try { const cleanOut = textOut.replace(/```json|```/g, '').trim(); parsed = JSON.parse(cleanOut); }
-      catch (e) { throw new Error(`Could not understand the AI response for "${file.name}". Please try again.`); }
-
-      if (!Array.isArray(parsed)) continue;
-
-      const fileCleaned = parsed.map(q => {
-        if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
-        const opts = {};
-        Object.entries(q.options)
-          .filter(([k, v]) => typeof v === 'string' && v.trim() !== '')
-          .sort(([a], [b]) => a.toUpperCase().localeCompare(b.toUpperCase()))
-          .forEach(([k, v]) => { opts[k.toUpperCase()] = v; });
-        if (!Object.keys(opts).length) return null;
-        const rawAnswer = (typeof q.answer === 'string') ? q.answer.trim() : '';
-        const noKey = rawAnswer === '__NO_KEY__';
-        let answer = noKey ? '' : rawAnswer.toUpperCase();
-        if (!noKey && !opts[answer]) answer = Object.keys(opts)[0];
-        const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
-        return {
-          question: q.question, options: opts, optionsOrder, answer,
-          has_image: !!q.has_image, no_answer_key: noKey,
-          _srcBase64: base64Data, _srcMime: mimeType, _srcName: file.name
-        };
-      }).filter(Boolean);
-
-      // Extract embedded images for questions that have them, per source file
-      const imageQuestions = fileCleaned.filter(q => q.has_image);
-      if (imageQuestions.length > 0) {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Extracting images${fileLabel} for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}… please wait.</div>`;
-        await extractImagesForQuestions(fileCleaned, base64Data, mimeType, apiKey);
+    const data = await callGeminiWithRetry(url, {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: mimeType, data: base64Data } },
+          { text: CQ_EXTRACTION_PROMPT }
+        ]
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0,
+        maxOutputTokens: 65536
       }
+    }, {});
 
-      cleaned = cleaned.concat(fileCleaned);
+    const candidate = data && data.candidates && data.candidates[0];
+    if (!candidate) throw new Error('Gemini returned no result. The file may be unsupported or blocked — try a clearer image or PDF.');
+
+    const finishReason = candidate.finishReason;
+    const textOut = (candidate.content && candidate.content.parts || [])
+      .map(p => p.text || '').join('');
+    if (!textOut.trim()) throw new Error('Gemini returned an empty response. Please try again.');
+
+    let parsed;
+    try { const cleanOut = textOut.replace(/```json|```/g, '').trim(); parsed = JSON.parse(cleanOut); }
+    catch (e) { throw new Error('Could not understand the AI response. Please try again.'); }
+
+    if (!Array.isArray(parsed) || !parsed.length) {
+      throw new Error('No questions could be detected in the uploaded file.');
     }
 
-    if (!cleaned.length) throw new Error('No questions could be detected in the uploaded file(s).');
+    const cleaned = parsed.map(q => {
+      if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
+      const opts = {};
+      Object.entries(q.options)
+        .filter(([k, v]) => typeof v === 'string' && v.trim() !== '')
+        .sort(([a], [b]) => a.toUpperCase().localeCompare(b.toUpperCase()))
+        .forEach(([k, v]) => { opts[k.toUpperCase()] = v; });
+      if (!Object.keys(opts).length) return null;
+      const rawAnswer = (typeof q.answer === 'string') ? q.answer.trim() : '';
+      const noKey = rawAnswer === '__NO_KEY__';
+      let answer = noKey ? '' : rawAnswer.toUpperCase();
+      if (!noKey && !opts[answer]) answer = Object.keys(opts)[0];
+      const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
+      return { question: q.question, options: opts, optionsOrder, answer, has_image: !!q.has_image, no_answer_key: noKey };
+    }).filter(Boolean);
 
-    // ── Step 2: optional lecture filter — keep only MCQs relevant to the uploaded lectures ──
-    let filteredOutCount = 0;
-    if (cqFilterFiles.length > 0) {
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🎯 Filtering ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''} against your ${cqFilterFiles.length} lecture file${cqFilterFiles.length !== 1 ? 's' : ''}…</div>`;
+    if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
 
-      const lectureParts = [];
-      for (const lf of cqFilterFiles) {
-        const isTxt = lf.type === 'text/plain' || lf.name.toLowerCase().endsWith('.txt');
-        if (isTxt) {
-          const txt = await fileToText(lf);
-          lectureParts.push({ text: `--- LECTURE FILE: ${lf.name} ---\n${txt}\n--- END LECTURE FILE ---` });
-        } else {
-          const lb64 = await fileToBase64(lf);
-          const lmime = lf.type || (lf.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-          lectureParts.push({ text: `--- LECTURE FILE: ${lf.name} ---` });
-          lectureParts.push({ inline_data: { mime_type: lmime, data: lb64 } });
-        }
-      }
-
-      const filterPrompt = `You are a strict relevance filter for multiple-choice exam questions.
-
-You will be given:
-1. The full content of one or more lecture files (the curriculum the user actually studied).
-2. A numbered list of MCQ questions (question text only) that were extracted from a quiz file. Some of these questions may belong to a completely different course/curriculum than the lectures provided.
-
-TASK: For each numbered question, decide whether its core subject matter is covered by the provided lecture content.
-- Output 1 if the question's topic clearly relates to something taught in the lectures.
-- Output 0 if the question is about a different topic/subject not covered in the lectures, or if you are not reasonably confident it relates.
-
-Be strict: when in doubt, output 0. The goal is to remove MCQs that don't belong with this curriculum, not to keep everything.
-
-Return ONLY a JSON array of 0s and 1s, the same length and order as the question list, with no other text, no markdown fences, and no explanation.
-Example output for 5 questions: [1,0,1,1,0]
-
-QUESTIONS TO EVALUATE:
-${cleaned.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`;
-
-      const filterData = await callGeminiWithRetry(url, {
-        contents: [{
-          parts: [
-            ...lectureParts,
-            { text: filterPrompt }
-          ]
-        }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
-      }, {});
-
-      const fcandidate = filterData && filterData.candidates && filterData.candidates[0];
-      if (fcandidate) {
-        const ftextOut = (fcandidate.content && fcandidate.content.parts || []).map(p => p.text || '').join('');
-        let flags = null;
-        try { flags = JSON.parse(ftextOut.replace(/```json|```/g, '').trim()); } catch (fe) { flags = null; }
-
-        if (Array.isArray(flags) && flags.length === cleaned.length) {
-          const before = cleaned.length;
-          cleaned = cleaned.filter((_, i) => flags[i] === 1 || flags[i] === true);
-          filteredOutCount = before - cleaned.length;
-          if (!cleaned.length) {
-            throw new Error('No questions remained after filtering against the uploaded lecture(s) — the MCQ file(s) may not overlap with this curriculum. Try different files, or remove the lecture filter to keep all questions.');
-          }
-        } else {
-          statusEl.insertAdjacentHTML('beforeend',
-            `<div class="cq-status warning" style="margin-top:6px;">⚠️ Lecture filter could not be applied (unexpected AI response) — all extracted questions were kept.</div>`);
-        }
-      }
+    // Extract embedded images for questions that have them
+    const imageQuestions = cleaned.filter(q => q.has_image);
+    if (imageQuestions.length > 0) {
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Extracting images for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}… please wait.</div>`;
+      await extractImagesForQuestions(cleaned, base64Data, mimeType, apiKey);
     }
 
     cqGeneratedQuestions = cleaned;
@@ -5568,7 +5034,7 @@ ${cleaned.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`;
 
     let warn = '';
     if (finishReason === 'MAX_TOKENS') {
-      warn = ` ⚠️ The response may have been cut off because a document was very large — please check below that the last question is complete, and split very long documents into smaller files if needed.`;
+      warn = ` ⚠️ The response may have been cut off because the document is very large — please check below that the last question is complete, and split very long documents into smaller files if needed.`;
     }
 
     const imgCount    = cleaned.filter(q => q.image).length;
@@ -5576,13 +5042,12 @@ ${cleaned.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`;
     const noKeyCount  = noKeyQs.length;
     const aiCount     = cleaned.filter(q => q.ai_answered).length;
     const guessCount  = cleaned.filter(q => q.ai_guessed).length;
-    const filterNote  = filteredOutCount > 0 ? ` · 🎯 ${filteredOutCount} unrelated question${filteredOutCount !== 1 ? 's' : ''} filtered out` : '';
     const solveNote   = cqAiSolveAllToggle && aiCount > 0
       ? ` · 🤖 ${aiCount} AI-solved${guessCount > 0 ? ' (⚠️ ' + guessCount + ' from own knowledge)' : ''}`
       : noKeyCount > 0 && cqAiAnswerToggle && aiCount > 0
       ? ` · 🤖 ${aiCount} AI-answered${guessCount > 0 ? ' (⚠️ ' + guessCount + ' from own knowledge)' : ''}`
       : noKeyCount > 0 ? ` · ⚠️ ${noKeyCount} without key` : '';
-    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${imgNote}${filterNote}${solveNote}. Review below, then save.${warn}</div>`;
+    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${imgNote}${solveNote}. Review below, then save.${warn}</div>`;
     if (noKeyCount > 0 && !cqAiAnswerToggle && !cqAiSolveAllToggle) {
       statusEl.insertAdjacentHTML('beforeend',
         `<div class="cq-status warning" style="margin-top:6px;">⚠️ ${noKeyCount} question${noKeyCount !== 1 ? 's have' : ' has'} no answer key in the source document and ${noKeyCount !== 1 ? 'are' : 'is'} marked below with a <strong>⚠️ No Key</strong> badge. You can set the correct answer manually, or enable <strong>🤖 AI Answer Mode</strong> before extracting to let AI answer them automatically.</div>`
@@ -5877,7 +5342,7 @@ function renderCQPreview() {
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
           <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
-          ${(cqSelectedFiles.length || cqLectureFile) ? `<button class="cq-img-action-btn" onclick="cqReExtractImage(${i})" type="button"
+          ${(cqSelectedFile || cqLectureFile) ? `<button class="cq-img-action-btn" onclick="cqReExtractImage(${i})" type="button"
             style="background:#EDE7F6;color:#4527A0;border-color:#B39DDB;">🤖 Re-extract from Source</button>` : ''}
         </div>
       </div>`;
@@ -5892,7 +5357,7 @@ function renderCQPreview() {
             📎 Upload Image Manually
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
-          ${(cqSelectedFiles.length || cqLectureFile) ? `<button class="cq-img-action-btn" onclick="cqReExtractImage(${i})" type="button"
+          ${(cqSelectedFile || cqLectureFile) ? `<button class="cq-img-action-btn" onclick="cqReExtractImage(${i})" type="button"
             style="background:#EDE7F6;color:#4527A0;border-color:#B39DDB;">🤖 Re-extract from Source</button>` : ''}
         </div>
       </div>`;
@@ -6102,7 +5567,7 @@ async function cqReExtractImage(idx) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
   const apiKey = getGeminiKey();
   if (!apiKey) { alert('Please enter your Gemini API key first.'); return; }
-  const sourceFile = (cqSelectedFiles && cqSelectedFiles[0]) || cqLectureFile;
+  const sourceFile = cqSelectedFile || cqLectureFile;
   if (!sourceFile) { alert('The original source file is no longer available. Please re-upload the file first.'); return; }
 
   const statusEl = document.getElementById(`cqReaskStatus_${idx}`);
@@ -6138,7 +5603,7 @@ async function cqReaskQuestion(idx) {
     alert('Please enter your Gemini API key first.');
     return;
   }
-  if (!cqSelectedFiles.length && !cqLectureFile) {
+  if (!cqSelectedFile && !cqLectureFile) {
     alert('The original source file is no longer available. Please re-upload the file first.');
     return;
   }
@@ -6159,7 +5624,7 @@ Return ONLY a JSON array with ONE object in the same format:
 [{"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"answer":"A","has_image":false}]`;
 
   try {
-    const sourceFile = (cqSelectedFiles && cqSelectedFiles[0]) || cqLectureFile;
+    const sourceFile = cqSelectedFile || cqLectureFile;
     const base64Data = await fileToBase64(sourceFile);
     const mimeType   = sourceFile.type ||
       (sourceFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
@@ -6250,7 +5715,7 @@ async function saveGeneratedCustomQuiz() {
   await saveCustomQuizzesList(quizzes);
 
   cqGeneratedQuestions = null;
-  cqSelectedFiles = [];
+  cqSelectedFile = null;
   cqLectureFile = null;
   cqGeneratedTitle = '';
 
@@ -6679,7 +6144,7 @@ async function executeSplitQuiz() {
   // If preview context, also clear preview state
   if (cqSplitState.context === 'preview') {
     cqGeneratedQuestions = null;
-    cqSelectedFiles = [];
+    cqSelectedFile = null;
     cqLectureFile = null;
     cqGeneratedTitle = '';
   }
