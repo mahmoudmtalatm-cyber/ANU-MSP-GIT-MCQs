@@ -2089,25 +2089,39 @@ function buildYearGrid() {
 }
 /* ══════════════════════════════════════════════════════════
    FIRESTORE LOADING INDICATOR
-   Central counter — show toast while any async Firestore
-   operation is running; hide automatically when all finish.
+   Tracks background promises. Show toast when user opens
+   something whose data hasn't finished loading yet.
 ══════════════════════════════════════════════════════════ */
-let _fsLoadingCount = 0;
+const _fsReady = {
+  curriculum:  false,
+  published:   false,
+  stats:       false,
+  customQuizzes: false,
+};
 
 function fsLoadingShow(msg) {
-  _fsLoadingCount++;
   const toast = document.getElementById('fsLoadingToast');
   const label = document.getElementById('fsLoadingMsg');
-  if (label && msg) label.textContent = msg;
+  if (label) label.textContent = msg || 'Loading…';
   if (toast) toast.classList.add('visible');
 }
 
 function fsLoadingHide() {
-  _fsLoadingCount = Math.max(0, _fsLoadingCount - 1);
-  if (_fsLoadingCount === 0) {
-    const toast = document.getElementById('fsLoadingToast');
-    if (toast) toast.classList.remove('visible');
-  }
+  const toast = document.getElementById('fsLoadingToast');
+  if (toast) toast.classList.remove('visible');
+}
+
+/* Call when user opens something — shows toast if data isn't ready, hides when it is */
+function fsAwaitIfNeeded(key, msg) {
+  if (_fsReady[key]) return; // already done, nothing to show
+  fsLoadingShow(msg);
+  // Poll until ready (resolves within the same event-loop tick once the promise sets the flag)
+  const interval = setInterval(() => {
+    if (_fsReady[key]) {
+      clearInterval(interval);
+      fsLoadingHide();
+    }
+  }, 100);
 }
 
 buildYearGrid();
@@ -2116,6 +2130,7 @@ buildYearGrid();
    SUBJECT SELECTION
 ══════════════════════════════════════════════════════════ */
 function selectYear(year) {
+  fsAwaitIfNeeded('curriculum', 'Loading curriculum…');
   selectedYear    = year;
   selectedModule  = '';
   selectedSubject = '';
@@ -2188,6 +2203,7 @@ function selectModule(mod) {
   subjectSection.classList.remove('hidden');
 }
 function selectSubject(name) {
+  fsAwaitIfNeeded('published', 'Loading lectures…');
   selectedSubject = name;
 
   document.querySelectorAll('.subject-btn').forEach(b =>
@@ -2789,6 +2805,8 @@ async function loadStatsFromFirestore() {
   } catch(e) {
     console.error('Failed to load stats from Firestore:', e);
     window._cachedStats = defaultStats();
+  } finally {
+    _fsReady.stats = true;
   }
 }
 
@@ -2855,6 +2873,7 @@ function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, 
 }
 
 function openStats() {
+  fsAwaitIfNeeded('stats', 'Loading your stats…');
   document.getElementById('statsOverlay').classList.remove('hidden');
 
   if (window._currentUser && !window._cachedStats) {
@@ -3048,6 +3067,7 @@ function retakeSingleQuiz(h) {
 }
 
 function openRetake() {
+  fsAwaitIfNeeded('stats', 'Loading your stats…');
   renderRetakeSelector();
   document.getElementById('retakeOverlay').classList.remove('hidden');
 }
@@ -4154,7 +4174,6 @@ async function loadCustomQuizzesFromFirestore() {
     const quizzes = [];
     snap.forEach(d => quizzes.push(d.data()));
     quizzes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    // Hydrate images from Storage in the background
     await Promise.all(quizzes.map(quiz => hydrateQuizImages(quiz.questions || [])));
     window._cachedCustomQuizzes = quizzes;
   } catch (e) {
@@ -4163,6 +4182,8 @@ async function loadCustomQuizzesFromFirestore() {
       const raw = localStorage.getItem(CQ_KEY);
       window._cachedCustomQuizzes = raw ? JSON.parse(raw) : [];
     } catch (_) { window._cachedCustomQuizzes = []; }
+  } finally {
+    _fsReady.customQuizzes = true;
   }
 }
 
@@ -4214,6 +4235,7 @@ function setGeminiKey(key) {
 }
 
 function openCustomQuizzes() {
+  fsAwaitIfNeeded('customQuizzes', 'Loading your quizzes…');
   cqSelectedFile = null;
   cqGeneratedQuestions = null;
   cqGeneratedTitle = '';
@@ -7801,10 +7823,15 @@ async function loadPublishedQuestionsIntoSubjects() {
         // Subject may not have a 'publishedQuestions' doc yet — ignore
       }
     }
-    // If a subject is already open, refresh its lecture list
-    if (selectedSubject) selectSubject(selectedSubject);
+    // Re-render whatever the user already has open so new content appears immediately
+    const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
+    if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
+    if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
+    if (_subj) { selectSubject(_subj); }
   } catch (e) {
     console.warn('Failed to load published questions:', e);
+  } finally {
+    _fsReady.published = true;
   }
 }
 
@@ -8064,8 +8091,15 @@ async function loadCurriculumExtensions() {
     });
 
     buildYearGrid();
+    // Re-render whatever the user already has open so new content appears immediately
+    const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
+    if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
+    if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
+    if (_subj) { selectSubject(_subj); }
   } catch (e) {
     console.warn('Failed to load curriculum extensions:', e);
+  } finally {
+    _fsReady.curriculum = true;
   }
 }
 
