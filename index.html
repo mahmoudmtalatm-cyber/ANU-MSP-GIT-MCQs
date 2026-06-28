@@ -7809,6 +7809,115 @@ async function adminPublishQuiz() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   LOCAL CACHE — curriculum + published questions
+   Cache key  : 'anu_msp_cache'
+   Version key: 'anu_msp_cache_ver'
+   Server doc : appConfig/cacheVersion  { v: <timestamp ms> }
+
+   Any admin write calls bumpCacheVersion() which updates the
+   server doc. On the next page-load every user fetches only
+   that tiny doc, compares it to their stored version, and
+   re-downloads the full data only when the versions differ.
+══════════════════════════════════════════════════════════ */
+
+const CACHE_KEY     = 'anu_msp_cache';
+const CACHE_VER_KEY = 'anu_msp_cache_ver';
+
+function _readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function _writeCache(payload) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch(e) {}
+}
+
+function _readCacheVer() {
+  return localStorage.getItem(CACHE_VER_KEY) || null;
+}
+
+function _writeCacheVer(v) {
+  try { localStorage.setItem(CACHE_VER_KEY, String(v)); } catch(e) {}
+}
+
+function _clearCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_VER_KEY);
+  } catch(e) {}
+}
+
+/* Call this after every admin write that changes shared data */
+async function bumpCacheVersion() {
+  if (!window._db) return;
+  try {
+    const v = Date.now();
+    await window._setDoc(
+      window._doc(window._db, 'appConfig', 'cacheVersion'),
+      { v }
+    );
+  } catch(e) {
+    console.warn('bumpCacheVersion failed:', e);
+  }
+}
+
+/* Fetch the server version string (a single tiny doc) */
+async function _fetchServerCacheVersion() {
+  try {
+    const snap = await window._getDoc(window._doc(window._db, 'appConfig', 'cacheVersion'));
+    return snap.exists() ? String(snap.data().v) : null;
+  } catch(e) { return null; }
+}
+
+/* Apply a cached payload directly into memory (no Firestore reads) */
+function _applyCurriculumCache(cached) {
+  const { extYears = [], extModules = {}, extSubjects = {} } = cached.curriculum || {};
+
+  extYears.forEach(yr => { if (!curriculum[yr]) curriculum[yr] = {}; });
+
+  Object.entries(extModules).forEach(([yr, mods]) => {
+    if (!curriculum[yr]) curriculum[yr] = {};
+    (mods || []).forEach(mod => {
+      if (!curriculum[yr][mod]) curriculum[yr][mod] = [];
+    });
+  });
+
+  Object.entries(extSubjects).forEach(([key, info]) => {
+    if (!subjects[key])
+      subjects[key] = { icon: info.icon || '📘', label: info.label || key, lectures: {} };
+    const { year, module: mod } = info;
+    if (!year || !mod) return;
+    if (!curriculum[year]) curriculum[year] = {};
+    if (!curriculum[year][mod]) curriculum[year][mod] = [];
+    if (!curriculum[year][mod].includes(key)) curriculum[year][mod].push(key);
+  });
+
+  buildYearGrid();
+  _reRenderOpenSelections();
+}
+
+function _applyPublishedCache(cached) {
+  const published = cached.published || {};
+  Object.entries(published).forEach(([subjKey, lecs]) => {
+    if (!subjects[subjKey]) return;
+    if (!subjects[subjKey].lectures) subjects[subjKey].lectures = {};
+    Object.entries(lecs).forEach(([lecName, questions]) => {
+      subjects[subjKey].lectures[lecName] = questions;
+    });
+  });
+  _reRenderOpenSelections();
+}
+
+function _reRenderOpenSelections() {
+  const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
+  if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
+  if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
+  if (_subj) { selectSubject(_subj); }
+}
+
+/* ══════════════════════════════════════════════════════════
    Load all previously-published questions into `subjects`
    so they appear as extra lectures for every user.
 ══════════════════════════════════════════════════════════ */
@@ -8078,115 +8187,6 @@ async function adminLoadCurrSubjList() {
   } catch(e) {
     el.innerHTML = '<span style="color:var(--text-muted);font-size:.8rem;">Could not load list.</span>';
   }
-}
-
-/* ══════════════════════════════════════════════════════════
-   LOCAL CACHE — curriculum + published questions
-   Cache key  : 'anu_msp_cache'
-   Version key: 'anu_msp_cache_ver'
-   Server doc : appConfig/cacheVersion  { v: <timestamp ms> }
-
-   Any admin write calls bumpCacheVersion() which updates the
-   server doc. On the next page-load every user fetches only
-   that tiny doc, compares it to their stored version, and
-   re-downloads the full data only when the versions differ.
-══════════════════════════════════════════════════════════ */
-
-const CACHE_KEY     = 'anu_msp_cache';
-const CACHE_VER_KEY = 'anu_msp_cache_ver';
-
-function _readCache() {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch(e) { return null; }
-}
-
-function _writeCache(payload) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch(e) {}
-}
-
-function _readCacheVer() {
-  return localStorage.getItem(CACHE_VER_KEY) || null;
-}
-
-function _writeCacheVer(v) {
-  try { localStorage.setItem(CACHE_VER_KEY, String(v)); } catch(e) {}
-}
-
-function _clearCache() {
-  try {
-    localStorage.removeItem(CACHE_KEY);
-    localStorage.removeItem(CACHE_VER_KEY);
-  } catch(e) {}
-}
-
-/* Call this after every admin write that changes shared data */
-async function bumpCacheVersion() {
-  if (!window._db) return;
-  try {
-    const v = Date.now();
-    await window._setDoc(
-      window._doc(window._db, 'appConfig', 'cacheVersion'),
-      { v }
-    );
-  } catch(e) {
-    console.warn('bumpCacheVersion failed:', e);
-  }
-}
-
-/* Fetch the server version string (a single tiny doc) */
-async function _fetchServerCacheVersion() {
-  try {
-    const snap = await window._getDoc(window._doc(window._db, 'appConfig', 'cacheVersion'));
-    return snap.exists() ? String(snap.data().v) : null;
-  } catch(e) { return null; }
-}
-
-/* Apply a cached payload directly into memory (no Firestore reads) */
-function _applyCurriculumCache(cached) {
-  const { extYears = [], extModules = {}, extSubjects = {} } = cached.curriculum || {};
-
-  extYears.forEach(yr => { if (!curriculum[yr]) curriculum[yr] = {}; });
-
-  Object.entries(extModules).forEach(([yr, mods]) => {
-    if (!curriculum[yr]) curriculum[yr] = {};
-    (mods || []).forEach(mod => {
-      if (!curriculum[yr][mod]) curriculum[yr][mod] = [];
-    });
-  });
-
-  Object.entries(extSubjects).forEach(([key, info]) => {
-    if (!subjects[key])
-      subjects[key] = { icon: info.icon || '📘', label: info.label || key, lectures: {} };
-    const { year, module: mod } = info;
-    if (!year || !mod) return;
-    if (!curriculum[year]) curriculum[year] = {};
-    if (!curriculum[year][mod]) curriculum[year][mod] = [];
-    if (!curriculum[year][mod].includes(key)) curriculum[year][mod].push(key);
-  });
-
-  buildYearGrid();
-  _reRenderOpenSelections();
-}
-
-function _applyPublishedCache(cached) {
-  const published = cached.published || {};     // { subjKey: { lecName: [questions] } }
-  Object.entries(published).forEach(([subjKey, lecs]) => {
-    if (!subjects[subjKey]) return;
-    if (!subjects[subjKey].lectures) subjects[subjKey].lectures = {};
-    Object.entries(lecs).forEach(([lecName, questions]) => {
-      subjects[subjKey].lectures[lecName] = questions;
-    });
-  });
-  _reRenderOpenSelections();
-}
-
-function _reRenderOpenSelections() {
-  const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
-  if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
-  if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
-  if (_subj) { selectSubject(_subj); }
 }
 
 /* ══════════════════════════════════════════════════════════
