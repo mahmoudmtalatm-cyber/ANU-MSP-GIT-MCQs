@@ -2778,7 +2778,6 @@ function defaultStats() {
 // Called once after login — loads stats from Firestore into memory
 async function loadStatsFromFirestore() {
   if (!window._currentUser) return;
-  fsLoadingShow('Loading your stats…');
   try {
     const ref  = window._doc(window._db, 'stats', window._currentUser.uid);
     const snap = await window._getDoc(ref);
@@ -2790,8 +2789,6 @@ async function loadStatsFromFirestore() {
   } catch(e) {
     console.error('Failed to load stats from Firestore:', e);
     window._cachedStats = defaultStats();
-  } finally {
-    fsLoadingHide();
   }
 }
 
@@ -4151,7 +4148,6 @@ function loadCustomQuizzes() {
 
 async function loadCustomQuizzesFromFirestore() {
   if (!window._currentUser) return;
-  fsLoadingShow('Loading your quizzes…');
   try {
     const col = window._collection(window._db, 'users', window._currentUser.uid, 'customQuizzes');
     const snap = await window._getDocs(col);
@@ -4167,8 +4163,6 @@ async function loadCustomQuizzesFromFirestore() {
       const raw = localStorage.getItem(CQ_KEY);
       window._cachedCustomQuizzes = raw ? JSON.parse(raw) : [];
     } catch (_) { window._cachedCustomQuizzes = []; }
-  } finally {
-    fsLoadingHide();
   }
 }
 
@@ -7786,7 +7780,6 @@ async function adminPublishQuiz() {
 ══════════════════════════════════════════════════════════ */
 async function loadPublishedQuestionsIntoSubjects() {
   if (!window._db) return;
-  fsLoadingShow('Loading published questions…');
   try {
     for (const subjName of Object.keys(subjects)) {
       try {
@@ -7810,8 +7803,8 @@ async function loadPublishedQuestionsIntoSubjects() {
     }
     // If a subject is already open, refresh its lecture list
     if (selectedSubject) selectSubject(selectedSubject);
-  } finally {
-    fsLoadingHide();
+  } catch (e) {
+    console.warn('Failed to load published questions:', e);
   }
 }
 
@@ -8036,7 +8029,6 @@ async function adminLoadCurrSubjList() {
 ══════════════════════════════════════════════════════════ */
 async function loadCurriculumExtensions() {
   if (!window._db) return;
-  fsLoadingShow('Loading curriculum…');
   try {
     const ref  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
     const snap = await window._getDoc(ref);
@@ -8074,8 +8066,6 @@ async function loadCurriculumExtensions() {
     buildYearGrid();
   } catch (e) {
     console.warn('Failed to load curriculum extensions:', e);
-  } finally {
-    fsLoadingHide();
   }
 }
 
