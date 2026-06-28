@@ -7661,6 +7661,9 @@ async function adminSavePublishedEdits() {
 
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Changes saved!</div>`;
 
+    _clearCache();
+    await bumpCacheVersion();
+
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
 
     // Close editor after a short delay so the user sees the success message
@@ -7701,6 +7704,8 @@ async function adminRemovePublished(lectureId) {
       adminEditingPublishedName = '';
     }
 
+    _clearCache();
+    await bumpCacheVersion();
     renderAdminAssignedList();
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
   } catch (e) {
@@ -7778,6 +7783,9 @@ async function adminPublishQuiz() {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[adminTargetSubject].label || adminTargetSubject)}!</div>`;
     if (nameInput) nameInput.value = '';
 
+    _clearCache();
+    await bumpCacheVersion();
+
     // Close the editor after a successful publish
     adminEditMode = null;
     adminEditQuestions = null;
@@ -7803,12 +7811,29 @@ async function adminPublishQuiz() {
 async function loadPublishedQuestionsIntoSubjects() {
   if (!window._db) return;
   try {
+    /* ── 1. Check server version (already fetched by loadCurriculumExtensions,
+            but we read it again here in case it got bumped between calls) ── */
+    const serverVer = await _fetchServerCacheVersion();
+    const localVer  = _readCacheVer();
+    const cached    = _readCache();
+
+    if (serverVer && localVer === serverVer && cached && cached.published) {
+      /* Cache hit — apply immediately, no heavy Firestore reads */
+      console.log('[cache] published questions hit, skipping Firestore fetch');
+      _applyPublishedCache(cached);
+      return;
+    }
+
+    /* ── 2. Cache miss — do the real fetches ── */
+    const publishedSnapshot = {}; // what we'll save to cache
+
     for (const subjName of Object.keys(subjects)) {
       try {
         const col = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
         const snap = await window._getDocs(col);
         if (snap.empty) continue;
         if (!subjects[subjName].lectures) subjects[subjName].lectures = {};
+        publishedSnapshot[subjName] = {};
         await Promise.all(snap.docs.map(async (d) => {
           const data = d.data();
           const name = data.lectureName || d.id;
@@ -7818,16 +7843,22 @@ async function loadPublishedQuestionsIntoSubjects() {
           // the snapshot independent of the original source quiz).
           await hydratePublishedLectureImages(subjName, d.id, questions);
           subjects[subjName].lectures[name] = questions;
+          publishedSnapshot[subjName][name] = questions;
         }));
       } catch (e) {
         // Subject may not have a 'publishedQuestions' doc yet — ignore
       }
     }
+
     // Re-render whatever the user already has open so new content appears immediately
-    const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
-    if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
-    if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
-    if (_subj) { selectSubject(_subj); }
+    _reRenderOpenSelections();
+
+    /* ── 3. Save to cache (merge with curriculum cache) ── */
+    const existing = _readCache() || {};
+    existing.published = publishedSnapshot;
+    _writeCache(existing);
+    if (serverVer) _writeCacheVer(serverVer);
+
   } catch (e) {
     console.warn('Failed to load published questions:', e);
   } finally {
@@ -8046,6 +8077,115 @@ async function adminLoadCurrSubjList() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   LOCAL CACHE — curriculum + published questions
+   Cache key  : 'anu_msp_cache'
+   Version key: 'anu_msp_cache_ver'
+   Server doc : appConfig/cacheVersion  { v: <timestamp ms> }
+
+   Any admin write calls bumpCacheVersion() which updates the
+   server doc. On the next page-load every user fetches only
+   that tiny doc, compares it to their stored version, and
+   re-downloads the full data only when the versions differ.
+══════════════════════════════════════════════════════════ */
+
+const CACHE_KEY     = 'anu_msp_cache';
+const CACHE_VER_KEY = 'anu_msp_cache_ver';
+
+function _readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function _writeCache(payload) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch(e) {}
+}
+
+function _readCacheVer() {
+  return localStorage.getItem(CACHE_VER_KEY) || null;
+}
+
+function _writeCacheVer(v) {
+  try { localStorage.setItem(CACHE_VER_KEY, String(v)); } catch(e) {}
+}
+
+function _clearCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_VER_KEY);
+  } catch(e) {}
+}
+
+/* Call this after every admin write that changes shared data */
+async function bumpCacheVersion() {
+  if (!window._db) return;
+  try {
+    const v = Date.now();
+    await window._setDoc(
+      window._doc(window._db, 'appConfig', 'cacheVersion'),
+      { v }
+    );
+  } catch(e) {
+    console.warn('bumpCacheVersion failed:', e);
+  }
+}
+
+/* Fetch the server version string (a single tiny doc) */
+async function _fetchServerCacheVersion() {
+  try {
+    const snap = await window._getDoc(window._doc(window._db, 'appConfig', 'cacheVersion'));
+    return snap.exists() ? String(snap.data().v) : null;
+  } catch(e) { return null; }
+}
+
+/* Apply a cached payload directly into memory (no Firestore reads) */
+function _applyCurriculumCache(cached) {
+  const { extYears = [], extModules = {}, extSubjects = {} } = cached.curriculum || {};
+
+  extYears.forEach(yr => { if (!curriculum[yr]) curriculum[yr] = {}; });
+
+  Object.entries(extModules).forEach(([yr, mods]) => {
+    if (!curriculum[yr]) curriculum[yr] = {};
+    (mods || []).forEach(mod => {
+      if (!curriculum[yr][mod]) curriculum[yr][mod] = [];
+    });
+  });
+
+  Object.entries(extSubjects).forEach(([key, info]) => {
+    if (!subjects[key])
+      subjects[key] = { icon: info.icon || '📘', label: info.label || key, lectures: {} };
+    const { year, module: mod } = info;
+    if (!year || !mod) return;
+    if (!curriculum[year]) curriculum[year] = {};
+    if (!curriculum[year][mod]) curriculum[year][mod] = [];
+    if (!curriculum[year][mod].includes(key)) curriculum[year][mod].push(key);
+  });
+
+  buildYearGrid();
+  _reRenderOpenSelections();
+}
+
+function _applyPublishedCache(cached) {
+  const published = cached.published || {};     // { subjKey: { lecName: [questions] } }
+  Object.entries(published).forEach(([subjKey, lecs]) => {
+    if (!subjects[subjKey]) return;
+    if (!subjects[subjKey].lectures) subjects[subjKey].lectures = {};
+    Object.entries(lecs).forEach(([lecName, questions]) => {
+      subjects[subjKey].lectures[lecName] = questions;
+    });
+  });
+  _reRenderOpenSelections();
+}
+
+function _reRenderOpenSelections() {
+  const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
+  if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
+  if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
+  if (_subj) { selectSubject(_subj); }
+}
+
+/* ══════════════════════════════════════════════════════════
    CURRICULUM EXTENSIONS — admin-created Years / Modules / Subjects
    Stored in a single doc: appConfig/curriculumExtensions
    Shape: {
@@ -8057,6 +8197,19 @@ async function adminLoadCurrSubjList() {
 async function loadCurriculumExtensions() {
   if (!window._db) return;
   try {
+    /* ── 1. Check server version (tiny fetch) ── */
+    const serverVer  = await _fetchServerCacheVersion();
+    const localVer   = _readCacheVer();
+    const cached     = _readCache();
+
+    if (serverVer && localVer === serverVer && cached && cached.curriculum) {
+      /* Cache hit — apply immediately, no heavy Firestore read */
+      console.log('[cache] curriculum hit, skipping Firestore fetch');
+      _applyCurriculumCache(cached);
+      return;
+    }
+
+    /* ── 2. Cache miss — do the real fetch ── */
     const ref  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
     const snap = await window._getDoc(ref);
     if (!snap.exists()) return;
@@ -8091,11 +8244,14 @@ async function loadCurriculumExtensions() {
     });
 
     buildYearGrid();
-    // Re-render whatever the user already has open so new content appears immediately
-    const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
-    if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
-    if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
-    if (_subj) { selectSubject(_subj); }
+    _reRenderOpenSelections();
+
+    /* ── 3. Save to cache (merge with any existing published cache) ── */
+    const existing = _readCache() || {};
+    existing.curriculum = { extYears, extModules, extSubjects };
+    _writeCache(existing);
+    if (serverVer) _writeCacheVer(serverVer);
+
   } catch (e) {
     console.warn('Failed to load curriculum extensions:', e);
   } finally {
@@ -8123,6 +8279,8 @@ async function saveCurriculumStructure() {
     data.modules = modulesMap;
     if (!data.subjects) data.subjects = {};
     await window._setDoc(ref, cleanForFirestore(data));
+    _clearCache();
+    await bumpCacheVersion();
   } catch (e) {
     console.warn('Failed to save curriculum structure:', e);
   }
@@ -8283,6 +8441,9 @@ async function adminExecMoveQuiz(andDelete) {
       ? `✅ Moved to ${subjects[destSubject].label || destSubject}!`
       : `✅ Copied to ${subjects[destSubject].label || destSubject}!`;
 
+    _clearCache();
+    await bumpCacheVersion();
+
     // Refresh views
     if (selectedSubject === adminTargetSubject || selectedSubject === destSubject) {
       selectSubject(selectedSubject);
@@ -8329,6 +8490,7 @@ async function adminRenameYear(oldName) {
   }
   ext.years = Object.keys(curriculum);
   await window._setDoc(extRef, cleanForFirestore(ext));
+  _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   renderAdminCurriculumPanel();
 }
@@ -8351,6 +8513,7 @@ This also removes ${modCount} module(s) and ${subjCount} subject placement(s) fr
     Object.keys(ext.subjects).forEach(k => { if (ext.subjects[k].year === name) delete ext.subjects[k]; });
   }
   await window._setDoc(extRef, cleanForFirestore(ext));
+  _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   renderAdminCurriculumPanel();
 }
@@ -8375,6 +8538,7 @@ async function adminRenameModule(year, oldMod) {
   }
   ext.years = Object.keys(curriculum);
   await window._setDoc(extRef, cleanForFirestore(ext));
+  _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   renderAdminCurriculumPanel();
 }
@@ -8396,6 +8560,7 @@ This also removes ${arr.length} subject placement(s).
   }
   ext.years = Object.keys(curriculum);
   await window._setDoc(extRef, cleanForFirestore(ext));
+  _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   renderAdminCurriculumPanel();
 }
@@ -8419,6 +8584,7 @@ async function adminEditSubject(key) {
     ext.subjects[key].icon  = subjects[key].icon;
   }
   await window._setDoc(extRef, cleanForFirestore(ext));
+  _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   adminLoadCurrSubjList();
 }
@@ -8451,6 +8617,7 @@ This removes it from all year/module placements.
   ext.modules = modulesMap;
   ext.years   = Object.keys(curriculum);
   await window._setDoc(extRef, cleanForFirestore(ext));
+  _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   adminLoadCurrSubjList();
 }
@@ -8474,6 +8641,8 @@ async function saveCurriculumExtensionSubject(key, info) {
     data.years   = allYears;
     data.modules = modulesMap;
     await window._setDoc(ref, cleanForFirestore(data));
+    _clearCache();
+    await bumpCacheVersion();
   } catch (e) {
     console.warn('Failed to save curriculum extension:', e);
   }
@@ -8541,9 +8710,11 @@ const firebaseConfig = {
         }
       } catch(e) { window._userDisplayName = null; }
     } else {
-      // No user — fall back to localStorage
+      // No user — nothing to load from Firestore, mark as ready immediately
       window._cachedStats = null;
       window._userDisplayName = null;
+      _fsReady.customQuizzes = true;
+      _fsReady.stats = true;
     }
   });
 </script>
