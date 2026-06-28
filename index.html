@@ -2892,7 +2892,7 @@ function openStats() {
     renderStatsModal();
   }
 }
-function closeStats() { document.getElementById('statsOverlay').classList.add('hidden'); }
+function closeStats() { document.getElementById('statsOverlay').classList.add('hidden'); fsLoadingHide(); }
 
 function resetStats() {
   if (!confirm('Reset ALL statistics? This cannot be undone.')) return;
@@ -3074,6 +3074,7 @@ function openRetake() {
 
 function closeRetake() {
   document.getElementById('retakeOverlay').classList.add('hidden');
+  fsLoadingHide();
 }
 
 function renderRetakeSelector() {
@@ -4248,6 +4249,7 @@ function openCustomQuizzes() {
 }
 function closeCustomQuizzes() {
   document.getElementById('customQuizOverlay').classList.add('hidden');
+  fsLoadingHide();
 }
 
 function toggleCQKeyVisibility() {
@@ -6710,6 +6712,7 @@ function openCommunityQuizzes() {
 
 function closeCommunityQuizzes() {
   document.getElementById('communityQuizOverlay').classList.add('hidden');
+  fsLoadingHide();
 }
 
 function communityOnSearchInput(val) {
@@ -7043,6 +7046,7 @@ function openAdminPanel() {
 
 function closeAdminPanel() {
   document.getElementById('adminOverlay').classList.add('hidden');
+  fsLoadingHide();
 }
 
 function adminSwitchTab(tab) {
