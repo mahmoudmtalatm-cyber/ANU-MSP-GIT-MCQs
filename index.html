@@ -2093,10 +2093,10 @@ function buildYearGrid() {
    something whose data hasn't finished loading yet.
 ══════════════════════════════════════════════════════════ */
 const _fsReady = {
-  curriculum:  false,
-  published:   false,
-  stats:       false,
-  customQuizzes: false,
+  curriculum:    false,
+  published:     false,
+  stats:         true,   // true until a signed-in user triggers a load
+  customQuizzes: true,   // true until a signed-in user triggers a load
 };
 
 function fsLoadingShow(msg) {
@@ -8701,6 +8701,9 @@ const firebaseConfig = {
     window._currentUser = user || null;
     updateAuthUI(user);
     if (user) {
+      // Mark as loading before the async calls so fsAwaitIfNeeded shows the spinner
+      _fsReady.stats         = false;
+      _fsReady.customQuizzes = false;
       loadStatsFromFirestore();
       loadCustomQuizzesFromFirestore();
       // Pre-load display name so sharing feels instant
