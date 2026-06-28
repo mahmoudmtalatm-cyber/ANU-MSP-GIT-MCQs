@@ -420,6 +420,54 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
+
+    /* ── FIRESTORE LOADING TOAST ── */
+    #fsLoadingToast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 99999;
+      background: rgba(27, 138, 196, 0.97);
+      color: #fff;
+      border-radius: 999px;
+      padding: 10px 18px 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font);
+      font-size: .88rem;
+      font-weight: 700;
+      box-shadow: 0 4px 20px rgba(27,138,196,.35);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(12px) scale(.97);
+      transition: opacity .22s ease, transform .22s ease;
+    }
+    #fsLoadingToast.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    .fs-toast-spinner {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      animation: fsToastSpin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes fsToastSpin { to { transform: rotate(360deg); } }
+
+    /* ── YEAR GRID SKELETON ── */
+    .year-skeleton {
+      height: 72px; border-radius: 10px;
+      background: linear-gradient(90deg, #D8EAF7 25%, #EAF4FB 50%, #D8EAF7 75%);
+      background-size: 200% 100%;
+      animation: skeletonShimmer 1.4s infinite;
+    }
+    @keyframes skeletonShimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     /* ── YOU DIED IDLE EASTER EGG ── */
 @keyframes youDiedFadeIn {
   0%   { opacity: 0; }
@@ -1598,6 +1646,12 @@
   </style>
 </head>
 <body>
+<!-- FIRESTORE LOADING TOAST -->
+<div id="fsLoadingToast">
+  <div class="fs-toast-spinner"></div>
+  <span id="fsLoadingMsg">Loading…</span>
+</div>
+
 <div id="app">
 <canvas id="confettiCanvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none;"></canvas>
 
@@ -1724,7 +1778,11 @@
 <!-- Step 1: Year -->
         <div class="field-group">
           <div class="field-label">① Select Year</div>
-          <div class="year-grid" id="yearGrid"></div>
+          <div class="year-grid" id="yearGrid">
+            <div class="year-skeleton"></div>
+            <div class="year-skeleton"></div>
+            <div class="year-skeleton"></div>
+          </div>
         </div>
 
         <!-- Module section -->
@@ -2029,6 +2087,29 @@ function buildYearGrid() {
     grid.appendChild(btn);
   });
 }
+/* ══════════════════════════════════════════════════════════
+   FIRESTORE LOADING INDICATOR
+   Central counter — show toast while any async Firestore
+   operation is running; hide automatically when all finish.
+══════════════════════════════════════════════════════════ */
+let _fsLoadingCount = 0;
+
+function fsLoadingShow(msg) {
+  _fsLoadingCount++;
+  const toast = document.getElementById('fsLoadingToast');
+  const label = document.getElementById('fsLoadingMsg');
+  if (label && msg) label.textContent = msg;
+  if (toast) toast.classList.add('visible');
+}
+
+function fsLoadingHide() {
+  _fsLoadingCount = Math.max(0, _fsLoadingCount - 1);
+  if (_fsLoadingCount === 0) {
+    const toast = document.getElementById('fsLoadingToast');
+    if (toast) toast.classList.remove('visible');
+  }
+}
+
 buildYearGrid();
 
 /* ══════════════════════════════════════════════════════════
@@ -2697,6 +2778,7 @@ function defaultStats() {
 // Called once after login — loads stats from Firestore into memory
 async function loadStatsFromFirestore() {
   if (!window._currentUser) return;
+  fsLoadingShow('Loading your stats…');
   try {
     const ref  = window._doc(window._db, 'stats', window._currentUser.uid);
     const snap = await window._getDoc(ref);
@@ -2708,6 +2790,8 @@ async function loadStatsFromFirestore() {
   } catch(e) {
     console.error('Failed to load stats from Firestore:', e);
     window._cachedStats = defaultStats();
+  } finally {
+    fsLoadingHide();
   }
 }
 
@@ -4067,6 +4151,7 @@ function loadCustomQuizzes() {
 
 async function loadCustomQuizzesFromFirestore() {
   if (!window._currentUser) return;
+  fsLoadingShow('Loading your quizzes…');
   try {
     const col = window._collection(window._db, 'users', window._currentUser.uid, 'customQuizzes');
     const snap = await window._getDocs(col);
@@ -4082,6 +4167,8 @@ async function loadCustomQuizzesFromFirestore() {
       const raw = localStorage.getItem(CQ_KEY);
       window._cachedCustomQuizzes = raw ? JSON.parse(raw) : [];
     } catch (_) { window._cachedCustomQuizzes = []; }
+  } finally {
+    fsLoadingHide();
   }
 }
 
@@ -7699,28 +7786,33 @@ async function adminPublishQuiz() {
 ══════════════════════════════════════════════════════════ */
 async function loadPublishedQuestionsIntoSubjects() {
   if (!window._db) return;
-  for (const subjName of Object.keys(subjects)) {
-    try {
-      const col = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
-      const snap = await window._getDocs(col);
-      if (snap.empty) continue;
-      if (!subjects[subjName].lectures) subjects[subjName].lectures = {};
-      await Promise.all(snap.docs.map(async (d) => {
-        const data = d.data();
-        const name = data.lectureName || d.id;
-        const questions = data.questions || [];
-        // Hydrate images from the separate images subcollection (published lectures
-        // store images there to stay under Firestore's 1 MB doc limit, and to keep
-        // the snapshot independent of the original source quiz).
-        await hydratePublishedLectureImages(subjName, d.id, questions);
-        subjects[subjName].lectures[name] = questions;
-      }));
-    } catch (e) {
-      // Subject may not have a 'publishedQuestions' doc yet — ignore
+  fsLoadingShow('Loading published questions…');
+  try {
+    for (const subjName of Object.keys(subjects)) {
+      try {
+        const col = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
+        const snap = await window._getDocs(col);
+        if (snap.empty) continue;
+        if (!subjects[subjName].lectures) subjects[subjName].lectures = {};
+        await Promise.all(snap.docs.map(async (d) => {
+          const data = d.data();
+          const name = data.lectureName || d.id;
+          const questions = data.questions || [];
+          // Hydrate images from the separate images subcollection (published lectures
+          // store images there to stay under Firestore's 1 MB doc limit, and to keep
+          // the snapshot independent of the original source quiz).
+          await hydratePublishedLectureImages(subjName, d.id, questions);
+          subjects[subjName].lectures[name] = questions;
+        }));
+      } catch (e) {
+        // Subject may not have a 'publishedQuestions' doc yet — ignore
+      }
     }
+    // If a subject is already open, refresh its lecture list
+    if (selectedSubject) selectSubject(selectedSubject);
+  } finally {
+    fsLoadingHide();
   }
-  // If a subject is already open, refresh its lecture list
-  if (selectedSubject) selectSubject(selectedSubject);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -7944,6 +8036,7 @@ async function adminLoadCurrSubjList() {
 ══════════════════════════════════════════════════════════ */
 async function loadCurriculumExtensions() {
   if (!window._db) return;
+  fsLoadingShow('Loading curriculum…');
   try {
     const ref  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
     const snap = await window._getDoc(ref);
@@ -7981,6 +8074,8 @@ async function loadCurriculumExtensions() {
     buildYearGrid();
   } catch (e) {
     console.warn('Failed to load curriculum extensions:', e);
+  } finally {
+    fsLoadingHide();
   }
 }
 
