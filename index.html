@@ -376,7 +376,7 @@
 
     /* ── QUIZ MOVE/COPY MODAL ── */
     .qm-overlay {
-      position: fixed; inset: 0; z-index: 9000;
+      position: fixed; inset: 0; z-index: 13500;
       background: rgba(0,0,0,.45); display: flex;
       align-items: center; justify-content: center; padding: 16px;
     }
@@ -417,6 +417,28 @@
     .curr-item-btn:hover { filter: brightness(1.1); }
     .curr-item-btn.edit { background: #EDE7F6; color: #4527A0; }
     .curr-item-btn.del  { background: #FFEBEE; color: #C62828; }
+
+    /* ── CURRICULUM DRILL-DOWN NAV (Years → Modules → Subjects → Quizzes) ── */
+    .curr-breadcrumb {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+      font-size: .82rem; font-weight: 700; color: var(--text-muted);
+    }
+    .curr-crumb { cursor: pointer; padding: 3px 7px; border-radius: 6px; transition: background .15s, color .15s; }
+    .curr-crumb:hover { background: #E8F4FB; color: var(--accent); }
+    .curr-crumb.active { color: #1B4F72; cursor: default; }
+    .curr-crumb.active:hover { background: none; }
+    .curr-crumb-sep { color: #B0D4F0; }
+    .curr-back-btn {
+      align-self: flex-start; background: #F0F8FF; color: var(--accent);
+      border: 1.5px solid #B0D4F0; border-radius: 8px; padding: 6px 12px;
+      font-family: var(--font); font-size: .82rem; font-weight: 700; cursor: pointer;
+      transition: background .15s;
+    }
+    .curr-back-btn:hover { background: #E3F2FD; }
+    .curr-item-row.curr-item-open { cursor: pointer; transition: background .15s, border-color .15s; }
+    .curr-item-row.curr-item-open:hover { background: #EEF7FF; border-color: var(--accent); }
+    .curr-item-arrow { color: #B0D4F0; font-size: .8rem; flex-shrink: 0; }
+    .curr-item-row.curr-item-open:hover .curr-item-arrow { color: var(--accent); }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
@@ -1606,6 +1628,49 @@
 .curr-list {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 }
+
+/* ── ICON PICKER ── */
+.icon-picker-field { position: relative; }
+.icon-picker-trigger {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  border: 2px solid #B0D4F0; border-radius: 8px; background: #fff;
+  padding: 8px 10px; cursor: pointer; font-size: 1.25rem; line-height: 1;
+  min-width: 56px; transition: border-color .15s;
+}
+.icon-picker-trigger:hover { border-color: #1B4F72; }
+.icon-picker-trigger .ip-caret { font-size: .65rem; color: var(--text-muted); }
+.icon-picker-pop {
+  position: absolute; z-index: 50; top: calc(100% + 6px); left: 0;
+  width: 300px; max-height: 320px; overflow-y: auto;
+  background: #fff; border: 1px solid #B0D4F0; border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(20,40,60,.22); padding: 10px;
+}
+.icon-picker-pop.hidden { display: none; }
+.icon-picker-search {
+  width: 100%; padding: 7px 9px; border: 1.5px solid #D6E6F2; border-radius: 6px;
+  font-family: var(--font); font-size: .82rem; margin-bottom: 8px;
+}
+.icon-picker-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+}
+.icon-picker-grid span {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem; padding: 5px 0; border-radius: 6px; cursor: pointer;
+  transition: background .12s;
+}
+.icon-picker-grid span:hover { background: #EAF4FB; }
+.icon-picker-add-row {
+  display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #EEF3F7;
+}
+.icon-picker-add-row input {
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1.5px solid #D6E6F2; border-radius: 6px;
+  font-family: var(--font); font-size: .8rem; text-align: center;
+}
+.icon-picker-add-row button {
+  background: #2E7D32; color: #fff; border: none; border-radius: 6px;
+  padding: 6px 10px; font-size: .78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.icon-picker-add-row button:hover { filter: brightness(1.1); }
 .curr-tag {
   background: #E3F2FD; border: 1px solid #90CAF9; color: #0D47A1;
   border-radius: 20px; padding: 3px 12px; font-size: .77rem; font-weight: 700;
@@ -2050,6 +2115,12 @@ const curriculum = {
   "Third Year":  {}
 };
 
+/* Legacy hardcoded module icon fallback (pre-existing, kept for old modules) */
+const LEGACY_MODULE_ICONS = {
+  "GIT and Nutrition":               "🏥",
+  "Endocrine System and Metabolism": "🧬"
+};
+
 /* ══════════════════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════════════════ */
@@ -2156,15 +2227,11 @@ function selectYear(year) {
     return;
   }
 
-  const moduleIcons = {
-    "GIT and Nutrition":               "🏥",
-    "Endocrine System and Metabolism": "🧬"
-  };
   modules.forEach(mod => {
     const btn = document.createElement('button');
     btn.className = 'module-btn';
     btn.dataset.module = mod;
-    btn.innerHTML = `<span class="m-icon">${moduleIcons[mod]||'📚'}</span>${mod}`;
+    btn.innerHTML = `<span class="m-icon">${_moduleIcon(year, mod)}</span>${mod}`;
     btn.onclick = () => selectModule(mod);
     document.getElementById('moduleGrid').appendChild(btn);
   });
@@ -5457,6 +5524,12 @@ function renderCQPreview() {
   if (!area) return;
   if (!cqGeneratedQuestions) { area.innerHTML = ''; return; }
 
+  // Remember scroll position of the inner question list — it gets torn down
+  // and rebuilt below, which would otherwise reset it to the top (Q1) on
+  // every single edit (image change, option edit, delete, etc.)
+  const _prevList = document.getElementById('cqPreviewList');
+  const _prevScrollTop = _prevList ? _prevList.scrollTop : null;
+
   // All next-available option keys
   const ALL_KEYS = ['A','B','C','D','E','F','G','H','I','J'];
 
@@ -5610,6 +5683,12 @@ function renderCQPreview() {
   html += renderSplitPanel('preview', null, cqGeneratedQuestions.length);
 
   area.innerHTML = html;
+
+  // Restore scroll position (unless this is the very first render)
+  if (_prevScrollTop !== null) {
+    const _newList = document.getElementById('cqPreviewList');
+    if (_newList) _newList.scrollTop = _prevScrollTop;
+  }
 }
 
 /* ── Edit helpers for the preview ── */
@@ -7134,6 +7213,7 @@ function openAdminPanel() {
   adminTargetSubject= '';
   adminCommunityCache = null;
   adminActiveTab    = 'publish';
+  adminCurrNavLevel = 'years';
   document.getElementById('adminOverlay').classList.remove('hidden');
   adminSwitchTab('publish');
 }
@@ -7424,6 +7504,12 @@ function renderAdminQuestionEditor(containerId) {
   const area = document.getElementById(containerId);
   if (!area || !adminEditQuestions) { if (area) area.innerHTML = ''; return; }
 
+  // Remember scroll position of the inner question list — it gets torn down
+  // and rebuilt below, which would otherwise reset it to the top (Q1) on
+  // every single edit (image change, option edit, delete, etc.)
+  const _prevList = document.getElementById('adminEditList');
+  const _prevScrollTop = _prevList ? _prevList.scrollTop : null;
+
   const ALL_KEYS = ['A','B','C','D','E','F','G','H','I','J'];
 
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0 10px;">
@@ -7537,6 +7623,12 @@ function renderAdminQuestionEditor(containerId) {
   <div class="admin-status" id="adminEditStatus"></div>`;
 
   area.innerHTML = html;
+
+  // Restore scroll position (unless this is the very first render)
+  if (_prevScrollTop !== null) {
+    const _newList = document.getElementById('adminEditList');
+    if (_newList) _newList.scrollTop = _prevScrollTop;
+  }
 }
 
 /* ── Edit helpers (mutate adminEditQuestions in place) ── */
@@ -8247,7 +8339,7 @@ async function _updatePublishedManifest(subject, lectureId, ts) {
 
 /* Apply a cached payload directly into memory (no Firestore reads) */
 function _applyCurriculumCache(cached) {
-  const { extYears = [], extModules = {}, extSubjects = {} } = cached.curriculum || {};
+  const { extYears = [], extModules = {}, extModuleIcons = {}, extSubjects = {} } = cached.curriculum || {};
 
   extYears.forEach(yr => { if (!curriculum[yr]) curriculum[yr] = {}; });
 
@@ -8257,6 +8349,8 @@ function _applyCurriculumCache(cached) {
       if (!curriculum[yr][mod]) curriculum[yr][mod] = [];
     });
   });
+
+  moduleIconMap = extModuleIcons;
 
   Object.entries(extSubjects).forEach(([key, info]) => {
     if (!subjects[key])
@@ -8520,21 +8614,237 @@ async function loadPublishedQuestionsIntoSubjects() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   ICON LIBRARY — large curated set + admin-extendable custom icons
+══════════════════════════════════════════════════════════ */
+const BASE_ICON_LIBRARY = [
+  // Medical / anatomy
+  '📘','📗','📙','📕','📖','🧬','💊','🫀','🧠','🦷','🩺','🔬','🧪','💉','🩻','🫁','🦴','👁️','🫃','🧫','🩸',
+  '🦠','🧴','🩹','🧑\u200d⚕️','🩼','🦿','🦾','🫂',
+  // Body systems / science
+  '⚗️','🌡️','🧯','☣️','🧲','🧮','🔭','⚛️','🧑\u200d🔬',
+  // Study / academic
+  '📚','📓','📔','📒','📝','📋','📑','🗂️','📊','📈','📉','🔖','🏷️','📎','✏️','🖊️','🖋️','📐','📏','🧾',
+  '🎓','🏫','🏛️','🗝️','🔑','💡','🧑\u200d🏫',
+  // Symbols / general
+  '⭐','✨','🔥','💎','🏆','🎯','🚀','⚡','🌟','✅','🔔','📌','🧭','🗺️','⏱️','⏳','🧩','🎲','🛠️','⚙️',
+  // Body parts / organs extras
+  '🫘','👂','👃','👄','🦶','🖐️',
+  // Nature (fallback generic)
+  '🌿','🍀','🌱','🌸','🌊','☀️','🌙'
+];
+
+function _getCustomIcons() {
+  try { return JSON.parse(localStorage.getItem('customIconLibrary') || '[]'); }
+  catch { return []; }
+}
+function _setCustomIcons(arr) {
+  try { localStorage.setItem('customIconLibrary', JSON.stringify(arr)); } catch {}
+}
+function getIconLibrary() {
+  const custom = _getCustomIcons();
+  const seen = new Set();
+  return [...custom, ...BASE_ICON_LIBRARY].filter(ic => {
+    if (seen.has(ic)) return false;
+    seen.add(ic);
+    return true;
+  });
+}
+
+/* Persist custom icons to Firestore too, so they extend for every admin/device */
+async function loadCustomIconsFromServer() {
+  if (!window._db) return;
+  try {
+    const ref  = window._doc(window._db, 'appConfig', 'iconLibrary');
+    const snap = await window._getDoc(ref);
+    if (snap.exists()) {
+      const serverIcons = snap.data().icons || [];
+      const merged = [...new Set([...serverIcons, ..._getCustomIcons()])];
+      _setCustomIcons(merged);
+    }
+  } catch (e) { console.warn('Failed to load icon library:', e); }
+}
+async function _saveCustomIconToServer(icon) {
+  if (!window._db) return;
+  try {
+    const ref  = window._doc(window._db, 'appConfig', 'iconLibrary');
+    const snap = await window._getDoc(ref);
+    const icons = snap.exists() ? (snap.data().icons || []) : [];
+    if (!icons.includes(icon)) {
+      icons.unshift(icon);
+      await window._setDoc(ref, cleanForFirestore({ icons }));
+    }
+  } catch (e) { console.warn('Failed to save icon to library:', e); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ICON PICKER WIDGET — reusable popover for any text input
+   Usage: iconPickerFieldHtml('currSubjIcon', icon, 'Icon') renders
+   a field block (container id `${inputId}Field` is created for you).
+══════════════════════════════════════════════════════════ */
+let _openIconPickerId = null;
+
+function iconPickerFieldHtml(inputId, initialIcon, label) {
+  const icon = initialIcon || '📘';
+  return `
+    <div class="curr-field icon-picker-field" style="max-width:110px;" id="${inputId}Field">
+      <label>${label || 'Icon'}</label>
+      <div class="icon-picker-trigger" id="${inputId}Trigger" onclick="toggleIconPicker('${inputId}')">
+        <span id="${inputId}Preview">${icon}</span><span class="ip-caret">▾</span>
+      </div>
+      <input type="hidden" id="${inputId}" value="${icon}" />
+      <div class="icon-picker-pop hidden" id="${inputId}Pop"></div>
+    </div>`;
+}
+
+function toggleIconPicker(inputId) {
+  // Close any other open picker
+  if (_openIconPickerId && _openIconPickerId !== inputId) {
+    const prevPop = document.getElementById(_openIconPickerId + 'Pop');
+    if (prevPop) prevPop.classList.add('hidden');
+  }
+  const pop = document.getElementById(inputId + 'Pop');
+  if (!pop) return;
+  const willOpen = pop.classList.contains('hidden');
+  pop.classList.toggle('hidden');
+  _openIconPickerId = willOpen ? inputId : null;
+  if (willOpen) renderIconPickerPop(inputId, '');
+}
+
+function renderIconPickerPop(inputId, filter) {
+  const pop = document.getElementById(inputId + 'Pop');
+  if (!pop) return;
+  const lib = getIconLibrary();
+  const list = filter ? lib.filter(ic => ic.includes(filter)) : lib;
+  pop.innerHTML = `
+    <input type="text" class="icon-picker-search" placeholder="Type to filter, or paste any emoji…"
+      oninput="renderIconPickerPop('${inputId}', this.value.trim())"
+      onkeydown="if(event.key==='Enter'){event.preventDefault(); const v=this.value.trim(); if(v){ selectIconForField('${inputId}', v.slice(0, 4)); addCustomIcon(v.slice(0,4)); } }" />
+    <div class="icon-picker-grid">
+      ${list.map(ic => `<span title="${ic}" onclick="selectIconForField('${inputId}','${ic}')">${ic}</span>`).join('') || '<span style="grid-column:1/-1;font-size:.75rem;color:var(--text-muted);">No matches</span>'}
+    </div>
+    <div class="icon-picker-add-row">
+      <input type="text" id="${inputId}CustomAdd" placeholder="Add custom emoji" maxlength="4" />
+      <button onclick="const v=document.getElementById('${inputId}CustomAdd').value.trim(); if(v){ selectIconForField('${inputId}', v); addCustomIcon(v); }">➕ Add</button>
+    </div>`;
+}
+
+function selectIconForField(inputId, icon) {
+  const input   = document.getElementById(inputId);
+  const preview = document.getElementById(inputId + 'Preview');
+  if (input)   input.value = icon;
+  if (preview) preview.textContent = icon;
+  const pop = document.getElementById(inputId + 'Pop');
+  if (pop) pop.classList.add('hidden');
+  _openIconPickerId = null;
+}
+
+function addCustomIcon(icon) {
+  if (!icon) return;
+  const custom = _getCustomIcons();
+  if (!custom.includes(icon)) {
+    custom.unshift(icon);
+    _setCustomIcons(custom);
+    _saveCustomIconToServer(icon);
+  }
+}
+
+// Close picker popovers when clicking outside
+document.addEventListener('click', (e) => {
+  if (!_openIconPickerId) return;
+  const field = document.getElementById(_openIconPickerId + 'Field');
+  if (field && !field.contains(e.target)) {
+    const pop = document.getElementById(_openIconPickerId + 'Pop');
+    if (pop) pop.classList.add('hidden');
+    _openIconPickerId = null;
+  }
+});
+
+/* ══════════════════════════════════════════════════════════
    ADMIN — MANAGE CURRICULUM
    UI for admin to create new Years, Modules, and Subjects.
 ══════════════════════════════════════════════════════════ */
 
+// year -> module -> icon overrides created/edited by admin
+let moduleIconMap = {};
+
+/* ══════════════════════════════════════════════════════════
+   CURRICULUM TAB — drill-down navigation
+   Years → Modules (within a year) → Subjects (within a module)
+     → Quizzes (within a subject, no publish button — management only)
+   Each level lets the admin add/rename/delete/edit at that level,
+   and click a row to drill into it. adminTargetYear/Module/Subject
+   (shared with the Publish tab) track the current drill position.
+══════════════════════════════════════════════════════════ */
+let adminCurrNavLevel = 'years'; // 'years' | 'modules' | 'subjects' | 'quizzes'
+
 function renderAdminCurriculumPanel() {
   const body = document.getElementById('adminBody');
+  if (!body) return;
 
+  // Guard against a stale deeper level if its parent selection got cleared
+  if (adminCurrNavLevel === 'modules' && !adminTargetYear) adminCurrNavLevel = 'years';
+  if (adminCurrNavLevel === 'subjects' && (!adminTargetYear || !adminTargetModule)) adminCurrNavLevel = 'modules';
+  if (adminCurrNavLevel === 'quizzes' && (!adminTargetYear || !adminTargetModule || !adminTargetSubject)) adminCurrNavLevel = 'subjects';
+
+  if (adminCurrNavLevel === 'years')    return renderAdminCurrYearsLevel(body);
+  if (adminCurrNavLevel === 'modules')  return renderAdminCurrModulesLevel(body);
+  if (adminCurrNavLevel === 'subjects') return renderAdminCurrSubjectsLevel(body);
+  return renderAdminCurrQuizzesLevel(body);
+}
+
+function adminCurrBreadcrumbHtml() {
+  let html = `<div class="curr-breadcrumb">`;
+  html += `<span class="curr-crumb ${adminCurrNavLevel === 'years' ? 'active' : ''}" onclick="adminCurrGoYears()">📅 Years</span>`;
+  if (adminTargetYear) {
+    html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${adminCurrNavLevel === 'modules' ? 'active' : ''}" onclick="adminCurrGoModules()">${escapeHtml(adminTargetYear)}</span>`;
+  }
+  if (adminTargetModule) {
+    html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${adminCurrNavLevel === 'subjects' ? 'active' : ''}" onclick="adminCurrGoSubjects()">${escapeHtml(adminTargetModule)}</span>`;
+  }
+  if (adminTargetSubject) {
+    html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb active">${escapeHtml(subjects[adminTargetSubject]?.label || adminTargetSubject)}</span>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function adminCurrGoYears() {
+  adminTargetYear = ''; adminTargetModule = ''; adminTargetSubject = '';
+  adminCurrNavLevel = 'years';
+  renderAdminCurriculumPanel();
+}
+function adminCurrGoModules() {
+  adminTargetModule = ''; adminTargetSubject = '';
+  adminCurrNavLevel = 'modules';
+  renderAdminCurriculumPanel();
+}
+function adminCurrGoSubjects() {
+  adminTargetSubject = '';
+  adminCurrNavLevel = 'subjects';
+  renderAdminCurriculumPanel();
+}
+function adminCurrOpenYear(year) {
+  adminTargetYear = year; adminTargetModule = ''; adminTargetSubject = '';
+  adminCurrNavLevel = 'modules';
+  renderAdminCurriculumPanel();
+}
+function adminCurrOpenModule(mod) {
+  adminTargetModule = mod; adminTargetSubject = '';
+  adminCurrNavLevel = 'subjects';
+  renderAdminCurriculumPanel();
+}
+function adminCurrOpenSubject(key) {
+  adminTargetSubject = key;
+  adminCurrNavLevel = 'quizzes';
+  renderAdminCurriculumPanel();
+}
+
+/* ── LEVEL 1: Years ── */
+function renderAdminCurrYearsLevel(body) {
   const years = Object.keys(curriculum);
-  const allModules = {};
-  years.forEach(y => Object.keys(curriculum[y] || {}).forEach(m => { allModules[m] = y; }));
-  const yearOpts = years.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join('');
-  const iconSuggestions = ['📘','📗','📙','📕','🧬','💊','🫀','🧠','🦷','🩺','🔬','🧪','💉','🩻','🫁','🦴','👁️','🫃','🧫','🩸'];
-
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
+      ${adminCurrBreadcrumbHtml()}
 
       <div class="curr-section">
         <div class="curr-section-title">➕ Add New Academic Year</div>
@@ -8546,65 +8856,78 @@ function renderAdminCurriculumPanel() {
           <button class="curr-add-btn" onclick="adminAddYear()">Add Year</button>
         </div>
         <div class="curr-status" id="currYearStatus"></div>
-        <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Existing Years</div>
+        <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Existing Years — tap one to manage its modules</div>
         <div id="currYearList">${years.length ? years.map(y => `
-          <div class="curr-item-row">
-            <span class="curr-item-name">${escapeHtml(y)}</span>
-            <button class="curr-item-btn edit" onclick="adminRenameYear('${escapeHtml(y)}')">✏️ Rename</button>
-            <button class="curr-item-btn del"  onclick="adminDeleteYear('${escapeHtml(y)}')">🗑 Delete</button>
+          <div class="curr-item-row curr-item-open" onclick="adminCurrOpenYear('${escapeHtml(y)}')">
+            <div style="flex:1;">
+              <div class="curr-item-name">📅 ${escapeHtml(y)}</div>
+              <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)</div>
+            </div>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameYear('${escapeHtml(y)}')">✏️ Rename</button>
+            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteYear('${escapeHtml(y)}')">🗑 Delete</button>
+            <span class="curr-item-arrow">▶</span>
           </div>`).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">None yet</span>'}</div>
       </div>
 
+    </div>
+  `;
+}
+
+/* ── LEVEL 2: Modules within a Year ── */
+function renderAdminCurrModulesLevel(body) {
+  const year = adminTargetYear;
+  const mods = Object.keys(curriculum[year] || {});
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      ${adminCurrBreadcrumbHtml()}
+      <button class="curr-back-btn" onclick="adminCurrGoYears()">← Back to Years</button>
+
       <div class="curr-section">
-        <div class="curr-section-title">➕ Add New Module</div>
+        <div class="curr-section-title">➕ Add New Module to "${escapeHtml(year)}"</div>
         <div class="curr-row">
-          <div class="curr-field">
-            <label>Under Year</label>
-            <select id="currModYear">${yearOpts || '<option value="">No years yet</option>'}</select>
-          </div>
           <div class="curr-field">
             <label>Module Name (e.g. "Module 5")</label>
             <input type="text" id="currNewModule" placeholder="Module 5" maxlength="60" />
           </div>
+          ${iconPickerFieldHtml('currNewModuleIcon', '📚', 'Icon')}
           <button class="curr-add-btn" onclick="adminAddModule()">Add Module</button>
         </div>
         <div class="curr-status" id="currModuleStatus"></div>
-        <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Existing Modules</div>
-        <div id="currModuleList">${Object.keys(allModules).length ? Object.keys(allModules).map(m => `
-          <div class="curr-item-row">
+        <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Modules in ${escapeHtml(year)} — tap one to manage its subjects</div>
+        <div id="currModuleList">${mods.length ? mods.map(m => `
+          <div class="curr-item-row curr-item-open" onclick="adminCurrOpenModule('${escapeHtml(m)}')">
             <div style="flex:1;">
-              <div class="curr-item-name">${escapeHtml(m)}</div>
-              <div class="curr-item-sub">in ${escapeHtml(allModules[m])}</div>
+              <div class="curr-item-name">${escapeHtml(_moduleIcon(year, m))} ${escapeHtml(m)}</div>
+              <div class="curr-item-sub">${(curriculum[year][m] || []).filter(k => subjects[k]).length} subject(s)</div>
             </div>
-            <button class="curr-item-btn edit" onclick="adminRenameModule('${escapeHtml(allModules[m])}','${escapeHtml(m)}')">✏️ Rename</button>
-            <button class="curr-item-btn del"  onclick="adminDeleteModule('${escapeHtml(allModules[m])}','${escapeHtml(m)}')">🗑 Delete</button>
-          </div>`).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">None yet</span>'}</div>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditModuleIcon('${escapeHtml(year)}','${escapeHtml(m)}')">🎨 Icon</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameModule('${escapeHtml(year)}','${escapeHtml(m)}')">✏️ Rename</button>
+            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteModule('${escapeHtml(year)}','${escapeHtml(m)}')">🗑 Delete</button>
+            <span class="curr-item-arrow">▶</span>
+          </div>`).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">No modules yet in this year</span>'}</div>
       </div>
 
+    </div>
+  `;
+}
+
+/* ── LEVEL 3: Subjects within a Module ── */
+function renderAdminCurrSubjectsLevel(body) {
+  const year = adminTargetYear, mod = adminTargetModule;
+  const keys = (curriculum[year] && curriculum[year][mod]) ? curriculum[year][mod].filter(k => subjects[k]) : [];
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      ${adminCurrBreadcrumbHtml()}
+      <button class="curr-back-btn" onclick="adminCurrGoModules()">← Back to Modules</button>
+
       <div class="curr-section">
-        <div class="curr-section-title">➕ Add New Subject</div>
-        <div class="curr-row">
-          <div class="curr-field">
-            <label>Under Year</label>
-            <select id="currSubjYear" onchange="adminRefreshSubjModules()">${yearOpts || '<option value="">No years yet</option>'}</select>
-          </div>
-          <div class="curr-field">
-            <label>Under Module</label>
-            <select id="currSubjModule"></select>
-          </div>
-        </div>
+        <div class="curr-section-title">➕ Add New Subject to "${escapeHtml(mod)}"</div>
         <div class="curr-row">
           <div class="curr-field">
             <label>Subject Label (shown to users)</label>
             <input type="text" id="currSubjLabel" placeholder="e.g. Pathology" maxlength="60" />
           </div>
-          <div class="curr-field" style="max-width:90px;">
-            <label>Icon (emoji)</label>
-            <input type="text" id="currSubjIcon" placeholder="📘" maxlength="4" style="text-align:center;font-size:1.2rem;" />
-          </div>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-          ${iconSuggestions.map(ic => `<span style="cursor:pointer;font-size:1.3rem;" title="${ic}" onclick="document.getElementById('currSubjIcon').value='${ic}'">${ic}</span>`).join('')}
+          ${iconPickerFieldHtml('currSubjIcon', '📘', 'Icon')}
         </div>
         <div class="curr-row">
           <div class="curr-field">
@@ -8615,26 +8938,45 @@ function renderAdminCurriculumPanel() {
           <button class="curr-add-btn secondary" onclick="adminAddSubject()">Add Subject</button>
         </div>
         <div class="curr-status" id="currSubjStatus"></div>
-        <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Admin-Created Subjects</div>
-        <div id="currSubjList" class="curr-list"><span style="color:var(--text-muted);font-size:.8rem;">Loading…</span></div>
+        <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Subjects in ${escapeHtml(mod)} — tap one to manage its quizzes</div>
+        <div id="currSubjList" class="curr-list">${keys.length ? keys.map(k => {
+          const s = subjects[k];
+          return `<div class="curr-item-row curr-item-open" onclick="adminCurrOpenSubject('${escapeHtml(k)}')">
+            <div style="flex:1;">
+              <div class="curr-item-name">${escapeHtml(s.icon || '📘')} ${escapeHtml(s.label || k)}</div>
+              <div class="curr-item-sub">key: ${escapeHtml(k)}</div>
+            </div>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditSubject('${escapeHtml(k)}')">✏️ Edit</button>
+            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteSubject('${escapeHtml(k)}')">🗑 Delete</button>
+            <span class="curr-item-arrow">▶</span>
+          </div>`;
+        }).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">No subjects yet in this module</span>'}</div>
       </div>
 
     </div>
   `;
-
-  adminRefreshSubjModules();
-  adminLoadCurrSubjList();
 }
 
-function adminRefreshSubjModules() {
-  const yearSel = document.getElementById('currSubjYear');
-  const modSel  = document.getElementById('currSubjModule');
-  if (!yearSel || !modSel) return;
-  const yr = yearSel.value;
-  const mods = yr ? Object.keys(curriculum[yr] || {}) : [];
-  modSel.innerHTML = mods.length
-    ? mods.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('')
-    : `<option value="">No modules in this year</option>`;
+/* ── LEVEL 4: Quizzes within a Subject (management only — no publish button) ──
+   Reuses renderAdminAssignedList() (Edit / Copy-Move / Delete / reorder),
+   the same list and functions the Publish tab uses after publishing. */
+function renderAdminCurrQuizzesLevel(body) {
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      ${adminCurrBreadcrumbHtml()}
+      <button class="curr-back-btn" onclick="adminCurrGoSubjects()">← Back to Subjects</button>
+
+      <div class="curr-section">
+        <div class="curr-section-title">🗂️ Manage Quizzes — ${escapeHtml(subjects[adminTargetSubject]?.label || adminTargetSubject)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;margin-bottom:10px;">
+          View, edit, reorder, copy/move, or delete the quizzes published to this subject.
+        </div>
+        <div class="admin-assigned-section" id="adminAssignedSection"></div>
+      </div>
+
+    </div>
+  `;
+  renderAdminAssignedList();
 }
 
 async function adminAddYear() {
@@ -8654,16 +8996,19 @@ async function adminAddYear() {
 }
 
 async function adminAddModule() {
-  const yearSel = document.getElementById('currModYear');
   const input   = document.getElementById('currNewModule');
+  const iconIn  = document.getElementById('currNewModuleIcon');
   const status  = document.getElementById('currModuleStatus');
-  const yr  = yearSel?.value || '';
+  const yr  = adminTargetYear;
   const mod = (input?.value || '').trim();
+  const icon = (iconIn?.value || '').trim() || '📚';
   if (!yr)  { status.textContent = '⚠️ Select a year first.'; status.className = 'curr-status err'; return; }
   if (!mod) { status.textContent = '⚠️ Enter a module name.'; status.className = 'curr-status err'; return; }
   if (!curriculum[yr]) { status.textContent = '⚠️ Year not found.'; status.className = 'curr-status err'; return; }
   if (curriculum[yr][mod]) { status.textContent = `⚠️ Module "${mod}" already exists in ${yr}.`; status.className = 'curr-status err'; return; }
   curriculum[yr][mod] = [];
+  if (!moduleIconMap[yr]) moduleIconMap[yr] = {};
+  moduleIconMap[yr][mod] = icon;
   buildYearGrid();
   status.textContent = '⏳ Saving…'; status.className = 'curr-status';
   await saveCurriculumStructure();
@@ -8673,15 +9018,33 @@ async function adminAddModule() {
   setTimeout(() => renderAdminCurriculumPanel(), 400);
 }
 
+/* Look up the icon for a module: admin-set icon > legacy hardcoded map > default */
+function _moduleIcon(year, mod) {
+  return (moduleIconMap[year] && moduleIconMap[year][mod])
+    || LEGACY_MODULE_ICONS[mod]
+    || '📚';
+}
+
+async function adminEditModuleIcon(year, mod) {
+  const current = _moduleIcon(year, mod);
+  const newIcon = prompt(`Set icon for module "${mod}" (paste any emoji):`, current);
+  if (newIcon === null) return;
+  const icon = newIcon.trim() || current;
+  if (!moduleIconMap[year]) moduleIconMap[year] = {};
+  moduleIconMap[year][mod] = icon;
+  addCustomIcon(icon);
+  buildYearGrid();
+  await saveCurriculumStructure();
+  renderAdminCurriculumPanel();
+}
+
 async function adminAddSubject() {
-  const yearSel = document.getElementById('currSubjYear');
-  const modSel  = document.getElementById('currSubjModule');
   const labelIn = document.getElementById('currSubjLabel');
   const iconIn  = document.getElementById('currSubjIcon');
   const keyIn   = document.getElementById('currSubjKey');
   const status  = document.getElementById('currSubjStatus');
-  const yr    = yearSel?.value || '';
-  const mod   = modSel?.value  || '';
+  const yr    = adminTargetYear;
+  const mod   = adminTargetModule;
   const label = (labelIn?.value || '').trim();
   const icon  = (iconIn?.value  || '').trim() || '📘';
   const key   = (keyIn?.value   || '').trim();
@@ -8699,34 +9062,9 @@ async function adminAddSubject() {
   await saveCurriculumExtensionSubject(key, { icon, label, year: yr, module: mod });
   status.textContent = `✅ Subject "${label}" added to ${yr} → ${mod}!`;
   status.className = 'curr-status ok';
-  labelIn.value = ''; iconIn.value = ''; keyIn.value = '';
-  adminLoadCurrSubjList();
-}
-
-async function adminLoadCurrSubjList() {
-  const el = document.getElementById('currSubjList');
-  if (!el || !window._db) return;
-  try {
-    const ref  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
-    const snap = await window._getDoc(ref);
-    const ext  = snap.exists() ? (snap.data().subjects || {}) : {};
-    const keys = Object.keys(ext);
-    el.innerHTML = keys.length
-      ? keys.map(k => {
-          const s = ext[k];
-          return `<div class="curr-item-row">
-            <div style="flex:1;">
-              <div class="curr-item-name">${escapeHtml(s.icon||'📘')} ${escapeHtml(s.label||k)}</div>
-              <div class="curr-item-sub">${escapeHtml(s.year||'')} → ${escapeHtml(s.module||'')} · key: ${escapeHtml(k)}</div>
-            </div>
-            <button class="curr-item-btn edit" onclick="adminEditSubject('${k}')">✏️ Edit</button>
-            <button class="curr-item-btn del"  onclick="adminDeleteSubject('${k}')">🗑 Delete</button>
-          </div>`;
-        }).join('')
-      : '<span style="color:var(--text-muted);font-size:.8rem;">No admin-created subjects yet.</span>';
-  } catch(e) {
-    el.innerHTML = '<span style="color:var(--text-muted);font-size:.8rem;">Could not load list.</span>';
-  }
+  labelIn.value = ''; keyIn.value = '';
+  selectIconForField('currSubjIcon', '📘');
+  setTimeout(() => renderAdminCurriculumPanel(), 400);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -8773,6 +9111,10 @@ async function loadCurriculumExtensions() {
       });
     });
 
+    // Restore admin-set module icons
+    const extModuleIcons = data.moduleIcons || {};
+    moduleIconMap = extModuleIcons;
+
     // Restore admin-created subjects
     const extSubjects = data.subjects || {};
     Object.entries(extSubjects).forEach(([key, info]) => {
@@ -8793,7 +9135,7 @@ async function loadCurriculumExtensions() {
        Do this even when the doc didn't exist / was empty, so we still
        record "nothing to load" and skip re-fetching next time. */
     const existing = (await _readCache()) || {};
-    existing.curriculum = { extYears, extModules, extSubjects };
+    existing.curriculum = { extYears, extModules, extModuleIcons, extSubjects };
     await _writeCache(existing);
     let verToStore = serverVer;
     if (!verToStore) verToStore = await bumpCacheVersion(); // doc doesn't exist yet — create the baseline
@@ -8824,6 +9166,7 @@ async function saveCurriculumStructure() {
 
     data.years   = allYears;
     data.modules = modulesMap;
+    data.moduleIcons = moduleIconMap;
     if (!data.subjects) data.subjects = {};
     await window._setDoc(ref, cleanForFirestore(data));
     _clearCache();
@@ -9080,6 +9423,11 @@ async function adminRenameModule(year, oldMod) {
   if (curriculum[year][n]) { alert(`"${n}" already exists in ${year}.`); return; }
   curriculum[year][n] = curriculum[year][oldMod];
   delete curriculum[year][oldMod];
+  // Carry the icon over to the new module name
+  if (moduleIconMap[year] && moduleIconMap[year][oldMod]) {
+    moduleIconMap[year][n] = moduleIconMap[year][oldMod];
+    delete moduleIconMap[year][oldMod];
+  }
   // Update subjects in extensions
   const extRef  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
   const extSnap = await window._getDoc(extRef);
@@ -9090,6 +9438,7 @@ async function adminRenameModule(year, oldMod) {
   if (ext.modules && ext.modules[year]) {
     ext.modules[year] = Object.keys(curriculum[year]);
   }
+  ext.moduleIcons = moduleIconMap;
   ext.years = Object.keys(curriculum);
   await window._setDoc(extRef, cleanForFirestore(ext));
   _clearCache(); await bumpCacheVersion();
@@ -9103,6 +9452,7 @@ async function adminDeleteModule(year, mod) {
 This also removes ${arr.length} subject placement(s).
 (Published quizzes are NOT deleted.)`)) return;
   delete curriculum[year][mod];
+  if (moduleIconMap[year]) delete moduleIconMap[year][mod];
   const extRef  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
   const extSnap = await window._getDoc(extRef);
   const ext = extSnap.exists() ? extSnap.data() : {};
@@ -9112,6 +9462,7 @@ This also removes ${arr.length} subject placement(s).
   if (ext.subjects) {
     Object.keys(ext.subjects).forEach(k => { if (ext.subjects[k].year === year && ext.subjects[k].module === mod) delete ext.subjects[k]; });
   }
+  ext.moduleIcons = moduleIconMap;
   ext.years = Object.keys(curriculum);
   await window._setDoc(extRef, cleanForFirestore(ext));
   _clearCache(); await bumpCacheVersion();
@@ -9128,6 +9479,7 @@ async function adminEditSubject(key) {
   const newIcon  = prompt('Edit icon (emoji):', s.icon || '📘') || s.icon || '📘';
   subjects[key].label = newLabel.trim();
   subjects[key].icon  = newIcon.trim();
+  addCustomIcon(subjects[key].icon);
   // Persist
   const extRef  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
   const extSnap = await window._getDoc(extRef);
@@ -9140,7 +9492,7 @@ async function adminEditSubject(key) {
   await window._setDoc(extRef, cleanForFirestore(ext));
   _clearCache(); await bumpCacheVersion();
   buildYearGrid();
-  adminLoadCurrSubjList();
+  renderAdminCurriculumPanel();
 }
 
 async function adminDeleteSubject(key) {
@@ -9173,7 +9525,7 @@ This removes it from all year/module placements.
   await window._setDoc(extRef, cleanForFirestore(ext));
   _clearCache(); await bumpCacheVersion();
   buildYearGrid();
-  adminLoadCurrSubjList();
+  renderAdminCurriculumPanel();
 }
 
 /* Persist a newly-created Subject (and its Year/Module placement) */
@@ -9194,6 +9546,7 @@ async function saveCurriculumExtensionSubject(key, info) {
     });
     data.years   = allYears;
     data.modules = modulesMap;
+    data.moduleIcons = moduleIconMap;
     await window._setDoc(ref, cleanForFirestore(data));
     _clearCache();
     await bumpCacheVersion();
@@ -9244,6 +9597,7 @@ const firebaseConfig = {
   (async () => {
     await loadCurriculumExtensions();
     await loadPublishedQuestionsIntoSubjects();
+    loadCustomIconsFromServer();
   })();
 
   // Watch login state — fires immediately on page load
