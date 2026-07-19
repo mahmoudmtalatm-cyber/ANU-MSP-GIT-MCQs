@@ -1703,6 +1703,103 @@
   cursor: pointer; white-space: nowrap;
 }
 .ai-key-prompt-row button:hover { background: #6A1B9A; }
+
+/* ── API KEY MANAGER (multi-key) ── */
+.apikey-open-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.5);
+  color: white; padding: 7px 16px; border-radius: 8px;
+  font-family: var(--font); font-size: .88rem; font-weight: 700;
+  cursor: pointer; margin-top: 12px;
+  transition: background .15s;
+}
+.apikey-open-btn:hover { background: rgba(255,255,255,.3); }
+.apikey-open-btn.ghost {
+  background: #F0F8FF; border: 1.5px solid #B0D4F0; color: var(--accent);
+  margin-top: 0;
+}
+.apikey-open-btn.ghost:hover { background: #E3F2FD; }
+.apikey-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #F0F8FF; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  padding: 8px 12px; font-size: .85rem; font-weight: 700; color: var(--text-main);
+}
+.apikey-badge .apikey-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.06);
+}
+.apikey-manager-body { display: flex; flex-direction: column; gap: 16px; }
+.apikey-list { display: flex; flex-direction: column; gap: 10px; }
+.apikey-item {
+  display: flex; align-items: center; gap: 12px;
+  background: #F7FBFF; border: 2px solid #D8EAF7; border-radius: 10px;
+  padding: 12px 14px; transition: border-color .15s, box-shadow .15s;
+}
+.apikey-item.active {
+  border-color: var(--apikey-color, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--apikey-color, var(--accent)) 18%, transparent);
+  background: #FFFFFF;
+}
+.apikey-num {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: var(--apikey-color, var(--accent)); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: .85rem;
+}
+.apikey-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.apikey-label-row { display: flex; align-items: center; gap: 8px; }
+.apikey-label-input {
+  border: none; background: transparent; font-weight: 800; font-size: .92rem;
+  color: var(--text-main); font-family: var(--font); padding: 2px 4px; border-radius: 4px;
+  min-width: 0; flex: 1;
+}
+.apikey-label-input:focus { background: #EEF7FF; outline: none; }
+.apikey-active-chip {
+  font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+  background: var(--apikey-color, var(--accent)); color: #fff; padding: 2px 8px; border-radius: 20px;
+  white-space: nowrap;
+}
+.apikey-masked {
+  font-size: .78rem; color: var(--text-muted); font-family: monospace; letter-spacing: .5px;
+}
+.apikey-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.apikey-item-actions button {
+  border: none; border-radius: 7px; cursor: pointer; font-family: var(--font);
+  font-weight: 700; font-size: .78rem; padding: 7px 10px; transition: filter .15s;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.apikey-item-actions button:hover { filter: brightness(1.08); }
+.apikey-use-btn { background: var(--apikey-color, var(--accent)); color: #fff; }
+.apikey-use-btn:disabled { opacity: .55; cursor: default; }
+.apikey-view-btn { background: #ECEFF1; color: var(--text-main); }
+.apikey-del-btn { background: #FFEBEE; color: #C62828; }
+.apikey-add-form {
+  background: var(--bg-card); border: 1.5px dashed #B0D4F0; border-radius: 10px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.apikey-add-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.apikey-add-row input {
+  padding: 11px 13px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  font-family: var(--font); font-size: .9rem; color: var(--text-main);
+  background: #F7FBFF; outline: none;
+}
+.apikey-add-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+#apikeyLabelInput { flex: 0 0 150px; min-width: 120px; }
+#apikeyValueInput { flex: 1; min-width: 180px; }
+.apikey-swatches { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.apikey-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+  transition: transform .1s, border-color .1s;
+}
+.apikey-swatch.selected { border-color: var(--text-main); transform: scale(1.15); }
+.apikey-empty {
+  text-align: center; padding: 22px 16px; color: var(--text-muted); font-size: .88rem;
+}
+.apikey-empty .ns-icon { font-size: 2rem; margin-bottom: 6px; display: block; }
+.apikey-pending-note {
+  background: #FFF8E1; border-left: 3px solid #FFB300; border-radius: 8px;
+  padding: 10px 14px; font-size: .85rem; color: #E65100; font-weight: 600;
+}
 @media (max-width: 480px) {
   .comm-filter-row { flex-direction: column; }
   .comm-filter-select { min-width: unset; width: 100%; }
@@ -1751,6 +1848,17 @@
         <button class="stats-close-btn" onclick="closeCustomQuizzes()">✕</button>
       </div>
       <div class="stats-body" id="customQuizBody"></div>
+    </div>
+  </div>
+
+<!-- API KEY MANAGER MODAL -->
+  <div id="apiKeyOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeApiKeyManager()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>🔑&nbsp; Manage API Keys</h2>
+        <button class="stats-close-btn" onclick="closeApiKeyManager()">✕</button>
+      </div>
+      <div class="stats-body apikey-manager-body" id="apiKeyManagerBody"></div>
     </div>
   </div>
 
@@ -1835,6 +1943,7 @@
         <button class="stats-open-btn" onclick="openRetake()">🔄&nbsp; Retake Wrong Qs</button>
         <button class="stats-open-btn" onclick="openCustomQuizzes()">🤖&nbsp; Custom Quizzes</button>
         <button class="stats-open-btn" onclick="openCommunityQuizzes()">🌐&nbsp; Community Quizzes</button>
+        <button class="apikey-open-btn" onclick="openApiKeyManager()">🔑&nbsp; Manage APIs</button>
         <button class="stats-open-btn admin-btn hidden" id="adminOpenBtn" onclick="openAdminPanel()">🛠️&nbsp; Admin Panel</button>
     </div>
     <div class="home-body">
@@ -1957,6 +2066,7 @@
       <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
       <button class="ai-explain-all-btn" id="explainAllBtn" onclick="explainAllQuestions()">🤖&nbsp; Explain All Questions</button>
       <button id="resultsSplitBtn" onclick="openSplitPanel('active')" style="background:#7B1FA2;color:#fff;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">✂️ Split Quiz</button>
+      <button onclick="openApiKeyManager()" style="background:#F0F8FF;color:var(--accent);border:1.5px solid var(--accent);padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">🔑&nbsp; Manage APIs</button>
     </div>
     <div id="resultsSplitContainer" style="margin:0 16px 16px;"></div>
   </div>
@@ -3292,10 +3402,241 @@ function dismissWaterFlood() {
 })();
 
 /* ══════════════════════════════════════════════════════════
+   API KEY MANAGER — multiple Gemini API keys, one active
+   Single shared place used by AI explanations, chat, and
+   custom quizzes (extract / generate / AI-answer / AI-solve).
+══════════════════════════════════════════════════════════ */
+
+const AI_EXPLAIN_KEY_STORE = 'anu_msp_gemini_api_key'; // legacy single-key store (used for migration only)
+const API_KEYS_STORE       = 'anu_msp_gemini_api_keys_v2';     // [{id,label,key,color}]
+const API_ACTIVE_ID_STORE  = 'anu_msp_gemini_active_key_id_v2';
+
+const API_KEY_COLORS = ['#1B8AC4','#8E24AA','#43A047','#FB8C00','#E53935','#00897B','#5E35B1','#D81B60','#3949AB','#6D4C41'];
+
+let _apiKeyPendingCallback = null; // callback to resume once a key becomes active
+
+function _apiKeyNewId() { return 'k_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function loadApiKeys() {
+  try {
+    const raw = localStorage.getItem(API_KEYS_STORE);
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr; }
+  } catch (e) {}
+  // One-time migration from the old single-key store
+  try {
+    const legacy = (localStorage.getItem(AI_EXPLAIN_KEY_STORE) || '').trim();
+    if (legacy) {
+      const id  = _apiKeyNewId();
+      const arr = [{ id, label: 'API 1', key: legacy, color: API_KEY_COLORS[0] }];
+      saveApiKeys(arr);
+      setActiveApiKeyId(id);
+      return arr;
+    }
+  } catch (e) {}
+  return [];
+}
+function saveApiKeys(arr) {
+  try { localStorage.setItem(API_KEYS_STORE, JSON.stringify(arr)); } catch (e) {}
+}
+function getActiveApiKeyId() {
+  try { return localStorage.getItem(API_ACTIVE_ID_STORE) || ''; } catch (e) { return ''; }
+}
+function setActiveApiKeyId(id) {
+  try { localStorage.setItem(API_ACTIVE_ID_STORE, id || ''); } catch (e) {}
+}
+/* Returns the currently active key STRING (empty if none configured). */
+function getActiveApiKey() {
+  const keys = loadApiKeys();
+  if (!keys.length) return '';
+  const activeId = getActiveApiKeyId();
+  let found = keys.find(k => k.id === activeId);
+  if (!found) { found = keys[0]; setActiveApiKeyId(found.id); }
+  return (found.key || '').trim();
+}
+function getActiveApiKeyEntry() {
+  const keys = loadApiKeys();
+  if (!keys.length) return null;
+  const activeId = getActiveApiKeyId();
+  return keys.find(k => k.id === activeId) || keys[0] || null;
+}
+function addApiKey(key, label, color) {
+  key = (key || '').trim();
+  if (!key) return null;
+  const keys = loadApiKeys();
+  const id = _apiKeyNewId();
+  color = color || API_KEY_COLORS[keys.length % API_KEY_COLORS.length];
+  keys.push({ id, label: (label || '').trim() || `API ${keys.length + 1}`, key, color });
+  saveApiKeys(keys);
+  if (keys.length === 1) setActiveApiKeyId(id); // first key added becomes active automatically
+  return id;
+}
+function removeApiKeyById(id) {
+  let keys = loadApiKeys();
+  keys = keys.filter(k => k.id !== id);
+  saveApiKeys(keys);
+  if (getActiveApiKeyId() === id) {
+    setActiveApiKeyId(keys.length ? keys[0].id : '');
+  }
+}
+function renameApiKey(id, label) {
+  const keys = loadApiKeys();
+  const k = keys.find(x => x.id === id);
+  if (k) { k.label = (label || '').trim() || k.label; saveApiKeys(keys); }
+}
+function maskApiKey(key) {
+  if (!key) return '';
+  if (key.length <= 8) return '•'.repeat(key.length);
+  return key.slice(0, 4) + '•'.repeat(Math.max(4, key.length - 8)) + key.slice(-4);
+}
+
+/* ── Legacy wrappers (kept so existing call sites keep working) ── */
+function getExplainKey() { return getActiveApiKey(); }
+function getGeminiKey()  { return getActiveApiKey(); }
+/* No-op setters: key editing now only happens through the API Key Manager. */
+function setExplainKey() {}
+function setGeminiKey()  {}
+
+/* ── Open / close the manager modal ── */
+function openApiKeyManager(pendingCallback) {
+  _apiKeyPendingCallback = pendingCallback || null;
+  document.getElementById('apiKeyOverlay').classList.remove('hidden');
+  renderApiKeyManager();
+}
+function closeApiKeyManager() {
+  document.getElementById('apiKeyOverlay').classList.add('hidden');
+  // If something was waiting on a key becoming available, resume it now.
+  if (_apiKeyPendingCallback && getActiveApiKey()) {
+    const cb = _apiKeyPendingCallback;
+    _apiKeyPendingCallback = null;
+    cb();
+  } else {
+    _apiKeyPendingCallback = null;
+  }
+}
+function useApiKey(id) {
+  setActiveApiKeyId(id);
+  renderApiKeyManager();
+  // Refresh any inline "manage keys" widgets that might be open behind the modal
+  if (typeof renderCustomQuizModal === 'function' && document.getElementById('customQuizBody')) {
+    try { renderCustomQuizModal(); } catch (e) {}
+  }
+}
+function deleteApiKeyPrompt(id, label) {
+  if (!confirm(`Remove "${label}"? This cannot be undone.`)) return;
+  removeApiKeyById(id);
+  renderApiKeyManager();
+}
+function apiKeyLabelChanged(id, value) {
+  renameApiKey(id, value);
+}
+function apiKeySelectColor(color) {
+  document.querySelectorAll('.apikey-swatch').forEach(el => {
+    el.classList.toggle('selected', el.dataset.color === color);
+  });
+  const holder = document.getElementById('apiKeyAddForm');
+  if (holder) holder.dataset.color = color;
+}
+function submitNewApiKey() {
+  const labelInp = document.getElementById('apikeyLabelInput');
+  const valueInp = document.getElementById('apikeyValueInput');
+  const key   = (valueInp ? valueInp.value : '').trim();
+  const label = (labelInp ? labelInp.value : '').trim();
+  if (!key) { if (valueInp) valueInp.style.borderColor = '#C62828'; return; }
+  const holder = document.getElementById('apiKeyAddForm');
+  const color  = holder ? holder.dataset.color : null;
+  addApiKey(key, label, color);
+  renderApiKeyManager();
+}
+function toggleApiKeyVisibility(btn, id) {
+  const span = document.getElementById('apikeyMasked_' + id);
+  if (!span) return;
+  const keys = loadApiKeys();
+  const entry = keys.find(k => k.id === id);
+  if (!entry) return;
+  if (span.dataset.shown === '1') {
+    span.textContent = maskApiKey(entry.key);
+    span.dataset.shown = '0';
+    btn.textContent = '👁';
+  } else {
+    span.textContent = entry.key;
+    span.dataset.shown = '1';
+    btn.textContent = '🙈';
+  }
+}
+
+function renderApiKeyManager() {
+  const body = document.getElementById('apiKeyManagerBody');
+  if (!body) return;
+  const keys = loadApiKeys();
+  const activeId = getActiveApiKeyId();
+
+  let html = '';
+
+  if (_apiKeyPendingCallback) {
+    html += `<div class="apikey-pending-note">⏳ Pick or add an API key below, then close this window to continue.</div>`;
+  }
+
+  html += `<div class="cq-help-box">
+    <strong>How to get a free Gemini API key:</strong>
+    <ol>
+      <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
+      <li>Sign in with your Google account</li>
+      <li>Click <strong>"Create API key"</strong> (choose or create a project if asked)</li>
+      <li>Copy the generated key and paste it below</li>
+    </ol>
+    You can add several keys — e.g. one per Google account — and switch between them any time. Your keys are saved only in this browser and are sent directly to Google's API, never through any other server.
+  </div>`;
+
+  html += `<div class="apikey-list">`;
+  if (!keys.length) {
+    html += `<div class="apikey-empty"><span class="ns-icon">🔑</span>No API keys yet — add your first one below.</div>`;
+  } else {
+    keys.forEach((k, idx) => {
+      const isActive = k.id === activeId;
+      const color = k.color || API_KEY_COLORS[idx % API_KEY_COLORS.length];
+      html += `<div class="apikey-item ${isActive ? 'active' : ''}" style="--apikey-color:${color};">
+        <div class="apikey-num">${idx + 1}</div>
+        <div class="apikey-info">
+          <div class="apikey-label-row">
+            <input class="apikey-label-input" value="${escapeHtml(k.label)}" maxlength="30"
+                   onchange="apiKeyLabelChanged('${k.id}', this.value)" />
+            ${isActive ? `<span class="apikey-active-chip">Active</span>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="apikey-masked" id="apikeyMasked_${k.id}" data-shown="0">${maskApiKey(k.key)}</span>
+            <button class="apikey-view-btn" style="padding:2px 6px;font-size:.7rem;" onclick="toggleApiKeyVisibility(this,'${k.id}')" type="button">👁</button>
+          </div>
+        </div>
+        <div class="apikey-item-actions">
+          <button class="apikey-use-btn" ${isActive ? 'disabled' : ''} onclick="useApiKey('${k.id}')">${isActive ? '✓ In use' : 'Use'}</button>
+          <button class="apikey-del-btn" onclick="deleteApiKeyPrompt('${k.id}', '${escapeHtml(k.label).replace(/'/g, "&#39;")}')">🗑️</button>
+        </div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  const nextColor = API_KEY_COLORS[keys.length % API_KEY_COLORS.length];
+  html += `<div class="apikey-add-form" id="apiKeyAddForm" data-color="${nextColor}">
+    <div class="cq-section-title" style="margin-bottom:0;">➕ Add a New API Key</div>
+    <div class="apikey-add-row">
+      <input type="text" id="apikeyLabelInput" placeholder="Label (e.g. Personal, Backup)" maxlength="30" />
+      <input type="password" id="apikeyValueInput" placeholder="Paste your Gemini API key here" oninput="this.style.borderColor='#B0D4F0'" />
+    </div>
+    <div class="apikey-swatches">
+      <span style="font-size:.78rem;color:var(--text-muted);font-weight:700;margin-right:2px;">Colour:</span>
+      ${API_KEY_COLORS.map(c => `<div class="apikey-swatch ${c === nextColor ? 'selected' : ''}" data-color="${c}" style="background:${c};" onclick="apiKeySelectColor('${c}')"></div>`).join('')}
+    </div>
+    <button class="cq-btn" onclick="submitNewApiKey()" type="button">💾 Save Key</button>
+  </div>`;
+
+  body.innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════════════════
    AI EXPLANATION — per-question and explain-all
 ══════════════════════════════════════════════════════════ */
 
-const AI_EXPLAIN_KEY_STORE = 'anu_msp_gemini_api_key'; // shared with custom quizzes
 const AI_EXPLAIN_MODEL     = 'gemini-2.5-flash';
 
 // Track which questions are loaded/loading to avoid duplicate calls
@@ -3366,13 +3707,6 @@ async function _getExplainFromPool(questionText) {
   } catch(e) { return null; }
 }
 
-function getExplainKey() {
-  try { return localStorage.getItem(AI_EXPLAIN_KEY_STORE) || ''; } catch(e) { return ''; }
-}
-function setExplainKey(key) {
-  try { localStorage.setItem(AI_EXPLAIN_KEY_STORE, (key || '').trim()); } catch(e) {} 
-}
-
 /* ── Build Gemini prompt for one question ── */
 function buildExplainPrompt(q, userAnswer) {
   const optLines = getOptionEntries(q)
@@ -3415,8 +3749,8 @@ ${wrongOptLines}
 Keep each section concise. Use plain text only — no markdown, no bullet points, no asterisks.`;
 }
 
-/* ── Render the API-key prompt inside an explain panel ── */
-function renderExplainKeyPrompt(panelEl, onSave) {
+/* ── Render the "no active API key" prompt inside an explain panel ── */
+function renderExplainKeyPrompt(panelEl, onSave, errorMsg) {
   panelEl.innerHTML = `
     <div class="ai-explain-panel">
       <div class="ai-explain-panel-header">
@@ -3424,34 +3758,18 @@ function renderExplainKeyPrompt(panelEl, onSave) {
       </div>
       <div class="ai-explain-panel-body">
         <div class="ai-key-prompt">
-          <div class="ai-key-prompt-title">Enter your Gemini API key to enable AI explanations</div>
-          <div class="ai-key-prompt-sub">Your key is saved in this browser only and sent directly to Google — never through any other server.<br>
-            Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#4527A0;font-weight:700;">aistudio.google.com/apikey</a>
-          </div>
+          <div class="ai-key-prompt-title">${errorMsg ? escapeHtml(errorMsg) : 'Add a Gemini API key to enable AI explanations'}</div>
+          <div class="ai-key-prompt-sub">Add, choose, or manage your keys in one place — the API Key Manager.</div>
           <div class="ai-key-prompt-row">
-            <input type="password" id="explainKeyInput" placeholder="Paste your Gemini API key here" />
-            <button onclick="handleExplainKeySave()">Save &amp; Explain</button>
+            <button onclick="openApiKeyManager(() => { const p = this && this.closest ? this.closest('.ai-explain-panel') : null; })" style="width:100%;justify-content:center;" type="button">🔑 Open API Key Manager</button>
           </div>
         </div>
       </div>
     </div>`;
-  // Store callback so handleExplainKeySave can call it
-  window._explainKeySaveCallback = onSave;
-}
-
-function handleExplainKeySave() {
-  const inp = document.getElementById('explainKeyInput');
-  const key = (inp ? inp.value : '').trim();
-  if (!key) { if(inp) inp.style.borderColor='#C62828'; return; }
-  setExplainKey(key);
-  // Also sync with the custom quiz key input if it's open
-  const cqInp = document.getElementById('cqApiKeyInput');
-  if (cqInp) cqInp.value = key;
-  if (window._explainKeySaveCallback) {
-    const cb = window._explainKeySaveCallback;
-    window._explainKeySaveCallback = null;
-    cb(key);
-  }
+  // Store callback so closing the manager (once a key is active) can resume the action
+  const wrapped = () => { if (onSave) onSave(getActiveApiKey()); };
+  panelEl.querySelector('.ai-key-prompt-row button').setAttribute('onclick', '');
+  panelEl.querySelector('.ai-key-prompt-row button').onclick = () => openApiKeyManager(wrapped);
 }
 
 /* ── Stop a single in-progress explanation ── */
@@ -3602,11 +3920,10 @@ async function explainQuestion(i, forceRegenerate = false) {
     const p = document.getElementById(`explainPanel_${i}`);
     if (p) {
       if (isKeyErr) {
-        setExplainKey('');
         renderExplainKeyPrompt(p, (key) => {
           p.innerHTML = '';
           explainQuestion(i);
-        });
+        }, 'Your active API key was rejected or is invalid — pick or add another one.');
       } else {
         p.innerHTML = `
           <div class="ai-explain-panel">
@@ -4085,9 +4402,8 @@ async function runChatRequest(i) {
 
     const isKeyErr = err._keyError || /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (isKeyErr) {
-      setExplainKey('');
       const panel = document.getElementById(`chatPanel_${i}`);
-      if (panel) renderExplainKeyPrompt(panel, () => runChatRequest(i));
+      if (panel) renderExplainKeyPrompt(panel, () => runChatRequest(i), 'Your active API key was rejected or is invalid — pick or add another one.');
       return;
     }
 
@@ -4100,7 +4416,6 @@ async function runChatRequest(i) {
    CUSTOM QUIZZES — AI-POWERED (GEMINI)
 ══════════════════════════════════════════════════════════ */
 const CQ_KEY           = 'anu_msp_custom_quizzes_v1';
-const CQ_API_KEY_STORE = 'anu_msp_gemini_api_key';
 const CQ_MODEL         = 'gemini-2.5-flash';
 
 /* ── PER-USER CACHE for Custom Quizzes ──────────────────────
@@ -4369,13 +4684,6 @@ async function saveCustomQuizzesList(arr) {
     try { localStorage.setItem(CQ_KEY, JSON.stringify(arr)); } catch (e) {}
   }
 }
-function getGeminiKey() {
-  try { return localStorage.getItem(CQ_API_KEY_STORE) || ''; } catch (e) { return ''; }
-}
-function setGeminiKey(key) {
-  try { localStorage.setItem(CQ_API_KEY_STORE, (key || '').trim()); } catch (e) {}
-}
-
 function openCustomQuizzes() {
   fsAwaitIfNeeded('customQuizzes', 'Loading your quizzes…');
   cqSelectedFile = null;
@@ -4393,17 +4701,27 @@ function closeCustomQuizzes() {
   fsLoadingHide();
 }
 
-function toggleCQKeyVisibility() {
-  const input = document.getElementById('cqApiKeyInput');
-  const btn   = document.getElementById('cqToggleKeyBtn');
-  if (!input) return;
-  if (input.type === 'password') { input.type = 'text';     btn.textContent = '🙈'; }
-  else                            { input.type = 'password'; btn.textContent = '👁'; }
+function renderCqApiKeyBadge() {
+  const entry = getActiveApiKeyEntry();
+  const keys  = loadApiKeys();
+  if (!entry) {
+    return `<div class="apikey-empty" style="padding:14px;">
+      <span class="ns-icon">🔑</span>No API key configured yet.
+      <div style="margin-top:8px;"><button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Add an API Key</button></div>
+    </div>`;
+  }
+  const idx = Math.max(0, keys.findIndex(k => k.id === entry.id));
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+    <div class="apikey-badge">
+      <span class="apikey-dot" style="background:${entry.color || 'var(--accent)'};"></span>
+      Using API ${idx + 1}: ${escapeHtml(entry.label)}
+    </div>
+    <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Manage API Keys</button>
+  </div>`;
 }
 
 function renderCustomQuizModal() {
   const body     = document.getElementById('customQuizBody');
-  const savedKey = getGeminiKey();
   const quizzes  = loadCustomQuizzes();
 
   let html = '';
@@ -4445,21 +4763,7 @@ function renderCustomQuizModal() {
     <div class="cq-section-title">✨ Create a New Quiz with AI (Gemini)</div>
 
     <!-- API Key -->
-    <div class="cq-help-box">
-      <strong>How to get a free Gemini API key:</strong>
-      <ol>
-        <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
-        <li>Sign in with your Google account</li>
-        <li>Click <strong>"Create API key"</strong> (choose or create a project if asked)</li>
-        <li>Copy the generated key and paste it into the box below</li>
-      </ol>
-      Your key is saved only in this browser and is sent directly to Google's API — it never passes through any other server.
-    </div>
-    <div class="cq-input-row">
-      <input type="password" id="cqApiKeyInput" placeholder="Paste your Gemini API key here"
-             value="${escapeHtml(savedKey)}" oninput="setGeminiKey(this.value)" />
-      <button class="cq-btn cq-btn-secondary" id="cqToggleKeyBtn" onclick="toggleCQKeyVisibility()" type="button">👁</button>
-    </div>
+    ${renderCqApiKeyBadge()}
 
     <!-- Mode tabs -->
     <div class="cq-tabs">
@@ -5183,19 +5487,17 @@ async function cqAiSolveOne(i) {
 
 
 async function generateQuizFromAI() {
-  const apiKeyInput = document.getElementById('cqApiKeyInput');
   const titleInput  = document.getElementById('cqTitleInput');
   const statusEl    = document.getElementById('cqStatus');
   const genBtn      = document.getElementById('cqGenerateBtn');
 
-  const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
+  const apiKey = getActiveApiKey();
   const title  = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
 
-  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Add API Key</button></div>`; return; }
   if (!cqSelectedFile){ statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload an image or PDF of your quiz first.</div>`; return; }
   if (!title)         { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
 
-  setGeminiKey(apiKey);
   cqGeneratedTitle = title;
   cqBusy = true;
   if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
@@ -5310,14 +5612,9 @@ async function generateQuizFromAI() {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (isKeyErr) {
-      statusEl.innerHTML = `<div class="cq-status error">🔑 Your API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
-        <strong>Please enter a new Gemini API key above and try again.</strong><br>
-        <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a></small>
+      statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
+        <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
       </div>`;
-      // Clear the stored bad key and focus the input
-      setGeminiKey('');
-      const inp = document.getElementById('cqApiKeyInput');
-      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
     } else {
       statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
     }
@@ -5379,23 +5676,21 @@ function fileToText(file) {
 }
 
 async function generateQuizFromLecture() {
-  const apiKeyInput   = document.getElementById('cqApiKeyInput');
   const titleInput    = document.getElementById('cqLectureTitleInput');
   const qCountInput   = document.getElementById('cqQCountInput');
   const promptInput   = document.getElementById('cqCustomPromptInput');
   const statusEl      = document.getElementById('cqStatus');
   const genBtn        = document.getElementById('cqLectureGenBtn');
 
-  const apiKey = (apiKeyInput ? apiKeyInput.value : getGeminiKey()).trim();
+  const apiKey = getActiveApiKey();
   const title  = (titleInput  ? titleInput.value  : cqGeneratedTitle).trim();
   const qCount = (qCountInput ? qCountInput.value : cqQuestionCount).trim();
   const prompt = (promptInput ? promptInput.value : cqCustomPrompt).trim();
 
-  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please enter your Gemini API key first.</div>`; return; }
+  if (!apiKey)        { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Add API Key</button></div>`; return; }
   if (!cqLectureFile) { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a lecture file first.</div>`; return; }
   if (!title)         { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
 
-  setGeminiKey(apiKey);
   cqGeneratedTitle = title;
   cqCustomPrompt   = prompt;
   cqQuestionCount  = qCount;
@@ -5501,14 +5796,9 @@ async function generateQuizFromLecture() {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (isKeyErr) {
-      statusEl.innerHTML = `<div class="cq-status error">🔑 Your API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
-        <strong>Please enter a new Gemini API key above and try again.</strong><br>
-        <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a></small>
+      statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
+        <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
       </div>`;
-      // Clear the stored bad key and focus the input
-      setGeminiKey('');
-      const inp = document.getElementById('cqApiKeyInput');
-      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
     } else {
       statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
     }
@@ -5824,7 +6114,7 @@ function cqAddOption(qIdx) {
 async function cqReExtractImage(idx) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
   const apiKey = getGeminiKey();
-  if (!apiKey) { alert('Please enter your Gemini API key first.'); return; }
+  if (!apiKey) { openApiKeyManager(); return; }
   const sourceFile = cqSelectedFile || cqLectureFile;
   if (!sourceFile) { alert('The original source file is no longer available. Please re-upload the file first.'); return; }
 
@@ -5858,7 +6148,7 @@ async function cqReaskQuestion(idx) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
   const apiKey = getGeminiKey();
   if (!apiKey) {
-    alert('Please enter your Gemini API key first.');
+    openApiKeyManager();
     return;
   }
   if (!cqSelectedFile && !cqLectureFile) {
