@@ -836,6 +836,11 @@
 }
 .cq-dz-file-item button:hover { filter: brightness(1.1); }
 .cq-dz-add-more { font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-top: 6px; }
+.cq-dropzone.cq-dz-purple { border-color: #CE93D8; background: #FBF5FC; }
+.cq-dropzone.cq-dz-purple:hover, .cq-dropzone.cq-dz-purple.drag-over { border-color: #9C27B0; background: #F3E5F5; }
+.cq-dropzone.cq-dz-purple .cq-dz-file-item { color: #6A1B9A; }
+.cq-dropzone.cq-dz-purple .cq-dz-file-item button { background: #FCE4EC; color: #AD1457; }
+.cq-dropzone.cq-dz-purple .cq-dz-add-more { color: #8E5A9E; }
 .cq-status {
   display: flex; align-items: center; gap: 10px;
   padding: 12px 14px; border-radius: 8px; font-size: .88rem; font-weight: 600;
@@ -4680,14 +4685,18 @@ function setCQMode(mode) {
 
 /* Renders the staged-files list inside a dropzone, with a per-file remove
    button, for any of the multi-file upload areas. */
-function _cqFileListHTML(files, removeFnName) {
-  if (!files || !files.length) return '';
-  return `<div class="cq-dz-filelist">` + files.map((f, idx) => `
+function _cqFileListHTML(items, removeFnName, fileAccessor) {
+  if (!items || !items.length) return '';
+  const getFile = fileAccessor || (x => x);
+  return `<div class="cq-dz-filelist">` + items.map((it, idx) => {
+    const f = getFile(it);
+    return `
     <div class="cq-dz-file-item">
       <span>✅ ${escapeHtml(f.name)} <span style="opacity:.65;">(${formatBytes(f.size)})</span></span>
       <button type="button" onclick="event.stopPropagation();${removeFnName}(${idx})" title="Remove this file">✕</button>
     </div>
-  `).join('') + `</div>`;
+  `;
+  }).join('') + `</div>`;
 }
 
 function escapeHtml(str) {
@@ -5031,27 +5040,14 @@ function renderCustomQuizModal() {
         <div style="font-size:.73rem;font-weight:700;color:#6A1B9A;margin-bottom:5px;">
           🖼️ Source Images / PDFs (optional) — upload diagrams, charts, or reference PDFs the AI can see
         </div>
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;
-          background:#EDE7F6;border:1.5px dashed #CE93D8;border-radius:8px;padding:7px 14px;
-          font-size:.78rem;font-weight:700;color:#6A1B9A;transition:all .15s;"
-          onmouseover="this.style.background='#E1BEE7'" onmouseout="this.style.background='#EDE7F6'">
-          ➕ Add Image or PDF
-          <input type="file" accept="image/*,application/pdf" multiple style="display:none;"
-            onchange="handleCqAiSourceFiles(event)" />
-        </label>
-        ${cqAiSourceFiles.length > 0 ? `
-        <div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:6px;">
-          ${cqAiSourceFiles.map((f, fi) => `
-            <div style="display:flex;align-items:center;gap:5px;background:#EDE7F6;
-              border:1px solid #CE93D8;border-radius:20px;padding:3px 10px;font-size:.73rem;color:#4A148C;">
-              <span>${f.mimeType.startsWith('image/') ? '🖼️' : '📄'} ${escapeHtml(f.name)}</span>
-              <button onclick="cqRemoveSourceFile(${fi})" type="button"
-                style="background:none;border:none;cursor:pointer;color:#9C27B0;font-size:.85rem;
-                padding:0 2px;line-height:1;">✕</button>
-            </div>
-          `).join('')}
+        <div class="cq-dropzone cq-dz-purple" id="cqSourceDropzone" onclick="document.getElementById('cqSourceFileInput').click()">
+          <div class="cq-dz-icon">🖼️📄</div>
+          <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
+          ${cqAiSourceFiles.length ? _cqFileListHTML(cqAiSourceFiles, 'cqRemoveSourceFile', sf => sf.file) : ''}
+          ${cqAiSourceFiles.length ? `<div class="cq-dz-add-more">➕ Click again to add more files</div>` : ''}
         </div>
-        ` : ''}
+        <input type="file" id="cqSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;"
+          onchange="handleCqSourceFileSelect(event)" />
       </div>
       ` : ''}
 
@@ -5110,6 +5106,7 @@ function renderCustomQuizModal() {
   if (cqGeneratedQuestions) renderCQPreview();
   setupCQDropzone();
   setupLectureDropzone();
+  setupSourceDropzone();
 }
 
 function setupCQDropzone() {
@@ -5632,17 +5629,41 @@ async function extractImagesForQuestions(questions, file, apiKey, filePart) {
 
 // AI-answer questions that have no key in the PDF
 // Source file helpers for AI Answer Mode
-async function handleCqAiSourceFiles(event) {
-  const files = Array.from(event.target.files || []);
-  for (const file of files) {
-    if (file.size > GEMINI_MAX_FILE_BYTES) {
-      alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`);
-      continue;
-    }
-    const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-    cqAiSourceFiles.push({ file, mimeType, name: file.name });
-  }
+function setupSourceDropzone() {
+  const dz = document.getElementById('cqSourceDropzone');
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+  }));
+  dz.addEventListener('drop', e => {
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    files.forEach(acceptSourceFile);
+  });
+}
+
+function handleCqSourceFileSelect(event) {
+  const files = Array.from((event.target && event.target.files) || []);
+  files.forEach(acceptSourceFile);
   event.target.value = '';
+}
+
+function acceptSourceFile(file) {
+  const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = file.type.startsWith('image/');
+
+  if (!isPdf && !isImage) {
+    alert(`"${file.name}" isn't an image or PDF — please upload an image (JPG/PNG/WEBP) or a PDF file.`);
+    return;
+  }
+  if (file.size > GEMINI_MAX_FILE_BYTES) {
+    alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`);
+    return;
+  }
+  const mimeType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  cqAiSourceFiles.push({ file, mimeType, name: file.name });
   renderCustomQuizModal();
 }
 
