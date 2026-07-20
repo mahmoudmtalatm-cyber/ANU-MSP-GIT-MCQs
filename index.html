@@ -4180,7 +4180,7 @@ function buildExplainPrompt(questions, q, userAnswer) {
     .filter(([k]) => k !== q.answer)
     .map(([k, v]) => `
 WRONG — ${k}. ${v}:
-[1–2 sentences: why this option is incorrect and what makes it a plausible distractor]`).join('');
+[1 tight sentence: the specific reason it's wrong — no restating the question or option text]`).join('');
 
   const hasImage = !!(q.image || _cqFindCaseGroupImage(questions, q));
   const imageNote = hasImage
@@ -4200,16 +4200,16 @@ ${optLines}
 CORRECT ANSWER: ${q.answer}. ${q.options[q.answer] || ''}
 ${userLine}
 
-Provide a concise explanation in this EXACT structure (use these exact section headers). You MUST include a section for EVERY answer choice, both correct and wrong:
+Provide a tight, information-dense explanation in this EXACT structure (use these exact section headers). You MUST include a section for EVERY answer choice, both correct and wrong. Every sentence must add new information — no throat-clearing, no restating the question, no filler phrases like "this is important because" or "let's look at":
 
 QUESTION OVERVIEW:
-[One sentence explaining what concept/clinical scenario this question is testing]
+[One sentence: the core concept/clinical scenario being tested — nothing else]
 
 CORRECT ANSWER — ${q.answer}. ${q.options[q.answer] || ''}:
-[2–3 sentences explaining WHY this is correct, with the key medical reasoning]
+[1–2 sentences with only the essential medical reasoning for why this is correct]
 ${wrongOptLines}
 
-Keep each section concise. Use plain text only — no markdown, no bullet points, no asterisks.`;
+Be as brief as possible while keeping every piece of medical reasoning — cut words, never cut content. Use plain text only — no markdown, no bullet points, no asterisks.`;
 }
 
 /* ── Render the "no active API key" prompt inside an explain panel ── */
@@ -4605,7 +4605,7 @@ function buildChatSystemInstruction(i) {
 
   const caseBlock = _cqCaseContextBlock(currentQuestions, q);
 
-  let ctx = `You are a friendly, knowledgeable medical education tutor chatting with a student about one MCQ question. Stay focused on this question and related concepts unless the student clearly asks something else.
+  let ctx = `You are a friendly, knowledgeable medical education tutor chatting with a student about one MCQ question. Stay focused on this question and related concepts unless the student clearly asks something else. Be concise by default: answer in 2–4 sentences, straight to the point, no restating the question, no filler pleasantries or hedging. Only go longer when the student explicitly asks for more detail or the concept genuinely can't be explained correctly in fewer words — but never drop essential medical content just to be short.
 
 ${caseBlock}QUESTION:
 ${q.question}
@@ -4628,7 +4628,7 @@ ${rawExplain}
 Build on this explanation rather than repeating it verbatim — clarify, expand, or address follow-up questions about it.`;
   }
 
-  ctx += `\n\nThe student may attach images or files (e.g. photos of notes, diagrams, or screenshots) — consider their contents when responding. Keep replies concise and clear, in plain text only — no markdown, no asterisks.`;
+  ctx += `\n\nThe student may attach images or files (e.g. photos of notes, diagrams, or screenshots) — consider their contents when responding. Default to short, direct replies; expand only if the question truly needs it. Plain text only — no markdown, no asterisks.`;
   return ctx;
 }
 
