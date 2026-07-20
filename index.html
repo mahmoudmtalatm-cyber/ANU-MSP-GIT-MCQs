@@ -1386,6 +1386,16 @@
 }
 .ai-chat-btn:hover:not(:disabled) { background: #B3E5FC; border-color: #29B6F6; }
 
+.ai-apikey-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #F0F8FF; color: var(--accent); border: 1.5px solid #B0D4F0;
+  border-radius: 7px; padding: 5px 12px; font-family: var(--font);
+  font-size: .8rem; font-weight: 700; cursor: pointer;
+  transition: all .15s; margin-top: 8px; margin-left: 8px;
+}
+.ai-apikey-btn:hover { background: #E3F2FD; border-color: var(--accent); }
+.ai-apikey-btn .apikey-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
 .ai-chat-panel { margin-top: 10px; }
 .ai-chat-panel:empty { margin-top: 0; }
 .ai-chat-box {
@@ -1731,9 +1741,10 @@
 .apikey-manager-body { display: flex; flex-direction: column; gap: 16px; }
 .apikey-list { display: flex; flex-direction: column; gap: 10px; }
 .apikey-item {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: #F7FBFF; border: 2px solid #D8EAF7; border-radius: 10px;
   padding: 12px 14px; transition: border-color .15s, box-shadow .15s;
+  min-width: 0;
 }
 .apikey-item.active {
   border-color: var(--apikey-color, var(--accent));
@@ -1746,14 +1757,18 @@
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: .85rem;
 }
-.apikey-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.apikey-label-row { display: flex; align-items: center; gap: 8px; }
+.apikey-info { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.apikey-label-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .apikey-label-input {
   border: none; background: transparent; font-weight: 800; font-size: .92rem;
   color: var(--text-main); font-family: var(--font); padding: 2px 4px; border-radius: 4px;
   min-width: 0; flex: 1;
 }
 .apikey-label-input:focus { background: #EEF7FF; outline: none; }
+.apikey-label-display {
+  font-weight: 800; font-size: .92rem; color: var(--text-main);
+  padding: 2px 4px; min-width: 0; overflow-wrap: anywhere;
+}
 .apikey-active-chip {
   font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
   background: var(--apikey-color, var(--accent)); color: #fff; padding: 2px 8px; border-radius: 20px;
@@ -1761,8 +1776,10 @@
 }
 .apikey-masked {
   font-size: .78rem; color: var(--text-muted); font-family: monospace; letter-spacing: .5px;
+  min-width: 0; overflow-wrap: anywhere; word-break: break-all;
 }
-.apikey-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.apikey-masked-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.apikey-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; margin-left: auto; }
 .apikey-item-actions button {
   border: none; border-radius: 7px; cursor: pointer; font-family: var(--font);
   font-weight: 700; font-size: .78rem; padding: 7px 10px; transition: filter .15s;
@@ -1772,7 +1789,21 @@
 .apikey-use-btn { background: var(--apikey-color, var(--accent)); color: #fff; }
 .apikey-use-btn:disabled { opacity: .55; cursor: default; }
 .apikey-view-btn { background: #ECEFF1; color: var(--text-main); }
+.apikey-edit-btn { background: #EDE7F6; color: #4527A0; }
 .apikey-del-btn { background: #FFEBEE; color: #C62828; }
+.apikey-edit-row { margin-top: 4px; }
+.apikey-edit-row input {
+  width: 100%; padding: 8px 10px; border: 1.5px solid #B0D4F0; border-radius: 7px;
+  font-family: var(--font); font-size: .85rem; color: var(--text-main);
+  background: #F7FBFF; outline: none; box-sizing: border-box;
+}
+.apikey-edit-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.apikey-edit-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.apikey-edit-actions button {
+  border: none; border-radius: 7px; cursor: pointer; font-family: var(--font);
+  font-weight: 700; font-size: .78rem; padding: 7px 10px; transition: filter .15s;
+}
+.apikey-edit-actions button:hover { filter: brightness(1.08); }
 .apikey-add-form {
   background: var(--bg-card); border: 1.5px dashed #B0D4F0; border-radius: 10px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
@@ -1784,14 +1815,7 @@
   background: #F7FBFF; outline: none;
 }
 .apikey-add-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
-#apikeyLabelInput { flex: 0 0 150px; min-width: 120px; }
 #apikeyValueInput { flex: 1; min-width: 180px; }
-.apikey-swatches { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.apikey-swatch {
-  width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
-  transition: transform .1s, border-color .1s;
-}
-.apikey-swatch.selected { border-color: var(--text-main); transform: scale(1.15); }
 .apikey-empty {
   text-align: center; padding: 22px 16px; color: var(--text-muted); font-size: .88rem;
 }
@@ -1804,6 +1828,14 @@
   .comm-filter-row { flex-direction: column; }
   .comm-filter-select { min-width: unset; width: 100%; }
   .sq-modal { padding: 22px 16px 18px; }
+  .apikey-item { padding: 12px; }
+  .apikey-info { flex-basis: 100%; min-width: 0; }
+  .apikey-item-actions { flex-basis: 100%; margin-left: 0; justify-content: flex-end; }
+}
+@media (max-width: 360px) {
+  .apikey-item-actions { justify-content: stretch; }
+  .apikey-item-actions button { flex: 1 1 auto; justify-content: center; }
+  .apikey-edit-actions button { flex: 1 1 auto; justify-content: center; }
 }
   </style>
 </head>
@@ -2251,6 +2283,34 @@ let selectedLectures = {}; // { subjectName: Set of lecture names }
 let correctToWrong   = 0;
 let wrongToCorrect   = 0;
 let currentQuizSource = 'curriculum'; // 'curriculum' | 'custom' | 'community'
+
+/* ══════════════════════════════════════════════════════════
+   UNLOAD GUARD — warn before refresh/close if progress could
+   be lost: an active quiz timer, or a background process
+   (AI generation, admin publish/split, syncing, explain-all).
+══════════════════════════════════════════════════════════ */
+function _hasUnsavedProgress() {
+  // Quiz in progress: timer running and the quiz screen is showing
+  const quizScreen = document.getElementById('quiz');
+  if (timerInterval && quizScreen && !quizScreen.classList.contains('hidden')) return true;
+
+  // Background processes that would be interrupted mid-flight
+  if (typeof cqBusy !== 'undefined' && cqBusy) return true;
+  if (typeof adminBusy !== 'undefined' && adminBusy) return true;
+  if (typeof _explainAllBusy !== 'undefined' && _explainAllBusy) return true;
+
+  // A Firestore sync/loading operation is in flight
+  const toast = document.getElementById('fsLoadingToast');
+  if (toast && toast.classList.contains('visible')) return true;
+
+  return false;
+}
+window.addEventListener('beforeunload', (e) => {
+  if (!_hasUnsavedProgress()) return;
+  e.preventDefault();
+  e.returnValue = ''; // required by Chrome to show the confirmation dialog
+  return '';
+});
 /* ══════════════════════════════════════════════════════════
    INIT — build subject grid
 ══════════════════════════════════════════════════════════ */
@@ -2891,6 +2951,15 @@ if (changeLog.length > 0) {
     chatBtn.onclick = () => toggleChatPanel(i);
     card.querySelector('.r-content').appendChild(chatBtn);
 
+    // Quick-access API Key Manager button (shows the currently active key)
+    const apikeyBtn = document.createElement('button');
+    apikeyBtn.className = 'ai-apikey-btn';
+    apikeyBtn.id = `apikeyQuickBtn_${i}`;
+    apikeyBtn.title = 'Manage API Keys';
+    apikeyBtn.innerHTML = _apiKeyQuickBtnHTML();
+    apikeyBtn.onclick = () => openApiKeyManager();
+    card.querySelector('.r-content').appendChild(apikeyBtn);
+
     // Placeholder for the chat panel
     const chatPanel = document.createElement('div');
     chatPanel.id = `chatPanel_${i}`;
@@ -3417,6 +3486,16 @@ let _apiKeyPendingCallback = null; // callback to resume once a key becomes acti
 
 function _apiKeyNewId() { return 'k_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
+/* Picks a random color for a new API key, preferring one not already used
+   by an existing key so entries stay visually distinct. Falls back to a
+   fully random color from the palette once every color is already taken. */
+function _pickRandomApiKeyColor(usedColors) {
+  usedColors = usedColors || [];
+  const available = API_KEY_COLORS.filter(c => !usedColors.includes(c));
+  const pool = available.length ? available : API_KEY_COLORS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function loadApiKeys() {
   try {
     const raw = localStorage.getItem(API_KEYS_STORE);
@@ -3464,8 +3543,15 @@ function addApiKey(key, label, color) {
   if (!key) return null;
   const keys = loadApiKeys();
   const id = _apiKeyNewId();
-  color = color || API_KEY_COLORS[keys.length % API_KEY_COLORS.length];
-  keys.push({ id, label: (label || '').trim() || `API ${keys.length + 1}`, key, color });
+  color = color || _pickRandomApiKeyColor(keys.map(k => k.color));
+  // Auto-number new keys as "API N" — N is the next free number, so it stays
+  // correct even after earlier keys were deleted or renamed.
+  const usedNums = keys
+    .map(k => /^API (\d+)$/.exec(k.label))
+    .filter(Boolean)
+    .map(m => parseInt(m[1], 10));
+  const nextNum = usedNums.length ? Math.max(...usedNums) + 1 : keys.length + 1;
+  keys.push({ id, label: (label || '').trim() || `API ${nextNum}`, key, color });
   saveApiKeys(keys);
   if (keys.length === 1) setActiveApiKeyId(id); // first key added becomes active automatically
   return id;
@@ -3483,10 +3569,29 @@ function renameApiKey(id, label) {
   const k = keys.find(x => x.id === id);
   if (k) { k.label = (label || '').trim() || k.label; saveApiKeys(keys); }
 }
+function updateApiKeyValue(id, newKey) {
+  const keys = loadApiKeys();
+  const k = keys.find(x => x.id === id);
+  if (k) { k.key = newKey; saveApiKeys(keys); }
+}
 function maskApiKey(key) {
   if (!key) return '';
   if (key.length <= 8) return '•'.repeat(key.length);
-  return key.slice(0, 4) + '•'.repeat(Math.max(4, key.length - 8)) + key.slice(-4);
+  const dots = Math.min(12, Math.max(4, key.length - 8));
+  return key.slice(0, 4) + '•'.repeat(dots) + key.slice(-4);
+}
+
+/* Small "🔑 API" button shown under each reviewed question, for quick
+   access to the API Key Manager without scrolling back to the top. */
+function _apiKeyQuickBtnHTML() {
+  const entry = getActiveApiKeyEntry();
+  if (!entry) return '🔑 Add API Key';
+  return `<span class="apikey-dot" style="background:${entry.color || 'var(--accent)'};"></span> ${escapeHtml(entry.label)}`;
+}
+function _refreshApiKeyQuickButtons() {
+  document.querySelectorAll('.ai-apikey-btn').forEach(btn => {
+    btn.innerHTML = _apiKeyQuickBtnHTML();
+  });
 }
 
 /* ── Legacy wrappers (kept so existing call sites keep working) ── */
@@ -3504,6 +3609,7 @@ function openApiKeyManager(pendingCallback) {
 }
 function closeApiKeyManager() {
   document.getElementById('apiKeyOverlay').classList.add('hidden');
+  _apiKeyEditingId = null;
   // If something was waiting on a key becoming available, resume it now.
   if (_apiKeyPendingCallback && getActiveApiKey()) {
     const cb = _apiKeyPendingCallback;
@@ -3529,22 +3635,42 @@ function deleteApiKeyPrompt(id, label) {
 function apiKeyLabelChanged(id, value) {
   renameApiKey(id, value);
 }
-function apiKeySelectColor(color) {
-  document.querySelectorAll('.apikey-swatch').forEach(el => {
-    el.classList.toggle('selected', el.dataset.color === color);
-  });
-  const holder = document.getElementById('apiKeyAddForm');
-  if (holder) holder.dataset.color = color;
-}
+
 function submitNewApiKey() {
-  const labelInp = document.getElementById('apikeyLabelInput');
   const valueInp = document.getElementById('apikeyValueInput');
-  const key   = (valueInp ? valueInp.value : '').trim();
-  const label = (labelInp ? labelInp.value : '').trim();
+  const key = (valueInp ? valueInp.value : '').trim();
   if (!key) { if (valueInp) valueInp.style.borderColor = '#C62828'; return; }
-  const holder = document.getElementById('apiKeyAddForm');
-  const color  = holder ? holder.dataset.color : null;
-  addApiKey(key, label, color);
+
+  // Name and colour are always auto-assigned — the user has no control over them.
+  addApiKey(key, '', null);
+  renderApiKeyManager();
+}
+
+// Which key (if any) is currently in inline edit mode
+let _apiKeyEditingId = null;
+
+/* Switches a key's row into edit mode — always reachable via the ✏️ button
+   so an existing key's value can be updated any time, without deleting and
+   re-adding it. */
+function startEditApiKey(id) {
+  _apiKeyEditingId = id;
+  renderApiKeyManager();
+  setTimeout(() => {
+    const inp = document.getElementById('apikeyEditInput_' + id);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 30);
+}
+function cancelEditApiKey() {
+  _apiKeyEditingId = null;
+  renderApiKeyManager();
+}
+function submitEditApiKey(id) {
+  const inp    = document.getElementById('apikeyEditInput_' + id);
+  const newKey = (inp ? inp.value : '').trim();
+  if (!newKey) { if (inp) inp.style.borderColor = '#C62828'; return; }
+
+  updateApiKeyValue(id, newKey);
+  _apiKeyEditingId = null;
   renderApiKeyManager();
 }
 function toggleApiKeyVisibility(btn, id) {
@@ -3584,7 +3710,7 @@ function renderApiKeyManager() {
       <li>Click <strong>"Create API key"</strong> (choose or create a project if asked)</li>
       <li>Copy the generated key and paste it below</li>
     </ol>
-    You can add several keys — e.g. one per Google account — and switch between them any time. Your keys are saved only in this browser and are sent directly to Google's API, never through any other server.
+    You can add several keys — e.g. one per Google account — and switch between them any time. Your keys are saved only in this browser and are sent directly to Google's API, never through any other server. Only Gemini API keys are supported.
   </div>`;
 
   html += `<div class="apikey-list">`;
@@ -3593,44 +3719,59 @@ function renderApiKeyManager() {
   } else {
     keys.forEach((k, idx) => {
       const isActive = k.id === activeId;
+      const isEditing = _apiKeyEditingId === k.id;
       const color = k.color || API_KEY_COLORS[idx % API_KEY_COLORS.length];
       html += `<div class="apikey-item ${isActive ? 'active' : ''}" style="--apikey-color:${color};">
         <div class="apikey-num">${idx + 1}</div>
         <div class="apikey-info">
           <div class="apikey-label-row">
-            <input class="apikey-label-input" value="${escapeHtml(k.label)}" maxlength="30"
-                   onchange="apiKeyLabelChanged('${k.id}', this.value)" />
+            <div class="apikey-label-display">${escapeHtml(k.label)}</div>
             ${isActive ? `<span class="apikey-active-chip">Active</span>` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
+          ${isEditing ? `
+          <div class="apikey-edit-row">
+            <input type="password" id="apikeyEditInput_${k.id}" value="${escapeHtml(k.key)}"
+              oninput="this.style.borderColor='#B0D4F0'" placeholder="Paste new Gemini API key" />
+          </div>
+          <div id="apikeyEditStatus_${k.id}"></div>
+          <div class="apikey-edit-actions">
+            <button class="apikey-use-btn" id="apikeyEditSaveBtn_${k.id}" onclick="submitEditApiKey('${k.id}')" type="button">💾 Save</button>
+            <button class="apikey-view-btn" onclick="cancelEditApiKey()" type="button">Cancel</button>
+          </div>
+          ` : `
+          <div class="apikey-masked-row">
             <span class="apikey-masked" id="apikeyMasked_${k.id}" data-shown="0">${maskApiKey(k.key)}</span>
             <button class="apikey-view-btn" style="padding:2px 6px;font-size:.7rem;" onclick="toggleApiKeyVisibility(this,'${k.id}')" type="button">👁</button>
           </div>
+          `}
         </div>
+        ${isEditing ? '' : `
         <div class="apikey-item-actions">
           <button class="apikey-use-btn" ${isActive ? 'disabled' : ''} onclick="useApiKey('${k.id}')">${isActive ? '✓ In use' : 'Use'}</button>
+          <button class="apikey-edit-btn" onclick="startEditApiKey('${k.id}')" title="Edit this key's value">✏️ Edit</button>
           <button class="apikey-del-btn" onclick="deleteApiKeyPrompt('${k.id}', '${escapeHtml(k.label).replace(/'/g, "&#39;")}')">🗑️</button>
         </div>
+        `}
       </div>`;
     });
   }
   html += `</div>`;
 
-  const nextColor = API_KEY_COLORS[keys.length % API_KEY_COLORS.length];
+  const nextColor = _pickRandomApiKeyColor(keys.map(k => k.color));
   html += `<div class="apikey-add-form" id="apiKeyAddForm" data-color="${nextColor}">
     <div class="cq-section-title" style="margin-bottom:0;">➕ Add a New API Key</div>
+    <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;">
+      Its name and colour are assigned automatically — just paste your Gemini key below.
+    </div>
     <div class="apikey-add-row">
-      <input type="text" id="apikeyLabelInput" placeholder="Label (e.g. Personal, Backup)" maxlength="30" />
-      <input type="password" id="apikeyValueInput" placeholder="Paste your Gemini API key here" oninput="this.style.borderColor='#B0D4F0'" />
+      <input type="password" id="apikeyValueInput" placeholder="Paste your Gemini API key here" oninput="this.style.borderColor='#B0D4F0'" style="flex:1;min-width:180px;" />
     </div>
-    <div class="apikey-swatches">
-      <span style="font-size:.78rem;color:var(--text-muted);font-weight:700;margin-right:2px;">Colour:</span>
-      ${API_KEY_COLORS.map(c => `<div class="apikey-swatch ${c === nextColor ? 'selected' : ''}" data-color="${c}" style="background:${c};" onclick="apiKeySelectColor('${c}')"></div>`).join('')}
-    </div>
-    <button class="cq-btn" onclick="submitNewApiKey()" type="button">💾 Save Key</button>
+    <div id="apikeyAddStatus"></div>
+    <button class="cq-btn" id="apikeyAddBtn" onclick="submitNewApiKey()" type="button">💾 Save Key</button>
   </div>`;
 
   body.innerHTML = html;
+  _refreshApiKeyQuickButtons();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -4102,11 +4243,10 @@ async function explainAllQuestions() {
    AI CHAT — per-question chat with attachments
 ══════════════════════════════════════════════════════════ */
 const CHAT_MODEL = 'gemini-2.5-flash';
-const CHAT_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
 
 // Conversation state, keyed by question index
-const _chatHistory     = {}; // { qIndex: [{role:'user'|'model', parts:[{text}|{inline_data,_name}]}] }
-const _chatPending     = {}; // { qIndex: [{name, mimeType, dataUrl, base64}] } — attachments staged but not yet sent
+const _chatHistory     = {}; // { qIndex: [{role:'user'|'model', parts:[{text}|{inline_data}|{file_data},_name]}] }
+const _chatPending     = {}; // { qIndex: [{file, name, mimeType, previewUrl}] } — attachments staged but not yet sent
 const _chatBusy        = {}; // { qIndex: bool }
 const _chatCancelToken = {}; // { qIndex: {cancelled:bool} }
 const _chatError       = {}; // { qIndex: errorMessage }
@@ -4191,6 +4331,8 @@ function renderChatPanel(i) {
           } else {
             bodyHTML += `<div class="ai-chat-file-chip">📎 ${escapeHtml(p._name || 'attachment')}</div>`;
           }
+        } else if (p.file_data) {
+          bodyHTML += `<div class="ai-chat-file-chip">📎 ${escapeHtml(p._name || 'attachment')}</div>`;
         }
       });
       msgsHTML += `<div class="ai-chat-msg ${isUser ? 'user' : 'model'}"><div class="ai-chat-bubble">${bodyHTML}</div></div>`;
@@ -4221,10 +4363,10 @@ function renderChatPanel(i) {
   let attachHTML = '';
   if (pending.length) {
     attachHTML = `<div class="ai-chat-pending">` + pending.map((a, idx) => {
-      if ((a.mimeType || '').startsWith('image/')) {
-        return `<div class="ai-chat-pending-item"><img src="${a.dataUrl}" alt="" /><button onclick="removeChatAttachment(${i},${idx})">✕</button></div>`;
+      if ((a.mimeType || '').startsWith('image/') && a.previewUrl) {
+        return `<div class="ai-chat-pending-item"><img src="${a.previewUrl}" alt="" /><button onclick="removeChatAttachment(${i},${idx})">✕</button></div>`;
       }
-      return `<div class="ai-chat-pending-item"><span>📎 ${escapeHtml(a.name)}</span><button onclick="removeChatAttachment(${i},${idx})">✕</button></div>`;
+      return `<div class="ai-chat-pending-item"><span>📎 ${escapeHtml(a.name)} <span style="opacity:.65;">(${formatBytes(a.file.size)})</span></span><button onclick="removeChatAttachment(${i},${idx})">✕</button></div>`;
     }).join('') + `</div>`;
   }
 
@@ -4252,32 +4394,28 @@ function handleChatFileSelect(i, inputEl) {
   if (!_chatPending[i]) _chatPending[i] = [];
 
   files.forEach(file => {
-    if (file.size > CHAT_MAX_ATTACHMENT_BYTES) {
-      alert(`"${file.name}" is too large (max 10MB).`);
+    if (file.size > GEMINI_MAX_FILE_BYTES) {
+      alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API.`);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const base64  = String(dataUrl).split(',')[1] || '';
-      _chatPending[i].push({
-        name: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        dataUrl,
-        base64
-      });
-      renderChatPanel(i);
-    };
-    reader.onerror = () => alert(`Failed to read "${file.name}".`);
-    reader.readAsDataURL(file);
+    const mimeType = file.type || 'application/octet-stream';
+    // Use a lightweight object URL for image previews instead of reading the
+    // whole file into a base64 data URL up front — keeps large attachments
+    // cheap to stage before they're actually sent.
+    const previewUrl = mimeType.startsWith('image/') ? URL.createObjectURL(file) : null;
+    _chatPending[i].push({ file, name: file.name, mimeType, previewUrl });
   });
 
+  renderChatPanel(i);
   inputEl.value = '';
 }
 
 /* ── Remove a staged (not-yet-sent) attachment ── */
 function removeChatAttachment(i, idx) {
-  if (_chatPending[i]) _chatPending[i].splice(idx, 1);
+  if (_chatPending[i]) {
+    const removed = _chatPending[i].splice(idx, 1)[0];
+    if (removed && removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+  }
   renderChatPanel(i);
 }
 
@@ -4290,7 +4428,11 @@ function stopChat(i) {
 function buildApiContents(history) {
   return history.map(m => ({
     role: m.role,
-    parts: m.parts.map(p => p.inline_data ? { inline_data: { mime_type: p.inline_data.mime_type, data: p.inline_data.data } } : { text: p.text })
+    parts: m.parts.map(p => {
+      if (p.inline_data) return { inline_data: { mime_type: p.inline_data.mime_type, data: p.inline_data.data } };
+      if (p.file_data)   return { file_data: { mime_type: p.file_data.mime_type, file_uri: p.file_data.file_uri } };
+      return { text: p.text };
+    })
   }));
 }
 
@@ -4317,9 +4459,32 @@ async function sendChatMessage(i) {
     return;
   }
 
+  // Attachments are converted to Gemini "parts" here — small ones inline as
+  // base64, larger ones streamed through the Files API — so staging stays
+  // instant regardless of file size and only the actual send does the work.
+  if (pending.length) {
+    _chatBusy[i] = true;
+    if (input) input.disabled = true;
+    renderChatPanel(i);
+    const loadingLabel = document.getElementById(`chatLoadingLabel_${i}`);
+    if (loadingLabel) loadingLabel.textContent = 'Uploading attachment…';
+  }
+
   const parts = [];
   if (text) parts.push({ text });
-  pending.forEach(a => parts.push({ inline_data: { mime_type: a.mimeType, data: a.base64 }, _name: a.name }));
+  try {
+    for (const a of pending) {
+      const part = await buildGeminiFilePart(a.file, apiKey, a.mimeType);
+      part._name = a.name;
+      parts.push(part);
+      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+    }
+  } catch (e) {
+    _chatBusy[i] = false;
+    _chatError[i] = e.message || String(e);
+    renderChatPanel(i);
+    return;
+  }
 
   if (!_chatHistory[i]) _chatHistory[i] = [];
   _chatHistory[i].push({ role: 'user', parts });
@@ -4968,11 +5133,10 @@ function acceptLectureFile(file) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload a PDF, image (JPG/PNG/WEBP), or .txt file.</div>`;
     return;
   }
-  if (file.size > 19 * 1024 * 1024) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File is too large (max ~19MB).</div>`;
+  if (file.size > GEMINI_MAX_FILE_BYTES) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ "${escapeHtml(file.name)}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API.</div>`;
     return;
   }
-
   cqLectureFile = file;
   if (statusEl) statusEl.innerHTML = '';
   renderCustomQuizModal();
@@ -4987,8 +5151,8 @@ function acceptCQFile(file) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload an image (JPG/PNG/WEBP) or a PDF file.</div>`;
     return;
   }
-  if (file.size > 19 * 1024 * 1024) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ File is too large (max ~19MB).</div>`;
+  if (file.size > GEMINI_MAX_FILE_BYTES) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">⚠️ "${escapeHtml(file.name)}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API.</div>`;
     return;
   }
 
@@ -5004,6 +5168,99 @@ function fileToBase64(file) {
     reader.onerror = () => reject(new Error('Failed to read the file.'));
     reader.readAsDataURL(file);
   });
+}
+
+/* ══════════════════════════════════════════════════════════
+   GEMINI FILE UPLOADS — no size cap of our own.
+   Small files are sent inline as base64 (one request, no extra
+   round trip). Anything too big for a single inline request is
+   streamed straight to Google's Files API instead and referenced
+   by URI — the bytes are sent directly from the File/Blob, so a
+   large file never has to be fully base64-encoded in memory first.
+   The only real ceiling left is the one the Gemini API itself
+   enforces (2GB per file — included on the free tier), so this app
+   no longer imposes anything smaller on top of that.
+══════════════════════════════════════════════════════════ */
+const GEMINI_MAX_FILE_BYTES         = 2 * 1024 * 1024 * 1024; // Gemini Files API hard limit, per file (free tier included)
+const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024;       // stay safely under Gemini's ~20MB inline request cap once base64 (~33%) overhead is added
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + 'GB';
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+  if (bytes >= 1024) return (bytes / 1024).toFixed(0) + 'KB';
+  return bytes + 'B';
+}
+
+/* Throws a friendly error if a file exceeds Gemini's own per-file limit —
+   the only size restriction this app enforces. */
+function assertWithinGeminiFileLimit(file) {
+  if (file.size > GEMINI_MAX_FILE_BYTES) {
+    throw new Error(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be uploaded.`);
+  }
+}
+
+/* Uploads a file to Gemini's resumable Files API and waits for it to
+   finish processing. Returns { mime_type, file_uri }. */
+async function uploadFileToGeminiFileAPI(file, apiKey, mimeType) {
+  mimeType = mimeType || file.type || 'application/octet-stream';
+
+  const startResp = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: {
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start',
+      'X-Goog-Upload-Header-Content-Length': String(file.size),
+      'X-Goog-Upload-Header-Content-Type': mimeType,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ file: { display_name: file.name } })
+  });
+  if (!startResp.ok) throw new Error(`Google rejected the upload of "${file.name}" — please check your connection and try again.`);
+  const uploadUrl = startResp.headers.get('x-goog-upload-url');
+  if (!uploadUrl) throw new Error(`Google didn't return an upload URL for "${file.name}" — please try again.`);
+
+  const uploadResp = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Length': String(file.size),
+      'X-Goog-Upload-Offset': '0',
+      'X-Goog-Upload-Command': 'upload, finalize'
+    },
+    body: file
+  });
+  if (!uploadResp.ok) throw new Error(`Uploading "${file.name}" to Google failed — please try again.`);
+  const info = await uploadResp.json();
+  let fileInfo = info && info.file;
+  if (!fileInfo || !fileInfo.uri) throw new Error(`Google didn't return a usable reference for "${file.name}".`);
+
+  // Large PDFs/videos can take a few seconds to finish processing server-side.
+  let attempts = 0;
+  while (fileInfo.state === 'PROCESSING' && attempts < 30) {
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const checkResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileInfo.name}?key=${encodeURIComponent(apiKey)}`);
+      if (checkResp.ok) fileInfo = await checkResp.json();
+    } catch (e) {}
+    attempts++;
+  }
+  if (fileInfo.state === 'FAILED') throw new Error(`Google failed to process "${file.name}" — try a different file.`);
+
+  return { mime_type: fileInfo.mimeType || mimeType, file_uri: fileInfo.uri };
+}
+
+/* Builds a Gemini request "part" for a file: inline base64 for small files,
+   automatic Files-API upload for anything bigger. This is the one place
+   that decides inline-vs-upload and enforces Gemini's own size ceiling, so
+   every upload path in the app behaves consistently and stays Gemini-only. */
+async function buildGeminiFilePart(file, apiKey, mimeTypeOverride) {
+  assertWithinGeminiFileLimit(file);
+  const mimeType = mimeTypeOverride || file.type || 'application/octet-stream';
+  if (file.size <= GEMINI_INLINE_THRESHOLD_BYTES) {
+    const base64 = await fileToBase64(file);
+    return { inline_data: { mime_type: mimeType, data: base64 } };
+  }
+  const { mime_type, file_uri } = await uploadFileToGeminiFileAPI(file, apiKey, mimeType);
+  return { file_data: { mime_type, file_uri } };
 }
 
 const CQ_EXTRACTION_PROMPT = `You are extracting multiple-choice quiz questions from an uploaded document (image or PDF).
@@ -5316,15 +5573,14 @@ async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType
 async function handleCqAiSourceFiles(event) {
   const files = Array.from(event.target.files || []);
   for (const file of files) {
+    if (file.size > GEMINI_MAX_FILE_BYTES) {
+      alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`);
+      continue;
+    }
     const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload  = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsDataURL(file);
-    });
-    cqAiSourceFiles.push({ base64, mimeType, name: file.name });
+    cqAiSourceFiles.push({ file, mimeType, name: file.name });
   }
+  event.target.value = '';
   renderCustomQuizModal();
 }
 
@@ -5336,7 +5592,7 @@ function cqRemoveSourceFile(idx) {
 // General-purpose AI solver: solves questions at given indices using Gemini.
 // targetIdxs: array of question indices to solve (can be no-key or keyed questions)
 // sourceText: optional reference text
-// sourceFiles: optional array of {base64, mimeType, name}
+// sourceFiles: optional array of {file, mimeType, name}
 // onlyIfNoKey: if true, only process questions with no_answer_key (legacy behaviour)
 async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl) {
   if (!targetIdxs || !targetIdxs.length) return;
@@ -5364,10 +5620,11 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
   }
   if (sourceFiles && sourceFiles.length > 0) {
     sourceParts.push({ text: '## Reference Source Material (Images/PDFs):' });
-    sourceFiles.forEach((sf, sfi) => {
+    for (let sfi = 0; sfi < sourceFiles.length; sfi++) {
+      const sf = sourceFiles[sfi];
       sourceParts.push({ text: 'Source file ' + (sfi + 1) + ' (' + sf.name + '):' });
-      sourceParts.push({ inline_data: { mime_type: sf.mimeType, data: sf.base64 } });
-    });
+      sourceParts.push(await buildGeminiFilePart(sf.file, apiKey, sf.mimeType));
+    }
     sourceParts.push({ text: '---' });
   }
 
@@ -5504,16 +5761,16 @@ async function generateQuizFromAI() {
   statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file and extracting all questions… this can take a moment for longer documents.</div>`;
 
   try {
-    const base64Data = await fileToBase64(cqSelectedFile);
     const mimeType = cqSelectedFile.type ||
       (cqSelectedFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    const filePart = await buildGeminiFilePart(cqSelectedFile, apiKey, mimeType);
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     const data = await callGeminiWithRetry(url, {
       contents: [{
         parts: [
-          { inline_data: { mime_type: mimeType, data: base64Data } },
+          filePart,
           { text: CQ_EXTRACTION_PROMPT }
         ]
       }],
@@ -5558,10 +5815,14 @@ async function generateQuizFromAI() {
 
     if (!cleaned.length) throw new Error('The AI response did not contain any usable questions.');
 
-    // Extract embedded images for questions that have them
+    // Extract embedded images for questions that have them. This step renders
+    // PDF pages / crops regions locally in the browser, which needs the raw
+    // bytes as base64 regardless of how the file was sent to Gemini above —
+    // so it's read here, lazily, only when there's actually an image to pull.
     const imageQuestions = cleaned.filter(q => q.has_image);
     if (imageQuestions.length > 0) {
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Extracting images for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}… please wait.</div>`;
+      const base64Data = await fileToBase64(cqSelectedFile);
       await extractImagesForQuestions(cleaned, base64Data, mimeType, apiKey);
     }
 
@@ -5705,8 +5966,8 @@ async function generateQuizFromLecture() {
 
     let requestBody;
 
-    if (isTxt) {
-      // Text file: send as plain text alongside the prompt
+    if (isTxt && cqLectureFile.size <= GEMINI_INLINE_THRESHOLD_BYTES) {
+      // Small text file: send as plain text alongside the prompt
       const lectureText = await fileToText(cqLectureFile);
       if (!lectureText.trim()) throw new Error('The text file appears to be empty.');
       requestBody = {
@@ -5722,14 +5983,16 @@ async function generateQuizFromLecture() {
         }
       };
     } else {
-      // PDF or image: send as base64
-      const base64Data = await fileToBase64(cqLectureFile);
+      // PDF, image, or a text file too big to inline — let buildGeminiFilePart
+      // decide between inline base64 and the Files API based on size.
       const mimeType = cqLectureFile.type ||
-        (cqLectureFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+        (cqLectureFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' :
+         isTxt ? 'text/plain' : 'image/jpeg');
+      const filePart = await buildGeminiFilePart(cqLectureFile, apiKey, mimeType);
       requestBody = {
         contents: [{
           parts: [
-            { inline_data: { mime_type: mimeType, data: base64Data } },
+            filePart,
             { text: generationPrompt }
           ]
         }],
@@ -6291,6 +6554,8 @@ function openSplitPanel(context, quizId) {
     renderCQPreview();
   } else if (context === 'active') {
     _renderActiveSplitPanel();
+  } else if (context === 'adminPublished') {
+    _renderAdminAssignedListHTML();
   } else {
     renderCustomQuizModal();
   }
@@ -6313,6 +6578,7 @@ function closeSplitPanel() {
   cqSplitState = null;
   renderCQPreview && renderCQPreview();
   renderCustomQuizModal && renderCustomQuizModal();
+  if (document.getElementById('adminAssignedSection')) _renderAdminAssignedListHTML();
   const activeContainer = document.getElementById('resultsSplitContainer');
   if (activeContainer) activeContainer.innerHTML = '';
 }
@@ -6503,6 +6769,7 @@ function _rerenderSplitOwner() {
   if (!cqSplitState) return;
   if (cqSplitState.context === 'preview') renderCQPreview();
   else if (cqSplitState.context === 'active') _renderActiveSplitPanel();
+  else if (cqSplitState.context === 'adminPublished') _renderAdminAssignedListHTML();
   else renderCustomQuizModal();
 }
 
@@ -6510,6 +6777,10 @@ function _getSplitSourceQuestions() {
   if (!cqSplitState) return null;
   if (cqSplitState.context === 'preview') return cqGeneratedQuestions || [];
   if (cqSplitState.context === 'active') return currentQuestions || [];
+  if (cqSplitState.context === 'adminPublished') {
+    const entry = adminAssignedEntries.find(x => x.id === cqSplitState.quizId);
+    return entry ? (entry.questions || []) : [];
+  }
   const quizzes = loadCustomQuizzes();
   const q = quizzes.find(x => x.id === cqSplitState.quizId);
   return q ? q.questions : [];
@@ -6667,6 +6938,9 @@ async function executeSplitQuiz() {
     baseTitle = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
   } else if (cqSplitState.context === 'active') {
     baseTitle = currentLecture || 'Active Quiz';
+  } else if (cqSplitState.context === 'adminPublished') {
+    const src = adminAssignedEntries.find(x => x.id === cqSplitState.quizId);
+    baseTitle = src ? (src.lectureName || src.id) : 'Published Lecture';
   } else {
     const quizzes = loadCustomQuizzes();
     const src = quizzes.find(x => x.id === cqSplitState.quizId);
@@ -6674,6 +6948,43 @@ async function executeSplitQuiz() {
   }
 
   if (!confirm(`This will create ${chunks.length} new quiz${chunks.length !== 1 ? 'zes' : ''} from "${baseTitle}". Continue?`)) return;
+
+  // ── Admin-published curriculum lectures split off into new Firestore
+  //    lecture docs (rather than into the user's local custom-quiz list) ──
+  // ── Admin-published curriculum lectures are split into the admin's own
+  //    Custom Quizzes — NOT published directly to the subject — so the admin
+  //    can review/edit each part before publishing it themselves. ──
+  if (cqSplitState.context === 'adminPublished') {
+    const customQuizzes = loadCustomQuizzes();
+    const newCustomQuizzes = chunks.map((c, i) => {
+      const partQuestions = JSON.parse(JSON.stringify(srcQuestions.slice(c.start - 1, c.end)));
+      // Strip published-lecture-specific image sentinels; images are already
+      // hydrated inline as q.image at this point (see openAdminSplitPanel),
+      // and custom quizzes manage their own image storage separately.
+      partQuestions.forEach(q => { delete q.imageUrl; delete q.sharedImageIdx; delete q.pubImageIdx; });
+      return {
+        id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i,
+        title: ((cqSplitState.mode === 'custom' || cqSplitState.mode === 'visual') && c.label)
+          ? c.label
+          : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`,
+        questions: partQuestions,
+        createdAt: Date.now() + i
+      };
+    });
+
+    try {
+      newCustomQuizzes.reverse().forEach(q => customQuizzes.unshift(q));
+      await saveCustomQuizzesList(customQuizzes);
+    } catch (e) {
+      alert('Failed to create split quizzes: ' + (e.message || e));
+      return;
+    }
+
+    cqSplitState = null;
+    _renderAdminAssignedListHTML();
+    alert(`✅ Created ${newCustomQuizzes.length} split quiz${newCustomQuizzes.length !== 1 ? 'zes' : ''} from "${baseTitle}".\n\nThese were NOT published directly to students — they've been added to your Custom Quizzes, where you can review and publish each one individually when ready.`);
+    return;
+  }
 
   const quizzes = loadCustomQuizzes();
   const newQuizzes = chunks.map((c, i) => ({
@@ -7489,6 +7800,12 @@ let adminEditMode      = null;   // 'publish' | 'published' | null
 let adminEditingPublishedId   = null; // lectureId when editing an already-published lecture
 let adminEditingPublishedName = '';   // its lecture name
 
+// Cache of the currently-listed published lectures for adminTargetSubject.
+// Populated by renderAdminAssignedList(); used as the Split-Quiz source so
+// re-rendering the split panel (mode switches, range edits) doesn't need to
+// re-hit Firestore every keystroke.
+let adminAssignedEntries = [];
+
 let adminActiveTab = 'publish'; // 'publish' | 'curriculum'
 
 function openAdminPanel() {
@@ -8103,12 +8420,27 @@ async function renderAdminAssignedList() {
     return;
   }
 
+  entries.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
+  adminAssignedEntries = entries;
+
+  _renderAdminAssignedListHTML();
+}
+
+/* Rebuilds the #adminAssignedSection HTML from the already-fetched
+   adminAssignedEntries cache — no Firestore round-trip. Used to
+   re-render the Split Quiz panel (mode switches, range/label edits,
+   visual cut toggles) without re-querying the database each time. */
+function _renderAdminAssignedListHTML() {
+  const sec = document.getElementById('adminAssignedSection');
+  if (!sec) return;
+  const entries = adminAssignedEntries;
+
+  sec.innerHTML = `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[adminTargetSubject].label || adminTargetSubject)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
+
   if (!entries.length) {
     sec.innerHTML += `<div style="color:var(--text-muted);font-size:.82rem;">No quizzes have been published to this subject yet.</div>`;
     return;
   }
-
-  entries.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
 
   entries.forEach((e, idx) => {
     sec.innerHTML += `
@@ -8127,15 +8459,31 @@ async function renderAdminAssignedList() {
           onclick="adminEditPublished('${e.id}')">✏️ Edit</button>
         <button class="admin-remove-btn" style="background:#E3F2FD;color:#0D47A1;border:1.5px solid #90CAF9;"
           onclick="adminOpenMoveQuiz('${e.id}', '${(e.lectureName||e.id).replace(/'/g,"\'")}')">📋 Copy/Move</button>
+        <button class="admin-remove-btn" style="background:#F3E5F5;color:#4A148C;border:1.5px solid #CE93D8;"
+          onclick="openAdminSplitPanel('${e.id}')" title="Split into multiple quizzes">✂️ Split</button>
         <button class="admin-remove-btn" onclick="adminRemovePublished('${e.id}')">🗑 Delete</button>
       </div>
-      <div id="adminPublishedEditorArea_${e.id}"></div>`;
+      <div id="adminPublishedEditorArea_${e.id}"></div>
+      ${renderSplitPanel('adminPublished', e.id, (e.questions || []).length)}`;
   });
 
   // If currently editing one of these, render its editor
   if (adminEditMode === 'published' && adminEditingPublishedId) {
     renderAdminQuestionEditor('adminPublishedEditorArea_' + adminEditingPublishedId);
   }
+}
+
+/* Opens the Split Quiz panel for a published curriculum lecture.
+   Hydrates its images first (published lectures store images in a
+   separate Firestore subcollection) so the split-off quizzes keep them. */
+async function openAdminSplitPanel(lectureId) {
+  const entry = adminAssignedEntries.find(x => x.id === lectureId);
+  if (!entry) return;
+  if (!entry._splitImagesHydrated) {
+    await hydratePublishedLectureImages(adminTargetSubject, lectureId, entry.questions || []);
+    entry._splitImagesHydrated = true;
+  }
+  openSplitPanel('adminPublished', lectureId);
 }
 
 /* Load a published lecture's questions into the inline editor */
