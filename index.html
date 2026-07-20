@@ -403,14 +403,15 @@
 
     /* ── CURR-ITEM EDITABLE (years / modules / subjects with delete/rename) ── */
     .curr-item-row {
-      display: flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
       background: #F7FBFF; border: 1px solid #D8EAF7;
       border-radius: 8px; padding: 7px 10px; margin-bottom: 6px;
     }
-    .curr-item-name { flex: 1; font-size: .88rem; font-weight: 700; color: var(--text-main); }
+    .curr-item-row > div:first-child { min-width: 0; flex-basis: 140px; }
+    .curr-item-name { flex: 1; font-size: .88rem; font-weight: 700; color: var(--text-main); overflow-wrap: anywhere; }
     .curr-item-sub { font-size: .74rem; color: var(--text-muted); font-weight: 500; }
     .curr-item-btn {
-      border: none; border-radius: 6px; padding: 5px 9px;
+      border: none; border-radius: 6px; padding: 5px 9px; flex-shrink: 0;
       font-family: var(--font); font-size: .75rem; font-weight: 700;
       cursor: pointer; transition: filter .15s; white-space: nowrap;
     }
@@ -730,8 +731,8 @@
         display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
       }
       .subj-stat-name {
-        font-weight: 700; font-size: .83rem; min-width: 100px;
-        color: var(--text-main); white-space: nowrap;
+        font-weight: 700; font-size: .83rem; min-width: 70px; max-width: 100px; flex-shrink: 0;
+        color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .subj-bar-wrap {
         flex: 1; background: #E3F2FD; border-radius: 4px; height: 12px; overflow: hidden;
@@ -744,10 +745,11 @@
       .subj-quizzes { font-size: .75rem; color: var(--text-muted); min-width: 48px; text-align: right; }
       .history-list { display: flex; flex-direction: column; gap: 7px; }
       .history-item {
-        display: flex; align-items: center; justify-content: space-between;
+        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
         background: #F7FBFF; border: 1px solid #D8EAF7;
         border-radius: 8px; padding: 10px 14px;
       }
+      .history-item > div:first-child { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
       .h-subject { font-weight: 700; font-size: .88rem; color: var(--text-main); }
       .h-lecture { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
       .h-score { font-weight: 800; font-size: 1rem; white-space: nowrap; margin-left: 10px; }
@@ -776,7 +778,7 @@
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }
-        .subj-stat-name { min-width: 70px; font-size: .75rem; }
+        .subj-stat-name { min-width: 56px; max-width: 74px; font-size: .75rem; }
       }
 /* ── CUSTOM QUIZZES (AI) ── */
 .cq-section {
@@ -920,7 +922,7 @@
 }
 .cq-edit-reask-btn:hover { background: #D1C4E9; }
 .cq-opt-edit-row {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
   padding: 5px 8px; border-radius: 7px; border: 1.5px solid #D8EAF7;
   background: #fff; transition: border-color .15s, background .15s;
 }
@@ -946,7 +948,7 @@
   font-weight: 800; color: var(--accent); font-size: .83rem; flex-shrink: 0; min-width: 16px;
 }
 .cq-opt-text-input {
-  flex: 1; padding: 5px 8px; border: 1px solid transparent; border-radius: 5px;
+  flex: 1 1 90px; min-width: 90px; padding: 5px 8px; border: 1px solid transparent; border-radius: 5px;
   font-family: var(--font); font-size: .85rem; color: var(--text-main);
   background: transparent; outline: none; transition: border-color .15s, background .15s;
 }
@@ -1495,6 +1497,10 @@
   background: #fff; border: 1.5px solid #B3E5FC; border-radius: 8px;
   padding: 4px 8px; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--accent);
 }
+.ai-chat-pending-item { max-width: 100%; }
+.ai-chat-pending-item > span {
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .ai-chat-pending-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
 .ai-chat-pending-item button {
   background: #C62828; color: #fff; border: none; border-radius: 50%;
@@ -1577,13 +1583,13 @@
 
 .admin-quiz-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
 .admin-quiz-item {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   background: #F7FBFF; border: 1.5px solid #D8EAF7; border-radius: 8px;
   padding: 10px 14px; cursor: pointer; transition: all .15s;
 }
 .admin-quiz-item:hover { border-color: var(--accent); background: #EEF7FF; }
 .admin-quiz-item.selected { border-color: #1B4F72; background: #EBF4FA; }
-.admin-quiz-item-info { flex: 1; }
+.admin-quiz-item-info { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
 .admin-quiz-item-title { font-weight: 700; font-size: .9rem; color: var(--text-main); }
 .admin-quiz-item-meta { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .admin-quiz-item-check {
@@ -1620,11 +1626,11 @@
 .admin-assigned-section { margin-top: 4px; }
 .admin-assigned-title { font-size: .8rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
 .admin-assigned-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 8px;
   padding: 10px 14px; margin-bottom: 7px;
 }
-.admin-assigned-info { flex: 1; }
+.admin-assigned-info { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
 .admin-assigned-name { font-weight: 700; font-size: .88rem; color: var(--text-main); }
 .admin-assigned-path { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .admin-remove-btn {
@@ -1690,7 +1696,7 @@
 .icon-picker-trigger .ip-caret { font-size: .65rem; color: var(--text-muted); }
 .icon-picker-pop {
   position: absolute; z-index: 50; top: calc(100% + 6px); left: 0;
-  width: 300px; max-height: 320px; overflow-y: auto;
+  width: 300px; max-width: calc(100vw - 48px); max-height: 320px; overflow-y: auto;
   background: #fff; border: 1px solid #B0D4F0; border-radius: 10px;
   box-shadow: 0 8px 28px rgba(20,40,60,.22); padding: 10px;
 }
@@ -1870,6 +1876,23 @@
   .apikey-item { padding: 12px; }
   .apikey-info { flex-basis: 100%; min-width: 0; }
   .apikey-item-actions { flex-basis: 100%; margin-left: 0; justify-content: flex-end; }
+
+  /* Admin panel + curriculum manager + custom quiz editor: keep everything
+     inside the card on narrow screens instead of overlapping/spilling out */
+  .admin-overlay { padding: 8px; }
+  .admin-modal { max-height: 94vh; border-radius: 12px; }
+  .admin-modal-header { padding: 12px 16px; }
+  .admin-body { padding: 14px; gap: 12px; }
+  .admin-panel-tab { font-size: .76rem; padding: 10px 6px; }
+  .curr-section { padding: 12px; }
+  .curr-row { gap: 6px; }
+  .curr-item-row { padding: 8px; }
+  .curr-item-row > div:first-child { flex-basis: 100%; }
+  .curr-item-btn { font-size: .72rem; padding: 5px 7px; }
+  .cq-section { padding: 12px 14px; }
+  .cq-opt-edit-row { padding: 6px; }
+  .cq-opt-text-input { min-width: 70px; }
+  .cq-quiz-item { padding: 10px; }
 }
 @media (max-width: 360px) {
   .apikey-item-actions { justify-content: stretch; }
@@ -1990,10 +2013,7 @@
         <h2>🛠️&nbsp; Admin Panel</h2>
         <button onclick="closeAdminPanel()">✕</button>
       </div>
-      <div class="admin-panel-tabs" id="adminPanelTabs">
-        <button class="admin-panel-tab active" id="adminTabPublish" onclick="adminSwitchTab('publish')">📤 Publish Quizzes</button>
-        <button class="admin-panel-tab" id="adminTabCurriculum" onclick="adminSwitchTab('curriculum')">📚 Manage Curriculum</button>
-      </div>
+      <div class="admin-panel-tabs" id="adminPanelTabs"></div>
       <div class="admin-body" id="adminBody"></div>
     </div>
   </div>
@@ -2157,14 +2177,202 @@
 <script src="data/research2_module.js"></script>
 <script>
   /* ══════════════════════════════════════════════════════════
-   ADMIN CONFIG
+   ADMIN CONFIG — permission-based admin system
+   ─────────────────────────────────────────────
+   • SUPER_ADMIN_EMAIL is hardcoded, always has every permission,
+     and can never be removed or demoted by anyone.
+   • All other admins live in Firestore at appConfig/adminRoster,
+     doc shape: { admins: { [emailLower]: { permissions:[...], addedBy, addedAt } } }
+   • An admin can only grant permissions they themselves currently
+     hold, and can only remove another admin whose permissions are
+     fully covered by their own (so nobody can promote around, or
+     demote/remove, an admin more powerful than themselves).
 ══════════════════════════════════════════════════════════ */
-const ADMIN_EMAILS = [
-  "mahmoudmtalatm@gmail.com"
-];
+const SUPER_ADMIN_EMAIL = "mahmoudmtalatm@gmail.com";
 
+const ADMIN_PERMISSIONS = ['curriculum', 'community', 'admins'];
+const ADMIN_PERMISSION_LABELS = {
+  curriculum: 'Manage Curriculum & Publish Quizzes',
+  community:  'Manage Community Quizzes',
+  admins:     'Assign / Remove Admins'
+};
+
+// In-memory copy of the Firestore admin roster, populated by loadAdminRoster().
+// Shape: { [emailLower]: { permissions: string[], addedBy, addedAt } }
+window._adminRoster = window._adminRoster || {};
+
+// Unsubscribe handle for the current admin-roster listener, so loadAdminRoster()
+// can safely tear down and re-attach a fresh subscription on every auth change.
+window._adminRosterUnsub = window._adminRosterUnsub || null;
+
+function isSuperAdmin(user) {
+  return !!(user && user.email && user.email.toLowerCase() === SUPER_ADMIN_EMAIL);
+}
+
+/* Returns the array of permissions this user currently holds (empty array if none). */
+function getAdminPermissions(user) {
+  if (!user || !user.email) return [];
+  const email = user.email.toLowerCase();
+  if (email === SUPER_ADMIN_EMAIL) return ADMIN_PERMISSIONS.slice();
+  const entry = window._adminRoster && window._adminRoster[email];
+  return (entry && Array.isArray(entry.permissions)) ? entry.permissions.slice() : [];
+}
+
+function hasAdminPermission(user, perm) {
+  return getAdminPermissions(user).includes(perm);
+}
+
+/* "Is an admin at all" — true if the user holds any permission. */
 function isAdminUser(user) {
-  return !!(user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
+  return getAdminPermissions(user).length > 0;
+}
+
+/* Live-subscribe to the admin roster in Firestore. Returns a promise that
+   resolves once the first snapshot arrives, but keeps listening after that —
+   so if someone grants (or revokes) a permission while this tab is open, the
+   change takes effect immediately here too, with no reload required. */
+function loadAdminRoster() {
+  if (!window._db) return Promise.resolve();
+  // Tear down any previous subscription first. This is what lets us safely call
+  // loadAdminRoster() again on every auth-state change (see onAuthStateChanged
+  // below) instead of only once at page load: on a brand-new sign-in, the very
+  // first subscription attempt can race ahead of Firebase Auth finishing restore
+  // of the session, get rejected with permission-denied, and — since onSnapshot
+  // never retries on its own — stay broken for the rest of that session until a
+  // manual reload. Re-attaching fresh right after auth actually settles fixes it.
+  if (window._adminRosterUnsub) {
+    try { window._adminRosterUnsub(); } catch (e) {}
+    window._adminRosterUnsub = null;
+  }
+  return new Promise(resolve => {
+    let settled = false;
+    try {
+      const ref = window._doc(window._db, 'appConfig', 'adminRoster');
+      window._adminRosterUnsub = window._onSnapshot(ref, snap => {
+        const data = snap.exists() ? (snap.data() || {}) : {};
+        window._adminRoster = data.admins || {};
+        // Refresh admin-button visibility, and if the admin panel is currently
+        // open, re-render it so newly-granted/revoked permissions apply live.
+        updateAuthUI(window._currentUser);
+        refreshOpenAdminPanel();
+        if (!settled) { settled = true; resolve(); }
+      }, err => {
+        console.warn('Admin roster listener failed:', err);
+        window._adminRoster = window._adminRoster || {};
+        if (!settled) { settled = true; resolve(); }
+      });
+    } catch (e) {
+      console.warn('Failed to attach admin roster listener:', e);
+      window._adminRoster = window._adminRoster || {};
+      resolve();
+    }
+  });
+}
+
+async function saveAdminRoster() {
+  if (!window._db) return;
+  const ref = window._doc(window._db, 'appConfig', 'adminRoster');
+  await window._setDoc(ref, cleanForFirestore({ admins: window._adminRoster }));
+}
+
+/* Grant `permissions` to `targetEmail`. `actingUser` must hold 'admins' permission,
+   and can only grant permissions they themselves currently hold. */
+async function assignAdmin(actingUser, targetEmail, permissions) {
+  if (!hasAdminPermission(actingUser, 'admins')) {
+    throw new Error('You do not have permission to manage admins.');
+  }
+  const emailLower = String(targetEmail || '').trim().toLowerCase();
+  if (!emailLower || !emailLower.includes('@')) throw new Error('Enter a valid email address.');
+  if (emailLower === SUPER_ADMIN_EMAIL) throw new Error('That account is already the permanent super admin.');
+  if (!Array.isArray(permissions) || !permissions.length) throw new Error('Select at least one permission to grant.');
+
+  const actingPerms = isSuperAdmin(actingUser) ? ADMIN_PERMISSIONS.slice() : getAdminPermissions(actingUser);
+  const invalid = permissions.filter(p => !actingPerms.includes(p));
+  if (invalid.length) {
+    throw new Error('You cannot grant permissions you do not hold yourself: ' + invalid.join(', '));
+  }
+
+  window._adminRoster[emailLower] = {
+    permissions: permissions.slice(),
+    addedBy: actingUser.email.toLowerCase(),
+    addedAt: Date.now()
+  };
+  await saveAdminRoster();
+}
+
+/* ── Chain of command ──────────────────────────────────────
+   Every admin (other than the super admin) was added by someone,
+   recorded as `addedBy`. Walking that link repeatedly traces the
+   full lineage of assigners back to the super admin. An admin can
+   never remove anyone in their own lineage — i.e. whoever assigned
+   them, or whoever assigned that person, and so on — regardless of
+   permissions, so authority can only flow downward. */
+function getAdminAssignerChain(emailLower) {
+  const roster  = window._adminRoster || {};
+  const chain   = [];
+  const visited = new Set([emailLower]);
+  let current = emailLower;
+  while (true) {
+    const entry = roster[current];
+    if (!entry || !entry.addedBy) break;
+    const parent = entry.addedBy.toLowerCase();
+    if (visited.has(parent)) break; // cycle guard — shouldn't happen, but never loop forever
+    chain.push(parent);
+    visited.add(parent);
+    if (parent === SUPER_ADMIN_EMAIL) break; // chain always terminates at the super admin
+    current = parent;
+  }
+  return chain;
+}
+
+function isInAssignerChain(actingEmailLower, targetEmailLower) {
+  return getAdminAssignerChain(actingEmailLower).includes(targetEmailLower);
+}
+
+/* Remove an admin. The super admin can never be removed, but the super admin
+   can remove anyone else. A non-super admin can only remove another admin
+   whose permissions are fully covered by their own, AND who is not above
+   them in the assignment chain (i.e. didn't assign them, directly or
+   transitively) — authority only flows downward. */
+async function removeAdmin(actingUser, targetEmail) {
+  const emailLower = String(targetEmail || '').trim().toLowerCase();
+  if (emailLower === SUPER_ADMIN_EMAIL) throw new Error('The super admin cannot be removed.');
+  if (!hasAdminPermission(actingUser, 'admins')) {
+    throw new Error('You do not have permission to manage admins.');
+  }
+  const target = window._adminRoster[emailLower];
+  if (!target) throw new Error('That admin was not found.');
+
+  if (!isSuperAdmin(actingUser)) {
+    const actingEmailLower = actingUser.email.toLowerCase();
+    if (isInAssignerChain(actingEmailLower, emailLower)) {
+      throw new Error('You cannot remove an admin who is above you in the assignment chain (they assigned you, directly or indirectly).');
+    }
+    const actingPerms = getAdminPermissions(actingUser);
+    const targetPerms = target.permissions || [];
+    const exceeds = targetPerms.some(p => !actingPerms.includes(p));
+    if (exceeds) throw new Error('You cannot remove an admin who has permissions you do not hold.');
+  }
+
+  // Splice the removed admin out of the chain: anyone they directly assigned
+  // gets re-parented to whoever assigned THEM, so the lineage above/below the
+  // gap stays intact, exactly as if the removed admin had never been there.
+  // Their own entry is then deleted outright. If this email is added again
+  // later, it comes back as a brand-new node — addedBy is whoever re-adds
+  // them now, with no automatic relink to the old descendants above.
+  const grandparent = target.addedBy ? target.addedBy.toLowerCase() : null;
+  for (const childEntry of Object.values(window._adminRoster)) {
+    if (childEntry && childEntry.addedBy && childEntry.addedBy.toLowerCase() === emailLower) {
+      if (grandparent) {
+        childEntry.addedBy = grandparent;
+      } else {
+        delete childEntry.addedBy;
+      }
+    }
+  }
+
+  delete window._adminRoster[emailLower];
+  await saveAdminRoster();
 }
 
   /* ══════════════════════════════════════════════════════════
@@ -7122,8 +7330,6 @@ function renderCQPreview() {
       <button class="cq-edit-reask-btn" title="Ask AI to solve this question using the configured source"
         onclick="cqAiSolveOne(${i})"
         style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 AI Solve</button>
-      <button class="cq-edit-reask-btn" title="Re-ask AI to re-extract this specific question"
-        onclick="cqReaskQuestion(${i})">🔄 Re-extract</button>
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="cqDeleteQuestion(${i})"
         style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
@@ -7150,8 +7356,6 @@ function renderCQPreview() {
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
           <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
-          ${(cqSelectedFiles.length || cqLectureFiles.length) ? `<button class="cq-img-action-btn" onclick="cqReExtractImage(${i})" type="button"
-            style="background:#EDE7F6;color:#4527A0;border-color:#B39DDB;">🤖 Re-extract from Source</button>` : ''}
         </div>
       </div>`;
     } else if (q.has_image) {
@@ -7165,8 +7369,6 @@ function renderCQPreview() {
             📎 Upload Image Manually
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
-          ${(cqSelectedFiles.length || cqLectureFiles.length) ? `<button class="cq-img-action-btn" onclick="cqReExtractImage(${i})" type="button"
-            style="background:#EDE7F6;color:#4527A0;border-color:#B39DDB;">🤖 Re-extract from Source</button>` : ''}
         </div>
       </div>`;
     } else {
@@ -7337,7 +7539,11 @@ function cqAddBlankQuestion() {
       { key: 'C', value: '' }, { key: 'D', value: '' }
     ],
     answer: 'A',
-    has_image: false
+    has_image: false,
+    // Marks this question as having no counterpart in the source document
+    // (it was typed in by hand, not extracted). Kept for provenance/future
+    // use even though the preview's re-extract controls have been removed.
+    _notExtractable: true
   });
   renderCQPreview();
   // Scroll to new question
@@ -7379,141 +7585,6 @@ function cqAddOption(qIdx) {
     const input = document.querySelector(`#cqOptRow_${qIdx}_${nextKey} .cq-opt-text-input`);
     if (input) input.focus();
   }, 60);
-}
-
-/* ── Re-extract just the image for a single question from the source file ── */
-async function cqReExtractImage(idx) {
-  if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
-  const apiKey = getGeminiKey();
-  if (!apiKey) { openApiKeyManager(); return; }
-  const sourceFile = cqGeneratedQuestions[idx]._sourceFile || cqSelectedFiles[0] || cqLectureFiles[0];
-  if (!sourceFile) { alert('The original source file is no longer available. Please re-upload the file first.'); return; }
-
-  const statusEl = document.getElementById(`cqReaskStatus_${idx}`);
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status info" style="padding:7px 11px;font-size:.8rem;"><div class="cq-spinner"></div> Re-extracting image for Q${idx + 1}…</div>`;
-
-  try {
-    const questionCopy = JSON.parse(JSON.stringify(cqGeneratedQuestions[idx]));
-    questionCopy.has_image = true;
-    questionCopy.image = undefined;
-    await extractImagesForQuestions([questionCopy], sourceFile, apiKey);
-    if (questionCopy.image) {
-      cqGeneratedQuestions[idx].image = questionCopy.image;
-      cqGeneratedQuestions[idx].has_image = true;
-      renderCQPreview();
-      setTimeout(() => {
-        const st = document.getElementById(`cqReaskStatus_${idx}`);
-        if (st) { st.innerHTML = `<div class="cq-status success" style="padding:7px 11px;font-size:.8rem;">✅ Image extracted for Q${idx + 1}</div>`; setTimeout(() => { if(st) st.innerHTML=''; }, 3000); }
-      }, 80);
-    } else {
-      if (statusEl) statusEl.innerHTML = `<div class="cq-status error" style="padding:7px 11px;font-size:.8rem;">⚠️ Could not extract image — try uploading it manually.</div>`;
-    }
-  } catch(e) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error" style="padding:7px 11px;font-size:.8rem;">❌ ${escapeHtml(e.message || String(e))}</div>`;
-  }
-}
-
-async function cqReaskQuestion(idx) {
-  if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
-  const apiKey = getGeminiKey();
-  if (!apiKey) {
-    openApiKeyManager();
-    return;
-  }
-  if (!cqSelectedFiles.length && !cqLectureFiles.length) {
-    alert('The original source file is no longer available. Please re-upload the file first.');
-    return;
-  }
-  const statusEl = document.getElementById(`cqReaskStatus_${idx}`);
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status info" style="padding:7px 11px;font-size:.8rem;"><div class="cq-spinner"></div> Re-asking AI for Q${idx + 1}…</div>`;
-
-  const q = cqGeneratedQuestions[idx];
-  const reaskPrompt = `The following is a single MCQ question that was already extracted. Please re-examine the source document and re-extract this specific question (question number ${idx + 1}) with perfect accuracy.
-
-Current extraction:
-Question: ${q.question}
-Options: ${Object.entries(q.options).map(([k,v]) => `${k}: ${v}`).join(' | ')}
-Answer: ${q.answer}
-
-STRICT RULES: Same rules as before — reproduce text exactly, preserve correct answer if marked, set has_image appropriately.
-
-Return ONLY a JSON array with ONE object in the same format:
-[{"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"answer":"A","has_image":false}]`;
-
-  try {
-    const sourceFile = cqGeneratedQuestions[idx]._sourceFile || cqSelectedFiles[0] || cqLectureFiles[0];
-    const mimeType   = sourceFile.type ||
-      (sourceFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-    const isTxt = sourceFile.type === 'text/plain' || sourceFile.name.toLowerCase().endsWith('.txt');
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    let requestBody;
-    let filePart = null;
-    if (isTxt) {
-      const lectureText = await fileToText(sourceFile);
-      requestBody = {
-        contents: [{ parts: [{ text: `SOURCE:\n\n${lectureText}\n\n---\n\n${reaskPrompt}` }] }],
-        generationConfig: { responseMimeType: 'application/json',
- temperature: 0, maxOutputTokens: 4096 }
-      };
-    } else {
-      // buildGeminiFilePart sends small files inline and automatically
-      // routes large ones through Gemini's Files API instead, so re-asking
-      // a question works the same regardless of source file size.
-      filePart = await buildGeminiFilePart(sourceFile, apiKey, mimeType);
-      requestBody = {
-        contents: [{ parts: [filePart, { text: reaskPrompt }] }],
-        generationConfig: { responseMimeType: 'application/json',
- temperature: 0, maxOutputTokens: 4096 }
-      };
-    }
-
-    const data = await callGeminiWithRetry(url, requestBody, {});
-    const textOut = ((data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || []).map(p => p.text || '').join('');
-    if (!textOut.trim()) throw new Error('AI returned empty response.');
-    const parsed = JSON.parse(textOut);
-    if (!Array.isArray(parsed) || !parsed.length) throw new Error('No question returned.');
-
-    const newQ = parsed[0];
-    const opts = {};
-    Object.entries(newQ.options || {})
-      .filter(([k, v]) => typeof v === 'string' && v.trim())
-      .sort(([a], [b]) => a.toUpperCase().localeCompare(b.toUpperCase()))
-      .forEach(([k, v]) => { opts[k.toUpperCase()] = v; });
-    let answer = (typeof newQ.answer === 'string') ? newQ.answer.trim().toUpperCase() : '';
-    if (!opts[answer]) answer = Object.keys(opts)[0];
-
-    // Preserve existing image
-    const oldImage    = cqGeneratedQuestions[idx].image;
-    const oldHasImage = cqGeneratedQuestions[idx].has_image;
-    cqGeneratedQuestions[idx] = {
-      question: newQ.question,
-      options: opts,
-      optionsOrder: Object.entries(opts).map(([key, value]) => ({ key, value })),
-      answer,
-      has_image: !!newQ.has_image || oldHasImage,
-      image: oldImage,
-      _sourceFile: sourceFile
-    };
-
-    // If new extraction says has_image and no image yet, try to extract it
-    if (newQ.has_image && !oldImage) {
-      if (statusEl) statusEl.innerHTML = `<div class="cq-status info" style="padding:7px 11px;font-size:.8rem;"><div class="cq-spinner"></div> Extracting image…</div>`;
-      await extractImagesForQuestions([cqGeneratedQuestions[idx]], sourceFile, apiKey, filePart);
-    }
-
-    renderCQPreview();
-    // Scroll to updated question
-    setTimeout(() => {
-      const el = document.getElementById(`cqQ_${idx}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const st = document.getElementById(`cqReaskStatus_${idx}`);
-      if (st) { st.innerHTML = `<div class="cq-status success" style="padding:7px 11px;font-size:.8rem;">✅ Q${idx+1} updated by AI</div>`; setTimeout(() => { if(st) st.innerHTML=''; }, 3000); }
-    }, 80);
-
-  } catch(e) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error" style="padding:7px 11px;font-size:.8rem;">❌ ${escapeHtml(e.message || String(e))}</div>`;
-  }
 }
 
 function discardGeneratedQuiz() {
@@ -9317,6 +9388,12 @@ function _mergeCloneQuestions(rawQuestions, namespace, sourceLabel) {
     if (q.case_group) q.case_group = namespace + '::' + q.case_group;
     delete q.sharedImageIdx;
     delete q.pubImageIdx;
+    // Merged-in questions came from a different quiz/source entirely, so
+    // they have no valid position in *this* editor's source document.
+    // Never offer Re-extract controls for them, and never let them count
+    // toward the source-relative numbering used when re-extracting the
+    // questions that actually did come from this session's source.
+    q._notExtractable = true;
     // Transient — shows a "from: <quiz>" badge in the editor so it's obvious
     // which merged-in quiz a question came from before the merge is saved.
     // Stripped out by _stripEditorTransientFields right before saving.
@@ -9418,23 +9495,56 @@ let adminEditingPublishedName = '';   // its lecture name
 // re-hit Firestore every keystroke.
 let adminAssignedEntries = [];
 
-let adminActiveTab = 'publish'; // 'publish' | 'curriculum'
+let adminActiveTab = 'publish'; // 'publish' | 'curriculum' | 'admins'
+
+/* Build the admin panel tab bar to match exactly what this user is allowed to see. */
+function renderAdminPanelTabs() {
+  const user = window._currentUser;
+  const canCurriculum = hasAdminPermission(user, 'curriculum');
+  const canCommunity  = hasAdminPermission(user, 'community');
+  const canAdmins     = hasAdminPermission(user, 'admins');
+
+  let html = '';
+  if (canCurriculum || canCommunity) {
+    html += `<button class="admin-panel-tab ${adminActiveTab === 'publish' ? 'active' : ''}" id="adminTabPublish" onclick="adminSwitchTab('publish')">📤 Publish Quizzes</button>`;
+  }
+  if (canCurriculum) {
+    html += `<button class="admin-panel-tab ${adminActiveTab === 'curriculum' ? 'active' : ''}" id="adminTabCurriculum" onclick="adminSwitchTab('curriculum')">📚 Manage Curriculum</button>`;
+  }
+  if (canAdmins) {
+    html += `<button class="admin-panel-tab ${adminActiveTab === 'admins' ? 'active' : ''}" id="adminTabAdmins" onclick="adminSwitchTab('admins')">👑 Manage Admins</button>`;
+  }
+  document.getElementById('adminPanelTabs').innerHTML = html;
+}
+
+/* Pick a sensible default tab given this user's permissions. */
+function adminDefaultTab() {
+  const user = window._currentUser;
+  if (hasAdminPermission(user, 'curriculum') || hasAdminPermission(user, 'community')) return 'publish';
+  if (hasAdminPermission(user, 'admins')) return 'admins';
+  return null;
+}
 
 function openAdminPanel() {
   if (!isAdminUser(window._currentUser)) {
     alert('You do not have admin access.');
     return;
   }
-  adminSourceTab    = 'custom';
+  adminSourceTab    = hasAdminPermission(window._currentUser, 'curriculum') ? 'custom' : 'community';
   adminSelectedQuiz = null;
   adminTargetYear   = '';
   adminTargetModule = '';
   adminTargetSubject= '';
   adminCommunityCache = null;
-  adminActiveTab    = 'publish';
   adminCurrNavLevel = 'years';
+  const defaultTab = adminDefaultTab();
+  if (!defaultTab) {
+    alert('You do not have admin access.');
+    return;
+  }
+  adminActiveTab = defaultTab;
   document.getElementById('adminOverlay').classList.remove('hidden');
-  adminSwitchTab('publish');
+  adminSwitchTab(defaultTab);
 }
 
 function closeAdminPanel() {
@@ -9442,13 +9552,140 @@ function closeAdminPanel() {
   fsLoadingHide();
 }
 
+/* Re-render whatever admin panel tab is currently open (if the panel is
+   open at all). Called whenever the admin roster changes live, so a
+   permission grant/revoke or an assign/remove elsewhere takes effect
+   immediately instead of needing a reload. */
+function refreshOpenAdminPanel() {
+  const overlay = document.getElementById('adminOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  renderAdminPanelTabs();
+  if (adminActiveTab === 'admins') renderAdminManagePanel();
+  else if (adminActiveTab === 'curriculum') renderAdminCurriculumPanel();
+  else if (adminActiveTab === 'publish') renderAdminPanel();
+}
+
 function adminSwitchTab(tab) {
+  // Refuse to switch into a tab this user doesn't hold permission for
+  // (defends against stale buttons / direct calls, not just hides them).
+  const user = window._currentUser;
+  if (tab === 'publish' && !hasAdminPermission(user, 'curriculum') && !hasAdminPermission(user, 'community')) return;
+  if (tab === 'curriculum' && !hasAdminPermission(user, 'curriculum')) return;
+  if (tab === 'admins' && !hasAdminPermission(user, 'admins')) return;
+
   adminActiveTab = tab;
-  document.querySelectorAll('.admin-panel-tab').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById(tab === 'publish' ? 'adminTabPublish' : 'adminTabCurriculum');
-  if (btn) btn.classList.add('active');
+  renderAdminPanelTabs();
   if (tab === 'publish') renderAdminPanel();
-  else renderAdminCurriculumPanel();
+  else if (tab === 'curriculum') renderAdminCurriculumPanel();
+  else if (tab === 'admins') renderAdminManagePanel();
+}
+
+/* ══════════════════════════════════════════════════════════
+   MANAGE ADMINS TAB
+══════════════════════════════════════════════════════════ */
+function renderAdminManagePanel() {
+  const body = document.getElementById('adminBody');
+  if (!body) return;
+  const user = window._currentUser;
+
+  if (!hasAdminPermission(user, 'admins')) {
+    body.innerHTML = `<div style="padding:20px;color:var(--text-muted);">You do not have permission to manage admins.</div>`;
+    return;
+  }
+
+  const actingPerms = isSuperAdmin(user) ? ADMIN_PERMISSIONS.slice() : getAdminPermissions(user);
+  const roster = window._adminRoster || {};
+
+  let rows = `
+    <div class="admin-quiz-item" style="cursor:default;">
+      <div class="admin-quiz-item-info">
+        <div class="admin-quiz-item-title">👑 ${escapeHtml(SUPER_ADMIN_EMAIL)}</div>
+        <div class="admin-quiz-item-meta">Super Admin — full access, permanent, cannot be removed</div>
+      </div>
+    </div>`;
+
+  const emails = Object.keys(roster).sort();
+  const actingEmailLower = user.email ? user.email.toLowerCase() : '';
+  if (!emails.length) {
+    rows += `<div style="color:var(--text-muted);font-size:.85rem;padding:10px;">No other admins yet.</div>`;
+  } else {
+    emails.forEach(email => {
+      const info  = roster[email] || {};
+      const perms = Array.isArray(info.permissions) ? info.permissions : [];
+      const permLabel = perms.map(p => ADMIN_PERMISSION_LABELS[p] || p).join(' · ') || '—';
+      const isAncestor   = !isSuperAdmin(user) && isInAssignerChain(actingEmailLower, email);
+      const exceedsPerms = !isSuperAdmin(user) && perms.some(p => !actingPerms.includes(p));
+      const canRemove = isSuperAdmin(user) || (!isAncestor && !exceedsPerms);
+      let blockedReason = '';
+      if (!canRemove) blockedReason = isAncestor ? "assigned you — can't remove" : "outranks you — can't remove";
+      rows += `
+        <div class="admin-quiz-item" style="cursor:default;">
+          <div class="admin-quiz-item-info">
+            <div class="admin-quiz-item-title">${escapeHtml(email)}</div>
+            <div class="admin-quiz-item-meta">${escapeHtml(permLabel)}${info.addedBy ? ' · added by ' + escapeHtml(info.addedBy) : ''}</div>
+          </div>
+          ${canRemove
+            ? `<button class="admin-remove-btn" onclick="adminRemoveAdminUI('${escapeHtml(email)}')">🗑 Remove</button>`
+            : `<span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;">${escapeHtml(blockedReason)}</span>`}
+        </div>`;
+    });
+  }
+
+  const permCheckboxesHtml = ADMIN_PERMISSIONS.map(p => {
+    const allowed = actingPerms.includes(p);
+    return `
+      <label style="display:flex;align-items:center;gap:7px;font-size:.85rem;padding:4px 0;${allowed ? '' : 'opacity:.4;cursor:not-allowed;'}">
+        <input type="checkbox" id="adminNewPerm_${p}" ${allowed ? '' : 'disabled'} />
+        ${escapeHtml(ADMIN_PERMISSION_LABELS[p])}
+      </label>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div style="padding:14px;">
+      <h3 style="margin:0 0 10px;font-size:1rem;">Current Admins</h3>
+      <div class="admin-quiz-list">${rows}</div>
+
+      <h3 style="margin:22px 0 10px;font-size:1rem;">Add New Admin</h3>
+      <input type="email" id="adminNewEmail" placeholder="admin-email@gmail.com"
+             style="width:100%;box-sizing:border-box;padding:9px 10px;border:1.5px solid #ccc;border-radius:8px;margin-bottom:10px;font-family:inherit;font-size:.9rem;" />
+      <div style="display:flex;flex-direction:column;margin-bottom:6px;">${permCheckboxesHtml}</div>
+      <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:12px;">You can only grant permissions you hold yourself.</div>
+      <button class="admin-assign-btn" id="adminAddAdminBtn" onclick="adminAssignAdminUI()">➕ Add Admin</button>
+      <div class="admin-status" id="adminManageStatus"></div>
+    </div>`;
+}
+
+async function adminAssignAdminUI() {
+  const statusEl   = document.getElementById('adminManageStatus');
+  const emailInput = document.getElementById('adminNewEmail');
+  const email = (emailInput ? emailInput.value : '').trim();
+  const perms = ADMIN_PERMISSIONS.filter(p => {
+    const box = document.getElementById('adminNewPerm_' + p);
+    return box && !box.disabled && box.checked;
+  });
+
+  const btn = document.getElementById('adminAddAdminBtn');
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status info">⏳ Adding admin…</div>`;
+
+  try {
+    await assignAdmin(window._currentUser, email, perms);
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ ${escapeHtml(email.trim().toLowerCase())} added as admin.</div>`;
+    setTimeout(() => renderAdminManagePanel(), 600);
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(e.message || String(e))}</div>`;
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function adminRemoveAdminUI(email) {
+  if (!confirm(`Remove admin access for ${email}?`)) return;
+  try {
+    await removeAdmin(window._currentUser, email);
+    renderAdminManagePanel();
+  } catch (e) {
+    alert('Failed to remove admin: ' + (e.message || e));
+  }
 }
 
 function adminSetSourceTab(tab) {
@@ -9458,7 +9695,14 @@ function adminSetSourceTab(tab) {
 }
 
 async function renderAdminPanel() {
+  const user = window._currentUser;
+  const canCurriculum = hasAdminPermission(user, 'curriculum');
+  const canCommunity  = hasAdminPermission(user, 'community');
   const body = document.getElementById('adminBody');
+
+  // Force onto a source tab this user is actually allowed to see.
+  if (adminSourceTab === 'custom' && !canCurriculum) adminSourceTab = 'community';
+  if (adminSourceTab === 'community' && !canCommunity) adminSourceTab = 'custom';
 
   let listHtml = '';
   if (adminSourceTab === 'custom') {
@@ -9483,16 +9727,26 @@ async function renderAdminPanel() {
     listHtml = `<div style="text-align:center;padding:20px;color:var(--text-muted);">⏳ Loading community quizzes…</div>`;
   }
 
-  body.innerHTML = `
+  const sourceTabsHtml = `
     <div class="admin-quiz-source-tabs">
-      <button class="admin-source-tab ${adminSourceTab === 'custom' ? 'active' : ''}" onclick="adminSetSourceTab('custom')">🤖 My Custom Quizzes</button>
-      <button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>
-    </div>
+      ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'custom' ? 'active' : ''}" onclick="adminSetSourceTab('custom')">🤖 My Custom Quizzes</button>` : ''}
+      ${canCommunity ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
+    </div>`;
+
+  const moderationHint = (!canCurriculum && canCommunity)
+    ? `<div style="padding:10px 4px;color:var(--text-muted);font-size:.82rem;">You have community moderation access: browse and delete community quizzes below. Publishing quizzes into the curriculum requires curriculum permission.</div>`
+    : '';
+
+  body.innerHTML = `
+    ${sourceTabsHtml}
+    ${moderationHint}
     <div class="admin-quiz-list" id="adminQuizList">${listHtml}</div>
     <div id="adminAssignArea"></div>
   `;
 
-  renderAdminAssignForm();
+  // Only curriculum-permitted admins get the "assign to curriculum" workflow;
+  // a community-only admin just browses/moderates the list above.
+  if (canCurriculum) renderAdminAssignForm();
 
   if (adminSourceTab === 'community') {
     if (!adminCommunityCache) {
@@ -9571,6 +9825,15 @@ function adminSelectQuiz(sourceType, sourceId) {
 
 /* Delete a source quiz (custom quiz of the admin's own account, or any community/shared quiz) */
 async function adminDeleteSourceQuiz(sourceType, sourceId) {
+  const user = window._currentUser;
+  if (sourceType === 'community' && !hasAdminPermission(user, 'community')) {
+    alert('You do not have permission to manage community quizzes.');
+    return;
+  }
+  if (sourceType === 'custom' && !hasAdminPermission(user, 'curriculum')) {
+    alert('You do not have permission to manage curriculum content.');
+    return;
+  }
   if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
   try {
     if (sourceType === 'custom') {
@@ -11455,6 +11718,11 @@ function renderAdminCurriculumPanel() {
   const body = document.getElementById('adminBody');
   if (!body) return;
 
+  if (!hasAdminPermission(window._currentUser, 'curriculum')) {
+    body.innerHTML = `<div style="padding:20px;color:var(--text-muted);">You do not have permission to manage the curriculum.</div>`;
+    return;
+  }
+
   // Guard against a stale deeper level if its parent selection got cleared
   if (adminCurrNavLevel === 'modules' && !adminTargetYear) adminCurrNavLevel = 'years';
   if (adminCurrNavLevel === 'subjects' && (!adminTargetYear || !adminTargetModule)) adminCurrNavLevel = 'modules';
@@ -12234,7 +12502,7 @@ async function saveCurriculumExtensionSubject(key, info) {
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc }
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, onSnapshot }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 
@@ -12264,10 +12532,13 @@ const firebaseConfig = {
   window._collection       = collection;
   window._getDocs          = getDocs;
   window._deleteDoc        = deleteDoc;
+  window._onSnapshot       = onSnapshot;
   window._signInWithPopup  = signInWithPopup;
   window._signOut          = signOut;
 
-  // Load admin-created years/modules/subjects, then admin-published questions
+  // Load admin-created years/modules/subjects, then admin-published questions.
+  // (The admin permission roster is loaded separately, inside onAuthStateChanged
+  // below, since it needs to be re-subscribed on every auth change — see there.)
   (async () => {
     await loadCurriculumExtensions();
     await loadPublishedQuestionsIntoSubjects();
@@ -12278,6 +12549,16 @@ const firebaseConfig = {
   onAuthStateChanged(auth, async user => {
     window._currentUser = user || null;
     updateAuthUI(user);
+
+    // Re-subscribe to the admin roster every time auth state settles (not just
+    // once at page load). onAuthStateChanged fires immediately with whatever
+    // stale/empty state is available, then fires again once Firebase Auth has
+    // actually finished restoring the session — that second firing is what a
+    // fresh sign-in needs in order to get a correctly-authenticated roster
+    // listener instead of being stuck with a permission-denied one forever.
+    await loadAdminRoster();
+    updateAuthUI(window._currentUser);
+
     if (user) {
       // Mark as loading before the async calls so fsAwaitIfNeeded shows the spinner
       _fsReady.stats         = false;
