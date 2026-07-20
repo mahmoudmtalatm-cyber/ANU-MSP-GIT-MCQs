@@ -5462,7 +5462,11 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
 }
 
 /* ── Ask Gemini for bounding boxes of visual elements for each image-bearing question ── */
-async function getBoundingBoxes(questions, sourceBase64, sourceMimeType, apiKey) {
+/* filePart: a Gemini request part for the source document — either
+   { inline_data: {...} } for small files or { file_data: {...} } for large
+   ones uploaded via the Files API. Callers build this via buildGeminiFilePart
+   so this function works the same regardless of source file size. */
+async function getBoundingBoxes(questions, filePart, apiKey) {
   const imageQs = questions.map((q, i) => ({ idx: i, q })).filter(({ q }) => q.has_image);
   if (!imageQs.length) return;
 
@@ -5499,7 +5503,7 @@ Output nothing besides the JSON array.`;
       body: JSON.stringify({
         contents: [{
           parts: [
-            { inline_data: { mime_type: sourceMimeType, data: sourceBase64 } },
+            filePart,
             { text: prompt }
           ]
         }],
@@ -5554,12 +5558,24 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
   }
 }
 
-/* ── Main: extract images from source for all has_image questions ── */
-async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType, apiKey) {
-  const isPdf = sourceMimeType === 'application/pdf';
+/* ── Main: extract images from source for all has_image questions ──
+   Accepts the File itself (not raw base64) so it can decide, via
+   buildGeminiFilePart, whether to send it inline or through Gemini's
+   Files API depending on size — this is what makes bounding-box lookups
+   work correctly for large PDFs/images, not just the initial extraction.
+   An already-built `filePart` can optionally be passed in (e.g. by the
+   main extraction call, which builds one anyway) to avoid uploading the
+   same large file to the Files API twice. ── */
+async function extractImagesForQuestions(questions, file, apiKey, filePart) {
+  const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+  const isPdf = mimeType === 'application/pdf';
 
-  // Step 1: ask Gemini for bounding boxes of all image-bearing questions at once
-  const boxes = await getBoundingBoxes(questions, sourceBase64, sourceMimeType, apiKey);
+  // Step 1: ask Gemini for bounding boxes of all image-bearing questions at once.
+  // Reuse a pre-built part when given one; otherwise build it now (inline for
+  // small files, Files API upload for large ones — same size ceiling as
+  // question extraction, so this never hits Gemini's ~20MB inline cap).
+  const part = filePart || await buildGeminiFilePart(file, apiKey, mimeType);
+  const boxes = await getBoundingBoxes(questions, part, apiKey);
   if (!boxes || !Array.isArray(boxes) || !boxes.length) return;
 
   // Build a map: question index (0-based) → box info
@@ -5570,7 +5586,11 @@ async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType
     }
   });
 
-  // Step 2: render pages and crop
+  // Step 2: render pages and crop. This happens entirely in the browser via
+  // Canvas/pdf.js, so it needs the raw bytes locally regardless of file size —
+  // that's a local-memory concern, not a Gemini request-size one, so it's
+  // read here lazily, only once we know there's actually something to crop.
+  const sourceBase64 = await fileToBase64(file);
   const pageCache = {}; // page number → { dataUrl, width, height }
 
   for (let i = 0; i < questions.length; i++) {
@@ -5587,7 +5607,7 @@ async function extractImagesForQuestions(questions, sourceBase64, sourceMimeType
           pageCache[pageNum] = await renderPdfPageToDataUrl(sourceBase64, pageNum);
         } else {
           // Single image — treat as page 1
-          const img = await loadImageFromDataUrl(`data:${sourceMimeType};base64,${sourceBase64}`);
+          const img = await loadImageFromDataUrl(`data:${mimeType};base64,${sourceBase64}`);
           const canvas = document.createElement('canvas');
           canvas.width  = img.naturalWidth;
           canvas.height = img.naturalHeight;
@@ -5852,8 +5872,7 @@ async function _extractQuestionsFromFile(file, apiKey, statusEl) {
   const imageQuestions = cleaned.filter(q => q.has_image);
   if (imageQuestions.length > 0) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Extracting images from "${escapeHtml(file.name)}" for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}… please wait.</div>`;
-    const base64Data = await fileToBase64(file);
-    await extractImagesForQuestions(cleaned, base64Data, mimeType, apiKey);
+    await extractImagesForQuestions(cleaned, file, apiKey, filePart);
   }
 
   return { cleaned, finishReason };
@@ -6471,12 +6490,10 @@ async function cqReExtractImage(idx) {
   if (statusEl) statusEl.innerHTML = `<div class="cq-status info" style="padding:7px 11px;font-size:.8rem;"><div class="cq-spinner"></div> Re-extracting image for Q${idx + 1}…</div>`;
 
   try {
-    const base64Data = await fileToBase64(sourceFile);
-    const mimeType = sourceFile.type || (sourceFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
     const questionCopy = JSON.parse(JSON.stringify(cqGeneratedQuestions[idx]));
     questionCopy.has_image = true;
     questionCopy.image = undefined;
-    await extractImagesForQuestions([questionCopy], base64Data, mimeType, apiKey);
+    await extractImagesForQuestions([questionCopy], sourceFile, apiKey);
     if (questionCopy.image) {
       cqGeneratedQuestions[idx].image = questionCopy.image;
       cqGeneratedQuestions[idx].has_image = true;
@@ -6522,13 +6539,13 @@ Return ONLY a JSON array with ONE object in the same format:
 
   try {
     const sourceFile = cqGeneratedQuestions[idx]._sourceFile || cqSelectedFiles[0] || cqLectureFiles[0];
-    const base64Data = await fileToBase64(sourceFile);
     const mimeType   = sourceFile.type ||
       (sourceFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
     const isTxt = sourceFile.type === 'text/plain' || sourceFile.name.toLowerCase().endsWith('.txt');
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
     let requestBody;
+    let filePart = null;
     if (isTxt) {
       const lectureText = await fileToText(sourceFile);
       requestBody = {
@@ -6537,8 +6554,12 @@ Return ONLY a JSON array with ONE object in the same format:
  temperature: 0, maxOutputTokens: 4096 }
       };
     } else {
+      // buildGeminiFilePart sends small files inline and automatically
+      // routes large ones through Gemini's Files API instead, so re-asking
+      // a question works the same regardless of source file size.
+      filePart = await buildGeminiFilePart(sourceFile, apiKey, mimeType);
       requestBody = {
-        contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: base64Data } }, { text: reaskPrompt }] }],
+        contents: [{ parts: [filePart, { text: reaskPrompt }] }],
         generationConfig: { responseMimeType: 'application/json',
  temperature: 0, maxOutputTokens: 4096 }
       };
@@ -6568,13 +6589,14 @@ Return ONLY a JSON array with ONE object in the same format:
       optionsOrder: Object.entries(opts).map(([key, value]) => ({ key, value })),
       answer,
       has_image: !!newQ.has_image || oldHasImage,
-      image: oldImage
+      image: oldImage,
+      _sourceFile: sourceFile
     };
 
     // If new extraction says has_image and no image yet, try to extract it
     if (newQ.has_image && !oldImage) {
       if (statusEl) statusEl.innerHTML = `<div class="cq-status info" style="padding:7px 11px;font-size:.8rem;"><div class="cq-spinner"></div> Extracting image…</div>`;
-      await extractImagesForQuestions([cqGeneratedQuestions[idx]], base64Data, mimeType, apiKey);
+      await extractImagesForQuestions([cqGeneratedQuestions[idx]], sourceFile, apiKey, filePart);
     }
 
     renderCQPreview();
