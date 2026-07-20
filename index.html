@@ -663,6 +663,11 @@
         display: flex; align-items: flex-start; justify-content: center;
         overflow-y: auto; padding: 20px;
       }
+      /* Merge-quiz picker reuses .stats-overlay's look but must stack above
+         whichever editor it was opened from — including the admin panel
+         (z-index 13000) and the move/copy modal (13500) — since it can now
+         be launched from inside either one. */
+      #mergeQuizOverlay { z-index: 14000; }
       .stats-modal {
         background: var(--bg-card);
         border-radius: 16px;
@@ -845,6 +850,20 @@
   display: flex; align-items: center; gap: 10px;
   padding: 12px 14px; border-radius: 8px; font-size: .88rem; font-weight: 600;
   margin: 10px 0;
+}
+.cq-status.with-progress { flex-direction: column; align-items: stretch; gap: 8px; }
+.cq-status-row { display: flex; align-items: center; gap: 10px; }
+.cq-progress-track {
+  width: 100%; height: 8px; border-radius: 5px; background: rgba(13,71,161,.12);
+  overflow: hidden;
+}
+.cq-progress-fill {
+  height: 100%; border-radius: 5px; background: #0D47A1;
+  transition: width .3s ease; min-width: 3%;
+}
+.cq-progress-label {
+  font-size: .74rem; font-weight: 700; color: #0D47A1; opacity: .8;
+  text-align: right;
 }
 .cq-status.info { background: #E3F2FD; color: #0D47A1; }
 .cq-status.error { background: #FFEBEE; color: #C62828; }
@@ -1925,6 +1944,17 @@
     </div>
   </div>
 
+<!-- MERGE QUIZZES PICKER MODAL -->
+  <div id="mergeQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeMergePicker()">
+    <div class="stats-modal" style="max-width:720px;">
+      <div class="stats-modal-header">
+        <h2>🧩&nbsp; Merge Quizzes In</h2>
+        <button class="stats-close-btn" onclick="closeMergePicker()">✕</button>
+      </div>
+      <div class="stats-body" id="mergeQuizBody"></div>
+    </div>
+  </div>
+
 <!-- SHARE QUIZ MODAL -->
   <div id="shareQuizOverlay" class="sq-overlay hidden">
     <div class="sq-modal">
@@ -2117,10 +2147,8 @@
     <div class="results-footer">
       <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
       <button class="ai-explain-all-btn" id="explainAllBtn" onclick="explainAllQuestions()">🤖&nbsp; Explain All Questions</button>
-      <button id="resultsSplitBtn" onclick="openSplitPanel('active')" style="background:#7B1FA2;color:#fff;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">✂️ Split Quiz</button>
       <button onclick="openApiKeyManager()" style="background:#F0F8FF;color:var(--accent);border:1.5px solid var(--accent);padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">🔑&nbsp; Manage APIs</button>
     </div>
-    <div id="resultsSplitContainer" style="margin:0 16px 16px;"></div>
   </div>
 
 </div>
@@ -2587,10 +2615,7 @@ function startQuiz() {
   if (!mins || mins <= 0) return alert('Please enter a valid duration in minutes.');
 
   if (shuffle) {
-    for (let i = combined.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [combined[i], combined[j]] = [combined[j], combined[i]];
-    }
+    combined = _cqGroupAwareShuffle(combined);
   }
 
   selectedSubject  = involvedSubjects.length === 1 ? involvedSubjects[0] : involvedSubjects.join(' + ');
@@ -2808,22 +2833,12 @@ if (prevTotal < threshold && newTotal >= threshold) {
 
   buildResults();
   showScreen('results');
-
-  // Split Quiz button: curriculum quizzes are admin-only; custom & community are available to all
-  const splitBtn = document.getElementById('resultsSplitBtn');
-  if (splitBtn) {
-    if (currentQuizSource === 'curriculum') {
-      splitBtn.classList.toggle('hidden', !isAdminUser(window._currentUser));
-    } else {
-      splitBtn.classList.remove('hidden');
-    }
-  }
 }
 
 function buildResults() {
   // Cancel any in-progress explanations from a previous result view
-  if (_allCancelToken) { _allCancelToken.cancelled = true; _allCancelToken = null; }
-  Object.keys(_singleCancelToken).forEach(k => { if (_singleCancelToken[k]) _singleCancelToken[k].cancelled = true; delete _singleCancelToken[k]; });
+  if (_allCancelToken) { _cancelAiToken(_allCancelToken); _allCancelToken = null; }
+  Object.keys(_singleCancelToken).forEach(k => { _cancelAiToken(_singleCancelToken[k]); delete _singleCancelToken[k]; });
   // Clear explanation cache for new results
   for (const k in _explainCache) delete _explainCache[k];
   for (const k in _explainRawText) delete _explainRawText[k];
@@ -2831,7 +2846,7 @@ function buildResults() {
   // instantly instead of re-generated, and so newly-generated ones can be shared too.
   _explainPoolLoadPromise = _loadExplainPool(currentQuestions);
   // Cancel and clear any in-progress/previous chats
-  Object.keys(_chatCancelToken).forEach(k => { if (_chatCancelToken[k]) _chatCancelToken[k].cancelled = true; delete _chatCancelToken[k]; });
+  Object.keys(_chatCancelToken).forEach(k => { _cancelAiToken(_chatCancelToken[k]); delete _chatCancelToken[k]; });
   for (const k in _chatHistory) delete _chatHistory[k];
   for (const k in _chatPending) delete _chatPending[k];
   for (const k in _chatBusy) delete _chatBusy[k];
@@ -3640,6 +3655,19 @@ function closeApiKeyManager() {
   }
 }
 function useApiKey(id) {
+  // Switching keys is always safe if it's already the active one, or if
+  // nothing AI-related is actually running right now.
+  if (id !== getActiveApiKeyId()) {
+    const activeLabel = _activeAiProcessLabel();
+    if (activeLabel) {
+      const confirmed = confirm(
+        `You're currently ${activeLabel}. Switching your active API key now will forcibly abort that process immediately — anything not already completed will be lost.\n\nAbort it and switch keys?`
+      );
+      if (!confirmed) return;
+      _stopAllAiProcesses();
+    }
+  }
+
   setActiveApiKeyId(id);
   renderApiKeyManager();
   // Refresh any inline "manage keys" widgets that might be open behind the modal
@@ -3813,6 +3841,69 @@ let   _explainAllBusy = false;
 const _singleCancelToken = {};   // { [qIndex]: { cancelled: bool } }
 let   _allCancelToken    = null; // { cancelled: bool } | null
 
+/* Marks a cancel token as cancelled AND aborts its in-flight fetch (if any)
+   right away via AbortController, instead of just letting the request run
+   to completion and discarding the result. Use this everywhere a token
+   gets cancelled instead of setting `.cancelled = true` directly. */
+function _cancelAiToken(token) {
+  if (!token) return;
+  token.cancelled = true;
+  if (token.controller) {
+    try { token.controller.abort(); } catch (e) {}
+    token.controller = null;
+  }
+}
+
+/* ── Guarding API key switches while an AI process is actively running ──
+   Switching the active key mid-request isn't safe for most in-flight AI
+   calls (only the custom-quiz extractor/generator has a real pause-and-
+   resume checkpoint system — everything else would just be cut off). So
+   before the key actually changes, warn the user that doing so forcibly
+   aborts whatever's running, and only proceed if they confirm. */
+function _activeAiProcessLabel() {
+  // Custom-quiz extraction/generation — only warn if it's actively running,
+  // not if it's already sitting paused at a checkpoint (that's the intended
+  // way to switch keys mid-run without losing anything).
+  if (typeof cqBusy !== 'undefined' && cqBusy && !cqIsPaused) {
+    return 'extracting/generating your quiz questions';
+  }
+  if (typeof _explainAllBusy !== 'undefined' && _explainAllBusy) {
+    return 'generating AI explanations for this quiz';
+  }
+  if (Object.values(_explainCache).includes('loading')) {
+    return 'generating an AI explanation';
+  }
+  if (typeof _chatBusy !== 'undefined' && Object.values(_chatBusy).some(Boolean)) {
+    return 'an AI chat response';
+  }
+  return null;
+}
+
+/* Forcibly aborts whatever _activeAiProcessLabel() detected, once the user
+   has confirmed — this is a hard, immediate abort (via AbortController on
+   the in-flight fetch), not a graceful "finish this step then stop". The
+   custom-quiz loop doesn't get its own AbortController (it makes several
+   different requests across its run), so it gets a hard-stop flag instead,
+   checked immediately after its current request is aborted and errors out. */
+function _stopAllAiProcesses() {
+  if (typeof cqBusy !== 'undefined' && cqBusy) {
+    cqStopRequested = true;
+    if (typeof cqCancelToken !== 'undefined' && cqCancelToken) _cancelAiToken(cqCancelToken);
+    cqPauseRequested = false;
+    // If it's sitting paused, wake it up so it can see the stop flag and exit.
+    if (cqIsPaused && cqResumeResolve) {
+      const resolve = cqResumeResolve;
+      cqResumeResolve = null;
+      resolve();
+    }
+  }
+  _cancelAiToken(_allCancelToken);
+  Object.keys(_singleCancelToken).forEach(k => { _cancelAiToken(_singleCancelToken[k]); });
+  if (typeof _chatCancelToken !== 'undefined') {
+    Object.keys(_chatCancelToken).forEach(k => { _cancelAiToken(_chatCancelToken[k]); });
+  }
+}
+
 // ── Shared explanation pool (Firestore-backed, session-isolated) ──
 // At the start of each result session we snapshot the pool so concurrent users
 // don't interfere with each other while reviewing.  New generations update
@@ -3869,7 +3960,7 @@ async function _getExplainFromPool(questionText) {
 }
 
 /* ── Build Gemini prompt for one question ── */
-function buildExplainPrompt(q, userAnswer) {
+function buildExplainPrompt(questions, q, userAnswer) {
   const optLines = getOptionEntries(q)
     .map(([k, v]) => `  ${k}. ${v}`)
     .join('\n');
@@ -3883,13 +3974,16 @@ function buildExplainPrompt(q, userAnswer) {
 WRONG — ${k}. ${v}:
 [1–2 sentences: why this option is incorrect and what makes it a plausible distractor]`).join('');
 
-  const imageNote = q.image
+  const hasImage = !!(q.image || _cqFindCaseGroupImage(questions, q));
+  const imageNote = hasImage
     ? '\nA visual element (image/diagram/figure) associated with this question is attached — refer to it in your explanation as needed.\n'
     : '';
 
+  const caseBlock = _cqCaseContextBlock(questions, q);
+
   return `You are a medical education expert. Explain this MCQ question clearly for a medical student.
 ${imageNote}
-QUESTION:
+${caseBlock}QUESTION:
 ${q.question}
 
 OPTIONS:
@@ -3935,7 +4029,7 @@ function renderExplainKeyPrompt(panelEl, onSave, errorMsg) {
 
 /* ── Stop a single in-progress explanation ── */
 function stopExplainQuestion(i) {
-  if (_singleCancelToken[i]) _singleCancelToken[i].cancelled = true;
+  _cancelAiToken(_singleCancelToken[i]);
 }
 
 /* ── Render an explanation (own or shared) into its panel, with a Regenerate control ── */
@@ -4023,14 +4117,17 @@ async function explainQuestion(i, forceRegenerate = false) {
 
   try {
     const userAnswer = userAnswers[i] || '';
-    const prompt     = buildExplainPrompt(q, userAnswer);
+    const prompt     = buildExplainPrompt(currentQuestions, q, userAnswer);
     const url        = `https://generativelanguage.googleapis.com/v1beta/models/${AI_EXPLAIN_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    // Build parts — prepend the question image if this question has one
+    // Build parts — prepend the question's image if it has one, or fall back
+    // to the case group's shared image (i.e. the core question's image) when
+    // this is a dependent question in a case cluster.
     const parts = [];
-    if (q.image) {
-      const base64 = q.image.split(',')[1] || '';
-      const mime   = q.image.match(/^data:([^;]+)/)?.[1] || 'image/png';
+    const explainImg = q.image || _cqFindCaseGroupImage(currentQuestions, q);
+    if (explainImg) {
+      const base64 = explainImg.split(',')[1] || '';
+      const mime   = explainImg.match(/^data:([^;]+)/)?.[1] || 'image/png';
       parts.push({ inline_data: { mime_type: mime, data: base64 } });
     }
     parts.push({ text: prompt });
@@ -4176,9 +4273,9 @@ function escapeRegex(str) {
 
 /* ── Stop the explain-all batch ── */
 function stopExplainAll() {
-  if (_allCancelToken) _allCancelToken.cancelled = true;
+  _cancelAiToken(_allCancelToken);
   // Also cancel any currently-running single explanation that the batch started
-  Object.values(_singleCancelToken).forEach(t => { if (t) t.cancelled = true; });
+  Object.values(_singleCancelToken).forEach(t => { _cancelAiToken(t); });
   _explainAllBusy = false;
   const btn = document.getElementById('explainAllBtn');
   if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Explain All'; }
@@ -4298,9 +4395,11 @@ function buildChatSystemInstruction(i) {
     ? `The student answered: ${userAnswer}. ${q.options[userAnswer] || ''}`
     : 'The student did not answer this question.';
 
+  const caseBlock = _cqCaseContextBlock(currentQuestions, q);
+
   let ctx = `You are a friendly, knowledgeable medical education tutor chatting with a student about one MCQ question. Stay focused on this question and related concepts unless the student clearly asks something else.
 
-QUESTION:
+${caseBlock}QUESTION:
 ${q.question}
 
 OPTIONS:
@@ -4309,7 +4408,7 @@ ${optLines}
 CORRECT ANSWER: ${q.answer}. ${q.options[q.answer] || ''}
 ${userLine}`;
 
-  if (q.image) {
+  if (q.image || _cqFindCaseGroupImage(currentQuestions, q)) {
     ctx += `\n\nThis question includes a visual element (image, diagram, figure, X-ray, ECG, histology slide, etc.) that has been provided to you alongside this conversation. Use it when answering questions about the image or any visual findings.`;
   }
 
@@ -4441,7 +4540,7 @@ function removeChatAttachment(i, idx) {
 
 /* ── Stop an in-progress chat request ── */
 function stopChat(i) {
-  if (_chatCancelToken[i]) _chatCancelToken[i].cancelled = true;
+  _cancelAiToken(_chatCancelToken[i]);
 }
 
 /* ── Strip our internal display-only fields before sending to the API ── */
@@ -4544,13 +4643,16 @@ async function runChatRequest(i) {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CHAT_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    // If this question has an embedded image, inject it as the first part of the
-    // first user turn so Gemini can see it throughout the conversation.
+    // If this question has an embedded image — or, for a dependent question
+    // in a case cluster, if the core question has one — inject it as the
+    // first part of the first user turn so Gemini can see it throughout the
+    // conversation.
     const q = currentQuestions[i];
     let apiContents = buildApiContents(history);
-    if (q.image && apiContents.length > 0) {
-      const base64 = q.image.split(',')[1] || '';
-      const mime   = q.image.match(/^data:([^;]+)/)?.[1] || 'image/png';
+    const chatImg = q.image || _cqFindCaseGroupImage(currentQuestions, q);
+    if (chatImg && apiContents.length > 0) {
+      const base64 = chatImg.split(',')[1] || '';
+      const mime   = chatImg.match(/^data:([^;]+)/)?.[1] || 'image/png';
       const imagePart = { inline_data: { mime_type: mime, data: base64 } };
       // Prepend image to the first user turn's parts
       apiContents = apiContents.map((m, idx) =>
@@ -4658,6 +4760,18 @@ let cqGeneratedQuestions = null;
 let cqGeneratedTitle    = '';
 let cqBusy              = false;
 
+// ── Pause / resume (lets the user swap to a different API key mid-run
+//    without losing any work already extracted/generated) ──
+let cqPauseRequested = false; // user clicked Pause, take effect at next safe checkpoint
+let cqIsPaused        = false; // actually sitting paused right now
+let cqResumeResolve   = null;  // resolves the in-flight "await" that's holding the loop
+
+// ── Hard stop (used when the user confirms switching API keys mid-run —
+//    unlike Pause, this actually ends the run instead of just holding it) ──
+let cqStopRequested = false;  // set true to end the run at the next checkpoint / in-flight request
+let cqCancelToken    = null;  // { cancelled: bool } | null — passed to callGeminiWithRetry so an
+                               // in-flight request also stops as soon as it comes back
+
 // ── NEW: Generate from lecture state ──
 let cqMode              = 'extract'; // 'extract' | 'generate'
 let cqLectureFiles      = []; // array of File — lecture material to generate new questions from
@@ -4677,6 +4791,18 @@ let cqSplitState = null;
 //   ranges: [{start:'', end:'', label:''}],
 //   visualCuts: Set of question indices (0-based) after which to cut,
 //   visualLabels: {cutIndex: string} — label for each resulting part }
+
+// ── Inline editing of an already-saved custom quiz ──
+let cqEditingQuizId = null; // id of the saved quiz currently being edited, or null
+let cqEditQuestions = null; // working copy of that quiz's questions while the editor is open
+
+// ── Writing a brand-new quiz by hand (no AI) — reuses the same editor
+//    as above, just starts from a blank slate instead of an existing quiz ──
+let cqCreatingNew  = false; // true while the "write your own" composer is open
+let cqNewQuizTitle = '';    // title for the quiz currently being composed
+
+// ── Taking multiple saved custom quizzes together in one sitting ──
+let cqMultiSelected = new Set(); // ids of saved quizzes checked for a combined run
 
 function setCQMode(mode) {
   cqMode = mode;
@@ -4703,6 +4829,518 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+/* -- Case / vignette clusters --
+   Some source documents present one shared stem/case/image and then several
+   questions that all refer back to it without repeating that context. The
+   question whose own text/image actually presents that case is the "core"
+   question of the group; every other member is a "dependent" that just
+   points at it via case_group. There is deliberately no separate/duplicated
+   case-text field to keep in sync — the core question's own "question" and
+   "image" fields ARE the case, so editing the case just means editing the
+   core question itself, and there's only ever one place that can drift. */
+
+let _cqGroupPrefixCounter = 0;
+function _cqNextGroupPrefixId() { return ++_cqGroupPrefixCounter; }
+
+/* Returns the core question object for whichever group `q` belongs to
+   (could be `q` itself if it IS the core), or null if `q` isn't grouped or
+   its group currently has no core assigned. */
+function _cqFindCoreQuestion(questions, q) {
+  if (!q || !q.case_group) return null;
+  if (q.case_is_core) return q;
+  return questions.find(o => o.case_group === q.case_group && o.case_is_core) || null;
+}
+
+/* The shared image for a case cluster is simply the core question's own
+   image — nothing is duplicated onto siblings (which would bypass the
+   Firestore image-subcollection pipeline used for saved/shared/published
+   quizzes and could bloat those documents). */
+function _cqFindCaseGroupImage(questions, q) {
+  const core = _cqFindCoreQuestion(questions, q);
+  return (core && core.image) ? core.image : null;
+}
+
+/* Shared helper for every AI feature (solve, explain, chat) that needs to
+   give the model the case/vignette a dependent question belongs to. Returns
+   '' for standalone questions and for the core question itself (its own
+   "question" text already IS the case, so it needs no prefix). For a
+   dependent, returns the core's live question text wrapped with a label,
+   ready to prepend to that dependent's own prompt text. */
+function _cqCaseContextBlock(questions, q) {
+  if (!q || !q.case_group || q.case_is_core) return '';
+  const core = _cqFindCoreQuestion(questions, q);
+  if (!core || !core.question || !core.question.trim()) return '';
+  return 'Shared case/vignette this question belongs to:\n' + core.question.trim() + '\n\n';
+}
+
+function _cqNormalizeCaseGroups(questions) {
+  const byGroup = {};
+  questions.forEach(q => {
+    if (q.case_group) (byGroup[q.case_group] = byGroup[q.case_group] || []).push(q);
+  });
+  Object.entries(byGroup).forEach(([gid, members]) => {
+    if (members.length < 2) {
+      members.forEach(q => { q.case_group = null; q.case_is_core = false; });
+      delete byGroup[gid];
+    }
+  });
+  // Every surviving group must have EXACTLY one core question (the one that
+  // holds the case/image the others depend on) — never zero, never more
+  // than one, so shuffling and display always know which question to lead
+  // the group with and which question's text/image to pull as context.
+  Object.keys(byGroup).forEach(gid => _caseGroupEnsureSingleCore(questions, gid));
+}
+
+/* Ensures the case group `gid` has exactly one member with case_is_core
+   true. If none are marked core, promotes the first member in current
+   array order (usually the one that physically presents the case). If more
+   than one is marked core (e.g. after a manual edit), keeps only the first
+   and demotes the rest. Shared by both auto-extraction normalization and
+   the manual case-link editors below. */
+function _caseGroupEnsureSingleCore(questions, gid) {
+  if (!gid) return;
+  const members = questions.filter(q => q.case_group === gid);
+  if (!members.length) return;
+  const cores = members.filter(q => q.case_is_core);
+  if (cores.length === 1) return;
+  members.forEach(q => { q.case_is_core = false; });
+  members[0].case_is_core = true;
+}
+
+/* -- Manual case-group linking --
+   Auto-detection during extraction gets the shared case/vignette/image
+   right most of the time, but not always — and grouping is also useful
+   for quizzes that weren't extracted at all (typed by hand, or edited
+   later). These helpers add a small "🔗 Case Link" control to every
+   question card in BOTH inline editors (the extraction review screen and
+   the generic admin quiz editor) so the user can see which question is the
+   core case-holder, which questions depend on it, and freely create/join/
+   leave a group before saving — using the same case_group / case_is_core
+   fields the automatic detection uses, so both paths stay fully
+   compatible. There's nothing else to edit here: the case IS the core
+   question, so changing it just means editing that question directly. */
+
+// Registry so the shared functions below can operate on whichever
+// editor invoked them, without duplicating this logic per editor.
+const _caseGroupEditors = {
+  cq: {
+    getQuestions: () => cqGeneratedQuestions,
+    rerender: () => renderCQPreview()
+  },
+  admin: {
+    getQuestions: () => adminEditQuestions,
+    rerender: () => renderAdminQuestionEditor(_adminEditorContainerId())
+  },
+  customQuiz: {
+    getQuestions: () => cqEditQuestions,
+    rerender: () => renderCustomQuizEditor()
+  }
+};
+
+/* Swaps question `i` with its neighbor (dir: -1 = up, +1 = down) in
+   whichever editor invoked it, via the registry above. Case-group links
+   are matched by id rather than array position, so reordering never
+   breaks a linked case cluster — it just changes display order. */
+function _editorMoveQuestion(editorKey, i, dir) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions) return;
+  const j = i + dir;
+  if (j < 0 || j >= questions.length) return;
+  [questions[i], questions[j]] = [questions[j], questions[i]];
+  ed.rerender();
+}
+
+/* Moves question `i` to a specific 1-based position typed into the number
+   input `inputId` — useful for reordering in large quizzes where nudging
+   one spot at a time with ▲▼ would take forever. The target is clamped to
+   [1, questions.length] so it can never be pushed past either end. */
+function _editorMoveQuestionTo(editorKey, i, inputId) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions) return;
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  let target = parseInt(input.value, 10);
+  if (!target || isNaN(target)) return;
+  target = Math.max(1, Math.min(target, questions.length)); // never allow a number bigger than the quiz
+  const j = target - 1;
+  if (j === i) return;
+  const [moved] = questions.splice(i, 1);
+  questions.splice(j, 0, moved);
+  ed.rerender();
+}
+
+/* Renders the ▲▼ reorder buttons plus a "jump to position" number input
+   for one question card. */
+function _renderReorderButtons(editorKey, i, total) {
+  const upDisabled   = i === 0;
+  const downDisabled = i === total - 1;
+  const inputId = `_moveQNumInput_${editorKey}_${i}`;
+  return `<button class="cq-edit-reask-btn" title="Move up" type="button"
+      onclick="_editorMoveQuestion('${editorKey}', ${i}, -1)" ${upDisabled ? 'disabled' : ''}
+      style="padding:2px 8px;${upDisabled ? 'opacity:.35;cursor:not-allowed;' : ''}">▲</button>
+    <button class="cq-edit-reask-btn" title="Move down" type="button"
+      onclick="_editorMoveQuestion('${editorKey}', ${i}, 1)" ${downDisabled ? 'disabled' : ''}
+      style="padding:2px 8px;${downDisabled ? 'opacity:.35;cursor:not-allowed;' : ''}">▼</button>
+    <span style="display:inline-flex;align-items:center;gap:3px;" title="Move this question to a specific number">
+      <span style="font-size:.7rem;font-weight:700;color:var(--text-muted);">#</span>
+      <input type="number" id="${inputId}" min="1" max="${total}" step="1" value="${i + 1}"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_editorMoveQuestionTo('${editorKey}', ${i}, '${inputId}');}"
+        style="width:48px;padding:3px 4px;border:1.5px solid #B0D4F0;border-radius:5px;
+          font-family:var(--font);font-size:.72rem;text-align:center;" />
+      <button class="cq-edit-reask-btn" title="Move to this number" type="button"
+        onclick="_editorMoveQuestionTo('${editorKey}', ${i}, '${inputId}')"
+        style="padding:2px 7px;">➜</button>
+    </span>`;
+}
+
+const _CASE_GROUP_COLORS = ['#1B8AC4', '#7B1FA2', '#2E7D32', '#E65100', '#C2185B', '#00838F', '#5D4037', '#616161'];
+function _caseGroupColor(gid) {
+  let h = 0;
+  const s = String(gid);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return _CASE_GROUP_COLORS[h % _CASE_GROUP_COLORS.length];
+}
+
+/* Scans a question list and returns, in first-seen order:
+   - order: [groupId, ...]
+   - labelOf: { groupId: 'Case 1' } — a stable, friendly label for display
+   - membersOf: { groupId: [questionIndex, ...] } */
+function _caseGroupSummarize(questions) {
+  const order = [];
+  const membersOf = {};
+  (questions || []).forEach((q, idx) => {
+    const gid = q && q.case_group;
+    if (!gid) return;
+    if (!membersOf[gid]) { membersOf[gid] = []; order.push(gid); }
+    membersOf[gid].push(idx);
+  });
+  const labelOf = {};
+  order.forEach((gid, i) => { labelOf[gid] = `Case ${i + 1}`; });
+  return { order, labelOf, membersOf };
+}
+
+function _caseGroupNewId() {
+  return 'manual_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+/* A short read-only preview of the core question's text, used on dependent
+   question cards so the user can see at a glance what context/image will
+   actually be sent to the AI solver — without a separate editable copy. */
+function _caseGroupCorePreviewText(core, maxLen) {
+  const t = (core && core.question || '').trim();
+  if (!t) return '(core question has no text yet)';
+  return t.length > maxLen ? t.slice(0, maxLen).trim() + '…' : t;
+}
+
+/* Renders the "🔗 Case Link" control block for one question card.
+   editorKey: 'cq' | 'admin' — selects which editor's state to read/write. */
+function _renderCaseGroupBlock(editorKey, questions, i) {
+  const q = questions[i];
+  const { labelOf, membersOf } = _caseGroupSummarize(questions);
+  const gid = q.case_group || '';
+  const color = gid ? _caseGroupColor(gid) : '#B0D4F0';
+
+  const coreLabelFor = (g) => {
+    const idxs = membersOf[g] || [];
+    const coreIdx = idxs.find(idx => questions[idx].case_is_core);
+    const others = idxs.filter(idx => idx !== i)
+      .map(idx => `Q${idx + 1}${idx === coreIdx ? ' ★core' : ''}`)
+      .join(', ');
+    return others || 'empty';
+  };
+
+  let optsHtml = `<option value="" ${!gid ? 'selected' : ''}>— Not linked to a case —</option>`;
+  Object.keys(membersOf).forEach(g => {
+    if (g === gid) return;
+    optsHtml += `<option value="${escapeHtml(g)}">${labelOf[g]} (${coreLabelFor(g)})</option>`;
+  });
+  if (gid) {
+    optsHtml += `<option value="${escapeHtml(gid)}" selected>${labelOf[gid]} (${coreLabelFor(gid) === 'empty' ? 'only this question so far' : coreLabelFor(gid)})</option>`;
+  }
+  optsHtml += `<option value="__new__">＋ Start a new case group…</option>`;
+
+  let html = `<div class="case-link-block" style="margin:8px 0;padding:8px 10px;border-radius:8px;
+    border:1.5px dashed ${color};background:${gid ? color + '14' : '#F7FBFF'};">`;
+  html += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span style="font-size:.78rem;font-weight:800;color:${gid ? color : 'var(--text-muted)'};white-space:nowrap;">🔗 Case Link</span>
+    <select style="flex:1;min-width:160px;font-family:var(--font);font-size:.78rem;padding:4px 6px;
+      border-radius:6px;border:1.5px solid ${color};background:#fff;color:var(--text-main);"
+      onchange="_caseGroupOnSelect('${editorKey}', ${i}, this.value)">
+      ${optsHtml}
+    </select>
+    ${gid ? `<button type="button" class="cq-img-action-btn cq-img-remove-btn" onclick="_caseGroupUnlink('${editorKey}', ${i})">✕ Unlink</button>` : ''}
+  </div>`;
+
+  if (gid) {
+    const memberIdxs = membersOf[gid] || [];
+    const coreIdx = memberIdxs.find(idx => questions[idx].case_is_core);
+    const isCore = !!q.case_is_core;
+    const others = memberIdxs.filter(idx => idx !== i);
+
+    html += `<div style="font-size:.72rem;color:${color};font-weight:700;margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">`;
+    if (isCore) {
+      html += `<span>🧩 Core question — its own text${q.image ? ' &amp; image' : ''} above is the case every linked question depends on</span>`;
+    } else if (coreIdx !== undefined) {
+      html += `<span>↳ Depends on Q${coreIdx + 1}</span>
+        <button type="button" class="cq-img-action-btn" style="padding:2px 8px;font-size:.68rem;"
+          onclick="_caseGroupSetCore('${editorKey}', ${i})">★ Make this the core question instead</button>`;
+    } else {
+      html += `<span>⚠️ No core question set for this case yet</span>
+        <button type="button" class="cq-img-action-btn" style="padding:2px 8px;font-size:.68rem;"
+          onclick="_caseGroupSetCore('${editorKey}', ${i})">★ Make this the core question</button>`;
+    }
+    html += `</div>`;
+
+    html += `<div style="font-size:.7rem;color:${color};margin-top:2px;">
+      🔗 Linked with ${others.length ? others.map(idx => 'Q' + (idx + 1) + (idx === coreIdx ? ' ★' : '')).join(', ') : '(no other questions yet — link another question to this case)'}
+    </div>`;
+
+    if (!isCore && coreIdx !== undefined) {
+      const core = questions[coreIdx];
+      html += `<div style="margin-top:8px;padding:8px 10px;background:#fff;border:1px solid ${color}55;border-radius:6px;">
+        <div style="font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
+          Context used for solving (Q${coreIdx + 1}'s own text${core.image ? ' + image' : ''}) — edit Q${coreIdx + 1} directly to change it
+        </div>
+        <div style="font-size:.78rem;color:var(--text-main);font-style:italic;">${escapeHtml(_caseGroupCorePreviewText(core, 220))}</div>
+        ${core.image ? `<img src="${core.image}" alt="Core question image" style="max-width:140px;max-height:90px;object-fit:contain;display:block;margin-top:6px;border-radius:4px;border:1px solid #D8EAF7;" />` : ''}
+      </div>`;
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
+function _caseGroupOnSelect(editorKey, i, val) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const q = questions[i];
+  const prevGid = q.case_group;
+  if (val === '') {
+    q.case_group = null; q.case_is_core = false;
+  } else if (val === '__new__') {
+    q.case_group = _caseGroupNewId();
+    q.case_is_core = true; // the question that starts a group is its core by default
+  } else {
+    q.case_group = val;
+    q.case_is_core = false; // joining an existing group — it already has a core
+  }
+  // The group this question just left (if any) may now have no core left;
+  // the group it just joined/started must end up with exactly one.
+  if (prevGid && prevGid !== q.case_group) _caseGroupEnsureSingleCore(questions, prevGid);
+  if (q.case_group) _caseGroupEnsureSingleCore(questions, q.case_group);
+  ed.rerender();
+}
+
+function _caseGroupUnlink(editorKey, i) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const gid = questions[i].case_group;
+  questions[i].case_group = null;
+  questions[i].case_is_core = false;
+  if (gid) _caseGroupEnsureSingleCore(questions, gid); // promote a remaining member if the core just left
+  ed.rerender();
+}
+
+/* Manually promotes question `i` to be the core of its own case group,
+   demoting whichever question held that role before. */
+function _caseGroupSetCore(editorKey, i) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const gid = questions[i].case_group;
+  if (!gid) return;
+  questions.forEach(o => { if (o.case_group === gid) o.case_is_core = false; });
+  questions[i].case_is_core = true;
+  ed.rerender();
+}
+
+/* If the question being deleted was the core of a case group, promote a
+   remaining member so the group doesn't lose its shared context entirely.
+   Called by both editors right after splicing a question out. */
+function _caseGroupOnQuestionDeleted(questions, deletedQuestion) {
+  if (deletedQuestion && deletedQuestion.case_group) {
+    _caseGroupEnsureSingleCore(questions, deletedQuestion.case_group);
+  }
+}
+
+function _cqGroupAwareShuffle(arr) {
+  const blocks = [];
+  const blockByGroup = {};
+  arr.forEach(q => {
+    const gid = q && q.case_group;
+    if (gid) {
+      if (!blockByGroup[gid]) { blockByGroup[gid] = []; blocks.push(blockByGroup[gid]); }
+      blockByGroup[gid].push(q);
+    } else {
+      blocks.push([q]);
+    }
+  });
+  // Within each case-group block, the core question (the one holding the
+  // shared case/vignette/image) must always lead, with its dependents kept
+  // in their existing relative order behind it — regardless of how the
+  // group's members were ordered going in.
+  blocks.forEach(block => {
+    if (block.length < 2) return;
+    const coreIdx = block.findIndex(q => q.case_is_core);
+    if (coreIdx > 0) {
+      const [core] = block.splice(coreIdx, 1);
+      block.unshift(core);
+    }
+  });
+  for (let i = blocks.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+  }
+  return blocks.flat();
+}
+
+/* Renders a status box with a real progress bar underneath the spinner/text.
+   `percent` is a plain 0–100 number the caller already knows client-side
+   (e.g. "file 2 of 5 done" → 40%) — this never triggers, waits on, or costs
+   an extra AI call; it's purely a visual reflection of work already tracked. */
+function _cqProgressStatusHTML(message, percent) {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  // If the user has clicked Pause but the loop hasn't reached a safe
+  // checkpoint yet, keep reminding them it's on its way there — this is
+  // rebuilt on every progress tick, so it survives the frequent innerHTML
+  // overwrites that happen while a pause is pending.
+  const pausingNote = (typeof cqPauseRequested !== 'undefined' && cqPauseRequested)
+    ? `<div class="cq-status warning cq-pausing-banner" style="margin-top:6px;">⏳ Waiting for the nearest checkpoint to pause safely — this finishes the current step first so nothing already done is lost.</div>`
+    : '';
+  return `<div class="cq-status info with-progress">
+    <div class="cq-status-row"><div class="cq-spinner"></div> ${message}</div>
+    <div class="cq-progress-track"><div class="cq-progress-fill" style="width:${pct}%;"></div></div>
+    <div class="cq-progress-label">${pct}%</div>
+  </div>${pausingNote}`;
+}
+
+/* ── Pause / resume for the extraction & generation loops ──
+   The loops below are plain `for` loops inside an `async function`, so all
+   their state (accumulated questions, current file index, etc.) already
+   lives in local variables that stay alive across an `await`. That means
+   "pausing" doesn't need to save/restore any state at all — it just needs
+   to `await` an unresolved Promise at a safe checkpoint (between files /
+   between AI-solve batches) until the user clicks Resume, which resolves
+   it and lets the loop fall through to the next line exactly where it left
+   off. Nothing extracted so far is ever discarded.
+
+   Because getActiveApiKey() always reads the currently-active key fresh,
+   any loop that re-reads it right after a checkpoint will automatically
+   pick up a different key if the user opened 🔑 Manage APIs while paused. */
+function _cqActiveGenBtn() {
+  return document.getElementById('cqGenerateBtn') || document.getElementById('cqLectureGenBtn');
+}
+
+function cqRequestPause() {
+  if (!cqBusy || cqIsPaused || cqPauseRequested) return;
+  cqPauseRequested = true;
+  const pauseBtn = document.getElementById('cqPauseBtn');
+  if (pauseBtn) { pauseBtn.disabled = true; pauseBtn.textContent = '⏳ Pausing…'; }
+
+  // Let the user know right away — pausing isn't instant, it takes effect at
+  // the next safe checkpoint (between files/batches), so tell them what's
+  // happening instead of leaving them wondering. This note also gets baked
+  // into every progress update via _cqProgressStatusHTML() below, so it
+  // survives the frequent innerHTML overwrites that happen while waiting.
+  const statusEl = document.getElementById('cqStatus');
+  if (statusEl && !statusEl.querySelector('.cq-pausing-banner')) {
+    statusEl.insertAdjacentHTML('beforeend',
+      `<div class="cq-status warning cq-pausing-banner" style="margin-top:6px;">⏳ Waiting for the nearest checkpoint to pause safely — this finishes the current step first so nothing already done is lost.</div>`);
+  }
+}
+
+function cqResumeGeneration() {
+  if (!cqResumeResolve) return;
+  const resolve = cqResumeResolve;
+  cqResumeResolve = null;
+  const pauseBtn = document.getElementById('cqPauseBtn');
+  if (pauseBtn) { pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
+  const resumeBtn = document.getElementById('cqResumeBtn');
+  if (resumeBtn) resumeBtn.style.display = 'none';
+  if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+  const genBtn = _cqActiveGenBtn();
+  if (genBtn) genBtn.textContent = '⏳ Generating…';
+  resolve();
+}
+
+/* Does the actual work of sitting paused: swap buttons, show a banner with
+   the given message, and block (via an unresolved Promise, not polling)
+   until cqResumeGeneration() is clicked. Shared by the two ways a pause
+   can start — the user clicking ⏸️ Pause, and the automatic rate-limit
+   fallback below. */
+async function _cqEnterPause(statusEl, message) {
+  cqPauseRequested = false;
+  cqIsPaused = true;
+
+  const pauseBtn  = document.getElementById('cqPauseBtn');
+  const resumeBtn = document.getElementById('cqResumeBtn');
+  if (pauseBtn)  pauseBtn.style.display  = 'none';
+  if (resumeBtn) resumeBtn.style.display = 'inline-flex';
+  const genBtn = _cqActiveGenBtn();
+  if (genBtn) genBtn.textContent = '⏸️ Paused';
+
+  if (statusEl) {
+    // The "waiting for checkpoint" note has done its job now that we've
+    // actually reached one — swap it for the real paused banner.
+    const pausingBanner = statusEl.querySelector('.cq-pausing-banner');
+    if (pausingBanner) pausingBanner.remove();
+    statusEl.insertAdjacentHTML('beforeend',
+      `<div class="cq-status warning cq-pause-banner" style="margin-top:6px;">${message}</div>`);
+  }
+
+  await new Promise(resolve => { cqResumeResolve = resolve; });
+
+  cqIsPaused = false;
+  if (statusEl) {
+    const banner = statusEl.querySelector('.cq-pause-banner');
+    if (banner) banner.remove();
+  }
+
+  // The user may have confirmed switching API keys while this was paused —
+  // that ends the run instead of resuming it.
+  if (typeof cqStopRequested !== 'undefined' && cqStopRequested) {
+    const e = new Error('Aborted — the active API key was switched while paused.');
+    e._cqStopped = true;
+    throw e;
+  }
+
+  return getActiveApiKey();
+}
+
+/* Call at a safe checkpoint (top of a file/batch iteration). Returns the
+   currently-active API key — refreshed in case the user switched keys
+   while paused, so the very next request already uses it. */
+async function cqCheckPause(statusEl) {
+  if (typeof cqStopRequested !== 'undefined' && cqStopRequested) {
+    const e = new Error('Aborted — the active API key was switched, which forcibly ends this run.');
+    e._cqStopped = true;
+    throw e;
+  }
+  if (cqPauseRequested) {
+    return _cqEnterPause(statusEl,
+      `⏸️ Paused — everything done so far is safe. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue right where this left off.`);
+  }
+  return getActiveApiKey();
+}
+
+/* Fallback used when the user has clicked Pause but the *current* file/
+   batch can't get there on its own — Gemini keeps returning 429 (rate
+   limited) over and over. Rather than let callGeminiWithRetry keep backing
+   off forever and leave Pause stuck at "Pausing…" indefinitely, it bails
+   out after several successive 429s and we pause right here instead —
+   i.e. fall back to the last completed checkpoint. The file/batch that was
+   being worked on is simply retried (not skipped) once the user resumes,
+   ideally with a different, non-rate-limited key. */
+async function cqFallbackPauseForRateLimit(statusEl, whatLabel) {
+  const what = whatLabel ? ` for ${escapeHtml(whatLabel)}` : '';
+  return _cqEnterPause(statusEl,
+    `⏸️ Paused automatically — Gemini kept rate-limiting (429) repeatedly while trying to finish${what}, so this stepped back to before it instead of waiting indefinitely. Nothing is lost — switch your API key (🔑 Manage APIs) and press ▶️ Resume to retry it.`);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -4894,6 +5532,11 @@ function openCustomQuizzes() {
   cqLectureFiles = [];
   cqCustomPrompt = '';
   cqQuestionCount = '';
+  cqEditingQuizId = null;
+  cqEditQuestions = null;
+  cqCreatingNew = false;
+  cqNewQuizTitle = '';
+  cqMultiSelected = new Set();
   document.getElementById('customQuizOverlay').classList.remove('hidden');
   renderCustomQuizModal();
 }
@@ -4936,12 +5579,43 @@ function renderCustomQuizModal() {
       No custom quizzes yet — create one below using AI.
     </div>`;
   } else {
+    // Prune selections for quizzes that no longer exist (deleted, etc.)
+    const liveIds = new Set(quizzes.map(q => q.id));
+    Array.from(cqMultiSelected).forEach(id => { if (!liveIds.has(id)) cqMultiSelected.delete(id); });
+
+    if (cqMultiSelected.size > 0) {
+      const totalQs = quizzes
+        .filter(q => cqMultiSelected.has(q.id))
+        .reduce((sum, q) => sum + q.questions.length, 0);
+      const defMins = Math.max(5, totalQs);
+      html += `<div class="cq-quiz-item" style="background:#F0F8FF;border:1.5px solid var(--accent);">
+        <div class="cq-quiz-info">
+          <div class="cq-quiz-name">🧩 ${cqMultiSelected.size} quiz${cqMultiSelected.size !== 1 ? 'zes' : ''} selected — ${totalQs} question${totalQs !== 1 ? 's' : ''} total</div>
+          <div class="cq-quiz-meta">Start them together in one sitting, in the order checked below.</div>
+        </div>
+        <div class="cq-quiz-actions">
+          <input type="number" id="cqMultiMins" value="${defMins}" min="1" max="480" title="Duration (minutes)" />
+          <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;" title="Shuffle questions">
+            <input type="checkbox" id="cqMultiShuffle" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
+          </label>
+          <button class="cq-btn" onclick="startCustomQuizzesMulti()">&#9654; Start Selected</button>
+          <button class="cq-btn cq-btn-secondary" onclick="clearCqMultiSelect()">✖ Clear</button>
+        </div>
+      </div>`;
+    }
+
     quizzes.forEach(q => {
       const defMins = Math.max(5, q.questions.length);
+      const isEditing = cqEditingQuizId === q.id;
+      const isChecked = cqMultiSelected.has(q.id);
       html += `<div class="cq-quiz-item">
-        <div class="cq-quiz-info">
-          <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
-          <div class="cq-quiz-meta">${q.questions.length} question${q.questions.length !== 1 ? 's' : ''} &middot; created ${new Date(q.createdAt).toLocaleDateString()}${q.sharedAt ? ' &middot; <span class="share-chip">&#127758; Shared</span>' : ''}</div>
+        <div class="cq-quiz-info" style="display:flex;align-items:flex-start;gap:8px;">
+          <input type="checkbox" title="Select for a combined quiz" style="margin-top:3px;width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;"
+            ${isChecked ? 'checked' : ''} onchange="toggleCqMultiSelect('${q.id}', this.checked)" />
+          <div>
+            <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
+            <div class="cq-quiz-meta">${q.questions.length} question${q.questions.length !== 1 ? 's' : ''} &middot; created ${new Date(q.createdAt).toLocaleDateString()}${q.sharedAt ? ' &middot; <span class="share-chip">&#127758; Shared</span>' : ''}</div>
+          </div>
         </div>
         <div class="cq-quiz-actions">
           <input type="number" id="cqMins_${q.id}" value="${defMins}" min="1" max="180" title="Duration (minutes)" />
@@ -4949,13 +5623,29 @@ function renderCustomQuizModal() {
             <input type="checkbox" id="cqShuffle_${q.id}" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
           </label>
           <button class="cq-btn" onclick="startCustomQuiz('${q.id}')">&#9654; Start</button>
+          <button class="cq-btn cq-btn-secondary" onclick="${isEditing ? 'closeCustomQuizEditor()' : `openCustomQuizEditor('${q.id}')`}" style="background:#1B8AC4;color:#fff;">${isEditing ? '✖ Close Editor' : '✏️ Edit'}</button>
           <button class="cq-share-btn" onclick="shareCustomQuiz('${q.id}')" title="Share with community">&#128279; Share</button>
-          <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('saved','${q.id}')" title="Split into multiple quizzes" style="background:#7B1FA2;color:#fff;">✂️ Split</button>
           <button class="cq-btn cq-btn-danger" onclick="deleteCustomQuiz('${q.id}')">&#128465;</button>
         </div>
-        ${renderSplitPanel('saved', q.id, q.questions.length)}
+        ${isEditing ? `<div class="cq-inline-editor" id="cqCustomEditorArea_${q.id}" style="margin-top:10px;"></div>` : ''}
       </div>`;
     });
+  }
+  html += `</div>`;
+
+  /* ── Write your own quiz by hand (no AI) ── */
+  html += `<div class="cq-section">
+    <div class="cq-section-title">✍️ Create Your Own Quiz</div>`;
+  if (cqCreatingNew) {
+    html += `<div class="cq-field-hint">Write your quiz from scratch — same editor as editing an existing quiz, you just start from a blank question.</div>
+    <div class="cq-input-row">
+      <input type="text" id="cqNewQuizTitleInput" placeholder="Quiz title (e.g. 'My Practice Set')"
+             value="${escapeHtml(cqNewQuizTitle)}" oninput="cqNewQuizTitle = this.value" />
+    </div>
+    <div class="cq-inline-editor" id="cqNewQuizEditorArea"></div>`;
+  } else {
+    html += `<div class="cq-field-hint">Prefer to type your own questions instead of using AI? Start with one blank question and build it up.</div>
+    <button class="cq-btn cq-btn-secondary" onclick="openNewQuizComposer()" style="background:#4CAF50;margin-top:6px;">＋ Start Writing a New Quiz</button>`;
   }
   html += `</div>`;
 
@@ -5097,6 +5787,13 @@ function renderCustomQuizModal() {
       </div>
     </div>
 
+    <div id="cqPauseRow" style="display:none;gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap;">
+      <button class="cq-btn" id="cqPauseBtn" type="button" onclick="cqRequestPause()"
+        style="background:#FFF3E0;color:#E65100;border:1.5px solid #FFB74D;">⏸️ Pause</button>
+      <button class="cq-btn" id="cqResumeBtn" type="button" onclick="cqResumeGeneration()"
+        style="display:none;background:#E8F5E9;color:#2E7D32;border:1.5px solid #66BB6A;">▶️ Resume</button>
+      <button class="apikey-open-btn ghost" type="button" onclick="openApiKeyManager()">🔑 Manage APIs</button>
+    </div>
     <div id="cqStatus"></div>
     <div id="cqPreviewArea"></div>
   </div>`;
@@ -5104,6 +5801,7 @@ function renderCustomQuizModal() {
   body.innerHTML = html;
 
   if (cqGeneratedQuestions) renderCQPreview();
+  if ((cqEditingQuizId || cqCreatingNew) && cqEditQuestions) renderCustomQuizEditor();
   setupCQDropzone();
   setupLectureDropzone();
   setupSourceDropzone();
@@ -5311,7 +6009,13 @@ STRICT RULES — follow exactly, no exceptions:
 4. If the document indicates which choice is correct (circled, bolded, underlined, highlighted, starred, checked, or listed in a separate answer key), use EXACTLY that choice as the "answer" for that question. Do not second-guess or change a marked answer.
 5. If a specific question has NO indicated correct answer anywhere in the document, set its "answer" to the special value "__NO_KEY__". Do NOT guess or infer an answer — use "__NO_KEY__" exactly.
 6. Do not invent, add, duplicate, or remove any questions or options that are not present in the source document.
-7. For each question, set "has_image" to true if the question is accompanied by an image, diagram, figure, table, chart, graph, X-ray, CT scan, ECG, histology slide, or any other visual element that is part of that question. Set it to false otherwise.
+7. For each question, set "has_image" to true if THIS SPECIFIC question is accompanied by an image, diagram, figure, table, chart, graph, X-ray, CT scan, ECG, histology slide, or any other visual element that is part of it. Set it to false otherwise.
+8. CASE / VIGNETTE CLUSTERS: sometimes a shared clinical case, patient vignette, scenario, lab panel, or image is presented ONCE and then several questions that follow it all refer back to it (e.g. "A 45-year-old man presents with... Questions 12–15 refer to the scenario above."), without repeating that shared information in each question's own text. Whenever you detect this pattern, structure it as ONE core question plus its dependent questions:
+   - Identify the ONE question that is paired with the shared case/vignette/scenario/lab panel/image in the source document — this is the CORE question. Its "question" field MUST include the FULL case/vignette text verbatim (reproduced exactly as written, same as any other question text) followed by that question's own actual question — the case must live IN the core question's own text, never only in a separate field. Set "case_is_core" to true on this question. If the image is part of the case, set "has_image" true on this question.
+   - For every OTHER question in the cluster (the dependents), keep its "question" field as ONLY that question's own specific wording — do NOT repeat the shared case text inside it, exactly as the source document itself doesn't repeat it. Set "case_is_core" to false (or omit it) on these.
+   - Give every question in the cluster — the core question AND every question that depends on it — the SAME "case_group" string (e.g. "case_1", "case_2", ...). Leave "case_group" empty/omitted for standalone questions that don't share context with any other question.
+   - Output the core question immediately followed by its dependent questions, in the same order they appear in the source document.
+   - Do not invent a cluster — only use "case_group"/"case_is_core" when the source document actually presents shared context that multiple questions depend on. A cluster always needs exactly one core question — never zero, never more than one.
 
 Return ONLY a JSON array, one object per question, in exactly this format:
 [
@@ -5319,7 +6023,9 @@ Return ONLY a JSON array, one object per question, in exactly this format:
     "question": "exact question text",
     "options": { "A": "exact choice text", "B": "exact choice text", "C": "exact choice text", "D": "exact choice text" },
     "answer": "A",
-    "has_image": false
+    "has_image": false,
+    "case_group": "",
+    "case_is_core": false
   }
 ]
 
@@ -5340,7 +6046,9 @@ const CQ_RESPONSE_SCHEMA = {
         }
       },
       answer: { type: 'STRING' },
-      has_image: { type: 'BOOLEAN' }
+      has_image: { type: 'BOOLEAN' },
+      case_group: { type: 'STRING' },
+      case_is_core: { type: 'BOOLEAN' }
     },
     required: ['question', 'options', 'answer']
   }
@@ -5349,7 +6057,7 @@ const CQ_RESPONSE_SCHEMA = {
 /* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
    Only surfaces an error immediately if it's API-key-related
    (HTTP 400 with API_KEY_INVALID / 401 / 403). ──────── */
-async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) {
+async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCheck } = {}) {
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
 
@@ -5361,19 +6069,37 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
     return false;
   }
 
+  // How many *successive* 429s to tolerate, once a pause has actually been
+  // requested, before giving up on reaching the next checkpoint normally
+  // and falling back to pausing right here instead of retrying forever.
+  // While no pause is requested, 429s are retried exactly as before —
+  // this only changes behavior when the user is actively trying to pause.
+  const RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD = 20;
+
   let attempt = 0;
+  let consecutive429 = 0;
   while (true) {
     // Check for cancellation before every attempt (including between retries)
     if (cancelToken && cancelToken.cancelled) {
       const e = new Error('cancelled'); e._cancelled = true; throw e;
     }
     attempt++;
+
+    // Real abort — not just "ignore the result once it comes back". Stashing
+    // the controller on the token means whoever cancels it (e.g. the user
+    // confirming they want to switch API keys mid-request) can call
+    // controller.abort() and the actual network request is killed immediately.
+    const controller = new AbortController();
+    if (cancelToken) cancelToken.controller = controller;
+
     try {
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyObj)
+        body: JSON.stringify(bodyObj),
+        signal: controller.signal
       });
+      if (cancelToken) cancelToken.controller = null;
       const data = await resp.json();
 
       if (!resp.ok) {
@@ -5383,6 +6109,16 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
         err._apiData    = data;
         // Always surface key errors immediately — no point retrying
         if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
+
+        if (resp.status === 429) {
+          consecutive429++;
+          if (pauseCheck && pauseCheck() && consecutive429 >= RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD) {
+            throw Object.assign(err, { _rateLimitPauseFallback: true });
+          }
+        } else {
+          consecutive429 = 0;
+        }
+
         if (onRetry) onRetry(attempt);
         // Cancellable sleep between retries
         await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
@@ -5396,7 +6132,13 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken } = {}) 
 
       return data; // success
     } catch (err) {
-      if (err._keyError || err._cancelled) throw err; // propagate immediately
+      if (cancelToken) cancelToken.controller = null;
+      // fetch() rejects with an AbortError the instant controller.abort() is called
+      if (err.name === 'AbortError' || (cancelToken && cancelToken.cancelled)) {
+        const e = new Error('cancelled'); e._cancelled = true; throw e;
+      }
+      if (err._keyError || err._cancelled || err._rateLimitPauseFallback) throw err; // propagate immediately
+      consecutive429 = 0; // a non-HTTP-429 failure (network error etc.) resets the streak
       if (onRetry) onRetry(attempt);
       await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
     }
@@ -5680,7 +6422,7 @@ function cqRemoveSourceFile(idx) {
 async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl) {
   if (!targetIdxs || !targetIdxs.length) return;
 
-  const apiKey = getGeminiKey();
+  let apiKey = getGeminiKey();
   if (!apiKey) { console.warn('cqAiSolveQuestions: no Gemini API key'); return; }
 
   const hasSource = (sourceText && sourceText.trim()) || (sourceFiles && sourceFiles.length > 0);
@@ -5727,15 +6469,22 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     chunks.push(targetIdxs.slice(i, i + CHUNK_SIZE));
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
   let totalSolved = 0;
   const errors = [];
 
   for (let ci = 0; ci < chunks.length; ci++) {
+    // Safe checkpoint between batches — lets the user pause and switch keys
+    // without losing any batches already solved.
+    apiKey = (await cqCheckPause(statusEl)) || apiKey;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
     const chunk = chunks[ci];
 
-    if (statusEl && chunks.length > 1) {
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is solving questions… (batch ${ci + 1} of ${chunks.length})</div>`;
+    if (statusEl) {
+      const label = chunks.length > 1
+        ? `🤖 AI is solving questions… (batch ${ci + 1} of ${chunks.length})`
+        : `🤖 AI is solving ${chunk.length} question${chunk.length !== 1 ? 's' : ''}…`;
+      statusEl.innerHTML = _cqProgressStatusHTML(label, (ci / chunks.length) * 100);
     }
 
     const parts = [...sourceParts, instructionPart];
@@ -5743,9 +6492,13 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     chunk.forEach((qi, serial) => {
       const q = questions[qi];
       const opts = Object.entries(q.options).map(([k, v]) => '  ' + k + '. ' + v).join('\n');
-      parts.push({ text: 'Question ' + (serial + 1) + ' [index:' + qi + ']:\n' + q.question + '\n' + opts });
-      if (q.image) {
-        const match = q.image.match(/^data:([^;]+);base64,(.+)$/);
+      let qText = 'Question ' + (serial + 1) + ' [index:' + qi + ']:\n';
+      qText += _cqCaseContextBlock(questions, q);
+      qText += q.question + '\n' + opts;
+      parts.push({ text: qText });
+      const imgForThis = q.image || _cqFindCaseGroupImage(questions, q);
+      if (imgForThis) {
+        const match = imgForThis.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
           parts.push({ text: '(Image for question ' + (serial + 1) + ':)' });
           parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
@@ -5758,7 +6511,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: [{ role: 'user', parts }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
-      }, {});
+      }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken });
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
       const cleanText = textOut.replace(/```json|```/g, '').trim();
@@ -5793,6 +6546,11 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         errors.push(`Batch ${ci + 1}: AI returned unexpected format (not an array).`);
       }
     } catch (e) {
+      if (e._rateLimitPauseFallback) {
+        apiKey = await cqFallbackPauseForRateLimit(statusEl, chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : null);
+        ci--; // retry this same batch (not counted as an error) once resumed
+        continue;
+      }
       console.warn('cqAiSolveQuestions batch ' + (ci + 1) + ' failed:', e);
       errors.push(`Batch ${ci + 1}: ${e.message || String(e)}`);
     }
@@ -5830,14 +6588,24 @@ async function cqAiSolveOne(i) {
    stages multiple images/PDFs to extract from in one go. Returns
    { cleaned, finishReason }. Each returned question is tagged with the File
    it came from (_sourceFile) so re-extract/re-ask actions later know which
-   source to go back to. */
-async function _extractQuestionsFromFile(file, apiKey, statusEl) {
+   source to go back to.
+
+   onProgress(frac, label): frac is 0–1 progress *within this one file*,
+   reported at checkpoints tied to steps that already happen (start of the
+   extraction call, after it returns, before/after the image-crop pass) —
+   never from a dedicated "progress" AI call, so this adds zero extra load. */
+async function _extractQuestionsFromFile(file, apiKey, onProgress) {
+  const report = (frac, label) => { if (onProgress) onProgress(frac, label); };
+
   const mimeType = file.type ||
     (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
+  report(0, `Reading "${escapeHtml(file.name)}"…`);
   const filePart = await buildGeminiFilePart(file, apiKey, mimeType);
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+  report(0.1, `Extracting questions from "${escapeHtml(file.name)}"…`);
   const data = await callGeminiWithRetry(url, {
     contents: [{
       parts: [
@@ -5850,7 +6618,7 @@ async function _extractQuestionsFromFile(file, apiKey, statusEl) {
       temperature: 0,
       maxOutputTokens: 65536
     }
-  }, {});
+  }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken });
 
   const candidate = data && data.candidates && data.candidates[0];
   if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or blocked — try a clearer image or PDF.`);
@@ -5868,6 +6636,11 @@ async function _extractQuestionsFromFile(file, apiKey, statusEl) {
     throw new Error(`No questions could be detected in "${file.name}".`);
   }
 
+  report(0.6, `Processing questions from "${escapeHtml(file.name)}"…`);
+  // Case/vignette clusters: the AI assigns "case_1", "case_2"... IDs that are
+  // only unique *within this file's own response* — prefix with a per-file
+  // token so multiple uploaded files never collide with each other's groups.
+  const groupPrefix = `f${_cqNextGroupPrefixId()}`;
   const cleaned = parsed.map(q => {
     if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
     const opts = {};
@@ -5881,10 +6654,21 @@ async function _extractQuestionsFromFile(file, apiKey, statusEl) {
     let answer = noKey ? '' : rawAnswer.toUpperCase();
     if (!noKey && !opts[answer]) answer = Object.keys(opts)[0];
     const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
-    return { question: q.question, options: opts, optionsOrder, answer, has_image: !!q.has_image, no_answer_key: noKey, _sourceFile: file };
+    const rawGroup = (typeof q.case_group === 'string') ? q.case_group.trim() : '';
+    return {
+      question: q.question, options: opts, optionsOrder, answer,
+      has_image: !!q.has_image, no_answer_key: noKey, _sourceFile: file,
+      case_group: rawGroup ? `${groupPrefix}:${rawGroup}` : null,
+      case_is_core: !!q.case_is_core
+    };
   }).filter(Boolean);
 
   if (!cleaned.length) throw new Error(`The AI response for "${file.name}" did not contain any usable questions.`);
+
+  // Make sure every surviving case cluster has exactly one core question
+  // (the one whose own text/image IS the shared case), and that stray
+  // single-member "groups" don't stay a real group (nothing to share).
+  _cqNormalizeCaseGroups(cleaned);
 
   // Extract embedded images for questions that have them. This step renders
   // PDF pages / crops regions locally in the browser, which needs the raw
@@ -5892,10 +6676,11 @@ async function _extractQuestionsFromFile(file, apiKey, statusEl) {
   // so it's read here, lazily, only when there's actually an image to pull.
   const imageQuestions = cleaned.filter(q => q.has_image);
   if (imageQuestions.length > 0) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Extracting images from "${escapeHtml(file.name)}" for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}… please wait.</div>`;
+    report(0.65, `Extracting images from "${escapeHtml(file.name)}" for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}…`);
     await extractImagesForQuestions(cleaned, file, apiKey, filePart);
   }
 
+  report(1, `Finished "${escapeHtml(file.name)}"`);
   return { cleaned, finishReason };
 }
 
@@ -5903,9 +6688,12 @@ async function generateQuizFromAI() {
   const titleInput  = document.getElementById('cqTitleInput');
   const statusEl    = document.getElementById('cqStatus');
   const genBtn      = document.getElementById('cqGenerateBtn');
+  const pauseRow    = document.getElementById('cqPauseRow');
+  const pauseBtn    = document.getElementById('cqPauseBtn');
+  const resumeBtn   = document.getElementById('cqResumeBtn');
 
-  const apiKey = getActiveApiKey();
-  const title  = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
+  let apiKey  = getActiveApiKey();
+  const title = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
 
   if (!apiKey)              { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Add API Key</button></div>`; return; }
   if (!cqSelectedFiles.length){ statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload at least one image or PDF of your quiz first.</div>`; return; }
@@ -5913,18 +6701,48 @@ async function generateQuizFromAI() {
 
   cqGeneratedTitle = title;
   cqBusy = true;
+  cqPauseRequested = false;
+  cqIsPaused = false;
+  cqStopRequested = false;
+  cqCancelToken = { cancelled: false };
   if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
-  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your file${cqSelectedFiles.length > 1 ? 's' : ''} and extracting all questions… this can take a moment for longer documents.</div>`;
+  if (pauseRow)  pauseRow.style.display  = 'flex';
+  if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
+  if (resumeBtn) resumeBtn.style.display = 'none';
+  statusEl.innerHTML = _cqProgressStatusHTML(`Reading your file${cqSelectedFiles.length > 1 ? 's' : ''} and extracting all questions…`, 0);
 
   try {
     let cleaned = [];
     let anyMaxTokens = false;
-    for (let fi = 0; fi < cqSelectedFiles.length; fi++) {
+    const totalFiles = cqSelectedFiles.length;
+    for (let fi = 0; fi < totalFiles; fi++) {
+      // Safe checkpoint — takes effect only if the user clicked Pause, and
+      // returns the freshly-active key in case it was switched meanwhile.
+      apiKey = await cqCheckPause(statusEl);
+      if (!apiKey) throw new Error('No active API key. Add or select one, then click Extract Questions again.');
+
       const file = cqSelectedFiles[fi];
-      if (cqSelectedFiles.length > 1) {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading file ${fi + 1} of ${cqSelectedFiles.length} ("${escapeHtml(file.name)}")…</div>`;
+      const basePct  = (fi / totalFiles) * 100;
+      const slicePct = 100 / totalFiles;
+      const onProgress = (frac, label) => {
+        const prefix = totalFiles > 1 ? `File ${fi + 1} of ${totalFiles} — ` : '';
+        statusEl.innerHTML = _cqProgressStatusHTML(prefix + label, basePct + slicePct * frac);
+      };
+
+      let result;
+      while (true) {
+        try {
+          result = await _extractQuestionsFromFile(file, apiKey, onProgress);
+          break;
+        } catch (fileErr) {
+          if (fileErr._rateLimitPauseFallback) {
+            apiKey = await cqFallbackPauseForRateLimit(statusEl, `"${file.name}"`);
+            if (!apiKey) throw new Error('No active API key. Add or select one, then click Extract Questions again.');
+            continue; // retry this same file with the (hopefully new) key
+          }
+          throw fileErr;
+        }
       }
-      const result = await _extractQuestionsFromFile(file, apiKey, statusEl);
       cleaned = cleaned.concat(result.cleaned);
       if (result.finishReason === 'MAX_TOKENS') anyMaxTokens = true;
     }
@@ -5978,7 +6796,9 @@ async function generateQuizFromAI() {
   } catch (err) {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
-    if (isKeyErr) {
+    if (err._cqStopped || err._cancelled) {
+      statusEl.innerHTML = `<div class="cq-status warning">⏹️ Aborted — you switched the active API key, which forcibly ended this run. Nothing extracted before the abort was lost, but you'll need to click <strong>Extract Questions</strong> again to continue.</div>`;
+    } else if (isKeyErr) {
       statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
         <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
       </div>`;
@@ -5987,6 +6807,12 @@ async function generateQuizFromAI() {
     }
   } finally {
     cqBusy = false;
+    cqPauseRequested = false;
+    cqIsPaused = false;
+    cqStopRequested = false;
+    cqCancelToken = null;
+    cqResumeResolve = null;
+    if (pauseRow) pauseRow.style.display = 'none';
     const btn = document.getElementById('cqGenerateBtn');
     if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Quiz'; }
   }
@@ -6042,12 +6868,17 @@ function fileToText(file) {
   });
 }
 
-async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey) {
+/* onProgress(frac, label): same deterministic, no-extra-AI-call pattern as
+   _extractQuestionsFromFile — checkpoints line up with steps that already
+   happen (reading, generating, processing). */
+async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey, onProgress) {
+  const report = (frac, label) => { if (onProgress) onProgress(frac, label); };
   const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   let requestBody;
 
+  report(0, `Reading "${escapeHtml(file.name)}"…`);
   if (isTxt && file.size <= GEMINI_INLINE_THRESHOLD_BYTES) {
     // Small text file: send as plain text alongside the prompt
     const lectureText = await fileToText(file);
@@ -6086,7 +6917,8 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey)
     };
   }
 
-  const data = await callGeminiWithRetry(url, requestBody, {});
+  report(0.15, `Generating questions from "${escapeHtml(file.name)}"…`);
+  const data = await callGeminiWithRetry(url, requestBody, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken });
 
   const candidate = data && data.candidates && data.candidates[0];
   if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or too large — try splitting it into smaller sections.`);
@@ -6106,6 +6938,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey)
     throw new Error(`No questions were generated from "${file.name}". Try uploading a more detailed lecture or reducing the question count.`);
   }
 
+  report(0.75, `Processing questions from "${escapeHtml(file.name)}"…`);
   const cleaned = parsed.map(q => {
     if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
     const opts = {};
@@ -6122,6 +6955,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey)
 
   if (!cleaned.length) throw new Error(`The AI response for "${file.name}" did not contain any usable questions.`);
 
+  report(1, `Finished "${escapeHtml(file.name)}"`);
   return { cleaned, finishReason };
 }
 
@@ -6131,8 +6965,11 @@ async function generateQuizFromLecture() {
   const promptInput   = document.getElementById('cqCustomPromptInput');
   const statusEl      = document.getElementById('cqStatus');
   const genBtn        = document.getElementById('cqLectureGenBtn');
+  const pauseRow      = document.getElementById('cqPauseRow');
+  const pauseBtn      = document.getElementById('cqPauseBtn');
+  const resumeBtn     = document.getElementById('cqResumeBtn');
 
-  const apiKey = getActiveApiKey();
+  let apiKey   = getActiveApiKey();
   const title  = (titleInput  ? titleInput.value  : cqGeneratedTitle).trim();
   const qCount = (qCountInput ? qCountInput.value : cqQuestionCount).trim();
   const prompt = (promptInput ? promptInput.value : cqCustomPrompt).trim();
@@ -6145,20 +6982,50 @@ async function generateQuizFromLecture() {
   cqCustomPrompt   = prompt;
   cqQuestionCount  = qCount;
   cqBusy = true;
+  cqPauseRequested = false;
+  cqIsPaused = false;
+  cqStopRequested = false;
+  cqCancelToken = { cancelled: false };
   if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
-  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading your lecture${cqLectureFiles.length > 1 ? 's' : ''} and generating questions… this may take up to a minute for longer documents.</div>`;
+  if (pauseRow)  pauseRow.style.display  = 'flex';
+  if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
+  if (resumeBtn) resumeBtn.style.display = 'none';
+  statusEl.innerHTML = _cqProgressStatusHTML(`Reading your lecture${cqLectureFiles.length > 1 ? 's' : ''} and generating questions…`, 0);
 
   try {
     const generationPrompt = buildGenerationPrompt(qCount, prompt);
 
     let cleaned = [];
     let anyMaxTokens = false;
-    for (let fi = 0; fi < cqLectureFiles.length; fi++) {
+    const totalFiles = cqLectureFiles.length;
+    for (let fi = 0; fi < totalFiles; fi++) {
+      // Safe checkpoint — takes effect only if the user clicked Pause, and
+      // returns the freshly-active key in case it was switched meanwhile.
+      apiKey = await cqCheckPause(statusEl);
+      if (!apiKey) throw new Error('No active API key. Add or select one, then click Generate Questions again.');
+
       const file = cqLectureFiles[fi];
-      if (cqLectureFiles.length > 1) {
-        statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Reading lecture ${fi + 1} of ${cqLectureFiles.length} ("${escapeHtml(file.name)}")…</div>`;
+      const basePct  = (fi / totalFiles) * 100;
+      const slicePct = 100 / totalFiles;
+      const onProgress = (frac, label) => {
+        const prefix = totalFiles > 1 ? `Lecture ${fi + 1} of ${totalFiles} — ` : '';
+        statusEl.innerHTML = _cqProgressStatusHTML(prefix + label, basePct + slicePct * frac);
+      };
+
+      let result;
+      while (true) {
+        try {
+          result = await _generateQuestionsFromLectureFile(file, generationPrompt, apiKey, onProgress);
+          break;
+        } catch (fileErr) {
+          if (fileErr._rateLimitPauseFallback) {
+            apiKey = await cqFallbackPauseForRateLimit(statusEl, `"${file.name}"`);
+            if (!apiKey) throw new Error('No active API key. Add or select one, then click Generate Questions again.');
+            continue; // retry this same file with the (hopefully new) key
+          }
+          throw fileErr;
+        }
       }
-      const result = await _generateQuestionsFromLectureFile(file, generationPrompt, apiKey);
       cleaned = cleaned.concat(result.cleaned);
       if (result.finishReason === 'MAX_TOKENS') anyMaxTokens = true;
     }
@@ -6184,7 +7051,9 @@ async function generateQuizFromLecture() {
   } catch (err) {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
-    if (isKeyErr) {
+    if (err._cqStopped || err._cancelled) {
+      statusEl.innerHTML = `<div class="cq-status warning">⏹️ Aborted — you switched the active API key, which forcibly ended this run. Nothing generated before the abort was lost, but you'll need to click <strong>Generate Questions</strong> again to continue.</div>`;
+    } else if (isKeyErr) {
       statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
         <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
       </div>`;
@@ -6193,6 +7062,12 @@ async function generateQuizFromLecture() {
     }
   } finally {
     cqBusy = false;
+    cqPauseRequested = false;
+    cqIsPaused = false;
+    cqStopRequested = false;
+    cqCancelToken = null;
+    cqResumeResolve = null;
+    if (pauseRow) pauseRow.style.display = 'none';
     const btn = document.getElementById('cqLectureGenBtn');
     if (btn) { btn.disabled = false; btn.textContent = '🧠 Generate Questions'; }
   }
@@ -6217,7 +7092,7 @@ function renderCQPreview() {
       ✏️ Review &amp; Edit — ${cqGeneratedQuestions.length} question${cqGeneratedQuestions.length !== 1 ? 's' : ''}
     </div>
     <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;">
-      Click any field to edit &nbsp;·&nbsp; 🔘 = correct answer &nbsp;·&nbsp; 🤖 = re-ask AI
+      Click any field to edit &nbsp;·&nbsp; 🔘 = correct answer &nbsp;·&nbsp; 🤖 = re-ask AI &nbsp;·&nbsp; 🔗 = linked case questions
     </div>
   </div>`;
   html += `<div class="cq-preview-list" id="cqPreviewList">`;
@@ -6241,7 +7116,9 @@ function renderCQPreview() {
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
       ${qBadge}
+      ${_renderMergeSourceBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
+      ${_renderReorderButtons('cq', i, cqGeneratedQuestions.length)}
       <button class="cq-edit-reask-btn" title="Ask AI to solve this question using the configured source"
         onclick="cqAiSolveOne(${i})"
         style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 AI Solve</button>
@@ -6300,6 +7177,9 @@ function renderCQPreview() {
     }
     html += `</div>`; // end img-edit-row
 
+    /* ── Manual case-group link ── */
+    html += _renderCaseGroupBlock('cq', cqGeneratedQuestions, i);
+
     /* ── Options label ── */
     html += `<div style="font-size:.72rem;font-weight:700;color:var(--text-muted);
       text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">
@@ -6354,6 +7234,8 @@ function renderCQPreview() {
     <button class="cq-btn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
     <button class="cq-btn cq-btn-secondary" onclick="cqAddBlankQuestion()"
       style="background:#4CAF50;">＋ Add Question</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('cq')"
+      style="background:#7B1FA2;color:#fff;">🧩 Merge Quizzes In</button>
     <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('preview', null)"
       style="background:#7B1FA2;color:#fff;">✂️ Split into Multiple</button>
     <button class="cq-btn cq-btn-secondary" onclick="discardGeneratedQuiz()">✖ Discard</button>
@@ -6646,6 +7528,9 @@ async function saveGeneratedCustomQuiz() {
   const titleInput = document.getElementById('cqTitleInput');
   const title = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
 
+  _cqNormalizeCaseGroups(cqGeneratedQuestions);
+  _stripEditorTransientFields(cqGeneratedQuestions);
+
   const quizzes = loadCustomQuizzes();
   quizzes.unshift({
     id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -6670,7 +7555,7 @@ async function saveGeneratedCustomQuiz() {
 ══════════════════════════════════════════════════════════ */
 
 function openSplitPanel(context, quizId) {
-  // context: 'preview' | 'saved' | 'active'
+  // context: 'preview' | 'saved' | 'adminPublished'
   cqSplitState = {
     context,
     quizId: quizId || null,
@@ -6682,8 +7567,6 @@ function openSplitPanel(context, quizId) {
   };
   if (context === 'preview') {
     renderCQPreview();
-  } else if (context === 'active') {
-    _renderActiveSplitPanel();
   } else if (context === 'adminPublished') {
     _renderAdminAssignedListHTML();
   } else {
@@ -6691,17 +7574,10 @@ function openSplitPanel(context, quizId) {
   }
   // Scroll split panel into view
   setTimeout(() => {
-    const panelKey = context === 'active' ? 'active' : (quizId || 'preview');
+    const panelKey = quizId || 'preview';
     const el = document.getElementById('cqSplitPanel_' + panelKey);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 80);
-}
-
-function _renderActiveSplitPanel() {
-  const container = document.getElementById('resultsSplitContainer');
-  if (!container) return;
-  const total = currentQuestions ? currentQuestions.length : 0;
-  container.innerHTML = renderSplitPanel('active', null, total);
 }
 
 function closeSplitPanel() {
@@ -6709,8 +7585,6 @@ function closeSplitPanel() {
   renderCQPreview && renderCQPreview();
   renderCustomQuizModal && renderCustomQuizModal();
   if (document.getElementById('adminAssignedSection')) _renderAdminAssignedListHTML();
-  const activeContainer = document.getElementById('resultsSplitContainer');
-  if (activeContainer) activeContainer.innerHTML = '';
 }
 
 function setSplitMode(mode) {
@@ -6898,7 +7772,6 @@ function updateSplitRange(idx, field, val) {
 function _rerenderSplitOwner() {
   if (!cqSplitState) return;
   if (cqSplitState.context === 'preview') renderCQPreview();
-  else if (cqSplitState.context === 'active') _renderActiveSplitPanel();
   else if (cqSplitState.context === 'adminPublished') _renderAdminAssignedListHTML();
   else renderCustomQuizModal();
 }
@@ -6906,11 +7779,14 @@ function _rerenderSplitOwner() {
 function _getSplitSourceQuestions() {
   if (!cqSplitState) return null;
   if (cqSplitState.context === 'preview') return cqGeneratedQuestions || [];
-  if (cqSplitState.context === 'active') return currentQuestions || [];
   if (cqSplitState.context === 'adminPublished') {
     const entry = adminAssignedEntries.find(x => x.id === cqSplitState.quizId);
     return entry ? (entry.questions || []) : [];
   }
+  // If this saved quiz is currently open in its inline editor, split from the
+  // live working copy (cqEditQuestions) rather than storage — otherwise any
+  // not-yet-saved edits, like questions just merged in, would be missing.
+  if (cqEditingQuizId === cqSplitState.quizId && cqEditQuestions) return cqEditQuestions;
   const quizzes = loadCustomQuizzes();
   const q = quizzes.find(x => x.id === cqSplitState.quizId);
   return q ? q.questions : [];
@@ -6971,8 +7847,8 @@ function _buildSplitSummaryHTML(total) {
 function renderSplitPanel(context, quizId, totalQuestions) {
   if (!cqSplitState) return '';
   if (cqSplitState.context !== context || cqSplitState.quizId !== (quizId || null)) return '';
-  const panelId = 'cqSplitPanel_' + (context === 'active' ? 'active' : (quizId || 'preview'));
-  const summaryId = 'cqSplitSummary_' + (context === 'active' ? 'active' : (quizId || 'preview'));
+  const panelId = 'cqSplitPanel_' + (quizId || 'preview');
+  const summaryId = 'cqSplitSummary_' + (quizId || 'preview');
   const mode = cqSplitState.mode || 'equal';
   const isEqual = mode === 'equal';
   const isCustom = mode === 'custom';
@@ -7023,15 +7899,24 @@ function renderSplitPanel(context, quizId, totalQuestions) {
   }
 
   html += `<div class="cq-split-summary" id="${summaryId}">${_buildSplitSummaryHTML(total)}</div>`;
-  html += `<div class="cq-split-actions">
-    <button class="cq-btn" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>
-    <button class="cq-btn cq-btn-secondary" onclick="closeSplitPanel()">Cancel</button>
+  html += `<div class="cq-split-actions">`;
+  if (context === 'adminPublished') {
+    html += `<button class="cq-btn" onclick="executeSplitQuiz('publish')"
+        title="Publish the split parts as new curriculum lectures and remove the original lecture">
+        🚀 Split &amp; Publish to Curriculum</button>
+      <button class="cq-btn cq-btn-secondary" onclick="executeSplitQuiz('custom')"
+        style="background:#7B1FA2;color:#fff;" title="Save the split parts as custom quizzes — the curriculum lecture stays untouched">
+        📄 Split to Custom Quizzes</button>`;
+  } else {
+    html += `<button class="cq-btn" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>`;
+  }
+  html += `<button class="cq-btn cq-btn-secondary" onclick="closeSplitPanel()">Cancel</button>
   </div>`;
   html += `</div>`;
   return html;
 }
 
-async function executeSplitQuiz() {
+async function executeSplitQuiz(targetMode) {
   if (!cqSplitState) return;
   const srcQuestions = _getSplitSourceQuestions();
   if (!srcQuestions || !srcQuestions.length) return;
@@ -7066,8 +7951,6 @@ async function executeSplitQuiz() {
   if (cqSplitState.context === 'preview') {
     const titleInput = document.getElementById('cqTitleInput');
     baseTitle = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
-  } else if (cqSplitState.context === 'active') {
-    baseTitle = currentLecture || 'Active Quiz';
   } else if (cqSplitState.context === 'adminPublished') {
     const src = adminAssignedEntries.find(x => x.id === cqSplitState.quizId);
     baseTitle = src ? (src.lectureName || src.id) : 'Published Lecture';
@@ -7077,13 +7960,90 @@ async function executeSplitQuiz() {
     baseTitle = src ? src.title : 'Custom Quiz';
   }
 
-  if (!confirm(`This will create ${chunks.length} new quiz${chunks.length !== 1 ? 'zes' : ''} from "${baseTitle}". Continue?`)) return;
+  const isCurriculumPublish = cqSplitState.context === 'adminPublished' && targetMode === 'publish';
+  const confirmMsg = isCurriculumPublish
+    ? `This will replace the curriculum lecture "${baseTitle}" with ${chunks.length} new lecture${chunks.length !== 1 ? 's' : ''} in its place. The original lecture will be removed. Continue?`
+    : `This will create ${chunks.length} new quiz${chunks.length !== 1 ? 'zes' : ''} from "${baseTitle}". Continue?`;
+  if (!confirm(confirmMsg)) return;
 
-  // ── Admin-published curriculum lectures split off into new Firestore
-  //    lecture docs (rather than into the user's local custom-quiz list) ──
-  // ── Admin-published curriculum lectures are split into the admin's own
-  //    Custom Quizzes — NOT published directly to the subject — so the admin
-  //    can review/edit each part before publishing it themselves. ──
+  // ── Admin-published curriculum lectures: the admin chooses between two
+  //    pathways —
+  //    'publish' (normal pathway): the split parts REPLACE the original
+  //    lecture as new published curriculum lectures — live for all users.
+  //    'custom': the split parts go into the admin's own Custom Quizzes
+  //    instead, leaving the original curriculum lecture untouched, so the
+  //    admin can review/edit each part before publishing it themselves. ──
+  if (isCurriculumPublish) {
+    const origLectureId = cqSplitState.quizId;
+    const subject = adminTargetSubject;
+    try {
+      const publishedAt = Date.now();
+      const newLectures = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const c = chunks[i];
+        const partQuestions = JSON.parse(JSON.stringify(srcQuestions.slice(c.start - 1, c.end))).map(q => {
+          delete q.imageUrl;
+          delete q.sharedImageIdx;
+          delete q.pubImageIdx; // will be re-assigned after upload
+          return q;
+        });
+        const lectureName = ((cqSplitState.mode === 'custom' || cqSplitState.mode === 'visual') && c.label)
+          ? c.label
+          : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`;
+        const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i;
+
+        await uploadPublishedLectureImages(subject, lectureId, partQuestions);
+        const ref = window._doc(window._db, 'publishedQuestions', subject, 'lectures', lectureId);
+        await window._setDoc(ref, cleanForFirestore({
+          id: lectureId,
+          lectureName,
+          questions: partQuestions,
+          sourceTitle: baseTitle,
+          sourceType: 'split',
+          publishedBy: window._currentUser ? window._currentUser.uid : null,
+          publishedAt: publishedAt + i,
+          order: publishedAt + i
+        }));
+        newLectures.push({ lectureId, lectureName, questions: partQuestions });
+      }
+
+      // Remove the original lecture now that its replacements are live.
+      await deletePublishedLectureImages(subject, origLectureId);
+      await window._deleteDoc(window._doc(window._db, 'publishedQuestions', subject, 'lectures', origLectureId));
+
+      // Update in-memory subject: drop the old lecture, add the new ones.
+      if (subjects[subject].lectures) delete subjects[subject].lectures[baseTitle];
+      if (!subjects[subject].lectures) subjects[subject].lectures = {};
+      for (const nl of newLectures) {
+        const hydrated = JSON.parse(JSON.stringify(nl.questions));
+        await hydratePublishedLectureImages(subject, nl.lectureId, hydrated);
+        subjects[subject].lectures[nl.lectureName] = hydrated;
+      }
+
+      // If the original lecture was open in the editor, close it.
+      if (adminEditMode === 'published' && adminEditingPublishedId === origLectureId) {
+        adminEditMode = null;
+        adminEditQuestions = null;
+        adminEditingPublishedId = null;
+        adminEditingPublishedName = '';
+      }
+
+      _idbDelete('published:' + subject + ':' + origLectureId);
+      await _updatePublishedManifest(subject, origLectureId, null);
+      for (const nl of newLectures) {
+        await _updatePublishedManifest(subject, nl.lectureId, publishedAt);
+      }
+
+      cqSplitState = null;
+      renderAdminAssignedList();
+      if (selectedSubject === subject) selectSubject(subject);
+      alert(`✅ Published ${newLectures.length} new lecture${newLectures.length !== 1 ? 's' : ''} from "${baseTitle}" to ${subjects[subject].label || subject}, replacing the original lecture.`);
+    } catch (e) {
+      alert('Failed to split & publish: ' + (e.message || e));
+    }
+    return;
+  }
+
   if (cqSplitState.context === 'adminPublished') {
     const customQuizzes = loadCustomQuizzes();
     const newCustomQuizzes = chunks.map((c, i) => {
@@ -7138,19 +8098,10 @@ async function executeSplitQuiz() {
     cqGeneratedTitle = '';
   }
 
-  const wasActive = cqSplitState.context === 'active';
   cqSplitState = null;
-
-  if (wasActive) {
-    const activeContainer = document.getElementById('resultsSplitContainer');
-    if (activeContainer) {
-      activeContainer.innerHTML = `<div style="margin:12px 0;padding:12px 16px;background:#e8f5e9;border:1.5px solid #4CAF50;border-radius:8px;color:#2e7d32;font-weight:600;">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"! Find them in Custom Quizzes.</div>`;
-    }
-  } else {
-    renderCustomQuizModal();
-    const statusEl = document.getElementById('cqStatus');
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
-  }
+  renderCustomQuizModal();
+  const statusEl = document.getElementById('cqStatus');
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
 }
 
 async function deleteCustomQuiz(id) {
@@ -7175,10 +8126,7 @@ function startCustomQuiz(id) {
 
   let combined = JSON.parse(JSON.stringify(quiz.questions));
   if (shuffle) {
-    for (let i = combined.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [combined[i], combined[j]] = [combined[j], combined[i]];
-    }
+    combined = _cqGroupAwareShuffle(combined);
   }
 
   selectedSubject  = 'Custom Quizzes';
@@ -7189,6 +8137,63 @@ function startCustomQuiz(id) {
   timeLeft = mins * 60;
   currentQuizSource = 'custom';
 
+  closeCustomQuizzes();
+  showScreen('quiz');
+  renderQuestion();
+  startTimer();
+}
+
+/* ── Taking several saved custom quizzes together in one sitting ── */
+function toggleCqMultiSelect(id, checked) {
+  if (checked) cqMultiSelected.add(id); else cqMultiSelected.delete(id);
+  renderCustomQuizModal();
+}
+
+function clearCqMultiSelect() {
+  cqMultiSelected = new Set();
+  renderCustomQuizModal();
+}
+
+function startCustomQuizzesMulti() {
+  const quizzes  = loadCustomQuizzes();
+  const selected = quizzes.filter(q => cqMultiSelected.has(q.id));
+  if (!selected.length) return;
+
+  const minsInput    = document.getElementById('cqMultiMins');
+  const shuffleInput = document.getElementById('cqMultiShuffle');
+  const totalQs = selected.reduce((sum, q) => sum + q.questions.length, 0);
+  let mins = minsInput ? parseInt(minsInput.value, 10) : NaN;
+  if (!mins || mins <= 0) mins = Math.max(5, totalQs);
+  const shuffle = shuffleInput ? shuffleInput.checked : false;
+
+  // Each saved quiz's case-group ids are only guaranteed unique *within
+  // that quiz* — two different quizzes could coincidentally reuse the same
+  // group id (e.g. both had it as their first extracted file). Namespace
+  // every group id by its source quiz here, on this ephemeral combined
+  // copy only, so a case cluster from one quiz can never accidentally
+  // merge with an unrelated one from another quiz.
+  let combined = [];
+  selected.forEach(quiz => {
+    const qs = JSON.parse(JSON.stringify(quiz.questions));
+    qs.forEach(q => { if (q.case_group) q.case_group = quiz.id + '::' + q.case_group; });
+    combined = combined.concat(qs);
+  });
+
+  if (shuffle) {
+    combined = _cqGroupAwareShuffle(combined);
+  }
+
+  selectedSubject  = 'Custom Quizzes';
+  currentLecture   = selected.length === 1
+    ? selected[0].title
+    : `${selected.length} quizzes (${selected.map(q => q.title).join(', ')})`;
+  currentQuestions = combined;
+  currentIndex = 0; userAnswers = {}; markedSet = new Set();
+  questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
+  timeLeft = mins * 60;
+  currentQuizSource = 'custom';
+
+  cqMultiSelected = new Set();
   closeCustomQuizzes();
   showScreen('quiz');
   renderQuestion();
@@ -7827,10 +8832,7 @@ async function startCommunityQuizByIdx(idx) {
   await hydrateSharedQuizImages(quiz.id, combined);
   await hydrateQuizImages(combined); // handles any legacy Storage URLs still present
   if (shuffle) {
-    for (let i = combined.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [combined[i], combined[j]] = [combined[j], combined[i]];
-    }
+    combined = _cqGroupAwareShuffle(combined);
   }
 
   selectedSubject  = 'Community Quizzes';
@@ -7909,6 +8911,486 @@ async function deleteCommunityQuiz(sharedId) {
     renderCustomQuizModal();
   } catch(e) {
     alert('Failed to remove quiz: ' + (e.message || e));
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MERGE QUIZZES INTO EDITOR
+   A picker modal, opened from the extract/generate preview,
+   the custom-quiz editor, or the admin editor (via the shared
+   _caseGroupEditors registry), that lets the user append any
+   number of other quizzes — community, saved custom, or
+   official curriculum lectures — onto the one currently open
+   in that editor. Selection only; nothing is written until the
+   editor's own "Save" is used afterwards.
+══════════════════════════════════════════════════════════ */
+let mergeEditorKey = null;    // 'cq' | 'admin' | 'customQuiz' — which _caseGroupEditors entry to append into
+let mergeTab       = 'community'; // 'community' | 'custom' | 'curriculum'
+
+let mergeCommTab           = 'browse'; // 'browse' | 'mine'
+let mergeCommSearch        = '';
+let mergeCommYearFilter    = '';
+let mergeCommModuleFilter  = '';
+let mergeCommSubjectFilter = '';
+let mergeCommSort          = 'newest';
+let mergeSelectedCommunity = new Set(); // shared quiz ids
+
+let mergeCustomSearch      = '';
+let mergeSelectedCustom    = new Set(); // custom quiz ids
+
+let mergeCurrYear          = '';
+let mergeCurrModule        = '';
+let mergeCurrSubject       = '';
+let mergeSelectedCurriculum = new Set(); // "subjectKey::lectureName"
+
+function openMergePicker(editorKey) {
+  const ed = _caseGroupEditors[editorKey];
+  if (!ed || !ed.getQuestions()) return;
+  mergeEditorKey = editorKey;
+  mergeTab = 'community';
+  mergeCommTab = 'browse';
+  mergeCommSearch = ''; mergeCommYearFilter = ''; mergeCommModuleFilter = ''; mergeCommSubjectFilter = ''; mergeCommSort = 'newest';
+  mergeSelectedCommunity = new Set();
+  mergeCustomSearch = '';
+  mergeSelectedCustom = new Set();
+  mergeCurrYear = ''; mergeCurrModule = ''; mergeCurrSubject = '';
+  mergeSelectedCurriculum = new Set();
+  document.getElementById('mergeQuizOverlay').classList.remove('hidden');
+  renderMergePicker();
+}
+
+function closeMergePicker() {
+  document.getElementById('mergeQuizOverlay').classList.add('hidden');
+  mergeEditorKey = null;
+}
+
+function mergeSetTab(tab) {
+  mergeTab = tab;
+  renderMergePicker();
+}
+
+function _mergeTotalSelected() {
+  return mergeSelectedCommunity.size + mergeSelectedCustom.size + mergeSelectedCurriculum.size;
+}
+
+function _mergeUpdateFooter() {
+  const total = _mergeTotalSelected();
+  const countEl = document.getElementById('mergeFooterCount');
+  const btnEl   = document.getElementById('mergeConfirmBtn');
+  if (countEl) countEl.textContent = `${total} question set${total !== 1 ? 's' : ''} selected`;
+  if (btnEl) { btnEl.disabled = !total; btnEl.textContent = total ? `🧩 Merge ${total} Selected` : '🧩 Merge Selected'; }
+}
+
+function renderMergePicker() {
+  const body = document.getElementById('mergeQuizBody');
+  if (!body) return;
+  const total = _mergeTotalSelected();
+
+  let html = `<div class="community-section-tabs">
+    <button class="community-tab-btn ${mergeTab==='community'?'active':''}" onclick="mergeSetTab('community')">&#127758; Community (${mergeSelectedCommunity.size || ''})</button>
+    <button class="community-tab-btn ${mergeTab==='custom'?'active':''}" onclick="mergeSetTab('custom')">&#128218; My Custom Quizzes (${mergeSelectedCustom.size || ''})</button>
+    <button class="community-tab-btn ${mergeTab==='curriculum'?'active':''}" onclick="mergeSetTab('curriculum')">&#127973; Curriculum (${mergeSelectedCurriculum.size || ''})</button>
+  </div>
+  <div id="mergeTabContent" style="margin-top:10px;"></div>
+  <div style="margin-top:14px;padding-top:12px;border-top:1.5px solid var(--border,#E0E0E0);
+    display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+    <div id="mergeFooterCount" style="font-size:.85rem;font-weight:700;color:var(--text-muted);">
+      ${total} question set${total !== 1 ? 's' : ''} selected
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="cq-btn cq-btn-secondary" onclick="closeMergePicker()">✖ Cancel</button>
+      <button class="cq-btn" id="mergeConfirmBtn" ${!total ? 'disabled' : ''} onclick="confirmMergeSelectedQuizzes()">${total ? `🧩 Merge ${total} Selected` : '🧩 Merge Selected'}</button>
+    </div>
+  </div>`;
+
+  body.innerHTML = html;
+  renderMergeTabContent();
+}
+
+function renderMergeTabContent() {
+  if (mergeTab === 'community') _mergeLoadCommunityTab();
+  else if (mergeTab === 'custom') _renderMergeCustomTab();
+  else _renderMergeCurriculumTab();
+}
+
+/* ── Community tab ── */
+async function ensureSharedQuizzesLoaded(forceReload) {
+  if (_allSharedQuizzes.length && !forceReload) return true;
+  try {
+    const serverVer = forceReload ? null : await _fetchSharedServerVersion();
+    const localVer  = _readSharedCacheVer();
+    const cached    = await _readCache();
+    if (!forceReload && serverVer && localVer === serverVer && cached && cached.shared) {
+      _allSharedQuizzes = cached.shared;
+      return true;
+    }
+    const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
+    _allSharedQuizzes = [];
+    snap.forEach(d => _allSharedQuizzes.push(d.data()));
+    const existing = (await _readCache()) || {};
+    existing.shared = _allSharedQuizzes;
+    await _writeCache(existing);
+    let verToStore = forceReload ? await _fetchSharedServerVersion() : serverVer;
+    if (!verToStore) verToStore = await bumpSharedQuizzesVersion();
+    if (verToStore) _writeSharedCacheVer(verToStore);
+    return true;
+  } catch (e) { return false; }
+}
+
+async function _mergeLoadCommunityTab() {
+  const el = document.getElementById('mergeTabContent');
+  if (!el) return;
+  if (!window._currentUser) {
+    el.innerHTML = `<div class="community-empty">Please sign in to browse community quizzes.</div>`;
+    return;
+  }
+  if (!_allSharedQuizzes.length) {
+    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);"><div style="font-size:1.6rem;margin-bottom:8px;">&#8987;</div>Loading community quizzes…</div>`;
+  }
+  const ok = await ensureSharedQuizzesLoaded(false);
+  if (mergeTab !== 'community') return; // user switched tabs while this was loading
+  if (!ok) { el.innerHTML = `<div style="text-align:center;padding:24px;color:#C62828;">&#10060; Failed to load community quizzes.</div>`; return; }
+  _renderMergeCommunityList();
+}
+
+function mergeCommOnSearchInput(val) {
+  mergeCommSearch = val;
+  window._mergeCommSearchFocused = true;
+  const el = document.getElementById('mergeCommSearchInput');
+  window._mergeCommSearchPos = el ? el.selectionStart : null;
+  _renderMergeCommunityList();
+}
+
+function _renderMergeCommunityList() {
+  const el = document.getElementById('mergeTabContent');
+  if (!el) return;
+
+  const myUid = window._currentUser ? window._currentUser.uid : null;
+  const shared = _allSharedQuizzes;
+  const myShared = shared.filter(q => q.authorUid === myUid);
+  let pool = mergeCommTab === 'mine' ? myShared : shared;
+
+  const q = mergeCommSearch.toLowerCase().trim();
+  if (q) {
+    pool = pool.filter(item => {
+      const inTitle  = (item.title || '').toLowerCase().includes(q);
+      const inAuthor = (item.authorName || '').toLowerCase().includes(q);
+      const inCat    = (item.category || '').toLowerCase().includes(q);
+      const inTags   = (item.tags || []).some(t => t.includes(q));
+      return inTitle || inAuthor || inCat || inTags;
+    });
+  }
+  if (mergeCommYearFilter)    pool = pool.filter(item => (item.year || '') === mergeCommYearFilter);
+  if (mergeCommModuleFilter)  pool = pool.filter(item => (item.module || '') === mergeCommModuleFilter);
+  if (mergeCommSubjectFilter) pool = pool.filter(item => (item.subjectKey || '') === mergeCommSubjectFilter);
+
+  if (mergeCommSort === 'newest')    pool = [...pool].sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
+  else if (mergeCommSort === 'oldest')    pool = [...pool].sort((a, b) => (a.sharedAt || 0) - (b.sharedAt || 0));
+  else if (mergeCommSort === 'az')        pool = [...pool].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  else if (mergeCommSort === 'questions') pool = [...pool].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0));
+
+  const allYears   = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
+  const allModules = mergeCommYearFilter
+    ? Object.keys(curriculum[mergeCommYearFilter] || {})
+    : [...new Set(shared.map(i => i.module).filter(Boolean))].sort();
+  const allSubjects = (mergeCommYearFilter && mergeCommModuleFilter)
+    ? (curriculum[mergeCommYearFilter][mergeCommModuleFilter] || []).filter(k => subjects[k])
+    : [...new Set(shared.map(i => i.subjectKey).filter(Boolean))];
+
+  const searchVal = escapeHtml(mergeCommSearch);
+
+  let html = `
+    <div class="community-section-tabs">
+      <button class="community-tab-btn ${mergeCommTab === 'browse' ? 'active' : ''}" onclick="mergeCommTab='browse';mergeCommSearch='';mergeCommYearFilter='';mergeCommModuleFilter='';mergeCommSubjectFilter='';_renderMergeCommunityList()">&#127758; Browse All (${shared.length})</button>
+      <button class="community-tab-btn ${mergeCommTab === 'mine' ? 'active' : ''}" onclick="mergeCommTab='mine';_renderMergeCommunityList()">&#128100; My Shared (${myShared.length})</button>
+    </div>
+    <div class="comm-filter-bar">
+      <div class="comm-search-wrap">
+        <span class="comm-search-icon">🔍</span>
+        <input class="comm-search-input" id="mergeCommSearchInput" type="text"
+               placeholder="Search by title, author, category or tag…"
+               value="${searchVal}" oninput="mergeCommOnSearchInput(this.value)" />
+      </div>
+      <div class="comm-filter-row">
+        <select class="comm-filter-select" onchange="mergeCommYearFilter=this.value;mergeCommModuleFilter='';mergeCommSubjectFilter='';_renderMergeCommunityList()">
+          <option value="">All Years</option>
+          ${allYears.map(y => `<option value="${escapeHtml(y)}" ${mergeCommYearFilter === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" onchange="mergeCommModuleFilter=this.value;mergeCommSubjectFilter='';_renderMergeCommunityList()" ${!mergeCommYearFilter ? 'disabled' : ''}>
+          <option value="">All Modules</option>
+          ${allModules.map(m => `<option value="${escapeHtml(m)}" ${mergeCommModuleFilter === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" onchange="mergeCommSubjectFilter=this.value;_renderMergeCommunityList()" ${!mergeCommModuleFilter ? 'disabled' : ''}>
+          <option value="">All Subjects</option>
+          ${allSubjects.map(k => {
+            const lbl = (subjects[k] && (subjects[k].label || k)) || k;
+            const ico = (subjects[k] && subjects[k].icon) || '';
+            return `<option value="${escapeHtml(k)}" ${mergeCommSubjectFilter === k ? 'selected' : ''}>${ico} ${escapeHtml(lbl)}</option>`;
+          }).join('')}
+        </select>
+        <select class="comm-filter-select" onchange="mergeCommSort=this.value;_renderMergeCommunityList()">
+          <option value="newest" ${mergeCommSort==='newest'?'selected':''}>🕐 Newest</option>
+          <option value="oldest" ${mergeCommSort==='oldest'?'selected':''}>🕐 Oldest</option>
+          <option value="az"     ${mergeCommSort==='az'?'selected':''}>🔤 A → Z</option>
+          <option value="questions" ${mergeCommSort==='questions'?'selected':''}>📝 Most Questions</option>
+        </select>
+      </div>
+      <div class="comm-results-count">${pool.length} quiz${pool.length !== 1 ? 'zes' : ''} shown</div>
+    </div>`;
+
+  if (!pool.length) {
+    html += `<div class="community-empty">
+      <div class="ce-icon">${mergeCommSearch || mergeCommYearFilter || mergeCommModuleFilter || mergeCommSubjectFilter ? '🔍' : '&#127758;'}</div>
+      No quizzes match.
+    </div>`;
+  } else {
+    pool.forEach(item => {
+      const isOwn = item.authorUid === myUid;
+      const date  = new Date(item.sharedAt).toLocaleDateString();
+      const catBadge = (item.year || item.subjectLabel)
+        ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
+        : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
+      const checked = mergeSelectedCommunity.has(item.id);
+      html += `<div class="community-quiz-item">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+          <input type="checkbox" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
+            ${checked ? 'checked' : ''} onchange="mergeToggleCommunity('${escapeHtml(item.id)}', this.checked)" />
+          <div style="flex:1;min-width:0;">
+            <div class="community-quiz-title">${escapeHtml(item.title)}</div>
+            <div class="community-quiz-meta">
+              ${catBadge}
+              ${item.questionCount} question${item.questionCount !== 1 ? 's' : ''}
+              &nbsp;&middot;&nbsp; &#128100; ${escapeHtml(item.authorName)}
+              ${isOwn ? ' <span class="share-chip">You</span>' : ''}
+              &nbsp;&middot;&nbsp; &#128197; ${date}
+            </div>
+          </div>
+        </label>
+      </div>`;
+    });
+  }
+
+  el.innerHTML = html;
+
+  const searchEl = document.getElementById('mergeCommSearchInput');
+  if (searchEl && document.activeElement !== searchEl && window._mergeCommSearchFocused) {
+    const pos = window._mergeCommSearchPos || searchEl.value.length;
+    searchEl.focus();
+    try { searchEl.setSelectionRange(pos, pos); } catch(e) {}
+    window._mergeCommSearchFocused = false;
+  }
+}
+
+function mergeToggleCommunity(id, checked) {
+  if (checked) mergeSelectedCommunity.add(id); else mergeSelectedCommunity.delete(id);
+  _mergeUpdateFooter();
+}
+
+/* ── Custom quizzes tab ── */
+function mergeCustomOnSearchInput(val) {
+  mergeCustomSearch = val;
+  _renderMergeCustomTab();
+}
+
+function _renderMergeCustomTab() {
+  const el = document.getElementById('mergeTabContent');
+  if (!el) return;
+
+  // Can't merge a saved quiz into itself while editing it.
+  const excludeId = (mergeEditorKey === 'customQuiz' && !cqCreatingNew) ? cqEditingQuizId : null;
+  let quizzes = loadCustomQuizzes().filter(q => q.id !== excludeId && (q.questions || []).length);
+
+  const s = mergeCustomSearch.toLowerCase().trim();
+  if (s) quizzes = quizzes.filter(q => (q.title || '').toLowerCase().includes(s));
+
+  let html = `<div class="comm-filter-bar">
+    <div class="comm-search-wrap">
+      <span class="comm-search-icon">🔍</span>
+      <input class="comm-search-input" type="text" placeholder="Search your custom quizzes…"
+             value="${escapeHtml(mergeCustomSearch)}" oninput="mergeCustomOnSearchInput(this.value)" />
+    </div>
+    <div class="comm-results-count">${quizzes.length} quiz${quizzes.length !== 1 ? 'zes' : ''} shown</div>
+  </div>`;
+
+  if (!quizzes.length) {
+    html += `<div class="community-empty"><div class="ce-icon">📭</div>No custom quizzes to merge from.</div>`;
+  } else {
+    quizzes.forEach(q => {
+      const checked = mergeSelectedCustom.has(q.id);
+      html += `<div class="cq-quiz-item">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;flex:1;">
+          <input type="checkbox" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
+            ${checked ? 'checked' : ''} onchange="mergeToggleCustom('${escapeHtml(q.id)}', this.checked)" />
+          <div>
+            <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
+            <div class="cq-quiz-meta">${q.questions.length} question${q.questions.length !== 1 ? 's' : ''} &middot; created ${new Date(q.createdAt).toLocaleDateString()}</div>
+          </div>
+        </label>
+      </div>`;
+    });
+  }
+  el.innerHTML = html;
+}
+
+function mergeToggleCustom(id, checked) {
+  if (checked) mergeSelectedCustom.add(id); else mergeSelectedCustom.delete(id);
+  _mergeUpdateFooter();
+}
+
+/* ── Curriculum tab ── */
+function mergeOnYearChange(val) { mergeCurrYear = val; mergeCurrModule = ''; mergeCurrSubject = ''; _renderMergeCurriculumTab(); }
+function mergeOnModuleChange(val) { mergeCurrModule = val; mergeCurrSubject = ''; _renderMergeCurriculumTab(); }
+function mergeOnSubjectChange(val) { mergeCurrSubject = val; _renderMergeCurriculumTab(); }
+
+function _renderMergeCurriculumTab() {
+  const el = document.getElementById('mergeTabContent');
+  if (!el) return;
+
+  const years   = Object.keys(curriculum);
+  const modules = mergeCurrYear ? Object.keys(curriculum[mergeCurrYear] || {}) : [];
+  const subs    = (mergeCurrYear && mergeCurrModule) ? (curriculum[mergeCurrYear][mergeCurrModule] || []).filter(k => subjects[k]) : [];
+
+  let html = `<div class="admin-field">
+      <label>Year</label>
+      <select onchange="mergeOnYearChange(this.value)">
+        <option value="">— Select year —</option>
+        ${years.map(y => `<option value="${escapeHtml(y)}" ${mergeCurrYear === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="admin-field">
+      <label>Module</label>
+      <select onchange="mergeOnModuleChange(this.value)" ${!mergeCurrYear ? 'disabled' : ''}>
+        <option value="">— Select module —</option>
+        ${modules.map(m => `<option value="${escapeHtml(m)}" ${mergeCurrModule === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="admin-field">
+      <label>Subject</label>
+      <select onchange="mergeOnSubjectChange(this.value)" ${!mergeCurrModule ? 'disabled' : ''}>
+        <option value="">— Select subject —</option>
+        ${subs.map(s => `<option value="${escapeHtml(s)}" ${mergeCurrSubject === s ? 'selected' : ''}>${escapeHtml(subjects[s].label || s)}</option>`).join('')}
+      </select>
+    </div>`;
+
+  if (mergeCurrSubject && subjects[mergeCurrSubject]) {
+    const lectures = Object.keys(subjects[mergeCurrSubject].lectures || {});
+    if (!lectures.length) {
+      html += `<div class="community-empty"><div class="ce-icon">📭</div>No lectures in this subject yet.</div>`;
+    } else {
+      lectures.forEach(lname => {
+        const qCount = subjects[mergeCurrSubject].lectures[lname].length;
+        const key = mergeCurrSubject + '::' + lname;
+        const checked = mergeSelectedCurriculum.has(key);
+        html += `<div class="cq-quiz-item">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;">
+            <input type="checkbox" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
+              ${checked ? 'checked' : ''} onchange="mergeToggleCurriculum('${escapeHtml(key)}', this.checked)" />
+            <div style="flex:1;">
+              <div class="cq-quiz-name">${escapeHtml(lname)}</div>
+            </div>
+            <span style="font-size:.78rem;color:var(--accent);font-weight:700;">${qCount}q</span>
+          </label>
+        </div>`;
+      });
+    }
+  } else {
+    html += `<div class="community-empty"><div class="ce-icon">🏥</div>Select a year, module and subject to see its lectures.</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function mergeToggleCurriculum(key, checked) {
+  if (checked) mergeSelectedCurriculum.add(key); else mergeSelectedCurriculum.delete(key);
+  _mergeUpdateFooter();
+}
+
+/* ── Perform the merge ── */
+/* Deep-clones a source question list for merging into an editor, namespacing
+   any case_group ids with a source-specific prefix so a case cluster from
+   one merged-in quiz can never collide with one from another, and stripping
+   image sentinels that only resolve against their original source collection
+   (the actual image data, already hydrated into q.image, is kept). */
+function _mergeCloneQuestions(rawQuestions, namespace, sourceLabel) {
+  const qs = JSON.parse(JSON.stringify(rawQuestions || []));
+  qs.forEach(q => {
+    if (q.case_group) q.case_group = namespace + '::' + q.case_group;
+    delete q.sharedImageIdx;
+    delete q.pubImageIdx;
+    // Transient — shows a "from: <quiz>" badge in the editor so it's obvious
+    // which merged-in quiz a question came from before the merge is saved.
+    // Stripped out by _stripEditorTransientFields right before saving.
+    if (sourceLabel) q._mergeSourceLabel = sourceLabel;
+  });
+  return qs;
+}
+
+/* Small pill showing which merged-in quiz a question came from, while the
+   merge is still unsaved. Nothing is rendered once the label is stripped
+   at save time. */
+function _renderMergeSourceBadge(q) {
+  if (!q || !q._mergeSourceLabel) return '';
+  return `<span title="Merged in from this quiz — not yet saved"
+      style="background:#ECEFF1;color:#455A64;font-size:.68rem;font-weight:700;
+        border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid #B0BEC5;">
+      🔀 ${escapeHtml(q._mergeSourceLabel)}</span>`;
+}
+
+/* Removes editor-only fields that should never be persisted, called right
+   before a question set is written to storage. */
+function _stripEditorTransientFields(questions) {
+  (questions || []).forEach(q => { delete q._mergeSourceLabel; });
+}
+
+async function confirmMergeSelectedQuizzes() {
+  const ed = mergeEditorKey && _caseGroupEditors[mergeEditorKey];
+  const target = ed && ed.getQuestions();
+  if (!ed || !target) { closeMergePicker(); return; }
+  const total = _mergeTotalSelected();
+  if (!total) return;
+
+  const btn = document.getElementById('mergeConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Merging…'; }
+
+  try {
+    let appended = [];
+
+    // Community-sourced quizzes: images may still need hydrating from the
+    // shared subcollection (community list caches sentinels, not always the
+    // raw base64) before they can live in the editor.
+    for (const id of mergeSelectedCommunity) {
+      const item = _allSharedQuizzes.find(q => q.id === id);
+      if (!item || !item.questions) continue;
+      const restored = restoreOptionsOrder(JSON.parse(JSON.stringify(item.questions)));
+      await hydrateSharedQuizImages(id, restored);
+      await hydrateQuizImages(restored);
+      appended = appended.concat(_mergeCloneQuestions(restored, 'comm_' + id, item.title || 'Community quiz'));
+    }
+
+    // Saved custom quizzes are already hydrated in memory.
+    const customQuizzes = loadCustomQuizzes();
+    mergeSelectedCustom.forEach(id => {
+      const quiz = customQuizzes.find(q => q.id === id);
+      if (!quiz) return;
+      appended = appended.concat(_mergeCloneQuestions(quiz.questions, quiz.id, quiz.title || 'Custom quiz'));
+    });
+
+    // Curriculum lectures are already hydrated in memory.
+    mergeSelectedCurriculum.forEach(key => {
+      const sep = key.indexOf('::');
+      const subjectKey = key.slice(0, sep), lectureName = key.slice(sep + 2);
+      const qs = subjects[subjectKey] && subjects[subjectKey].lectures && subjects[subjectKey].lectures[lectureName];
+      if (!qs) return;
+      appended = appended.concat(_mergeCloneQuestions(qs, 'curr_' + key, lectureName || 'Lecture'));
+    });
+
+    target.push(...appended);
+    closeMergePicker();
+    ed.rerender();
+  } catch (e) {
+    if (btn) { btn.disabled = false; }
+    alert('Failed to merge quizzes: ' + (e.message || e));
+    _mergeUpdateFooter();
   }
 }
 
@@ -8254,7 +9736,7 @@ function renderAdminQuestionEditor(containerId) {
       ✏️ Editing — ${adminEditQuestions.length} question${adminEditQuestions.length !== 1 ? 's' : ''}
     </div>
     <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;">
-      🔘 = correct answer
+      🔘 = correct answer &nbsp;·&nbsp; 🔗 = linked case questions
     </div>
   </div>`;
   html += `<div class="cq-preview-list" id="adminEditList">`;
@@ -8266,10 +9748,12 @@ function renderAdminQuestionEditor(containerId) {
 
     html += `<div class="cq-preview-q cq-editable-q" id="adminEditQ_${i}">`;
 
-    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
+      ${_renderMergeSourceBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
+      ${_renderReorderButtons('admin', i, adminEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="adminEditDeleteQuestion(${i})"
         style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
@@ -8304,6 +9788,9 @@ function renderAdminQuestionEditor(containerId) {
       </label>`;
     }
     html += `</div>`;
+
+    /* ── Manual case-group link ── */
+    html += _renderCaseGroupBlock('admin', adminEditQuestions, i);
 
     html += `<div style="font-size:.72rem;font-weight:700;color:var(--text-muted);
       text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">
@@ -8350,13 +9837,19 @@ function renderAdminQuestionEditor(containerId) {
 
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <button class="cq-btn cq-btn-secondary" onclick="adminEditAddBlankQuestion()" style="background:#4CAF50;">＋ Add Question</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('admin')" style="background:#7B1FA2;color:#fff;">🧩 Merge Quizzes In</button>
     ${adminEditMode === 'published' ? `
-      <button class="cq-btn" onclick="adminSavePublishedEdits()">💾 Save Changes</button>
+      <button class="cq-btn cq-btn-secondary" onclick="openAdminSplitPanel('${adminEditingPublishedId}')"
+        style="background:#7B1FA2;color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
+      <button class="cq-btn" onclick="adminSavePublishedEdits()" title="Implement these edits on the curriculum lecture">💾 Save Changes</button>
+      <button class="cq-btn cq-btn-secondary" onclick="adminSaveEditsAsCustomQuiz()"
+        style="background:#7B1FA2;color:#fff;" title="Save these edits as a new custom quiz — the curriculum lecture stays untouched">📄 Save as Custom Quiz</button>
       <button class="cq-btn cq-btn-secondary" onclick="adminCancelEditPublished()">✖ Cancel</button>
     ` : `
       <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;">Edits will be used when you publish below.</div>
     `}
   </div>
+  ${adminEditMode === 'published' ? renderSplitPanel('adminPublished', adminEditingPublishedId, adminEditQuestions.length) : ''}
   <div class="admin-status" id="adminEditStatus"></div>`;
 
   area.innerHTML = html;
@@ -8366,6 +9859,15 @@ function renderAdminQuestionEditor(containerId) {
     const _newList = document.getElementById('adminEditList');
     if (_newList) _newList.scrollTop = _prevScrollTop;
   }
+}
+
+/* Resolves the DOM container id currently hosting the inline question
+   editor — differs depending on whether we're editing a quiz before
+   publishing it, or editing one that's already published (per-lecture id). */
+function _adminEditorContainerId() {
+  return adminEditMode === 'published'
+    ? ('adminPublishedEditorArea_' + adminEditingPublishedId)
+    : 'adminEditorArea';
 }
 
 /* ── Edit helpers (mutate adminEditQuestions in place) ── */
@@ -8409,8 +9911,7 @@ function adminEditDeleteQuestion(idx) {
   if (!adminEditQuestions) return;
   if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
   adminEditQuestions.splice(idx, 1);
-  const containerId = adminEditMode === 'published' ? 'adminPublishedEditorArea' : 'adminEditorArea';
-  renderAdminQuestionEditor(containerId);
+  renderAdminQuestionEditor(_adminEditorContainerId());
 }
 
 function adminEditAddBlankQuestion() {
@@ -8424,8 +9925,7 @@ function adminEditAddBlankQuestion() {
     ],
     answer: 'A'
   });
-  const containerId = adminEditMode === 'published' ? 'adminPublishedEditorArea' : 'adminEditorArea';
-  renderAdminQuestionEditor(containerId);
+  renderAdminQuestionEditor(_adminEditorContainerId());
   setTimeout(() => {
     const last = document.getElementById(`adminEditQ_${adminEditQuestions.length - 1}`);
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -8442,8 +9942,7 @@ function adminEditDeleteOption(qIdx, key) {
   delete q.options[key];
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
-  const containerId = adminEditMode === 'published' ? 'adminPublishedEditorArea' : 'adminEditorArea';
-  renderAdminQuestionEditor(containerId);
+  renderAdminQuestionEditor(_adminEditorContainerId());
 }
 
 function adminEditAddOption(qIdx) {
@@ -8456,8 +9955,7 @@ function adminEditAddOption(qIdx) {
   q.options[nextKey] = '';
   if (!q.optionsOrder) q.optionsOrder = usedKeys.map(k => ({ key: k, value: q.options[k] }));
   q.optionsOrder.push({ key: nextKey, value: '' });
-  const containerId = adminEditMode === 'published' ? 'adminPublishedEditorArea' : 'adminEditorArea';
-  renderAdminQuestionEditor(containerId);
+  renderAdminQuestionEditor(_adminEditorContainerId());
   setTimeout(() => {
     const input = document.querySelector(`#adminEditOptRow_${qIdx}_${nextKey} .cq-opt-text-input`);
     if (input) input.focus();
@@ -8467,8 +9965,7 @@ function adminEditAddOption(qIdx) {
 function adminEditRemoveImage(idx) {
   if (!adminEditQuestions || !adminEditQuestions[idx]) return;
   delete adminEditQuestions[idx].image;
-  const containerId = adminEditMode === 'published' ? 'adminPublishedEditorArea' : 'adminEditorArea';
-  renderAdminQuestionEditor(containerId);
+  renderAdminQuestionEditor(_adminEditorContainerId());
 }
 
 function adminEditReplaceImage(idx, event) {
@@ -8482,10 +9979,381 @@ function adminEditReplaceImage(idx, event) {
     } catch (e) {
       adminEditQuestions[idx].image = dataUrl;
     }
-    const containerId = adminEditMode === 'published' ? 'adminPublishedEditorArea' : 'adminEditorArea';
-    renderAdminQuestionEditor(containerId);
+    renderAdminQuestionEditor(_adminEditorContainerId());
   };
   reader.readAsDataURL(file);
+}
+
+/* ══════════════════════════════════════════════════════════
+   INLINE EDITOR FOR SAVED CUSTOM QUIZZES
+   Same editing experience as the admin question editor above —
+   case links, images, options, add/delete questions — scoped to one
+   of the user's own saved quizzes instead of admin-published content.
+   Operates on `cqEditQuestions`, a working copy of the quiz being
+   edited; nothing is written back until "Save Changes" is clicked.
+══════════════════════════════════════════════════════════ */
+function openCustomQuizEditor(id) {
+  const quizzes = loadCustomQuizzes();
+  const quiz = quizzes.find(q => q.id === id);
+  if (!quiz) return;
+  cqCreatingNew = false;
+  cqEditingQuizId = id;
+  cqEditQuestions = JSON.parse(JSON.stringify(quiz.questions || []));
+  renderCustomQuizModal();
+  const area = document.getElementById('cqCustomEditorArea_' + id);
+  if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeCustomQuizEditor() {
+  cqCreatingNew = false;
+  cqEditingQuizId = null;
+  cqEditQuestions = null;
+  cqNewQuizTitle = '';
+  renderCustomQuizModal();
+}
+
+/* Opens the same editor used for existing quizzes, but starting from one
+   blank question and no saved quiz behind it yet — "Save Changes" creates
+   a brand-new custom quiz instead of updating one. */
+function openNewQuizComposer() {
+  cqEditingQuizId = null;
+  cqCreatingNew = true;
+  cqNewQuizTitle = '';
+  cqEditQuestions = [{
+    question: '',
+    options: { A: '', B: '', C: '', D: '' },
+    optionsOrder: [
+      { key: 'A', value: '' }, { key: 'B', value: '' },
+      { key: 'C', value: '' }, { key: 'D', value: '' }
+    ],
+    answer: 'A'
+  }];
+  renderCustomQuizModal();
+  const area = document.getElementById('cqNewQuizEditorArea');
+  if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* Resolves the DOM ids the editor should read/write — differs depending on
+   whether we're editing an existing saved quiz (namespaced by its id) or
+   composing a brand-new one (a single fixed area, since it has no id yet). */
+function _cqEditorKey() { return cqCreatingNew ? 'new' : cqEditingQuizId; }
+function _cqEditorContainerId() {
+  return cqCreatingNew ? 'cqNewQuizEditorArea' : ('cqCustomEditorArea_' + cqEditingQuizId);
+}
+
+function renderCustomQuizEditor() {
+  const key = _cqEditorKey();
+  const containerId = _cqEditorContainerId();
+  const area = document.getElementById(containerId);
+  if (!area || !cqEditQuestions) { if (area) area.innerHTML = ''; return; }
+
+  // Preserve scroll position across re-renders (image change, option edit, etc.)
+  const _prevList = document.getElementById('cqCustomEditList_' + key);
+  const _prevScrollTop = _prevList ? _prevList.scrollTop : null;
+
+  const ALL_KEYS = ['A','B','C','D','E','F','G','H','I','J'];
+
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0 10px;">
+    <div style="font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">
+      ✏️ ${cqCreatingNew ? 'Writing a new quiz' : 'Editing'} — ${cqEditQuestions.length} question${cqEditQuestions.length !== 1 ? 's' : ''}
+    </div>
+    <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;">
+      🔘 = correct answer &nbsp;·&nbsp; 🔗 = linked case questions
+    </div>
+  </div>`;
+  html += `<div class="cq-preview-list" id="cqCustomEditList_${key}">`;
+
+  cqEditQuestions.forEach((q, i) => {
+    const optEntries = getOptionEntries(q);
+    const usedKeys   = optEntries.map(([k]) => k);
+    const nextKey    = ALL_KEYS.find(k => !usedKeys.includes(k));
+
+    html += `<div class="cq-preview-q cq-editable-q" id="cqCustomEditQ_${i}">`;
+
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
+      <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
+        border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
+      ${_renderMergeSourceBadge(q)}
+      <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
+      ${_renderReorderButtons('customQuiz', i, cqEditQuestions.length)}
+      <button class="cq-edit-reask-btn" title="Delete this question"
+        onclick="cqEditDeleteQuestion(${i})"
+        style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
+    </div>`;
+
+    html += `<textarea class="cq-edit-textarea" rows="2"
+      oninput="cqEditQuestionText(${i}, this.value)"
+      style="width:100%;resize:vertical;margin-bottom:8px;">${escapeHtml(q.question)}</textarea>`;
+
+    /* Image area */
+    html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
+    if (q.image) {
+      html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
+        background:#F0F8FF;border:1.5px solid #B0D4F0;border-radius:8px;padding:8px 10px;">
+        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid #D8EAF7;background:#fff;">
+          <img src="${q.image}" alt="Question image"
+            style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">
+          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">📷 Question Image</div>
+          <label class="cq-img-action-btn" title="Upload a different image">
+            🔄 Change Image
+            <input type="file" accept="image/*" style="display:none;" onchange="cqEditReplaceImage(${i}, event)" />
+          </label>
+          <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqEditRemoveImage(${i})" type="button">🗑️ Remove Image</button>
+        </div>
+      </div>`;
+    } else {
+      html += `<label class="cq-img-upload-label" title="Attach an image to this question">
+        🖼️ Add Image (optional)
+        <input type="file" accept="image/*" style="display:none;" onchange="cqEditReplaceImage(${i}, event)" />
+      </label>`;
+    }
+    html += `</div>`;
+
+    /* ── Manual case-group link ── */
+    html += _renderCaseGroupBlock('customQuiz', cqEditQuestions, i);
+
+    html += `<div style="font-size:.72rem;font-weight:700;color:var(--text-muted);
+      text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">
+      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with 🔘</span>
+    </div>`;
+
+    html += `<div style="display:flex;flex-direction:column;gap:5px;" id="cqCustomEditOpts_${i}">`;
+    optEntries.forEach(([k, v]) => {
+      const isCorrect = k === q.answer;
+      html += `<div class="cq-opt-edit-row${isCorrect ? ' cq-opt-correct' : ''}" id="cqCustomEditOptRow_${i}_${k}">
+        <label class="cq-opt-correct-radio" title="Set as correct answer">
+          <input type="radio" name="cqCustomEditAnswer_${i}" value="${k}" ${isCorrect ? 'checked' : ''}
+            onchange="cqEditSetAnswer(${i}, '${k}')" />
+          <span class="cq-radio-dot"></span>
+        </label>
+        <span class="cq-opt-key">${k}.</span>
+        <input type="text" class="cq-opt-text-input" value="${escapeHtml(v)}"
+          oninput="cqEditOptionText(${i}, '${k}', this.value)"
+          placeholder="Option ${k} text…" />
+        ${isCorrect ? '<span class="cq-correct-badge">✔ Correct</span>' : ''}
+        <button onclick="cqEditDeleteOption(${i}, '${k}')" type="button" title="Remove this option"
+          style="background:none;border:none;cursor:pointer;color:#EF9A9A;font-size:.9rem;
+          padding:2px 4px;border-radius:4px;flex-shrink:0;line-height:1;transition:color .15s;"
+          onmouseover="this.style.color='#C62828'" onmouseout="this.style.color='#EF9A9A'">✕</button>
+      </div>`;
+    });
+    html += `</div>`;
+
+    if (nextKey) {
+      html += `<button onclick="cqEditAddOption(${i})" type="button"
+        style="margin-top:5px;background:#F0F8FF;color:var(--accent);border:1.5px dashed #B0D4F0;
+        border-radius:7px;padding:5px 12px;font-family:var(--font);font-size:.78rem;font-weight:700;
+        cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.background='#EEF7FF';"
+        onmouseout="this.style.borderColor='#B0D4F0';this.style.background='#F0F8FF';">
+        ＋ Add Option ${nextKey}
+      </button>`;
+    }
+
+    html += `</div>`; // end .cq-editable-q
+  });
+
+  html += `</div>`;
+
+  html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <button class="cq-btn cq-btn-secondary" onclick="cqEditAddBlankQuestion()" style="background:#4CAF50;">＋ Add Question</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('customQuiz')" style="background:#7B1FA2;color:#fff;">🧩 Merge Quizzes In</button>
+    ${!cqCreatingNew ? `
+      <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('saved', '${cqEditingQuizId}')"
+        style="background:#7B1FA2;color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
+    ` : ''}
+    <button class="cq-btn" onclick="saveCustomQuizEdits()">💾 Save Changes</button>
+    <button class="cq-btn cq-btn-secondary" onclick="closeCustomQuizEditor()">✖ Cancel</button>
+  </div>
+  ${!cqCreatingNew ? renderSplitPanel('saved', cqEditingQuizId, cqEditQuestions.length) : ''}
+  <div class="admin-status" id="cqCustomEditStatus_${key}"></div>`;
+
+  area.innerHTML = html;
+
+  if (_prevScrollTop !== null) {
+    const _newList = document.getElementById('cqCustomEditList_' + key);
+    if (_newList) _newList.scrollTop = _prevScrollTop;
+  }
+}
+
+/* ── Edit helpers (mutate cqEditQuestions in place) ── */
+function cqEditQuestionText(idx, val) {
+  if (!cqEditQuestions || !cqEditQuestions[idx]) return;
+  cqEditQuestions[idx].question = val;
+}
+
+function cqEditOptionText(idx, key, val) {
+  if (!cqEditQuestions || !cqEditQuestions[idx]) return;
+  cqEditQuestions[idx].options[key] = val;
+  const order = cqEditQuestions[idx].optionsOrder;
+  if (order) {
+    const entry = order.find(o => o.key === key);
+    if (entry) entry.value = val;
+  }
+}
+
+function cqEditSetAnswer(idx, key) {
+  if (!cqEditQuestions || !cqEditQuestions[idx]) return;
+  const q = cqEditQuestions[idx];
+  q.answer = key;
+  getOptionEntries(q).forEach(([k]) => {
+    const row = document.getElementById(`cqCustomEditOptRow_${idx}_${k}`);
+    if (!row) return;
+    const isNowCorrect = k === key;
+    row.classList.toggle('cq-opt-correct', isNowCorrect);
+    let badge = row.querySelector('.cq-correct-badge');
+    if (isNowCorrect && !badge) {
+      badge = document.createElement('span');
+      badge.className = 'cq-correct-badge';
+      badge.textContent = '✔ Correct';
+      row.insertBefore(badge, row.querySelector('button'));
+    } else if (!isNowCorrect && badge) {
+      badge.remove();
+    }
+  });
+}
+
+function cqEditDeleteQuestion(idx) {
+  if (!cqEditQuestions) return;
+  if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
+  const [deleted] = cqEditQuestions.splice(idx, 1);
+  _caseGroupOnQuestionDeleted(cqEditQuestions, deleted);
+  renderCustomQuizEditor();
+}
+
+function cqEditAddBlankQuestion() {
+  if (!cqEditQuestions) cqEditQuestions = [];
+  cqEditQuestions.push({
+    question: '',
+    options: { A: '', B: '', C: '', D: '' },
+    optionsOrder: [
+      { key: 'A', value: '' }, { key: 'B', value: '' },
+      { key: 'C', value: '' }, { key: 'D', value: '' }
+    ],
+    answer: 'A'
+  });
+  renderCustomQuizEditor();
+  setTimeout(() => {
+    const last = document.getElementById(`cqCustomEditQ_${cqEditQuestions.length - 1}`);
+    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 60);
+}
+
+function cqEditDeleteOption(qIdx, key) {
+  if (!cqEditQuestions || !cqEditQuestions[qIdx]) return;
+  const q = cqEditQuestions[qIdx];
+  if (Object.keys(q.options).length <= 2) {
+    alert('A question must have at least 2 options.');
+    return;
+  }
+  delete q.options[key];
+  if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
+  if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  renderCustomQuizEditor();
+}
+
+function cqEditAddOption(qIdx) {
+  const ALL_KEYS = ['A','B','C','D','E','F','G','H','I','J'];
+  if (!cqEditQuestions || !cqEditQuestions[qIdx]) return;
+  const q = cqEditQuestions[qIdx];
+  const usedKeys = Object.keys(q.options);
+  const nextKey = ALL_KEYS.find(k => !usedKeys.includes(k));
+  if (!nextKey) return;
+  q.options[nextKey] = '';
+  if (!q.optionsOrder) q.optionsOrder = usedKeys.map(k => ({ key: k, value: q.options[k] }));
+  q.optionsOrder.push({ key: nextKey, value: '' });
+  renderCustomQuizEditor();
+  setTimeout(() => {
+    const input = document.querySelector(`#cqCustomEditOptRow_${qIdx}_${nextKey} .cq-opt-text-input`);
+    if (input) input.focus();
+  }, 60);
+}
+
+function cqEditRemoveImage(idx) {
+  if (!cqEditQuestions || !cqEditQuestions[idx]) return;
+  delete cqEditQuestions[idx].image;
+  delete cqEditQuestions[idx].imageUrl;
+  renderCustomQuizEditor();
+}
+
+function cqEditReplaceImage(idx, event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file || !cqEditQuestions || !cqEditQuestions[idx]) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = reader.result;
+    try {
+      cqEditQuestions[idx].image = await compressImageDataUrl(dataUrl);
+    } catch (e) {
+      cqEditQuestions[idx].image = dataUrl;
+    }
+    delete cqEditQuestions[idx].imageUrl; // stale pointer — a fresh image is (re)uploaded on save
+    renderCustomQuizEditor();
+  };
+  reader.readAsDataURL(file);
+}
+
+/* Validates the working copy, then writes it back into the saved quiz
+   list via the normal save path (handles Firestore image upload / local
+   storage the same way every other custom-quiz save already does). If
+   `cqCreatingNew` is set, this creates a fresh quiz instead of updating one. */
+async function saveCustomQuizEdits() {
+  if (!cqEditQuestions) return;
+  if (!cqCreatingNew && !cqEditingQuizId) return;
+
+  if (cqCreatingNew && !cqNewQuizTitle.trim()) {
+    alert('Give your quiz a title first.');
+    return;
+  }
+  if (!cqEditQuestions.length) {
+    alert('Add at least one question first.');
+    return;
+  }
+
+  for (let i = 0; i < cqEditQuestions.length; i++) {
+    const q = cqEditQuestions[i];
+    if (!q.question || !q.question.trim()) { alert(`Q${i + 1} needs question text.`); return; }
+    const filledOpts = getOptionEntries(q).filter(([, v]) => v && v.trim());
+    if (filledOpts.length < 2) { alert(`Q${i + 1} needs at least 2 filled-in options.`); return; }
+    if (!q.answer || !q.options[q.answer] || !q.options[q.answer].trim()) {
+      alert(`Q${i + 1} needs a correct answer selected.`);
+      return;
+    }
+  }
+
+  _cqNormalizeCaseGroups(cqEditQuestions);
+  _stripEditorTransientFields(cqEditQuestions);
+
+  const statusEl = document.getElementById('cqCustomEditStatus_' + _cqEditorKey());
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status info">💾 Saving…</div>`;
+
+  const quizzes = loadCustomQuizzes();
+
+  if (cqCreatingNew) {
+    quizzes.push({
+      id: 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+      title: cqNewQuizTitle.trim(),
+      questions: JSON.parse(JSON.stringify(cqEditQuestions)),
+      createdAt: Date.now()
+    });
+  } else {
+    const quiz = quizzes.find(q => q.id === cqEditingQuizId);
+    if (!quiz) return;
+    quiz.questions = JSON.parse(JSON.stringify(cqEditQuestions));
+  }
+
+  try {
+    await saveCustomQuizzesList(quizzes);
+    cqCreatingNew = false;
+    cqEditingQuizId = null;
+    cqEditQuestions = null;
+    cqNewQuizTitle = '';
+    renderCustomQuizModal();
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status warning">⚠️ Save failed: ${escapeHtml(e.message || String(e))}</div>`;
+  }
 }
 
 /* Swap a published lecture's position with its immediate neighbor (up/down)
@@ -8589,12 +10457,9 @@ function _renderAdminAssignedListHTML() {
           onclick="adminEditPublished('${e.id}')">✏️ Edit</button>
         <button class="admin-remove-btn" style="background:#E3F2FD;color:#0D47A1;border:1.5px solid #90CAF9;"
           onclick="adminOpenMoveQuiz('${e.id}', '${(e.lectureName||e.id).replace(/'/g,"\'")}')">📋 Copy/Move</button>
-        <button class="admin-remove-btn" style="background:#F3E5F5;color:#4A148C;border:1.5px solid #CE93D8;"
-          onclick="openAdminSplitPanel('${e.id}')" title="Split into multiple quizzes">✂️ Split</button>
         <button class="admin-remove-btn" onclick="adminRemovePublished('${e.id}')">🗑 Delete</button>
       </div>
-      <div id="adminPublishedEditorArea_${e.id}"></div>
-      ${renderSplitPanel('adminPublished', e.id, (e.questions || []).length)}`;
+      <div id="adminPublishedEditorArea_${e.id}"></div>`;
   });
 
   // If currently editing one of these, render its editor
@@ -8654,6 +10519,43 @@ function adminCancelEditPublished() {
 }
 
 /* Save edits made to an already-published lecture */
+/* Lets an admin spin off their in-editor changes to a published curriculum
+   lecture (e.g. after merging in extra questions) as a brand-new custom
+   quiz, WITHOUT touching the published lecture at all. The normal
+   "💾 Save Changes" pathway (adminSavePublishedEdits, below) remains the
+   way to actually implement the edits on the curriculum. */
+async function adminSaveEditsAsCustomQuiz() {
+  if (!adminEditQuestions || !adminEditQuestions.length) return;
+  const defaultTitle = (adminEditingPublishedName || 'Custom Quiz') + ' (copy)';
+  const title = prompt('Save these edits as a new custom quiz — the curriculum lecture will not be changed. Title:', defaultTitle);
+  if (title === null) return; // cancelled
+  const finalTitle = title.trim() || defaultTitle;
+
+  const statusEl = document.getElementById('adminEditStatus');
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Saving as custom quiz…</div>`;
+
+  try {
+    // Clone before normalizing/stripping so the live working copy — and the
+    // separate "Save Changes to curriculum" pathway — is left untouched.
+    const questions = JSON.parse(JSON.stringify(adminEditQuestions));
+    _cqNormalizeCaseGroups(questions);
+    _stripEditorTransientFields(questions);
+
+    const quizzes = loadCustomQuizzes();
+    quizzes.unshift({
+      id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      title: finalTitle,
+      questions,
+      createdAt: Date.now()
+    });
+    await saveCustomQuizzesList(quizzes);
+
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Saved as custom quiz "${escapeHtml(finalTitle)}" — the curriculum lecture was not changed.</div>`;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ Failed to save: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
 async function adminSavePublishedEdits() {
   if (!adminEditQuestions || !adminEditingPublishedId) return;
   const lectureId = adminEditingPublishedId;
@@ -8661,6 +10563,8 @@ async function adminSavePublishedEdits() {
   if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Saving…</div>`;
 
   try {
+    _cqNormalizeCaseGroups(adminEditQuestions);
+    _stripEditorTransientFields(adminEditQuestions);
     const cleanQuestions = JSON.parse(JSON.stringify(adminEditQuestions)).map(q => {
       delete q.imageUrl;
       delete q.sharedImageIdx;
@@ -8768,6 +10672,8 @@ async function adminPublishQuiz() {
     let questions;
     if (adminEditMode === 'publish' && adminEditQuestions) {
       // Use the admin-edited working copy as-is (images already inline as data URLs)
+      _cqNormalizeCaseGroups(adminEditQuestions);
+      _stripEditorTransientFields(adminEditQuestions);
       questions = adminEditQuestions;
     } else {
       // Restore options order if this quiz came from a shared/community doc
