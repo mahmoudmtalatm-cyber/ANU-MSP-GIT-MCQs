@@ -936,6 +936,17 @@
 .cq-edit-reask-btn.cq-edit-reask-btn-active:disabled {
   background: #EDE7F6; color: #4527A0; border-color: #B39DDB; opacity: 1; cursor: default;
 }
+/* Small ⏹ Stop button placed next to an individual AI feature's trigger
+   button, shown only while that specific feature is running (see
+   _aiToolsSyncButtons / _editorBulkSetBusy). Kept visually distinct (red)
+   and separate from the trigger it accompanies, always clickable even
+   though the trigger itself is disabled while busy. */
+.ai-tool-stop-btn {
+  display: none; background: #C62828; color: #fff; border: none; border-radius: 7px;
+  padding: 5px 9px; font-family: var(--font); font-size: .75rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s;
+}
+.ai-tool-stop-btn:hover { background: #B71C1C; }
 .ai-source-picker {
   position: relative; z-index: 20; margin: 4px 0 8px;
 }
@@ -1785,8 +1796,8 @@
 .icon-picker-trigger:hover { border-color: #1B4F72; }
 .icon-picker-trigger .ip-caret { font-size: .65rem; color: var(--text-muted); }
 .icon-picker-pop {
-  position: absolute; z-index: 50; top: calc(100% + 6px); left: 0;
-  width: 300px; max-width: calc(100vw - 48px); max-height: 320px; overflow-y: auto;
+  position: fixed; z-index: 15000;
+  width: 300px; max-width: calc(100vw - 24px); max-height: 320px; overflow-y: auto;
   background: #fff; border: 1px solid #B0D4F0; border-radius: 10px;
   box-shadow: 0 8px 28px rgba(20,40,60,.22); padding: 10px;
 }
@@ -4240,6 +4251,17 @@ function _stopAllAiProcesses() {
    no safe mid-flight abort point (partial writes could orphan uploaded
    images), so unlike the AI processes it isn't offered as "stop and close" —
    it's simply blocked until it finishes on its own. */
+// Set true by any question-editing action (text edits, option/answer changes,
+// add/delete question or option, image changes, reordering, case-group links,
+// AI tool results not yet saved, etc.) across every editor in the app — the
+// extraction/generation preview, "Create Your Own Quiz", the saved-custom-quiz
+// editor, and the admin question editor. Cleared whenever a fresh editor is
+// opened or edits are actually saved. _guardedClose() (and a couple of
+// non-overlay "cancel" actions that also abandon an in-progress edit) check
+// this so the user is warned before their unsaved edits are silently lost.
+let _questionEditDirty = false;
+function _markQuestionEditDirty() { _questionEditDirty = true; }
+
 function _guardedClose(closeFn) {
   if (typeof adminBusy !== 'undefined' && adminBusy) {
     alert('A publish is still in progress. Please wait for it to finish before closing.');
@@ -4253,6 +4275,13 @@ function _guardedClose(closeFn) {
     if (!confirmed) return;
     _stopAllAiProcesses();
   }
+  if (_questionEditDirty) {
+    const confirmed = confirm(
+      `You have unsaved edits. Closing now will discard them and they will be lost.\n\nClose anyway?`
+    );
+    if (!confirmed) return;
+  }
+  _questionEditDirty = false;
   closeFn();
 }
 
@@ -5313,6 +5342,11 @@ const _caseGroupEditors = {
    duration, since these functions mutate the same question objects the
    per-question tools do — running them concurrently would race. */
 const _editorBulkBusy = { admin: false, customQuiz: false };
+// Which bulk tool ('Solve' | 'Fill' | 'Refine') is currently running, per
+// editor — lets the Stop button next to just that tool's button show up,
+// while its two sibling tools stay merely disabled (they can't run at the
+// same time anyway; _editorBulkGuard enforces that).
+const _editorBulkActiveTool = { admin: null, customQuiz: null };
 // One cancel token per editor, live only while a bulk pass is running —
 // see _stopAllAiProcesses() and the menu-close guard (_guardedClose).
 const _editorBulkCancelToken = { admin: null, customQuiz: null };
@@ -5342,15 +5376,26 @@ function _aiToolsSetAllDisabledForEditor(editorKey, disabled) {
   });
 }
 
-function _editorBulkSetBusy(editorKey, busy) {
+function _editorBulkSetBusy(editorKey, busy, tool) {
   _editorBulkBusy[editorKey] = busy;
+  _editorBulkActiveTool[editorKey] = busy ? tool : null;
   ['Solve', 'Fill', 'Refine'].forEach(name => {
     const btn = document.getElementById(`${editorKey}Bulk${name}Btn`);
     if (btn) btn.disabled = busy;
+    const stopBtn = document.getElementById(`${editorKey}Bulk${name}StopBtn`);
+    if (stopBtn) stopBtn.style.display = (busy && tool === name) ? 'inline-block' : 'none';
   });
   const lockWrap = document.getElementById(`${editorKey}BulkLockWrap`);
   if (lockWrap) lockWrap.classList.toggle('cq-bulk-lock', busy);
   _aiToolsSetAllDisabledForEditor(editorKey, busy);
+}
+
+/* Stops whichever bulk (whole-quiz) AI tool is currently running in this
+   editor. Only one can run at a time per editor (_editorBulkGuard), so no
+   tool name is needed — same hard, immediate abort as every other Stop
+   button (see _cancelAiToken). */
+function _editorBulkStopTool(editorKey) {
+  _cancelAiToken(_editorBulkCancelToken[editorKey]);
 }
 
 // Each bulk tool gets its own row with its own button PLUS (if it takes
@@ -5361,6 +5406,7 @@ function _editorBulkSetBusy(editorKey, busy) {
 // time under the hood, applying its action to each question in the quiz.
 function _renderBulkAiToolsPanel(editorKey, questions) {
   const busy = _editorBulkBusy[editorKey];
+  const activeTool = _editorBulkActiveTool[editorKey];
   const n = questions.length;
   return `
   <div class="cq-bulk-ai-panel">
@@ -5374,8 +5420,11 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
         <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkSolveBtn" type="button"
           ${busy ? 'disabled' : ''} onclick="_editorBulkAiSolve('${editorKey}')"
           style="background:#1565C0;color:#fff;">🤖 AI Solve All</button>
+        <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkSolveStopBtn"
+          style="${busy && activeTool === 'Solve' ? 'display:inline-block;' : ''}"
+          title="Stop AI Solve All" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
       </div>
-      <details class="cq-bulk-ai-opts" open>
+      <details class="cq-bulk-ai-opts">
         <summary>⚙️ AI Solve settings</summary>
         <div style="margin-top:8px;">
           <div class="cq-bulk-ai-label">📚 Reference source (optional) — upload images/PDFs for the AI to use, or leave empty to answer from general knowledge</div>
@@ -5399,6 +5448,9 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
         <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFillBtn" type="button"
           ${busy ? 'disabled' : ''} onclick="_editorBulkFillChoices('${editorKey}')"
           style="background:#E65100;color:#fff;">🧩 Fill Choices (All)</button>
+        <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkFillStopBtn"
+          style="${busy && activeTool === 'Fill' ? 'display:inline-block;' : ''}"
+          title="Stop Fill Choices" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
         <span class="cq-bulk-ai-no-opts">Tops up missing answer choices — no settings needed.</span>
       </div>
     </div>
@@ -5408,6 +5460,9 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
         <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkRefineBtn" type="button"
           ${busy ? 'disabled' : ''} onclick="_editorBulkRefineQuestions('${editorKey}')"
           style="background:#6A1B9A;color:#fff;">🪄 Refine Questions (All)</button>
+        <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkRefineStopBtn"
+          style="${busy && activeTool === 'Refine' ? 'display:inline-block;' : ''}"
+          title="Stop Refine Questions" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
       </div>
       <details class="cq-bulk-ai-opts">
         <summary>⚙️ Refine Questions settings</summary>
@@ -5508,7 +5563,7 @@ async function _editorBulkAiSolve(editorKey) {
   const ctx = _editorBulkGuard(editorKey);
   if (!ctx) return;
   const { ed, questions } = ctx;
-  _editorBulkSetBusy(editorKey, true);
+  _editorBulkSetBusy(editorKey, true, 'Solve');
   // Real per-run cancel token — this is what _stopAllAiProcesses() cancels via
   // _editorBulkCancelToken[editorKey]. Without creating and passing this down,
   // that cancel call had nothing to cancel: the loop below kept running for
@@ -5528,7 +5583,8 @@ async function _editorBulkAiSolve(editorKey) {
     if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'AI Solve failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
-    _editorBulkSetBusy(editorKey, false);
+    _editorBulkSetBusy(editorKey, false, 'Solve');
+    _markQuestionEditDirty();
     ed.rerender();
   }
 }
@@ -5537,7 +5593,7 @@ async function _editorBulkFillChoices(editorKey) {
   const ctx = _editorBulkGuard(editorKey);
   if (!ctx) return;
   const { ed, questions } = ctx;
-  _editorBulkSetBusy(editorKey, true);
+  _editorBulkSetBusy(editorKey, true, 'Fill');
   const token = { cancelled: false };
   _editorBulkCancelToken[editorKey] = token;
   const statusEl = _editorBulkStatusEl(editorKey);
@@ -5553,7 +5609,8 @@ async function _editorBulkFillChoices(editorKey) {
     if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Fill Choices failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
-    _editorBulkSetBusy(editorKey, false);
+    _editorBulkSetBusy(editorKey, false, 'Fill');
+    _markQuestionEditDirty();
     ed.rerender();
   }
 }
@@ -5562,7 +5619,7 @@ async function _editorBulkRefineQuestions(editorKey) {
   const ctx = _editorBulkGuard(editorKey);
   if (!ctx) return;
   const { ed, questions } = ctx;
-  _editorBulkSetBusy(editorKey, true);
+  _editorBulkSetBusy(editorKey, true, 'Refine');
   const token = { cancelled: false };
   _editorBulkCancelToken[editorKey] = token;
   const statusEl = _editorBulkStatusEl(editorKey);
@@ -5579,7 +5636,8 @@ async function _editorBulkRefineQuestions(editorKey) {
     if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Refine failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
-    _editorBulkSetBusy(editorKey, false);
+    _editorBulkSetBusy(editorKey, false, 'Refine');
+    _markQuestionEditDirty();
     ed.rerender();
   }
 }
@@ -5595,6 +5653,7 @@ function _editorMoveQuestion(editorKey, i, dir) {
   const j = i + dir;
   if (j < 0 || j >= questions.length) return;
   [questions[i], questions[j]] = [questions[j], questions[i]];
+  _markQuestionEditDirty();
   ed.rerender();
 }
 
@@ -5615,6 +5674,7 @@ function _editorMoveQuestionTo(editorKey, i, inputId) {
   if (j === i) return;
   const [moved] = questions.splice(i, 1);
   questions.splice(j, 0, moved);
+  _markQuestionEditDirty();
   ed.rerender();
 }
 
@@ -5778,6 +5838,7 @@ function _caseGroupOnSelect(editorKey, i, val) {
   // the group it just joined/started must end up with exactly one.
   if (prevGid && prevGid !== q.case_group) _caseGroupEnsureSingleCore(questions, prevGid);
   if (q.case_group) _caseGroupEnsureSingleCore(questions, q.case_group);
+  _markQuestionEditDirty();
   ed.rerender();
 }
 
@@ -5789,6 +5850,7 @@ function _caseGroupUnlink(editorKey, i) {
   questions[i].case_group = null;
   questions[i].case_is_core = false;
   if (gid) _caseGroupEnsureSingleCore(questions, gid); // promote a remaining member if the core just left
+  _markQuestionEditDirty();
   ed.rerender();
 }
 
@@ -5802,6 +5864,7 @@ function _caseGroupSetCore(editorKey, i) {
   if (!gid) return;
   questions.forEach(o => { if (o.case_group === gid) o.case_is_core = false; });
   questions[i].case_is_core = true;
+  _markQuestionEditDirty();
   ed.rerender();
 }
 
@@ -5898,6 +5961,30 @@ function _aiToolsSyncButtons(editorKey, i, busy, action) {
       existingSpinner.remove();
     }
   }
+
+  // Show the Stop button belonging to whichever action just started; hide
+  // every other feature's Stop button on this card (only one of these four
+  // can ever be running at once per question, thanks to the busy lock).
+  const stopIdMap = {
+    refine:      `aiRefineStopBtn_${editorKey}_${i}`,
+    addChoice:   `aiAddChoiceStopBtn_${editorKey}_${i}`,
+    fillChoices: `aiFillChoicesStopBtn_${editorKey}_${i}`,
+    solve:       `cqAiSolveStopBtn_${editorKey}_${i}`
+  };
+  Object.values(stopIdMap).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (busy && id === stopIdMap[action]) ? 'inline-block' : 'none';
+  });
+}
+
+/* Stops whichever single-question AI tool (Solve / Refine / Add Choice /
+   Fill Choices) is currently running on this specific question, without
+   touching any other question or editor. Mirrors _cancelAiToken's hard,
+   immediate abort — the in-flight request is cut right away, not just
+   flagged to stop at its next checkpoint. */
+function _aiToolsStopAction(editorKey, i) {
+  const key = _aiToolsKey(editorKey, i);
+  _cancelAiToken(_aiToolsCancelToken[key]);
 }
 function _aiToolsStatusEl(editorKey, i) {
   return document.getElementById(`aiToolsStatus_${editorKey}_${i}`);
@@ -5971,6 +6058,7 @@ function _aiToolsCaseContext(questions, q) {
    aiRefineQuestion()/_toggleAiRefineInstrPicker() further down. */
 function _renderAiRefineTools(editorKey, i) {
   const busy = _aiToolsIsBusy(editorKey, i);
+  const activeAction = _aiToolsActiveAction[_aiToolsKey(editorKey, i)];
   return `
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-2px 0 8px;">
       <div style="display:flex;">
@@ -5983,6 +6071,9 @@ function _renderAiRefineTools(editorKey, i) {
           onclick="_toggleAiSourcePicker('${editorKey}', ${i})"
           style="background:#F1F8F4;color:#2E7D32;border-color:#A5D6A7;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_aiSolveSourceShortLabel(editorKey, i))} ▾</button>
       </div>
+      <button class="ai-tool-stop-btn" type="button" id="cqAiSolveStopBtn_${editorKey}_${i}"
+        style="${busy && activeAction === 'solve' ? 'display:inline-block;' : ''}"
+        title="Stop AI Solve" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>
       <div style="display:flex;">
         <button class="cq-edit-reask-btn" type="button" id="aiRefineBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Use AI to rewrite this question with clear, exam-style phrasing and no grammar mistakes or typos"
@@ -5993,6 +6084,9 @@ function _renderAiRefineTools(editorKey, i) {
           onclick="_toggleAiRefineInstrPicker('${editorKey}', ${i})"
           style="background:#F3EEFC;color:#6A1B9A;border-color:#CE93D8;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_aiRefineInstrCaretLabel(editorKey, i)} ▾</button>
       </div>
+      <button class="ai-tool-stop-btn" type="button" id="aiRefineStopBtn_${editorKey}_${i}"
+        style="${busy && activeAction === 'refine' ? 'display:inline-block;' : ''}"
+        title="Stop Refine Question" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>
     </div>
     <div id="aiSourcePicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
     <div id="aiRefineInstrPicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
@@ -6004,18 +6098,25 @@ function _renderAiRefineTools(editorKey, i) {
    button in every editor's options footer. */
 function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
   const busy = _aiToolsIsBusy(editorKey, i);
-  let html = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:5px;">`;
+  const activeAction = _aiToolsActiveAction[_aiToolsKey(editorKey, i)];
+  let html = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:5px;align-items:center;">`;
   if (nextKey) {
     html += `<button class="cq-edit-reask-btn" type="button" id="aiAddChoiceBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
       title="Let AI write one more plausible answer choice for this question"
       onclick="aiAddChoice('${editorKey}', ${i})"
-      style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 Add Choice (AI)</button>`;
+      style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 Add Choice (AI)</button>
+      <button class="ai-tool-stop-btn" type="button" id="aiAddChoiceStopBtn_${editorKey}_${i}"
+        style="${busy && activeAction === 'addChoice' ? 'display:inline-block;' : ''}"
+        title="Stop Add Choice" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>`;
   }
   if (optCount < 4 && nextKey) {
     html += `<button class="cq-edit-reask-btn" type="button" id="aiFillChoicesBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
       title="Let AI fill in the remaining choices (up to 4 total)"
       onclick="aiFillChoices('${editorKey}', ${i})"
-      style="background:#FFF3E0;color:#E65100;border-color:#FFB74D;">🧩 Fill Choices (AI)</button>`;
+      style="background:#FFF3E0;color:#E65100;border-color:#FFB74D;">🧩 Fill Choices (AI)</button>
+      <button class="ai-tool-stop-btn" type="button" id="aiFillChoicesStopBtn_${editorKey}_${i}"
+        style="${busy && activeAction === 'fillChoices' ? 'display:inline-block;' : ''}"
+        title="Stop Fill Choices" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>`;
   }
   html += `</div>`;
   return html;
@@ -6098,6 +6199,7 @@ async function aiRefineQuestion(editorKey, i) {
 
   try {
     q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, token);
+    _markQuestionEditDirty();
     ed.rerender(); // rebuilds this card fresh, which also naturally re-enables its buttons
   } catch (e) {
     if (!(e && e._cancelled)) {
@@ -6204,6 +6306,7 @@ async function aiFillChoices(editorKey, i) {
     // Defensive guarantee: the correct answer is exactly what it was before —
     // this action only ever adds new wrong choices, never picks or changes one.
     q.answer = answerBefore;
+    _markQuestionEditDirty();
     ed.rerender();
   } catch (e) {
     if (!(e && e._cancelled)) {
@@ -6259,6 +6362,7 @@ async function aiAddChoice(editorKey, i) {
     q.optionsOrder.push({ key: nextKey, value: val });
     // Defensive guarantee: the correct answer is exactly what it was before.
     q.answer = answerBefore;
+    _markQuestionEditDirty();
     ed.rerender();
   } catch (e) {
     if (!(e && e._cancelled)) {
@@ -6354,6 +6458,21 @@ function cqRequestPause() {
     statusEl.insertAdjacentHTML('beforeend',
       `<div class="cq-status warning cq-pausing-banner" style="margin-top:6px;">⏳ Waiting for the nearest checkpoint to pause safely — this finishes the current step first so nothing already done is lost.</div>`);
   }
+}
+
+function cqRequestStop() {
+  if (!cqBusy) return;
+  cqStopRequested = true;
+  if (typeof cqCancelToken !== 'undefined' && cqCancelToken) _cancelAiToken(cqCancelToken);
+  cqPauseRequested = false;
+  // If it's sitting paused, wake it up so it can see the stop flag and exit.
+  if (cqIsPaused && cqResumeResolve) {
+    const resolve = cqResumeResolve;
+    cqResumeResolve = null;
+    resolve();
+  }
+  const stopBtn = document.getElementById('cqStopBtn');
+  if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = '⏳ Stopping…'; }
 }
 
 function cqResumeGeneration() {
@@ -6638,6 +6757,7 @@ function openCustomQuizzes() {
   cqCreatingNew = false;
   cqNewQuizTitle = '';
   cqMultiSelected = new Set();
+  _questionEditDirty = false;
   document.getElementById('customQuizOverlay').classList.remove('hidden');
   renderCustomQuizModal();
 }
@@ -6738,7 +6858,11 @@ function renderCustomQuizModal() {
 
   /* ── Write your own quiz by hand (no AI) ── */
   html += `<div class="cq-section">
-    <div class="cq-section-title">✍️ Create Your Own Quiz</div>`;
+    <div class="cq-section-title">✍️ Create Your Own Quiz</div>
+
+    <!-- API Key -->
+    ${renderCqApiKeyBadge()}
+    `;
   if (cqCreatingNew) {
     html += `<div class="cq-field-hint">Write your quiz from scratch — same editor as editing an existing quiz, you just start from a blank question.</div>
     <div class="cq-input-row">
@@ -6965,7 +7089,8 @@ function renderCustomQuizModal() {
         style="background:#FFF3E0;color:#E65100;border:1.5px solid #FFB74D;">⏸️ Pause</button>
       <button class="cq-btn" id="cqResumeBtn" type="button" onclick="cqResumeGeneration()"
         style="display:none;background:#E8F5E9;color:#2E7D32;border:1.5px solid #66BB6A;">▶️ Resume</button>
-      <button class="apikey-open-btn ghost" type="button" onclick="openApiKeyManager()">🔑 Manage APIs</button>
+      <button class="ai-tool-stop-btn" id="cqStopBtn" type="button" onclick="cqRequestStop()"
+        style="display:inline-block;padding:7px 12px;font-size:.82rem;" title="Stop extraction/generation immediately">⏹ Stop</button>
     </div>
     <div id="cqStatus"></div>
     <div id="cqPreviewArea"></div>
@@ -8163,6 +8288,7 @@ async function aiSolveQuestion(editorKey, i) {
     if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
     _aiToolsSetBusy(editorKey, i, false, 'solve');
   }
+  _markQuestionEditDirty();
   ed.rerender();
 }
 
@@ -8292,6 +8418,8 @@ async function generateQuizFromAI() {
   if (pauseRow)  pauseRow.style.display  = 'flex';
   if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
   if (resumeBtn) resumeBtn.style.display = 'none';
+  const stopBtn = document.getElementById('cqStopBtn');
+  if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
   statusEl.innerHTML = _cqProgressStatusHTML(`Reading your file${cqSelectedFiles.length > 1 ? 's' : ''} and extracting all questions…`, 0);
 
   try {
@@ -8333,6 +8461,7 @@ async function generateQuizFromAI() {
     if (!cleaned.length) throw new Error('No questions could be detected in the uploaded file(s).');
 
     cqGeneratedQuestions = cleaned;
+    _markQuestionEditDirty(); // freshly extracted content is unsaved — warn before it's closed away
 
     // Handle questions without answer keys
     const noKeyQs = cleaned.filter(q => q.no_answer_key);
@@ -8416,7 +8545,7 @@ async function generateQuizFromAI() {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (err._cqStopped || err._cancelled) {
-      statusEl.innerHTML = `<div class="cq-status warning">⏹️ Aborted — you switched the active API key, which forcibly ended this run. Nothing extracted before the abort was lost, but you'll need to click <strong>Extract Questions</strong> again to continue.</div>`;
+      statusEl.innerHTML = '';
     } else if (isKeyErr) {
       statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
         <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
@@ -8609,6 +8738,10 @@ async function generateQuizFromLecture() {
   if (pauseRow)  pauseRow.style.display  = 'flex';
   if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
   if (resumeBtn) resumeBtn.style.display = 'none';
+  {
+    const stopBtn = document.getElementById('cqStopBtn');
+    if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+  }
   statusEl.innerHTML = _cqProgressStatusHTML(`Reading your lecture${cqLectureFiles.length > 1 ? 's' : ''} and generating questions…`, 0);
 
   try {
@@ -8652,6 +8785,7 @@ async function generateQuizFromLecture() {
     if (!cleaned.length) throw new Error('No questions were generated. Try uploading a more detailed lecture or reducing the question count.');
 
     cqGeneratedQuestions = cleaned;
+    _markQuestionEditDirty(); // freshly generated content is unsaved — warn before it's closed away
 
     let warn = '';
     if (anyMaxTokens) {
@@ -8671,7 +8805,7 @@ async function generateQuizFromLecture() {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (err._cqStopped || err._cancelled) {
-      statusEl.innerHTML = `<div class="cq-status warning">⏹️ Aborted — you switched the active API key, which forcibly ended this run. Nothing generated before the abort was lost, but you'll need to click <strong>Generate Questions</strong> again to continue.</div>`;
+      statusEl.innerHTML = `<div class="cq-status warning">⏹️ Stopped. Nothing generated before the abort was lost, but you'll need to click <strong>Generate Questions</strong> again to continue.</div>`;
     } else if (isKeyErr) {
       statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
         <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
@@ -8869,6 +9003,7 @@ function renderCQPreview() {
 function cqEditQuestion(idx, val) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
   cqGeneratedQuestions[idx].question = val;
+  _markQuestionEditDirty();
 }
 
 function cqEditOption(idx, key, val) {
@@ -8880,11 +9015,13 @@ function cqEditOption(idx, key, val) {
     const entry = order.find(o => o.key === key);
     if (entry) entry.value = val;
   }
+  _markQuestionEditDirty();
 }
 
 function cqSetAnswer(idx, key) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
   cqGeneratedQuestions[idx].answer = key;
+  _markQuestionEditDirty();
   // Re-render just the option rows for this question to update correct highlights
   const q = cqGeneratedQuestions[idx];
   getOptionEntries(q).forEach(([k]) => {
@@ -8909,6 +9046,7 @@ function cqRemoveImage(idx) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
   cqGeneratedQuestions[idx].image    = undefined;
   cqGeneratedQuestions[idx].has_image = false;
+  _markQuestionEditDirty();
   renderCQPreview();
 }
 
@@ -8926,6 +9064,7 @@ function cqReplaceImage(idx, event) {
       cqGeneratedQuestions[idx].image    = dataUrl;
       cqGeneratedQuestions[idx].has_image = true;
     }
+    _markQuestionEditDirty();
     renderCQPreview();
   };
   reader.readAsDataURL(file);
@@ -8936,6 +9075,7 @@ function cqDeleteQuestion(idx) {
   if (!cqGeneratedQuestions) return;
   if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
   cqGeneratedQuestions.splice(idx, 1);
+  _markQuestionEditDirty();
   renderCQPreview();
 }
 
@@ -8956,6 +9096,7 @@ function cqAddBlankQuestion() {
     // use even though the preview's re-extract controls have been removed.
     _notExtractable: true
   });
+  _markQuestionEditDirty();
   renderCQPreview();
   // Scroll to new question
   setTimeout(() => {
@@ -8976,6 +9117,7 @@ function cqDeleteOption(qIdx, key) {
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   // If we deleted the correct answer, pick first remaining
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  _markQuestionEditDirty();
   renderCQPreview();
 }
 
@@ -8990,6 +9132,7 @@ function cqAddOption(qIdx) {
   q.options[nextKey] = '';
   if (!q.optionsOrder) q.optionsOrder = usedKeys.map(k => ({ key: k, value: q.options[k] }));
   q.optionsOrder.push({ key: nextKey, value: '' });
+  _markQuestionEditDirty();
   renderCQPreview();
   // Focus the new input
   setTimeout(() => {
@@ -9002,6 +9145,7 @@ function discardGeneratedQuiz() {
   cqGeneratedQuestions = null;
   cqSelectedFiles = [];
   cqLectureFiles = [];
+  _questionEditDirty = false;
   renderCustomQuizModal();
 }
 
@@ -9026,6 +9170,7 @@ async function saveGeneratedCustomQuiz() {
   cqSelectedFiles = [];
   cqLectureFiles = [];
   cqGeneratedTitle = '';
+  _questionEditDirty = false;
 
   renderCustomQuizModal();
   const statusEl = document.getElementById('cqStatus');
@@ -10911,6 +11056,34 @@ let adminPublishInsertPosition = null;
 let adminCommunityCache = null;
 let adminBusy = false;
 
+// Search/filter state for the "🌐 Community Quizzes" source list in the
+// Publish tab — mirrors communitySearchQuery/Year/Module/SubjectFilter/Sort
+// from the student-facing Community Quizzes browse overlay, kept as its
+// own separate set of variables so browsing here never affects, and is
+// never affected by, whatever's currently set in that overlay.
+let adminCommTab           = 'browse'; // 'browse' | 'mine' — mirrors commManageTab, for the Publish tab's community source list
+let adminCommSearchQuery   = '';
+let adminCommYearFilter    = '';
+let adminCommModuleFilter  = '';
+let adminCommSubjectFilter = '';
+let adminCommSort          = 'newest';
+
+// "🗂️ Manage Community Quiz" tab — a full admin-side duplicate of the
+// student-facing Community Quizzes browse menu (Browse All / My Shared,
+// search, cascading Year/Module/Subject filters, sort, tag chips), with
+// an admin Delete button added to every card. This is now the ONLY place
+// an admin deletes a community-shared quiz from — the Publish Quizzes
+// tab keeps its search/filter bar for picking a source to publish, but
+// has no delete button anywhere anymore. Kept as its own separate set of
+// variables so this tab's browsing/filtering never interferes with the
+// student-facing overlay's or the Publish tab's.
+let commManageTab           = 'browse'; // 'browse' | 'mine'
+let commManageSearchQuery   = '';
+let commManageYearFilter    = '';
+let commManageModuleFilter  = '';
+let commManageSubjectFilter = '';
+let commManageSort          = 'newest';
+
 // Inline quiz editor state (used both for "edit before publish" and "edit published lecture")
 let adminEditQuestions = null;   // working copy of questions array being edited, or null
 let adminEditMode      = null;   // 'publish' | 'published' | null
@@ -10945,8 +11118,19 @@ function renderAdminPanelTabs() {
   const canAdmins     = hasAdminPermission(user, 'admins');
 
   let html = '';
-  if (canCurriculum || canCommunity) {
+  // Publish Quizzes now requires 'curriculum' permission — it's the only
+  // thing that tab does (pick a source quiz + assign it into the
+  // curriculum), and deleting is no longer possible from here at all.
+  if (canCurriculum) {
     html += `<button class="admin-panel-tab ${adminActiveTab === 'publish' ? 'active' : ''}" id="adminTabPublish" onclick="adminSwitchTab('publish')">📤 Publish Quizzes</button>`;
+  }
+  // Manage Community Quiz — a full duplicate of the student-facing
+  // Community Quizzes browse menu (search, cascading filters, tags),
+  // with an admin Delete button added to every card. This is now the
+  // ONLY place a community-shared quiz gets deleted from in the admin
+  // panel. Requires 'community' permission, independent of 'curriculum'.
+  if (canCommunity) {
+    html += `<button class="admin-panel-tab ${adminActiveTab === 'commManage' ? 'active' : ''}" id="adminTabCommManage" onclick="adminSwitchTab('commManage')">🗂️ Manage Community Quiz</button>`;
   }
   if (canCurriculum) {
     html += `<button class="admin-panel-tab ${adminActiveTab === 'curriculum' ? 'active' : ''}" id="adminTabCurriculum" onclick="adminSwitchTab('curriculum')">📚 Manage Curriculum</button>`;
@@ -10960,7 +11144,8 @@ function renderAdminPanelTabs() {
 /* Pick a sensible default tab given this user's permissions. */
 function adminDefaultTab() {
   const user = window._currentUser;
-  if (hasAdminPermission(user, 'curriculum') || hasAdminPermission(user, 'community')) return 'publish';
+  if (hasAdminPermission(user, 'curriculum')) return 'publish';
+  if (hasAdminPermission(user, 'community')) return 'commManage';
   if (hasAdminPermission(user, 'admins')) return 'admins';
   return null;
 }
@@ -10970,7 +11155,7 @@ function openAdminPanel() {
     alert('You do not have admin access.');
     return;
   }
-  adminSourceTab    = hasAdminPermission(window._currentUser, 'curriculum') ? 'custom' : 'community';
+  adminSourceTab    = 'custom'; // Publish tab is curriculum-only now, so this is always the sensible start
   adminSelectedQuiz = null;
   adminTargetYear   = '';
   adminTargetModule = '';
@@ -10981,6 +11166,18 @@ function openAdminPanel() {
   adminPublishInsertPosition = null;
   adminCommunityCache = null;
   adminCurrNavLevel = 'years';
+  adminCommTab           = 'browse';
+  adminCommSearchQuery   = '';
+  adminCommYearFilter    = '';
+  adminCommModuleFilter  = '';
+  adminCommSubjectFilter = '';
+  adminCommSort          = 'newest';
+  commManageTab           = 'browse';
+  commManageSearchQuery   = '';
+  commManageYearFilter    = '';
+  commManageModuleFilter  = '';
+  commManageSubjectFilter = '';
+  commManageSort          = 'newest';
   const defaultTab = adminDefaultTab();
   if (!defaultTab) {
     alert('You do not have admin access.');
@@ -11009,13 +11206,15 @@ function refreshOpenAdminPanel() {
   if (adminActiveTab === 'admins') renderAdminManagePanel();
   else if (adminActiveTab === 'curriculum') renderAdminCurriculumPanel();
   else if (adminActiveTab === 'publish') renderAdminPanel();
+  else if (adminActiveTab === 'commManage') renderAdminManageCommunityPanel();
 }
 
 function adminSwitchTab(tab) {
   // Refuse to switch into a tab this user doesn't hold permission for
   // (defends against stale buttons / direct calls, not just hides them).
   const user = window._currentUser;
-  if (tab === 'publish' && !hasAdminPermission(user, 'curriculum') && !hasAdminPermission(user, 'community')) return;
+  if (tab === 'publish' && !hasAdminPermission(user, 'curriculum')) return;
+  if (tab === 'commManage' && !hasAdminPermission(user, 'community')) return;
   if (tab === 'curriculum' && !hasAdminPermission(user, 'curriculum')) return;
   if (tab === 'admins' && !hasAdminPermission(user, 'admins')) return;
   if (tab === adminActiveTab) return; // already there — nothing to guard or re-render
@@ -11024,10 +11223,12 @@ function adminSwitchTab(tab) {
     adminActiveTab = tab;
     renderAdminPanelTabs();
     if (tab === 'publish') renderAdminPanel();
+    else if (tab === 'commManage') renderAdminManageCommunityPanel();
     else if (tab === 'curriculum') renderAdminCurriculumPanel();
     else if (tab === 'admins') renderAdminManagePanel();
   });
 }
+
 
 /* ══════════════════════════════════════════════════════════
    MANAGE ADMINS TAB
@@ -11140,6 +11341,22 @@ async function adminRemoveAdminUI(email) {
 function adminSetSourceTab(tab) {
   adminSourceTab = tab;
   adminSelectedQuiz = null;
+  adminCommTab           = 'browse';
+  adminCommSearchQuery   = '';
+  adminCommYearFilter    = '';
+  adminCommModuleFilter  = '';
+  adminCommSubjectFilter = '';
+  adminCommSort          = 'newest';
+  renderAdminPanel();
+}
+
+function adminCommOnSearchInput(val) {
+  adminCommSearchQuery = val;
+  const clearBtn = document.getElementById('adminCommClearBtn');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  window._adminCommSearchFocused = true;
+  const el = document.getElementById('adminCommSearchInput');
+  window._adminCommSearchPos = el ? el.selectionStart : null;
   renderAdminPanel();
 }
 
@@ -11167,7 +11384,6 @@ async function renderAdminPanel() {
               <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
               <div class="admin-quiz-item-meta">${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
             </div>
-            <button class="admin-remove-btn" onclick="event.stopPropagation();adminDeleteSourceQuiz('custom','${q.id}')">🗑 Delete</button>
             <div class="admin-quiz-item-check">✓</div>
           </div>`;
       }).join('');
@@ -11182,13 +11398,10 @@ async function renderAdminPanel() {
       ${canCommunity ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
     </div>`;
 
-  const moderationHint = (!canCurriculum && canCommunity)
-    ? `<div style="padding:10px 4px;color:var(--text-muted);font-size:.82rem;">You have community moderation access: browse and delete community quizzes below. Publishing quizzes into the curriculum requires curriculum permission.</div>`
-    : '';
-
   body.innerHTML = `
     ${sourceTabsHtml}
-    ${moderationHint}
+    <div id="adminCommSectionTabs"></div>
+    <div id="adminCommFilterBar"></div>
     <div class="admin-quiz-list" id="adminQuizList">${listHtml}</div>
     <div id="adminAssignArea"></div>
   `;
@@ -11230,10 +11443,120 @@ async function renderAdminPanel() {
         return;
       }
     }
-    const shared = adminCommunityCache;
+    const allShared = adminCommunityCache;
+    const myUid = window._currentUser ? window._currentUser.uid : null;
+    const myShared = allShared.filter(q => q.authorUid === myUid);
+
+    const sectionTabsEl = document.getElementById('adminCommSectionTabs');
+    if (sectionTabsEl) {
+      sectionTabsEl.innerHTML = `
+        <div class="community-section-tabs">
+          <button class="community-tab-btn ${adminCommTab === 'browse' ? 'active' : ''}" onclick="adminCommTab='browse';adminCommSearchQuery='';adminCommYearFilter='';adminCommModuleFilter='';adminCommSubjectFilter='';renderAdminPanel()">&#127758; Browse All (${allShared.length})</button>
+          <button class="community-tab-btn ${adminCommTab === 'mine' ? 'active' : ''}" onclick="adminCommTab='mine';renderAdminPanel()">&#128100; My Shared (${myShared.length})</button>
+        </div>`;
+    }
+
+    // --- Filtering (identical logic to renderCommunityQuizzes) ---
+    let shared = adminCommTab === 'mine' ? myShared : allShared;
+
+    const q = adminCommSearchQuery.toLowerCase().trim();
+    if (q) {
+      shared = shared.filter(item => {
+        const inTitle  = (item.title || '').toLowerCase().includes(q);
+        const inAuthor = (item.authorName || '').toLowerCase().includes(q);
+        const inCat    = (item.category || '').toLowerCase().includes(q);
+        const inTags   = (item.tags || []).some(t => t.includes(q));
+        return inTitle || inAuthor || inCat || inTags;
+      });
+    }
+    if (adminCommYearFilter) {
+      shared = shared.filter(item => (item.year || '') === adminCommYearFilter);
+    }
+    if (adminCommModuleFilter) {
+      shared = shared.filter(item => (item.module || '') === adminCommModuleFilter);
+    }
+    if (adminCommSubjectFilter) {
+      shared = shared.filter(item => (item.subjectKey || '') === adminCommSubjectFilter);
+    }
+
+    if (adminCommSort === 'newest') {
+      shared = [...shared].sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
+    } else if (adminCommSort === 'oldest') {
+      shared = [...shared].sort((a, b) => (a.sharedAt || 0) - (b.sharedAt || 0));
+    } else if (adminCommSort === 'az') {
+      shared = [...shared].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    } else if (adminCommSort === 'questions') {
+      shared = [...shared].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0));
+    }
+
+    // Build cascading filter options from live curriculum + shared quiz metadata
+    const allYears   = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
+    const allModules = adminCommYearFilter
+      ? Object.keys(curriculum[adminCommYearFilter] || {})
+      : [...new Set(allShared.map(i => i.module).filter(Boolean))].sort();
+    const allSubjects = (adminCommYearFilter && adminCommModuleFilter)
+      ? (curriculum[adminCommYearFilter][adminCommModuleFilter] || []).filter(k => subjects[k])
+      : [...new Set(allShared.map(i => i.subjectKey).filter(Boolean))];
+
+    const searchVal  = escapeHtml(adminCommSearchQuery);
+    const clearStyle = adminCommSearchQuery ? 'display:block' : 'display:none';
+
+    const filterBar = document.getElementById('adminCommFilterBar');
+    if (filterBar) {
+      filterBar.innerHTML = `
+        <div class="comm-filter-bar">
+          <div class="comm-search-wrap">
+            <span class="comm-search-icon">🔍</span>
+            <input class="comm-search-input" id="adminCommSearchInput" type="text"
+                   placeholder="Search by title, author, category or tag…"
+                   value="${searchVal}"
+                   oninput="adminCommOnSearchInput(this.value)" />
+            <button class="comm-search-clear" id="adminCommClearBtn" style="${clearStyle}"
+                    onclick="adminCommSearchQuery='';document.getElementById('adminCommSearchInput').value='';this.style.display='none';renderAdminPanel()">✕</button>
+          </div>
+          <div class="comm-filter-row">
+            <select class="comm-filter-select" id="adminCommYearFilter"
+                    onchange="adminCommYearFilter=this.value;adminCommModuleFilter='';adminCommSubjectFilter='';renderAdminPanel()">
+              <option value="">All Years</option>
+              ${allYears.map(y => `<option value="${escapeHtml(y)}" ${adminCommYearFilter === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
+            </select>
+            <select class="comm-filter-select" id="adminCommModuleFilter"
+                    onchange="adminCommModuleFilter=this.value;adminCommSubjectFilter='';renderAdminPanel()"
+                    ${!adminCommYearFilter ? 'disabled' : ''}>
+              <option value="">All Modules</option>
+              ${allModules.map(m => `<option value="${escapeHtml(m)}" ${adminCommModuleFilter === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+            </select>
+            <select class="comm-filter-select" id="adminCommSubjectFilter"
+                    onchange="adminCommSubjectFilter=this.value;renderAdminPanel()"
+                    ${!adminCommModuleFilter ? 'disabled' : ''}>
+              <option value="">All Subjects</option>
+              ${allSubjects.map(k => {
+                const lbl = (subjects[k] && (subjects[k].label || k)) || k;
+                const ico = (subjects[k] && subjects[k].icon) || '';
+                return `<option value="${escapeHtml(k)}" ${adminCommSubjectFilter === k ? 'selected' : ''}>${ico} ${escapeHtml(lbl)}</option>`;
+              }).join('')}
+            </select>
+            <select class="comm-filter-select" id="adminCommSortSelect"
+                    onchange="adminCommSort=this.value;renderAdminPanel()">
+              <option value="newest" ${adminCommSort==='newest'?'selected':''}>🕐 Newest</option>
+              <option value="oldest" ${adminCommSort==='oldest'?'selected':''}>🕐 Oldest</option>
+              <option value="az"     ${adminCommSort==='az'?'selected':''}>🔤 A → Z</option>
+              <option value="questions" ${adminCommSort==='questions'?'selected':''}>📝 Most Questions</option>
+            </select>
+          </div>
+          <div class="comm-results-count">${shared.length} quiz${shared.length !== 1 ? 'zes' : ''} shown</div>
+        </div>`;
+    }
+
     const list = document.getElementById('adminQuizList');
+    const hasFilters = !!(adminCommSearchQuery || adminCommYearFilter || adminCommModuleFilter || adminCommSubjectFilter);
     if (!shared.length) {
-      list.innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">No community quizzes available.</div>`;
+      const emptyMsg = hasFilters
+        ? 'No quizzes match your search. Try different keywords or clear the filters.'
+        : adminCommTab === 'mine'
+          ? "You haven't shared any quizzes yet."
+          : 'No community quizzes available.';
+      list.innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">${emptyMsg}</div>`;
       return;
     }
     list.innerHTML = shared.map(q => {
@@ -11244,7 +11567,6 @@ async function renderAdminPanel() {
             <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
             <div class="admin-quiz-item-meta">by ${escapeHtml(q.authorName || 'Unknown')} · ${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
           </div>
-          <button class="admin-remove-btn" onclick="event.stopPropagation();adminDeleteSourceQuiz('community','${escapeHtml(q.id)}')">🗑 Delete</button>
           <div class="admin-quiz-item-check">✓</div>
         </div>`;
     }).join('');
@@ -11273,39 +11595,240 @@ function adminSelectQuiz(sourceType, sourceId) {
 }
 
 /* Delete a source quiz (custom quiz of the admin's own account, or any community/shared quiz) */
-async function adminDeleteSourceQuiz(sourceType, sourceId) {
+// Deletes a community-shared quiz. Only reachable from the "Manage
+// Community Quiz" tab now — custom-quiz deletion lives in the user's own
+// custom-quiz menu outside the admin panel, so there's no 'custom' branch
+// here anymore.
+async function adminDeleteSourceQuiz(sourceId) {
   const user = window._currentUser;
-  if (sourceType === 'community' && !hasAdminPermission(user, 'community')) {
+  if (!hasAdminPermission(user, 'community')) {
     alert('You do not have permission to manage community quizzes.');
-    return;
-  }
-  if (sourceType === 'custom' && !hasAdminPermission(user, 'curriculum')) {
-    alert('You do not have permission to manage curriculum content.');
     return;
   }
   if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
   try {
-    if (sourceType === 'custom') {
-      let quizzes = loadCustomQuizzes();
-      quizzes = quizzes.filter(q => q.id !== sourceId);
-      await deleteQuizImagesFromStorage(sourceId);
-      await saveCustomQuizzesList(quizzes);
-    } else {
-      const ref = window._doc(window._db, 'sharedQuizzes', sourceId);
-      await window._deleteDoc(ref);
-      await deleteSharedQuizImages(sourceId);
-      adminCommunityCache = (adminCommunityCache || []).filter(q => q.id !== sourceId);
-      _allSharedQuizzes = [];
-      await bumpSharedQuizzesVersion();
-    }
-    if (adminSelectedQuiz && adminSelectedQuiz.sourceType === sourceType && adminSelectedQuiz.sourceId === sourceId) {
+    const ref = window._doc(window._db, 'sharedQuizzes', sourceId);
+    await window._deleteDoc(ref);
+    await deleteSharedQuizImages(sourceId);
+    adminCommunityCache = (adminCommunityCache || []).filter(q => q.id !== sourceId);
+    _allSharedQuizzes = [];
+    await bumpSharedQuizzesVersion();
+
+    if (adminSelectedQuiz && adminSelectedQuiz.sourceType === 'community' && adminSelectedQuiz.sourceId === sourceId) {
       adminSelectedQuiz = null;
       adminEditQuestions = null;
       adminEditMode = null;
     }
-    renderAdminPanel();
+    if (adminActiveTab === 'commManage') renderAdminManageCommunityPanel();
+    else renderAdminPanel();
   } catch (e) {
     alert('Failed to delete: ' + (e.message || e));
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MANAGE COMMUNITY QUIZ TAB
+   A full duplicate of the student-facing Community Quizzes browse menu
+   (openCommunityQuizzes/renderCommunityQuizzes) — same Browse All / My
+   Shared tabs, same search bar, same cascading Year/Module/Subject
+   filters + sort, same tag chips and quiz-card metadata — rendered
+   inside the admin panel instead of the overlay, with an admin Delete
+   button on every card regardless of who authored it. This is the only
+   place in the admin panel a community-shared quiz gets deleted from.
+   Requires 'community' permission (enforced by adminSwitchTab and,
+   ultimately, by the Firestore rules on sharedQuizzes/{docId}).
+══════════════════════════════════════════════════════════ */
+function commManageOnSearchInput(val) {
+  commManageSearchQuery = val;
+  const clearBtn = document.getElementById('commManageClearBtn');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  window._commManageSearchFocused = true;
+  const el = document.getElementById('commManageSearchInput');
+  window._commManageSearchPos = el ? el.selectionStart : null;
+  renderAdminManageCommunityPanel();
+}
+
+async function renderAdminManageCommunityPanel(forceReload) {
+  const body = document.getElementById('adminBody');
+  if (!body) return;
+
+  // Reuse the same version-checked shared-quizzes cache as the student
+  // browse overlay and the Publish tab's community source list, so
+  // switching between them in one session doesn't re-fetch needlessly.
+  if (!_allSharedQuizzes.length || forceReload) {
+    body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="font-size:2rem;margin-bottom:10px;">&#8987;</div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
+    try {
+      const serverVer = forceReload ? null : await _fetchSharedServerVersion();
+      const localVer  = _readSharedCacheVer();
+      const cached    = await _readCache();
+
+      if (!forceReload && serverVer && localVer === serverVer && cached && cached.shared) {
+        _allSharedQuizzes = cached.shared;
+      } else {
+        const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
+        _allSharedQuizzes = [];
+        snap.forEach(d => _allSharedQuizzes.push(d.data()));
+        const existing = (await _readCache()) || {};
+        existing.shared = _allSharedQuizzes;
+        await _writeCache(existing);
+        let verToStore = forceReload ? await _fetchSharedServerVersion() : serverVer;
+        if (!verToStore) verToStore = await bumpSharedQuizzesVersion(); // establish baseline first time
+        if (verToStore) _writeSharedCacheVer(verToStore);
+      }
+      adminCommunityCache = _allSharedQuizzes; // keep the Publish tab's copy of the cache in sync too
+    } catch (e) {
+      body.innerHTML = `<div style="text-align:center;padding:32px;color:#C62828;">&#10060; Failed to load community quizzes. Please try again.</div>`;
+      return;
+    }
+  }
+
+  const myUid = window._currentUser ? window._currentUser.uid : null;
+  const shared = _allSharedQuizzes;
+  const myShared = shared.filter(q => q.authorUid === myUid);
+
+  // --- Filtering (identical logic to renderCommunityQuizzes) ---
+  let pool = commManageTab === 'mine' ? myShared : shared;
+
+  const q = commManageSearchQuery.toLowerCase().trim();
+  if (q) {
+    pool = pool.filter(item => {
+      const inTitle  = (item.title || '').toLowerCase().includes(q);
+      const inAuthor = (item.authorName || '').toLowerCase().includes(q);
+      const inCat    = (item.category || '').toLowerCase().includes(q);
+      const inTags   = (item.tags || []).some(t => t.includes(q));
+      return inTitle || inAuthor || inCat || inTags;
+    });
+  }
+  if (commManageYearFilter) {
+    pool = pool.filter(item => (item.year || '') === commManageYearFilter);
+  }
+  if (commManageModuleFilter) {
+    pool = pool.filter(item => (item.module || '') === commManageModuleFilter);
+  }
+  if (commManageSubjectFilter) {
+    pool = pool.filter(item => (item.subjectKey || '') === commManageSubjectFilter);
+  }
+
+  if (commManageSort === 'newest') {
+    pool = [...pool].sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
+  } else if (commManageSort === 'oldest') {
+    pool = [...pool].sort((a, b) => (a.sharedAt || 0) - (b.sharedAt || 0));
+  } else if (commManageSort === 'az') {
+    pool = [...pool].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  } else if (commManageSort === 'questions') {
+    pool = [...pool].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0));
+  }
+
+  // Build cascading filter options from live curriculum + shared quiz metadata
+  const allYears   = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
+  const allModules = commManageYearFilter
+    ? Object.keys(curriculum[commManageYearFilter] || {})
+    : [...new Set(shared.map(i => i.module).filter(Boolean))].sort();
+  const allSubjects = (commManageYearFilter && commManageModuleFilter)
+    ? (curriculum[commManageYearFilter][commManageModuleFilter] || []).filter(k => subjects[k])
+    : [...new Set(shared.map(i => i.subjectKey).filter(Boolean))];
+
+  const searchVal  = escapeHtml(commManageSearchQuery);
+  const clearStyle = commManageSearchQuery ? 'display:block' : 'display:none';
+
+  let html = `
+    <div class="community-section-tabs">
+      <button class="community-tab-btn ${commManageTab === 'browse' ? 'active' : ''}" onclick="commManageTab='browse';commManageSearchQuery='';commManageYearFilter='';commManageModuleFilter='';commManageSubjectFilter='';renderAdminManageCommunityPanel()">&#127758; Browse All (${shared.length})</button>
+      <button class="community-tab-btn ${commManageTab === 'mine' ? 'active' : ''}" onclick="commManageTab='mine';renderAdminManageCommunityPanel()">&#128100; My Shared (${myShared.length})</button>
+    </div>
+
+    <div class="comm-filter-bar">
+      <div class="comm-search-wrap">
+        <span class="comm-search-icon">🔍</span>
+        <input class="comm-search-input" id="commManageSearchInput" type="text"
+               placeholder="Search by title, author, category or tag…"
+               value="${searchVal}"
+               oninput="commManageOnSearchInput(this.value)" />
+        <button class="comm-search-clear" id="commManageClearBtn" style="${clearStyle}"
+                onclick="commManageSearchQuery='';document.getElementById('commManageSearchInput').value='';this.style.display='none';renderAdminManageCommunityPanel()">✕</button>
+      </div>
+      <div class="comm-filter-row">
+        <select class="comm-filter-select" id="commManageYearFilter"
+                onchange="commManageYearFilter=this.value;commManageModuleFilter='';commManageSubjectFilter='';renderAdminManageCommunityPanel()">
+          <option value="">All Years</option>
+          ${allYears.map(y => `<option value="${escapeHtml(y)}" ${commManageYearFilter === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" id="commManageModuleFilter"
+                onchange="commManageModuleFilter=this.value;commManageSubjectFilter='';renderAdminManageCommunityPanel()"
+                ${!commManageYearFilter ? 'disabled' : ''}>
+          <option value="">All Modules</option>
+          ${allModules.map(m => `<option value="${escapeHtml(m)}" ${commManageModuleFilter === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" id="commManageSubjectFilter"
+                onchange="commManageSubjectFilter=this.value;renderAdminManageCommunityPanel()"
+                ${!commManageModuleFilter ? 'disabled' : ''}>
+          <option value="">All Subjects</option>
+          ${allSubjects.map(k => {
+            const lbl = (subjects[k] && (subjects[k].label || k)) || k;
+            const ico = (subjects[k] && subjects[k].icon) || '';
+            return `<option value="${escapeHtml(k)}" ${commManageSubjectFilter === k ? 'selected' : ''}>${ico} ${escapeHtml(lbl)}</option>`;
+          }).join('')}
+        </select>
+        <select class="comm-filter-select" id="commManageSortSelect"
+                onchange="commManageSort=this.value;renderAdminManageCommunityPanel()">
+          <option value="newest" ${commManageSort==='newest'?'selected':''}>🕐 Newest</option>
+          <option value="oldest" ${commManageSort==='oldest'?'selected':''}>🕐 Oldest</option>
+          <option value="az"     ${commManageSort==='az'?'selected':''}>🔤 A → Z</option>
+          <option value="questions" ${commManageSort==='questions'?'selected':''}>📝 Most Questions</option>
+        </select>
+      </div>
+      <div class="comm-results-count">${pool.length} quiz${pool.length !== 1 ? 'zes' : ''} shown</div>
+    </div>`;
+
+  if (!pool.length) {
+    html += `<div class="community-empty">
+      <div class="ce-icon">${commManageSearchQuery || commManageYearFilter || commManageModuleFilter || commManageSubjectFilter ? '🔍' : (commManageTab === 'mine' ? '&#128100;' : '&#127758;')}</div>
+      ${commManageSearchQuery || commManageYearFilter || commManageModuleFilter || commManageSubjectFilter
+        ? 'No quizzes match your search. Try different keywords or clear the filters.'
+        : commManageTab === 'mine'
+          ? 'You haven\'t shared any quizzes yet.'
+          : 'No community quizzes yet.'}
+    </div>`;
+  } else {
+    pool.forEach(item => {
+      const isOwn = item.authorUid === myUid;
+      const date  = new Date(item.sharedAt).toLocaleDateString();
+      const catBadge = (item.year || item.subjectLabel)
+        ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
+        : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
+      const tagsHtml = (item.tags && item.tags.length)
+        ? `<div class="comm-tags-row">${item.tags.map(t =>
+            `<span class="comm-tag" onclick="commManageSearchQuery='${escapeHtml(t)}';renderAdminManageCommunityPanel()" title="Filter by tag">#${escapeHtml(t)}</span>`
+          ).join('')}</div>` : '';
+
+      html += `<div class="community-quiz-item">
+        <div class="community-quiz-header">
+          <div style="flex:1;min-width:0;">
+            <div class="community-quiz-title">${escapeHtml(item.title)}</div>
+            <div class="community-quiz-meta">
+              ${catBadge}
+              ${item.questionCount} question${item.questionCount !== 1 ? 's' : ''}
+              &nbsp;&middot;&nbsp; &#128100; ${escapeHtml(item.authorName)}
+              ${isOwn ? ' <span class="share-chip">You</span>' : ''}
+              &nbsp;&middot;&nbsp; &#128197; ${date}
+            </div>
+            ${tagsHtml}
+          </div>
+          <button class="admin-remove-btn" onclick="adminDeleteSourceQuiz('${escapeHtml(item.id)}')">🗑 Delete</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  body.innerHTML = html;
+
+  // Restore search input focus/caret if the admin was mid-typing
+  const searchEl = document.getElementById('commManageSearchInput');
+  if (searchEl && document.activeElement !== searchEl && window._commManageSearchFocused) {
+    const pos = window._commManageSearchPos || searchEl.value.length;
+    searchEl.focus();
+    try { searchEl.setSelectionRange(pos, pos); } catch(e) {}
+    window._commManageSearchFocused = false;
   }
 }
 
@@ -11461,12 +11984,16 @@ function renderAdminAssignForm() {
 
 function adminToggleEditBeforePublish() {
   if (adminEditMode === 'publish') {
-    adminEditMode = null;
-    adminEditQuestions = null;
-  } else {
-    adminEditMode = 'publish';
-    adminEditQuestions = JSON.parse(JSON.stringify(adminSelectedQuiz.questions));
+    _guardedClose(() => {
+      adminEditMode = null;
+      adminEditQuestions = null;
+      renderAdminAssignForm();
+    });
+    return;
   }
+  adminEditMode = 'publish';
+  adminEditQuestions = JSON.parse(JSON.stringify(adminSelectedQuiz.questions));
+  _questionEditDirty = false;
   renderAdminAssignForm();
 }
 
@@ -11640,6 +12167,7 @@ function _adminEditorContainerId() {
 function adminEditQuestionText(idx, val) {
   if (!adminEditQuestions || !adminEditQuestions[idx]) return;
   adminEditQuestions[idx].question = val;
+  _markQuestionEditDirty();
 }
 
 function adminEditOptionText(idx, key, val) {
@@ -11650,12 +12178,14 @@ function adminEditOptionText(idx, key, val) {
     const entry = order.find(o => o.key === key);
     if (entry) entry.value = val;
   }
+  _markQuestionEditDirty();
 }
 
 function adminEditSetAnswer(idx, key) {
   if (!adminEditQuestions || !adminEditQuestions[idx]) return;
   const q = adminEditQuestions[idx];
   q.answer = key;
+  _markQuestionEditDirty();
   getOptionEntries(q).forEach(([k]) => {
     const row = document.getElementById(`adminEditOptRow_${idx}_${k}`);
     if (!row) return;
@@ -11677,6 +12207,7 @@ function adminEditDeleteQuestion(idx) {
   if (!adminEditQuestions) return;
   if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
   adminEditQuestions.splice(idx, 1);
+  _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
 }
 
@@ -11691,6 +12222,7 @@ function adminEditAddBlankQuestion() {
     ],
     answer: 'A'
   });
+  _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
   setTimeout(() => {
     const last = document.getElementById(`adminEditQ_${adminEditQuestions.length - 1}`);
@@ -11708,6 +12240,7 @@ function adminEditDeleteOption(qIdx, key) {
   delete q.options[key];
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
 }
 
@@ -11721,6 +12254,7 @@ function adminEditAddOption(qIdx) {
   q.options[nextKey] = '';
   if (!q.optionsOrder) q.optionsOrder = usedKeys.map(k => ({ key: k, value: q.options[k] }));
   q.optionsOrder.push({ key: nextKey, value: '' });
+  _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
   setTimeout(() => {
     const input = document.querySelector(`#adminEditOptRow_${qIdx}_${nextKey} .cq-opt-text-input`);
@@ -11731,6 +12265,7 @@ function adminEditAddOption(qIdx) {
 function adminEditRemoveImage(idx) {
   if (!adminEditQuestions || !adminEditQuestions[idx]) return;
   delete adminEditQuestions[idx].image;
+  _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
 }
 
@@ -11745,6 +12280,7 @@ function adminEditReplaceImage(idx, event) {
     } catch (e) {
       adminEditQuestions[idx].image = dataUrl;
     }
+    _markQuestionEditDirty();
     renderAdminQuestionEditor(_adminEditorContainerId());
   };
   reader.readAsDataURL(file);
@@ -11765,6 +12301,7 @@ function openCustomQuizEditor(id) {
   cqCreatingNew = false;
   cqEditingQuizId = id;
   cqEditQuestions = JSON.parse(JSON.stringify(quiz.questions || []));
+  _questionEditDirty = false;
   renderCustomQuizModal();
   const area = document.getElementById('cqCustomEditorArea_' + id);
   if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -11796,6 +12333,7 @@ function openNewQuizComposer() {
     ],
     answer: 'A'
   }];
+  _questionEditDirty = false;
   renderCustomQuizModal();
   const area = document.getElementById('cqNewQuizEditorArea');
   if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -11960,6 +12498,7 @@ function renderCustomQuizEditor() {
 function cqEditQuestionText(idx, val) {
   if (!cqEditQuestions || !cqEditQuestions[idx]) return;
   cqEditQuestions[idx].question = val;
+  _markQuestionEditDirty();
 }
 
 function cqEditOptionText(idx, key, val) {
@@ -11970,12 +12509,14 @@ function cqEditOptionText(idx, key, val) {
     const entry = order.find(o => o.key === key);
     if (entry) entry.value = val;
   }
+  _markQuestionEditDirty();
 }
 
 function cqEditSetAnswer(idx, key) {
   if (!cqEditQuestions || !cqEditQuestions[idx]) return;
   const q = cqEditQuestions[idx];
   q.answer = key;
+  _markQuestionEditDirty();
   getOptionEntries(q).forEach(([k]) => {
     const row = document.getElementById(`cqCustomEditOptRow_${idx}_${k}`);
     if (!row) return;
@@ -11998,6 +12539,7 @@ function cqEditDeleteQuestion(idx) {
   if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
   const [deleted] = cqEditQuestions.splice(idx, 1);
   _caseGroupOnQuestionDeleted(cqEditQuestions, deleted);
+  _markQuestionEditDirty();
   renderCustomQuizEditor();
 }
 
@@ -12012,6 +12554,7 @@ function cqEditAddBlankQuestion() {
     ],
     answer: 'A'
   });
+  _markQuestionEditDirty();
   renderCustomQuizEditor();
   setTimeout(() => {
     const last = document.getElementById(`cqCustomEditQ_${cqEditQuestions.length - 1}`);
@@ -12029,6 +12572,7 @@ function cqEditDeleteOption(qIdx, key) {
   delete q.options[key];
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  _markQuestionEditDirty();
   renderCustomQuizEditor();
 }
 
@@ -12042,6 +12586,7 @@ function cqEditAddOption(qIdx) {
   q.options[nextKey] = '';
   if (!q.optionsOrder) q.optionsOrder = usedKeys.map(k => ({ key: k, value: q.options[k] }));
   q.optionsOrder.push({ key: nextKey, value: '' });
+  _markQuestionEditDirty();
   renderCustomQuizEditor();
   setTimeout(() => {
     const input = document.querySelector(`#cqCustomEditOptRow_${qIdx}_${nextKey} .cq-opt-text-input`);
@@ -12053,6 +12598,7 @@ function cqEditRemoveImage(idx) {
   if (!cqEditQuestions || !cqEditQuestions[idx]) return;
   delete cqEditQuestions[idx].image;
   delete cqEditQuestions[idx].imageUrl;
+  _markQuestionEditDirty();
   renderCustomQuizEditor();
 }
 
@@ -12068,6 +12614,7 @@ function cqEditReplaceImage(idx, event) {
       cqEditQuestions[idx].image = dataUrl;
     }
     delete cqEditQuestions[idx].imageUrl; // stale pointer — a fresh image is (re)uploaded on save
+    _markQuestionEditDirty();
     renderCustomQuizEditor();
   };
   reader.readAsDataURL(file);
@@ -12128,6 +12675,7 @@ async function saveCustomQuizEdits() {
     cqEditingQuizId = null;
     cqEditQuestions = null;
     cqNewQuizTitle = '';
+    _questionEditDirty = false;
     renderCustomQuizModal();
   } catch (e) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status warning">⚠️ Save failed: ${escapeHtml(e.message || String(e))}</div>`;
@@ -12366,6 +12914,7 @@ async function adminEditPublished(lectureId) {
     adminEditQuestions = JSON.parse(JSON.stringify(data.questions || []));
     // Hydrate images from the subcollection so they appear in the editor
     await hydratePublishedLectureImages(adminTargetSubject, lectureId, adminEditQuestions);
+    _questionEditDirty = false;
 
     renderAdminAssignedList();
     setTimeout(() => {
@@ -12378,15 +12927,17 @@ async function adminEditPublished(lectureId) {
 }
 
 function adminCancelEditPublished() {
-  const id = adminEditingPublishedId;
-  adminEditMode = null;
-  adminEditQuestions = null;
-  adminEditingPublishedId = null;
-  adminEditingPublishedName = '';
-  if (id) {
-    const el = document.getElementById('adminPublishedEditorArea_' + id);
-    if (el) el.innerHTML = '';
-  }
+  _guardedClose(() => {
+    const id = adminEditingPublishedId;
+    adminEditMode = null;
+    adminEditQuestions = null;
+    adminEditingPublishedId = null;
+    adminEditingPublishedName = '';
+    if (id) {
+      const el = document.getElementById('adminPublishedEditorArea_' + id);
+      if (el) el.innerHTML = '';
+    }
+  });
 }
 
 /* Save edits made to an already-published lecture */
@@ -12479,6 +13030,7 @@ async function adminSavePublishedEdits() {
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
 
     // Close editor after a short delay so the user sees the success message
+    _questionEditDirty = false;
     setTimeout(() => {
       adminEditMode = null;
       adminEditQuestions = null;
@@ -13285,10 +13837,59 @@ function toggleIconPicker(inputId) {
   const pop = document.getElementById(inputId + 'Pop');
   if (!pop) return;
   const willOpen = pop.classList.contains('hidden');
-  pop.classList.toggle('hidden');
-  _openIconPickerId = willOpen ? inputId : null;
-  if (willOpen) renderIconPickerPop(inputId, '');
+  if (willOpen) {
+    pop.classList.remove('hidden');
+    _openIconPickerId = inputId;
+    renderIconPickerPop(inputId, '');
+  } else {
+    pop.classList.add('hidden');
+    _openIconPickerId = null;
+  }
 }
+
+/* Positions an icon-picker popover (position:fixed) against its trigger
+   button, clamped fully inside the viewport — flips above the trigger if
+   there isn't room below, and shrinks/shifts horizontally so a 300px
+   popover never spills past the edge of a narrow card or screen. Called
+   after every render of the popover's contents, since filtering the
+   list changes its height. */
+function positionIconPickerPop(inputId) {
+  const trigger = document.getElementById(inputId + 'Trigger');
+  const pop = document.getElementById(inputId + 'Pop');
+  if (!trigger || !pop || pop.classList.contains('hidden')) return;
+  const margin = 12;
+  const rect = trigger.getBoundingClientRect();
+
+  const popWidth = Math.min(300, window.innerWidth - margin * 2);
+  pop.style.width = popWidth + 'px';
+
+  let left = rect.left;
+  if (left + popWidth > window.innerWidth - margin) {
+    left = window.innerWidth - margin - popWidth;
+  }
+  if (left < margin) left = margin;
+  pop.style.left = left + 'px';
+
+  const maxH = Math.min(320, window.innerHeight - margin * 2);
+  pop.style.maxHeight = maxH + 'px';
+  const popHeight = Math.min(pop.scrollHeight, maxH);
+
+  const spaceBelow = window.innerHeight - rect.bottom - margin;
+  const spaceAbove = rect.top - margin;
+  let top;
+  if (spaceBelow >= popHeight || spaceBelow >= spaceAbove) {
+    top = rect.bottom + 6; // open downward (default)
+  } else {
+    top = Math.max(margin, rect.top - 6 - popHeight); // not enough room below — open upward
+  }
+  pop.style.top = top + 'px';
+}
+
+// Keep an open picker glued to its trigger through resizes and scrolling
+// (capture phase so it also catches scroll inside the admin panel body,
+// not just the window).
+window.addEventListener('resize', () => { if (_openIconPickerId) positionIconPickerPop(_openIconPickerId); });
+document.addEventListener('scroll', () => { if (_openIconPickerId) positionIconPickerPop(_openIconPickerId); }, true);
 
 function renderIconPickerPop(inputId, filter) {
   const pop = document.getElementById(inputId + 'Pop');
@@ -13306,6 +13907,7 @@ function renderIconPickerPop(inputId, filter) {
       <input type="text" id="${inputId}CustomAdd" placeholder="Add custom emoji" maxlength="4" />
       <button onclick="const v=document.getElementById('${inputId}CustomAdd').value.trim(); if(v){ selectIconForField('${inputId}', v); addCustomIcon(v); }">➕ Add</button>
     </div>`;
+  positionIconPickerPop(inputId);
 }
 
 function selectIconForField(inputId, icon) {
@@ -13991,12 +14593,78 @@ async function adminRenameYear(oldName) {
   renderAdminCurriculumPanel();
 }
 
+/* ── CASCADING DELETE HELPERS ──
+   Deleting a Year/Module/Subject now permanently removes every subject
+   underneath it AND all of that subject's published quizzes from
+   Firestore (publishedQuestions/{subject}/lectures/*, their images
+   subcollections, and their entries in appConfig/publishedManifest) —
+   not just their placement in the curriculum UI. This is destructive
+   and irreversible, so every cascading delete requires TWO confirmation
+   steps: a plain confirm() describing the blast radius, then a prompt()
+   that requires typing the exact name back to proceed. */
+
+/* Step 1: confirm() with the blast-radius summary.
+   Step 2: prompt() requiring the admin to type `typeToConfirm` exactly.
+   Returns true only if both steps pass. */
+function _confirmCascadeDelete(title, detail, typeToConfirm) {
+  if (!confirm(`${title}\n\n${detail}\n\nThis cannot be undone.`)) return false;
+  const typed = prompt(`FINAL CONFIRMATION — this cannot be undone.\n\nType "${typeToConfirm}" exactly (case-sensitive) to permanently delete this from Firestore:`);
+  if (typed === null) return false; // cancelled
+  if (typed !== typeToConfirm) {
+    alert('Text did not match — deletion cancelled. Nothing was changed.');
+    return false;
+  }
+  return true;
+}
+
+/* Permanently deletes every published quiz belonging to one subject:
+   each lecture's images subcollection, the lecture doc itself, its
+   local IndexedDB cache entry, and its entry in the shared
+   appConfig/publishedManifest doc. Also clears the subject's in-memory
+   lecture list. Used by adminDeleteSubject/-Module/-Year cascades. */
+async function _deleteSubjectQuizzesFromFirestore(subjKey) {
+  try {
+    const col  = window._collection(window._db, 'publishedQuestions', subjKey, 'lectures');
+    const snap = await window._getDocs(col);
+    await Promise.all(snap.docs.map(async d => {
+      await deletePublishedLectureImages(subjKey, d.id);
+      await window._deleteDoc(d.ref);
+      await _idbDelete('published:' + subjKey + ':' + d.id);
+    }));
+  } catch (e) {
+    console.warn('Failed to delete published quizzes for subject', subjKey, e);
+  }
+  try {
+    const ref  = window._doc(window._db, 'appConfig', 'publishedManifest');
+    const snap = await window._getDoc(ref);
+    const data = snap.exists() ? (snap.data() || {}) : {};
+    if (data.subjects && data.subjects[subjKey]) {
+      delete data.subjects[subjKey];
+      await window._setDoc(ref, data);
+    }
+  } catch (e) {
+    console.warn('Failed to clean published manifest for subject', subjKey, e);
+  }
+  if (subjects[subjKey]) subjects[subjKey].lectures = {};
+}
+
 async function adminDeleteYear(name) {
-  const modCount  = Object.keys(curriculum[name] || {}).length;
-  const subjCount = Object.values(curriculum[name] || {}).reduce((a, arr) => a + arr.length, 0);
-  if (!confirm(`Delete year "${name}"?
-This also removes ${modCount} module(s) and ${subjCount} subject placement(s) from the UI.
-(Published quizzes are NOT deleted — they stay in Firestore.)`)) return;
+  const modCount = Object.keys(curriculum[name] || {}).length;
+  const subjKeys = Object.values(curriculum[name] || {}).flat();
+
+  if (!_confirmCascadeDelete(
+    `Delete year "${name}"?`,
+    `This will PERMANENTLY delete ${modCount} module(s), ${subjKeys.length} subject(s), and ALL of their published quizzes — from the website AND Firestore.`,
+    name
+  )) return;
+
+  // Cascade: wipe every subject's published quizzes from Firestore first,
+  // then drop the subjects themselves from memory.
+  for (const key of subjKeys) {
+    await _deleteSubjectQuizzesFromFirestore(key);
+    delete subjects[key];
+  }
+
   delete curriculum[name];
   // Remove from extensions
   const extRef  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
@@ -14006,7 +14674,7 @@ This also removes ${modCount} module(s) and ${subjCount} subject placement(s) fr
   if (ext.modules) delete ext.modules[name];
   // Remove subjects that belonged to this year
   if (ext.subjects) {
-    Object.keys(ext.subjects).forEach(k => { if (ext.subjects[k].year === name) delete ext.subjects[k]; });
+    subjKeys.forEach(k => { delete ext.subjects[k]; });
   }
   await window._setDoc(extRef, cleanForFirestore(ext));
   _clearCache(); await bumpCacheVersion();
@@ -14046,10 +14714,21 @@ async function adminRenameModule(year, oldMod) {
 }
 
 async function adminDeleteModule(year, mod) {
-  const arr = curriculum[year][mod] || [];
-  if (!confirm(`Delete module "${mod}" from ${year}?
-This also removes ${arr.length} subject placement(s).
-(Published quizzes are NOT deleted.)`)) return;
+  const subjKeys = curriculum[year][mod] || [];
+
+  if (!_confirmCascadeDelete(
+    `Delete module "${mod}" from ${year}?`,
+    `This will PERMANENTLY delete ${subjKeys.length} subject(s) and ALL of their published quizzes — from the website AND Firestore.`,
+    mod
+  )) return;
+
+  // Cascade: wipe every subject's published quizzes from Firestore first,
+  // then drop the subjects themselves from memory.
+  for (const key of subjKeys) {
+    await _deleteSubjectQuizzesFromFirestore(key);
+    delete subjects[key];
+  }
+
   delete curriculum[year][mod];
   if (moduleIconMap[year]) delete moduleIconMap[year][mod];
   const extRef  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
@@ -14059,7 +14738,7 @@ This also removes ${arr.length} subject placement(s).
     ext.modules[year] = Object.keys(curriculum[year]);
   }
   if (ext.subjects) {
-    Object.keys(ext.subjects).forEach(k => { if (ext.subjects[k].year === year && ext.subjects[k].module === mod) delete ext.subjects[k]; });
+    subjKeys.forEach(k => { delete ext.subjects[k]; });
   }
   ext.moduleIcons = moduleIconMap;
   ext.years = Object.keys(curriculum);
@@ -14097,9 +14776,15 @@ async function adminEditSubject(key) {
 async function adminDeleteSubject(key) {
   const s = subjects[key];
   const lbl = s?.label || key;
-  if (!confirm(`Delete subject "${lbl}"?
-This removes it from all year/module placements.
-(Published quizzes for this subject remain in Firestore.)`)) return;
+
+  if (!_confirmCascadeDelete(
+    `Delete subject "${lbl}"?`,
+    `This will PERMANENTLY delete this subject and ALL of its published quizzes — from the website AND Firestore.`,
+    lbl
+  )) return;
+
+  await _deleteSubjectQuizzesFromFirestore(key);
+
   // Remove from curriculum placements
   Object.keys(curriculum).forEach(yr => {
     Object.keys(curriculum[yr] || {}).forEach(mod => {
