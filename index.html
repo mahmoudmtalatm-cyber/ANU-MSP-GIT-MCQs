@@ -4,29 +4,190 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ANU MSP Question Bank</title>
-  <link rel="icon" href="logo.ico" />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230A3F52'/%3E%3Ccircle cx='36' cy='54' r='16' fill='none' stroke='%236FE3F0' stroke-width='11'/%3E%3Cpath d='M46 65 L58 78' fill='none' stroke='%236FE3F0' stroke-width='11' stroke-linecap='round'/%3E%3Cpath d='M66 30 L66 74' fill='none' stroke='%236FE3F0' stroke-width='11' stroke-linecap='round'/%3E%3Cpath d='M66 30 L78 30 A11 10 0 0 1 78 50 L66 50' fill='none' stroke='%236FE3F0' stroke-width='11'/%3E%3Cpath d='M66 50 L80 50 A12 12 0 0 1 80 74 L66 74' fill='none' stroke='%236FE3F0' stroke-width='11'/%3E%3C/svg%3E" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&display=swap" rel="stylesheet" />
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-main:       #EAF4FB;
-      --bg-card:       #FFFFFF;
-      --accent:        #1B8AC4;
-      --accent-dark:   #136B99;
-      --nav-default:   #90CAF9;
-      --nav-answered:  #42A5F5;
-      --nav-marked:    #E53935;
-      --nav-current:   #0D47A1;
-      --text-main:     #1A2A3A;
-      --text-muted:    #5A7080;
-      --correct-bg:    #E8F5E9;
-      --correct-fg:    #2E7D32;
-      --wrong-bg:      #FFEBEE;
-      --wrong-fg:      #C62828;
-      --unanswered-bg: #FFF3E0;
-      --unanswered-fg: #E65100;
+      /* ── Meridian design system — Day ── */
+      --bg-main:        #E9EEF4;
+      --bg-card:        #FFFFFF;
+      --card:           #FFFFFF;
+      --surface-2:      #F5F8FB;
+      --surface-2-hover:#EAF0F6;
+      --surface-3:      #EFF4F8;
+      --border-soft:    #D3E0EA;
+      --border:         #D3E0EA;
+      --border-soft-2:  #E1E9F0;
+
+      --accent:         #0E6E82;
+      --accent-dark:    #0A5566;
+      --accent-glow:    #29C2D9;
+      --accent-soft:    rgba(14,110,130,.12);
+      --gold:           #B8934A;
+      --gold-bright:    #D9B36B;
+
+      --nav-default:    #C3D2DF;
+      --nav-answered:   #2E8FA3;
+      --nav-marked:     #B8394A;
+      --nav-current:    #0A3F52;
+
+      --text-main:      #16232F;
+      --text:           #16232F;
+      --text-muted:     #5C7285;
+
+      --correct-bg:     #E5F3EC;
+      --correct-fg:     #1E7A54;
+      --wrong-bg:       #FBEAEA;
+      --wrong-fg:       #B23A3A;
+      --unanswered-bg:  #FCF1E1;
+      --unanswered-fg:  #96631E;
+
+      --violet:         #6B4FA0;
+      --violet-dark:    #4E3878;
+      --violet-darkest: #3B2A5C;
+      --violet-strong:  #7E57C2;
+      --violet-pale:    #EFEAF8;
+      --violet-pale-2:  #E7DEF3;
+      --violet-border:  #C3AEE0;
+      --violet-mid-border: #B8A1DC;
+
+      --red-soft-border:#E3A9A9;
+      --red-pale:       #F8DADA;
+      --red-deep:       #8F2A2A;
+      --green-pale-border:#A9CDB8;
+      --green-mid:      #4C9A6B;
+      --chip-blue-bg:   #E4EEF7;
+      --amber-pale:     #FBF1DE;
+      --amber-mid:      #C98D1F;
+      --amber-strong:   #D99A45;
+      --amber-glow:     #E7B65C;
+      --blue-pale:      #DCEAF3;
+      --slate:          #66808F;
+
+      --shadow-ambient: rgba(15, 30, 42, .10);
+      --sigil-line:     rgba(14,110,130,.5);
+      --carved-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='none' stroke='%230E6E82' stroke-width='1' opacity='.16'%3E%3Cpath d='M0 60 L60 0 L120 60 L60 120 Z'/%3E%3Cpath d='M60 0 L60 120 M0 60 L120 60'/%3E%3Ccircle cx='60' cy='60' r='19'/%3E%3Ccircle cx='60' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E");
+
       --font: 'Plus Jakarta Sans', sans-serif;
+      --font-display: 'Fraunces', 'Plus Jakarta Sans', serif;
+      color-scheme: light;
+    }
+
+
+
+    /* ── CARVED / AMBIENT SURFACE MOTIF ──
+       Recessed line-engraving texture with a slow travelling sheen.
+       Applied to large low-content surfaces so nothing reads as dead space. */
+    .carved-surface { position: relative; isolation: isolate; }
+    .carved-surface::before {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: var(--carved-pattern);
+      background-repeat: repeat;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .carved-surface::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(115deg, transparent 35%, var(--sigil-line) 49%, transparent 63%);
+      background-size: 240% 240%;
+      background-position: 200% 200%;
+      animation: carvedSheen 30s ease-in-out infinite;
+      mix-blend-mode: screen;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .carved-surface > * { position: relative; z-index: 1; }
+    @keyframes carvedSheen {
+      0%        { background-position: 220% 220%; }
+      15%, 100% { background-position: -40% -40%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .carved-surface::after { animation: none; }
+    }
+
+    /* ── INTRO SIGIL SEQUENCE (fake, aesthetic-only, page-load once) ── */
+    #introScreen {
+      position: fixed; inset: 0; z-index: 100000;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 42%, #E9EEF4 0%, #D3E0EA 78%);
+      clip-path: circle(150% at 50% 50%);
+      opacity: 1;
+      transition: clip-path .7s cubic-bezier(.65,0,.35,1), opacity .5s ease .2s;
+    }
+    #introScreen.intro-hide { clip-path: circle(0% at 50% 50%); opacity: 0; pointer-events: none; }
+    .intro-inner { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    #introSigilSvg { width: 156px; height: 156px; overflow: visible; }
+    .sigil-path {
+      stroke: #0E6E82;
+      fill: none;
+      stroke-linecap: round;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: sigilDraw .9s cubic-bezier(.4,0,.2,1) forwards;
+    }
+    .sigil-ring     { stroke-width: 1.4; opacity: .7; animation-delay: 0s; }
+    .sigil-q        { stroke-width: 3.2; opacity: 1; animation-delay: .2s; }
+    .sigil-q-tail   { stroke-width: 3.2; opacity: 1; stroke-linecap: round; animation-delay: .55s; }
+    .sigil-b-stem   { stroke-width: 3.2; opacity: 1; stroke-linecap: round; animation-delay: .3s; }
+    .sigil-b-upper  { stroke-width: 3.2; opacity: 1; animation-delay: .45s; }
+    .sigil-b-lower  { stroke-width: 3.2; opacity: 1; animation-delay: .6s; }
+    .sigil-pulse-ring {
+      fill: none; stroke: #0E6E82; stroke-width: 1.2;
+      opacity: 0; transform-origin: 50px 50px;
+    }
+    .sigil-ring-spin {
+      fill: none; stroke: #0E6E82; stroke-width: 1.1;
+      stroke-dasharray: 3 7; opacity: 0; transform-origin: 50px 50px;
+      transition: opacity .5s ease;
+    }
+    @keyframes sigilDraw { to { stroke-dashoffset: 0; } }
+    @keyframes nodeAppear {
+      0%   { opacity: 0; transform: scale(.25); }
+      65%  { opacity: 1; transform: scale(1.25); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pulseRingExpand {
+      0%   { opacity: .6; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.55); }
+    }
+    #introSigilSvg.sigil-glow {
+      filter: drop-shadow(0 0 8px rgba(14,110,130,.65)) drop-shadow(0 0 26px rgba(14,110,130,.35));
+      animation: sigilPulse 1s ease-in-out;
+    }
+    #introSigilSvg.sigil-glow .sigil-pulse-ring {
+      animation: pulseRingExpand 1s ease-out forwards;
+    }
+    #introSigilSvg.sigil-glow .sigil-ring-spin {
+      opacity: .5;
+      animation: sigilRingSpin 6s linear infinite;
+    }
+    @keyframes sigilRingSpin { to { transform: rotate(360deg); } }
+    @keyframes sigilPulse {
+      0%   { transform: scale(1); }
+      42%  { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+    .intro-wordmark {
+      text-align: center;
+      opacity: 0; transform: translateY(6px);
+      transition: opacity .55s ease, transform .55s ease;
+    }
+    .intro-wordmark.show { opacity: 1; transform: translateY(0); }
+    .intro-word-main {
+      display: block; font-family: var(--font-display);
+      font-size: 1.05rem; font-weight: 600; letter-spacing: 2.5px;
+      color: #0A3F52; max-width: 260px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #introScreen { transition: opacity .3s ease; clip-path: none !important; }
+      .sigil-path, #introSigilSvg.sigil-glow, .sigil-ring-spin { animation: none !important; stroke-dashoffset: 0; opacity: 1; filter: none; }
+      .sigil-pulse-ring { animation: none !important; opacity: 0 !important; }
+      .intro-wordmark { transition: opacity .3s ease; }
     }
 
     html, body {
@@ -37,42 +198,106 @@
     }
 
     /* ── LAYOUT ── */
-    #app { display: flex; flex-direction: column; min-height: 100vh; }
+    #app { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-main); }
 
     /* ── HEADER ── */
     .header {
-      background: var(--accent);
+      background: linear-gradient(120deg, var(--nav-current) 0%, var(--accent-dark) 55%, var(--accent) 100%);
       color: #fff;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 28px;
-      min-height: 60px;
+      padding: 0 24px;
+      min-height: 64px;
       flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(27,138,196,.3);
+      box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 4px 18px rgba(4,14,20,.28);
+      position: relative;
+      z-index: 5;
+      gap: 14px;
     }
-    .header-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -.3px; }
+    .header-title {
+      font-size: 1.08rem; font-weight: 700; letter-spacing: .1px;
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-display);
+    }
     .header-title span { font-size: 1.3rem; }
+    .brand-mark { width: 30px; height: 30px; flex-shrink: 0; filter: drop-shadow(0 0 6px rgba(111,227,240,.5)); }
+    .brand-mark circle, .brand-mark path, .brand-mark ellipse { stroke: currentColor; }
+    .brand-mark .bm-ring {
+      stroke-dasharray: 3 6.5;
+      transform-origin: 50px 50px;
+      animation: bmRingSpin 20s linear infinite;
+    }
+    .brand-mark .bm-m {
+      transform-origin: 57px 50px;
+      animation: bmPulse 3.4s ease-in-out infinite;
+    }
+    @keyframes bmRingSpin { to { transform: rotate(360deg); } }
+    @keyframes bmPulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: .72; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .brand-mark .bm-m, .brand-mark .bm-ring { animation: none; }
+    }
     .timer {
-      font-size: 1.3rem; font-weight: 800;
-      color: #FFE082;
+      font-size: 1.28rem; font-weight: 800;
+      color: var(--amber-glow);
       font-variant-numeric: tabular-nums;
       letter-spacing: 2px;
       transition: color .3s;
+      text-shadow: 0 0 12px rgba(231,182,92,.4);
     }
-    .timer.urgent { color: #FF5252; animation: pulse 1s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .timer.urgent { color: #FF6B6B; animation: pulse 1s ease-in-out infinite; text-shadow: 0 0 14px rgba(255,107,107,.55); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 
     /* ── HOME SCREEN ── */
     #home { flex: 1; display: flex; flex-direction: column; }
     .home-hero {
-      background: var(--accent);
+      background: linear-gradient(150deg, var(--nav-current) 0%, var(--accent-dark) 48%, var(--accent) 100%);
       text-align: center;
-      padding: 36px 20px 44px;
+      padding: 46px 20px 50px;
       color: white;
+      position: relative;
+      overflow: hidden;
     }
-    .home-hero h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -.5px; }
-    .home-hero p { font-size: 1rem; opacity: .85; margin-top: 6px; }
+    .home-hero h1 {
+      font-family: var(--font-display);
+      font-size: 2.1rem; font-weight: 600; letter-spacing: -.3px;
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+    }
+    .home-hero h1 .brand-mark { width: 38px; height: 38px; }
+    .home-hero p { font-size: 1rem; opacity: .82; margin-top: 8px; letter-spacing: .1px; }
+
+    .home-footer {
+      background: linear-gradient(120deg, var(--accent-dark), var(--nav-current));
+      text-align: center;
+      padding: 20px 20px 24px;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .home-footer-credit { font-size: .84rem; font-weight: 600; opacity: .8; margin-bottom: 10px; letter-spacing: .2px; }
+    .home-footer-feedback {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(255,255,255,.1);
+      color: #fff;
+      border: 1.5px solid rgba(255,255,255,.4);
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: .88rem;
+      font-family: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background .2s, border-color .2s, transform .15s, box-shadow .2s;
+    }
+    .home-footer-feedback:hover {
+      background: rgba(255,255,255,.2);
+      border-color: rgba(255,255,255,.7);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0,0,0,.2);
+    }
 
     .home-body {
       flex: 1;
@@ -80,45 +305,47 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 28px 20px;
-      gap: 24px;
+      padding: 32px 20px;
+      gap: 26px;
     }
 
     .card {
       background: var(--bg-card);
-      border: 1px solid #B0D4F0;
-      border-radius: 14px;
-      padding: 32px 36px;
+      border: 1px solid var(--border-soft);
+      border-radius: 16px;
+      padding: 34px 36px;
       width: 100%;
       max-width: 560px;
-      box-shadow: 0 4px 20px rgba(27,138,196,.1);
+      box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 10px 34px var(--shadow-ambient);
+      position: relative;
     }
 
     .field-label {
-      font-size: .88rem; font-weight: 700;
+      font-size: .82rem; font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: .8px;
-      margin-bottom: 8px;
+      letter-spacing: 1.1px;
+      margin-bottom: 10px;
     }
 
     select, input[type="number"] {
       width: 100%;
       padding: 12px 14px;
-      border: 1.5px solid #B0D4F0;
-      border-radius: 8px;
+      border: 1.5px solid var(--border-soft);
+      border-radius: 9px;
       font-family: var(--font);
       font-size: 1rem;
       color: var(--text-main);
-      background: #F7FBFF;
+      background: var(--surface-2);
       outline: none;
-      transition: border-color .2s, box-shadow .2s;
+      transition: border-color .2s, box-shadow .2s, background .2s;
       appearance: none;
       -webkit-appearance: none;
     }
     select:focus, input[type="number"]:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(27,138,196,.15);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+      background: var(--bg-card);
     }
     .select-wrapper { position: relative; }
     .select-wrapper::after {
@@ -140,43 +367,43 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 6px;
       padding: 14px 8px;
-      border: 2px solid #B0D4F0;
-      border-radius: 10px;
-      background: #F7FBFF;
+      border: 1.5px solid var(--border-soft);
+      border-radius: 11px;
+      background: var(--surface-2);
       cursor: pointer;
       font-family: var(--font);
       font-size: .78rem; font-weight: 700;
       color: var(--text-muted);
       text-align: center;
       line-height: 1.2;
-      transition: all .18s;
+      transition: border-color .18s, background .18s, color .18s, transform .18s, box-shadow .18s;
     }
     .subject-btn .subj-icon { font-size: 1.5rem; }
     .subject-btn:hover {
       border-color: var(--accent);
-      background: #EEF7FF;
+      background: var(--surface-2-hover);
       color: var(--accent);
       transform: translateY(-2px);
-      box-shadow: 0 3px 10px rgba(27,138,196,.15);
+      box-shadow: 0 4px 14px var(--accent-soft);
     }
     .subject-btn.has-selection {
-  border-color: var(--accent);
-  background: #EEF7FF;
-  color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(27,138,196,.2);
-}
+      border-color: var(--accent);
+      background: var(--surface-2-hover);
+      color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
     .subject-btn.active {
       border-color: var(--accent);
-      background: var(--accent);
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
       color: #fff;
-      box-shadow: 0 3px 12px rgba(27,138,196,.35);
+      box-shadow: 0 4px 16px var(--accent-soft), 0 0 0 1px var(--accent) inset;
     }
     .subject-btn.active .subj-icon { filter: brightness(2); }
 
     /* Q-count badge */
     .q-count-badge {
       display: inline-flex; align-items: center; gap: 6px;
-      background: #EEF7FF; border: 1.5px solid #B0D4F0;
+      background: var(--surface-2-hover); border: 1.5px solid var(--border-soft);
       border-radius: 20px; padding: 5px 12px;
       font-size: .83rem; font-weight: 700; color: var(--accent);
       margin-top: 8px;
@@ -186,21 +413,24 @@
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-      border: none; border-radius: 8px; cursor: pointer;
+      border: none; border-radius: 9px; cursor: pointer;
       font-family: var(--font); font-weight: 700;
-      transition: filter .15s, transform .1s, background .15s;
+      transition: filter .15s, transform .12s, background .15s, box-shadow .2s;
       white-space: nowrap;
     }
-    .btn:hover { filter: brightness(1.08); }
-    .btn:active { transform: scale(.97); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+    .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn:active { transform: scale(.97) translateY(0); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none; }
 
     .btn-primary {
-      background: var(--accent); color: white;
-      padding: 14px 24px; font-size: 1.05rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: white;
+      padding: 15px 24px; font-size: 1.05rem;
       width: 100%;
+      box-shadow: 0 6px 20px var(--accent-soft);
+      letter-spacing: .2px;
     }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 8px 26px var(--accent-soft), 0 0 0 1px var(--accent) inset; }
 
     /* Legend */
     .legend {
@@ -216,17 +446,17 @@
 
     .q-card {
       background: var(--bg-card);
-      border: 1px solid #B0D4F0;
-      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
       padding: 24px 28px 20px;
-      box-shadow: 0 2px 12px rgba(27,138,196,.08);
+      box-shadow: 0 4px 20px var(--shadow-ambient);
       flex-shrink: 0;
       overflow-y: auto;
     }
 
     .q-number {
-      font-size: .82rem; font-weight: 700; color: var(--accent);
-      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+      font-size: .8rem; font-weight: 800; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 1.3px; margin-bottom: 10px;
     }
 
     .q-text {
@@ -239,8 +469,8 @@
       margin-bottom: 16px;
       border-radius: 8px;
       overflow: hidden;
-      border: 1.5px solid #B0D4F0;
-      background: #F0F8FF;
+      border: 1.5px solid var(--border-soft);
+      background: var(--surface-2);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -256,16 +486,18 @@
 
     .option-label {
       display: flex; align-items: flex-start; gap: 12px;
-      padding: 12px 16px; border-radius: 8px;
-      border: 1.5px solid #D8EAF7;
-      cursor: pointer; transition: background .15s, border-color .15s;
+      padding: 13px 16px; border-radius: 9px;
+      border: 1.5px solid var(--border-soft-2);
+      cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s;
       font-size: .97rem; line-height: 1.45; font-weight: 500;
       color: var(--text-main);
+      background: var(--bg-card);
     }
-    .option-label:hover { background: #EEF7FF; border-color: var(--nav-answered); }
+    .option-label:hover { background: var(--surface-2-hover); border-color: var(--nav-answered); transform: translateX(2px); }
     .option-label input[type="radio"] { display: none; }
     .option-label.selected {
-      background: #DDF0FF; border-color: var(--accent);
+      background: var(--accent-soft); border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent) inset;
     }
     .opt-key {
       font-weight: 800; color: var(--accent);
@@ -280,44 +512,44 @@
       flex-shrink: 0;
     }
 
-    .btn-nav { padding: 10px 18px; font-size: .9rem; border-radius: 8px; }
-    .btn-prev { background: #78909C; color: white; }
+    .btn-nav { padding: 11px 19px; font-size: .9rem; border-radius: 9px; }
+    .btn-prev { background: var(--slate); color: white; }
     .btn-mark { background: var(--nav-marked); color: white; }
-    .btn-mark.is-marked { background: #7E1010; }
-    .btn-next { background: var(--accent); color: white; }
-    .btn-submit { background: #2E7D32; color: white; }
+    .btn-mark.is-marked { background: var(--red-deep); }
+    .btn-next { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: white; }
+    .btn-submit { background: linear-gradient(135deg, var(--correct-fg), #175f42); color: white; }
 
     /* ── NAVIGATOR ── */
     .navigator-wrap {
       flex-shrink: 0;
       background: var(--bg-card);
-      border: 1px solid #B0D4F0;
-      border-radius: 10px;
-      padding: 10px 14px;
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      padding: 12px 14px;
     }
-    .nav-label { font-size: .78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .8px; }
-    .nav-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+    .nav-label { font-size: .76rem; font-weight: 700; color: var(--text-muted); margin-bottom: 9px; text-transform: uppercase; letter-spacing: 1px; }
+    .nav-grid { display: flex; flex-wrap: wrap; gap: 6px; }
     .nav-btn {
       width: 34px; height: 34px;
-      border: none; border-radius: 6px;
+      border: none; border-radius: 7px;
       font-family: var(--font); font-size: .8rem; font-weight: 700;
-      cursor: pointer; transition: filter .15s, transform .1s;
+      cursor: pointer; transition: filter .15s, transform .12s, box-shadow .15s;
       color: white;
     }
-    .nav-btn:hover { filter: brightness(1.1); transform: scale(1.05); }
+    .nav-btn:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,.18); }
     .nav-btn.state-default { background: var(--nav-default); color: var(--text-main); }
     .nav-btn.state-answered { background: var(--nav-answered); }
     .nav-btn.state-marked { background: var(--nav-marked); }
-    .nav-btn.state-current { background: var(--nav-current); }
+    .nav-btn.state-current { background: var(--nav-current); box-shadow: 0 0 0 2px var(--accent-glow); }
 
     /* ── RESULTS SCREEN ── */
     #results { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
     .results-header {
-      background: var(--accent); display: flex;
+      background: linear-gradient(120deg, var(--nav-current), var(--accent-dark)); display: flex;
       align-items: center; justify-content: space-between;
-      padding: 14px 28px; flex-shrink: 0;
+      padding: 16px 28px; flex-shrink: 0;
     }
-    .results-title { font-size: 1.3rem; font-weight: 800; color: white; }
+    .results-title { font-size: 1.28rem; font-weight: 700; color: white; font-family: var(--font-display); }
     .results-score-badge {
       font-size: 1.1rem; font-weight: 800;
       padding: 6px 18px; border-radius: 8px; color: var(--text-main);
@@ -326,11 +558,13 @@
     .results-body { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
 
     .r-card {
-      border-radius: 10px;
+      border-radius: 11px;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      box-shadow: 0 3px 12px var(--shadow-ambient);
       border: 1px solid transparent;
+      transition: transform .15s, box-shadow .15s;
     }
+    .r-card:hover { transform: translateY(-1px); box-shadow: 0 6px 18px var(--shadow-ambient); }
     .r-card.correct { background: var(--correct-bg); border-color: var(--correct-fg); }
     .r-card.wrong    { background: var(--wrong-bg);   border-color: var(--wrong-fg); }
     .r-card.unanswered { background: var(--unanswered-bg); border-color: var(--unanswered-fg); }
@@ -352,7 +586,7 @@
     .r-image-wrap {
       margin-bottom: 10px;
       border-radius: 6px; overflow: hidden;
-      border: 1.5px solid #B0D4F0;
+      border: 1.5px solid var(--border-soft);
       display: inline-flex;
     }
     .r-image-wrap img {
@@ -368,8 +602,8 @@
     }
     .r-opt-pfx { font-weight: 800; min-width: 18px; }
 
-    .results-footer { padding: 12px 24px; flex-shrink: 0; display: flex; justify-content: center; }
-    .btn-home { background: var(--accent); color: white; padding: 12px 32px; font-size: 1rem; border-radius: 8px; }
+    .results-footer { padding: 16px 24px; flex-shrink: 0; display: flex; justify-content: center; }
+    .btn-home { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: white; padding: 13px 34px; font-size: 1rem; border-radius: 9px; box-shadow: 0 6px 20px var(--accent-soft); }
 
     /* ── UTILS ── */
     .hidden { display: none !important; }
@@ -389,22 +623,22 @@
     .qm-title { font-size: 1.05rem; font-weight: 800; color: var(--text-main); margin-bottom: 14px; }
     .qm-field { margin-bottom: 12px; }
     .qm-field label { font-size: .8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .7px; display: block; margin-bottom: 5px; }
-    .qm-field select, .qm-field input { width: 100%; padding: 10px 12px; border: 1.5px solid #B0D4F0; border-radius: 8px; font-family: var(--font); font-size: .93rem; color: var(--text-main); background: #F7FBFF; outline: none; }
-    .qm-field select:focus, .qm-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.13); }
+    .qm-field select, .qm-field input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-soft); border-radius: 8px; font-family: var(--font); font-size: .93rem; color: var(--text-main); background: var(--surface-2); outline: none; }
+    .qm-field select:focus, .qm-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.13); }
     .qm-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
     .qm-btn { flex: 1; padding: 11px 14px; border: none; border-radius: 8px; font-family: var(--font); font-size: .9rem; font-weight: 700; cursor: pointer; transition: filter .15s; }
     .qm-btn:hover { filter: brightness(1.08); }
     .qm-btn.primary { background: var(--accent); color: white; }
-    .qm-btn.secondary { background: #78909C; color: white; }
-    .qm-btn.danger { background: #C62828; color: white; }
+    .qm-btn.secondary { background: var(--slate); color: white; }
+    .qm-btn.danger { background: var(--wrong-fg); color: white; }
     .qm-status { margin-top: 10px; font-size: .85rem; font-weight: 600; padding: 8px 12px; border-radius: 7px; }
-    .qm-status.ok { background: #E8F5E9; color: #2E7D32; }
-    .qm-status.err { background: #FFEBEE; color: #C62828; }
+    .qm-status.ok { background: var(--correct-bg); color: var(--correct-fg); }
+    .qm-status.err { background: var(--wrong-bg); color: var(--wrong-fg); }
 
     /* ── CURR-ITEM EDITABLE (years / modules / subjects with delete/rename) ── */
     .curr-item-row {
       display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-      background: #F7FBFF; border: 1px solid #D8EAF7;
+      background: var(--surface-2); border: 1px solid var(--border-soft-2);
       border-radius: 8px; padding: 7px 10px; margin-bottom: 6px;
     }
     .curr-item-row > div:first-child { min-width: 0; flex-basis: 140px; }
@@ -416,8 +650,8 @@
       cursor: pointer; transition: filter .15s; white-space: nowrap;
     }
     .curr-item-btn:hover { filter: brightness(1.1); }
-    .curr-item-btn.edit { background: #EDE7F6; color: #4527A0; }
-    .curr-item-btn.del  { background: #FFEBEE; color: #C62828; }
+    .curr-item-btn.edit { background: var(--violet-pale); color: var(--violet-dark); }
+    .curr-item-btn.del  { background: var(--wrong-bg); color: var(--wrong-fg); }
 
     /* ── CURRICULUM DRILL-DOWN NAV (Years → Modules → Subjects → Quizzes) ── */
     .curr-breadcrumb {
@@ -426,27 +660,28 @@
     }
     .curr-crumb { cursor: pointer; padding: 3px 7px; border-radius: 6px; transition: background .15s, color .15s; }
     .curr-crumb:hover { background: #E8F4FB; color: var(--accent); }
-    .curr-crumb.active { color: #1B4F72; cursor: default; }
+    .curr-crumb.active { color: var(--accent-dark); cursor: default; }
     .curr-crumb.active:hover { background: none; }
-    .curr-crumb-sep { color: #B0D4F0; }
+    .curr-crumb-sep { color: var(--border-soft); }
     .curr-back-btn {
-      align-self: flex-start; background: #F0F8FF; color: var(--accent);
-      border: 1.5px solid #B0D4F0; border-radius: 8px; padding: 6px 12px;
+      align-self: flex-start; background: var(--surface-2); color: var(--accent);
+      border: 1.5px solid var(--border-soft); border-radius: 8px; padding: 6px 12px;
       font-family: var(--font); font-size: .82rem; font-weight: 700; cursor: pointer;
       transition: background .15s;
     }
-    .curr-back-btn:hover { background: #E3F2FD; }
+    .curr-back-btn:hover { background: var(--chip-blue-bg); }
     .curr-item-row.curr-item-open { cursor: pointer; transition: background .15s, border-color .15s; }
-    .curr-item-row.curr-item-open:hover { background: #EEF7FF; border-color: var(--accent); }
-    .curr-item-arrow { color: #B0D4F0; font-size: .8rem; flex-shrink: 0; }
+    .curr-item-row.curr-item-open:hover { background: var(--surface-2-hover); border-color: var(--accent); }
+    .curr-item-arrow { color: var(--border-soft); font-size: .8rem; flex-shrink: 0; }
     .curr-item-row.curr-item-open:hover .curr-item-arrow { color: var(--accent); }
     .admin-publish-picker { padding: 12px 14px; margin: 4px 0; }
     .admin-publish-target-selected {
-      background: #F0FFF4; border-color: #A5D6A7;
+      background: #F0FFF4; border-color: var(--green-pale-border);
     }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
     /* ── FIRESTORE LOADING TOAST ── */
     #fsLoadingToast {
@@ -464,7 +699,7 @@
       font-family: var(--font);
       font-size: .88rem;
       font-weight: 700;
-      box-shadow: 0 4px 20px rgba(27,138,196,.35);
+      box-shadow: 0 4px 20px rgba(14,110,130,.35);
       pointer-events: none;
       opacity: 0;
       transform: translateY(12px) scale(.97);
@@ -487,7 +722,7 @@
     /* ── YEAR GRID SKELETON ── */
     .year-skeleton {
       height: 72px; border-radius: 10px;
-      background: linear-gradient(90deg, #D8EAF7 25%, #EAF4FB 50%, #D8EAF7 75%);
+      background: linear-gradient(90deg, var(--border-soft-2) 25%, var(--bg-main) 50%, var(--border-soft-2) 75%);
       background-size: 200% 100%;
       animation: skeletonShimmer 1.4s infinite;
     }
@@ -495,123 +730,9 @@
       0%   { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-    /* ── YOU DIED IDLE EASTER EGG ── */
-@keyframes youDiedFadeIn {
-  0%   { opacity: 0; }
-  20%  { opacity: 1; }
-  80%  { opacity: 1; }
-  100% { opacity: 0; }
-}
-@keyframes youDiedTextIn {
-  0%   { opacity: 0; letter-spacing: 30px; }
-  100% { opacity: 1; letter-spacing: 22px; }
-}
-@keyframes youDiedSubIn {
-  0%   { opacity: 0; }
-  100% { opacity: 1; }
-}
-#youDiedOverlay {
-  position: fixed; inset: 0; z-index: 11000;
-  background: #000;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 20px;
-  animation: none; opacity: 1;  cursor: pointer;
-}
-#youDiedOverlay .yd-text {
-  font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
-  font-size: clamp(2.8rem, 9vw, 5.5rem);
-  font-weight: 400;
-  color: #9b3a2a;
-  letter-spacing: 22px;
-  text-indent: 22px;
-  text-transform: uppercase;
-  text-shadow: none;
-  animation: youDiedTextIn 1.5s ease forwards;  user-select: none;
-}
-#youDiedOverlay .yd-sub {
-  font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
-  font-size: clamp(.7rem, 2vw, .9rem);
-  color: #4a3728;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  animation: youDiedSubIn 1.5s ease forwards;  user-select: none;
-}
-    /* ── WATER EASTER EGG ── */
-@keyframes waterRise {
-  0%   { transform: translateY(100%); }
-  100% { transform: translateY(-5%); }
-}
-@keyframes waveSway {
-  0%,100% { border-radius: 42% 58% 40% 60% / 45% 45% 55% 55%; }
-  50%      { border-radius: 58% 42% 60% 40% / 55% 55% 45% 45%; }
-}
-@keyframes flushSpin {
-  0%   { transform: rotate(0deg) scale(1); opacity: 1; }
-  60%  { transform: rotate(800deg) scale(0.15); opacity: 0.4; }
-  100% { transform: rotate(1200deg) scale(0); opacity: 0; }
-}
-@keyframes msgPop {
-  0%   { transform: scale(0.5) translateY(40px); opacity: 0; }
-  70%  { transform: scale(1.06) translateY(-5px); opacity: 1; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
-}
-.water-flood-overlay {
-  position: fixed; inset: 0; z-index: 10000;
-  overflow: hidden; pointer-events: all;
-}
-.water-flood-body {
-  position: absolute; left: -10%; right: -10%;
-  height: 115%; bottom: 0;
-  transform: translateY(100%);
-  background: linear-gradient(180deg,
-    rgba(100,210,255,0.92) 0%,
-    rgba(27,138,196,0.97) 30%,
-    rgba(13,71,161,1) 100%);
-  animation: waterRise 2.6s cubic-bezier(.2,.8,.35,1) forwards;
-  animation-delay: 0.5s;
-}
-.water-flood-body::before {
-  content: '';
-  position: absolute; top: -28px; left: 0; right: 0; height: 56px;
-  background: rgba(100,210,255,0.95);
-  border-radius: 50%;
-  animation: waveSway 1.1s ease-in-out infinite;
-}
-.flush-app {
-  animation: flushSpin 2s cubic-bezier(.5,0,1,.85) forwards !important;
-  animation-delay: 0.3s !important;
-  transform-origin: center 80% !important;
-}
-.water-flood-message {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0;
-  animation: msgPop 0.65s cubic-bezier(.34,1.56,.64,1) forwards;
-  animation-delay: 3.4s;
-  padding: 20px;
-}
-.water-flood-msg-box {
-  background: white; border-radius: 24px;
-  padding: 40px 44px; text-align: center;
-  box-shadow: 0 24px 80px rgba(0,0,100,0.45);
-  max-width: 360px; font-family: var(--font);
-}
-.wf-icon { font-size: 3.2rem; margin-bottom: 14px; }
-.wf-title { font-size: 1.5rem; font-weight: 800; color: #1A2A3A; margin-bottom: 10px; }
-.wf-sub { font-size: .95rem; color: #5A7080; line-height: 1.55; margin-bottom: 22px; }
-.wf-btn {
-  background: var(--accent); color: white;
-  border: none; border-radius: 10px;
-  padding: 13px 30px; font-weight: 700; font-size: 1rem;
-  cursor: pointer; font-family: var(--font);
-  transition: background .15s;
-}
-.wf-btn:hover { background: var(--accent-dark); }
-
     /* Divider inside card */
     .card-divider {
-      height: 1px; background: #D8EAF7; margin: 20px 0;
+      height: 1px; background: var(--border-soft-2); margin: 20px 0;
     }
 
     /* Empty state */
@@ -629,19 +750,19 @@
     }
     .year-btn, .module-btn {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; padding: 14px 8px; border: 2px solid #B0D4F0; border-radius: 10px;
-      background: #F7FBFF; cursor: pointer; font-family: var(--font);
+      gap: 6px; padding: 14px 8px; border: 2px solid var(--border-soft); border-radius: 10px;
+      background: var(--surface-2); cursor: pointer; font-family: var(--font);
       font-size: .82rem; font-weight: 700; color: var(--text-muted);
       text-align: center; line-height: 1.3; transition: all .18s;
     }
     .year-btn .y-icon, .module-btn .m-icon { font-size: 1.4rem; }
     .year-btn:hover, .module-btn:hover {
-      border-color: var(--accent); background: #EEF7FF; color: var(--accent);
-      transform: translateY(-2px); box-shadow: 0 3px 10px rgba(27,138,196,.15);
+      border-color: var(--accent); background: var(--surface-2-hover); color: var(--accent);
+      transform: translateY(-2px); box-shadow: 0 3px 10px rgba(14,110,130,.15);
     }
     .year-btn.active, .module-btn.active {
       border-color: var(--accent); background: var(--accent); color: #fff;
-      box-shadow: 0 3px 12px rgba(27,138,196,.35);
+      box-shadow: 0 3px 12px rgba(14,110,130,.35);
     }
     /* Mobile tweaks */
     @media (max-width: 600px) {
@@ -675,25 +796,27 @@
       #mergeQuizOverlay { z-index: 14000; }
       .stats-modal {
         background: var(--bg-card);
-        border-radius: 16px;
+        border-radius: 18px;
         width: 100%; max-width: 640px;
-        box-shadow: 0 8px 40px rgba(0,0,0,.3);
+        box-shadow: 0 20px 60px rgba(4,14,20,.35);
         overflow: hidden; margin: auto;
+        border: 1px solid var(--border-soft);
       }
       .stats-modal-header {
-        background: var(--accent); color: white;
-        padding: 16px 24px;
+        background: linear-gradient(120deg, var(--nav-current), var(--accent-dark)); color: white;
+        padding: 17px 24px;
         display: flex; align-items: center; justify-content: space-between;
       }
-      .stats-modal-header h2 { font-size: 1.15rem; font-weight: 800; }
+      .stats-modal-header h2 { font-size: 1.12rem; font-weight: 700; font-family: var(--font-display); }
       .stats-close-btn {
-        background: rgba(255,255,255,.2); border: none; color: white;
+        background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); color: white;
         width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
-        font-size: 1.2rem; font-weight: 700;
+        font-size: 1.1rem; font-weight: 700;
         display: flex; align-items: center; justify-content: center;
         font-family: var(--font);
+        transition: background .15s, transform .15s;
       }
-      .stats-close-btn:hover { background: rgba(255,255,255,.35); }
+      .stats-close-btn:hover { background: rgba(255,255,255,.3); transform: rotate(90deg); }
       .stats-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
       .stats-section { display: flex; flex-direction: column; }
       .stats-section-title {
@@ -704,7 +827,7 @@
         display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
       }
       .stat-tile {
-        background: #F0F8FF; border: 1px solid #B0D4F0;
+        background: var(--surface-2); border: 1px solid var(--border-soft);
         border-radius: 10px; padding: 12px 10px; text-align: center;
       }
       .stat-tile .stat-val {
@@ -718,14 +841,14 @@
       .change-tile {
         flex: 1; border-radius: 10px; padding: 14px 12px; text-align: center;
       }
-      .change-tile.c2w { background: #FFEBEE; border: 1px solid #EF9A9A; }
-      .change-tile.w2c { background: #E8F5E9; border: 1px solid #A5D6A7; }
+      .change-tile.c2w { background: var(--wrong-bg); border: 1px solid var(--red-soft-border); }
+      .change-tile.w2c { background: var(--correct-bg); border: 1px solid var(--green-pale-border); }
       .change-tile .change-val { font-size: 1.5rem; font-weight: 800; line-height: 1; }
-      .change-tile.c2w .change-val { color: #C62828; }
-      .change-tile.w2c .change-val { color: #2E7D32; }
+      .change-tile.c2w .change-val { color: var(--wrong-fg); }
+      .change-tile.w2c .change-val { color: var(--correct-fg); }
       .change-tile .change-lbl { font-size: .75rem; font-weight: 700; margin-top: 5px; }
-      .change-tile.c2w .change-lbl { color: #C62828; }
-      .change-tile.w2c .change-lbl { color: #2E7D32; }
+      .change-tile.c2w .change-lbl { color: var(--wrong-fg); }
+      .change-tile.w2c .change-lbl { color: var(--correct-fg); }
       .change-tile .change-pct { font-size: .82rem; font-weight: 700; margin-top: 3px; color: var(--text-muted); }
       .net-label {
         text-align: center; font-size: .88rem; font-weight: 700; margin-top: 8px;
@@ -739,7 +862,7 @@
         color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .subj-bar-wrap {
-        flex: 1; background: #E3F2FD; border-radius: 4px; height: 12px; overflow: hidden;
+        flex: 1; background: var(--chip-blue-bg); border-radius: 4px; height: 12px; overflow: hidden;
       }
       .subj-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s; }
       .subj-stat-pct {
@@ -750,7 +873,7 @@
       .history-list { display: flex; flex-direction: column; gap: 7px; }
       .history-item {
         display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-        background: #F7FBFF; border: 1px solid #D8EAF7;
+        background: var(--surface-2); border: 1px solid var(--border-soft-2);
         border-radius: 8px; padding: 10px 14px;
       }
       .history-item > div:first-child { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
@@ -758,13 +881,13 @@
       .h-lecture { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
       .h-score { font-weight: 800; font-size: 1rem; white-space: nowrap; margin-left: 10px; }
       .stats-reset-btn {
-        background: #FFEBEE; color: #C62828;
-        border: 1px solid #EF9A9A; border-radius: 8px;
+        background: var(--wrong-bg); color: var(--wrong-fg);
+        border: 1px solid var(--red-soft-border); border-radius: 8px;
         padding: 11px; font-family: var(--font); font-size: .9rem;
         font-weight: 700; cursor: pointer; width: 100%;
         transition: background .15s;
       }
-      .stats-reset-btn:hover { background: #FFCDD2; }
+      .stats-reset-btn:hover { background: var(--red-pale); }
       .no-stats-box {
         text-align: center; padding: 32px 20px;
         color: var(--text-muted); font-size: .95rem;
@@ -772,13 +895,18 @@
       .no-stats-box .ns-icon { font-size: 2.5rem; margin-bottom: 8px; }
       .stats-open-btn {
         display: inline-flex; align-items: center; gap: 6px;
-        background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.5);
-        color: white; padding: 7px 16px; border-radius: 8px;
-        font-family: var(--font); font-size: .88rem; font-weight: 700;
+        background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.4);
+        color: white; padding: 8px 17px; border-radius: 9px;
+        font-family: var(--font); font-size: .87rem; font-weight: 700;
         cursor: pointer; margin-top: 12px;
-        transition: background .15s;
+        transition: background .18s, border-color .18s, transform .15s, box-shadow .18s;
       }
-      .stats-open-btn:hover { background: rgba(255,255,255,.3); }
+      .stats-open-btn:hover {
+        background: rgba(255,255,255,.18);
+        border-color: rgba(255,255,255,.75);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(0,0,0,.2);
+      }
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }
@@ -787,7 +915,7 @@
 /* ── CUSTOM QUIZZES (AI) ── */
 .cq-section {
   background: var(--bg-card);
-  border: 1px solid #B0D4F0;
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
   padding: 16px 18px;
   margin-bottom: 4px;
@@ -797,7 +925,7 @@
   text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
 }
 .cq-help-box {
-  background: #F0F8FF; border: 1px solid #B0D4F0; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 8px;
   padding: 12px 14px; font-size: .85rem; line-height: 1.6; color: var(--text-main);
   margin-bottom: 14px;
 }
@@ -808,11 +936,11 @@
 .cq-input-row input[type="password"],
 .cq-input-row input[type="text"] {
   flex: 1; min-width: 180px;
-  padding: 11px 13px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  padding: 11px 13px; border: 1.5px solid var(--border-soft); border-radius: 8px;
   font-family: var(--font); font-size: .92rem; color: var(--text-main);
-  background: #F7FBFF; outline: none;
+  background: var(--surface-2); outline: none;
 }
-.cq-input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.cq-input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.15); }
 .cq-btn {
   background: var(--accent); color: white; border: none; border-radius: 8px;
   padding: 11px 18px; font-family: var(--font); font-size: .9rem; font-weight: 700;
@@ -821,35 +949,35 @@
 }
 .cq-btn:hover:not(:disabled) { filter: brightness(1.08); }
 .cq-btn:disabled { opacity: .5; cursor: not-allowed; }
-.cq-btn-secondary { background: #78909C; }
-.cq-btn-danger { background: #C62828; }
+.cq-btn-secondary { background: var(--slate); }
+.cq-btn-danger { background: var(--wrong-fg); }
 .cq-dropzone {
-  border: 2px dashed #B0D4F0; border-radius: 10px; padding: 22px 14px;
+  border: 2px dashed var(--border-soft); border-radius: 10px; padding: 22px 14px;
   text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
-  background: #F7FBFF; margin-bottom: 10px;
+  background: var(--surface-2); margin-bottom: 10px;
 }
-.cq-dropzone:hover, .cq-dropzone.drag-over { border-color: var(--accent); background: #EEF7FF; }
+.cq-dropzone:hover, .cq-dropzone.drag-over { border-color: var(--accent); background: var(--surface-2-hover); }
 .cq-dropzone .cq-dz-icon { font-size: 1.8rem; margin-bottom: 6px; }
 .cq-dropzone .cq-dz-text { font-size: .88rem; color: var(--text-muted); font-weight: 600; }
 .cq-dropzone .cq-dz-file { font-size: .85rem; color: var(--accent); font-weight: 700; margin-top: 6px; }
 .cq-dz-filelist { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; text-align: left; }
 .cq-dz-file-item {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  background: #FFFFFF; border: 1px solid #D8EAF7; border-radius: 7px;
+  background: #FFFFFF; border: 1px solid var(--border-soft-2); border-radius: 7px;
   padding: 6px 10px; font-size: .8rem; color: var(--accent); font-weight: 700;
   min-width: 0;
 }
 .cq-dz-file-item span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .cq-dz-file-item button {
-  border: none; background: #FFEBEE; color: #C62828; border-radius: 6px;
+  border: none; background: var(--wrong-bg); color: var(--wrong-fg); border-radius: 6px;
   width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; font-size: .75rem;
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .cq-dz-file-item button:hover { filter: brightness(1.1); }
 .cq-dz-add-more { font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-top: 6px; }
-.cq-dropzone.cq-dz-purple { border-color: #CE93D8; background: #FBF5FC; }
-.cq-dropzone.cq-dz-purple:hover, .cq-dropzone.cq-dz-purple.drag-over { border-color: #9C27B0; background: #F3E5F5; }
-.cq-dropzone.cq-dz-purple .cq-dz-file-item { color: #6A1B9A; }
+.cq-dropzone.cq-dz-purple { border-color: var(--violet-border); background: #FBF5FC; }
+.cq-dropzone.cq-dz-purple:hover, .cq-dropzone.cq-dz-purple.drag-over { border-color: var(--violet-strong); background: var(--violet-pale); }
+.cq-dropzone.cq-dz-purple .cq-dz-file-item { color: var(--violet-dark); }
 .cq-dropzone.cq-dz-purple .cq-dz-file-item button { background: #FCE4EC; color: #AD1457; }
 .cq-dropzone.cq-dz-purple .cq-dz-add-more { color: #8E5A9E; }
 .cq-status {
@@ -864,20 +992,20 @@
   overflow: hidden;
 }
 .cq-progress-fill {
-  height: 100%; border-radius: 5px; background: #0D47A1;
+  height: 100%; border-radius: 5px; background: var(--nav-current);
   transition: width .3s ease; min-width: 3%;
 }
 .cq-progress-label {
-  font-size: .74rem; font-weight: 700; color: #0D47A1; opacity: .8;
+  font-size: .74rem; font-weight: 700; color: var(--nav-current); opacity: .8;
   text-align: right;
 }
-.cq-status.info { background: #E3F2FD; color: #0D47A1; }
-.cq-status.error { background: #FFEBEE; color: #C62828; }
-.cq-status.success { background: #E8F5E9; color: #2E7D32; }
-.cq-status.warning { background: #FFF8E1; color: #E65100; border-left: 3px solid #FFB300; }
+.cq-status.info { background: var(--chip-blue-bg); color: var(--nav-current); }
+.cq-status.error { background: var(--wrong-bg); color: var(--wrong-fg); }
+.cq-status.success { background: var(--correct-bg); color: var(--correct-fg); }
+.cq-status.warning { background: var(--amber-pale); color: var(--unanswered-fg); border-left: 3px solid var(--amber-mid); }
 .cq-spinner {
   width: 18px; height: 18px; border-radius: 50%;
-  border: 3px solid rgba(13,71,161,.25); border-top-color: #0D47A1;
+  border: 3px solid rgba(13,71,161,.25); border-top-color: var(--nav-current);
   animation: cqspin .8s linear infinite; flex-shrink: 0;
 }
 @keyframes cqspin { to { transform: rotate(360deg); } }
@@ -889,7 +1017,7 @@
 }
 .cq-quiz-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border-soft-2); border-radius: 8px;
   padding: 10px 14px; margin-bottom: 8px; flex-wrap: wrap;
 }
 .cq-quiz-info { flex: 1; min-width: 140px; }
@@ -897,14 +1025,14 @@
 .cq-quiz-meta { font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
 .cq-quiz-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .cq-quiz-actions input[type="number"] {
-  width: 64px; padding: 7px 8px; border: 1.5px solid #B0D4F0; border-radius: 6px;
-  font-family: var(--font); font-size: .82rem; background: #fff;
+  width: 64px; padding: 7px 8px; border: 1.5px solid var(--border-soft); border-radius: 6px;
+  font-family: var(--font); font-size: .82rem; background: var(--surface-2); color: var(--text-main);
 }
 .cq-preview-list {
-  max-height: 480px; overflow-y: auto; border: 1px solid #D8EAF7; border-radius: 8px;
-  padding: 10px 12px; background: #F7FBFF; margin: 10px 0;
+  max-height: 480px; overflow-y: auto; border: 1px solid var(--border-soft-2); border-radius: 8px;
+  padding: 10px 12px; background: var(--surface-2); margin: 10px 0;
 }
-.cq-preview-q { font-size: .85rem; padding: 8px 0; border-bottom: 1px solid #E3F2FD; }
+.cq-preview-q { font-size: .85rem; padding: 8px 0; border-bottom: 1px solid var(--chip-blue-bg); }
 .cq-preview-q:last-child { border-bottom: none; }
 .cq-preview-q .cq-pq-num { font-weight: 800; color: var(--accent); }
 .cq-preview-q .cq-pq-opt { padding-left: 16px; color: var(--text-muted); }
@@ -913,28 +1041,28 @@
 /* ── Editable preview ── */
 .cq-editable-q {
   padding: 12px 14px 14px;
-  border-bottom: 1.5px solid #D8EAF7;
+  border-bottom: 1.5px solid var(--border-soft-2);
 }
 .cq-editable-q:last-child { border-bottom: none; }
 .cq-editable-q:hover { background: #FAFCFF; }
 .cq-edit-textarea {
-  width: 100%; padding: 7px 10px; border: 1.5px solid #B0D4F0; border-radius: 6px;
+  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border-soft); border-radius: 6px;
   font-family: var(--font); font-size: .88rem; color: var(--text-main);
-  background: #fff; outline: none; resize: vertical; line-height: 1.5;
+  background: var(--surface-2); outline: none; resize: vertical; line-height: 1.5;
   transition: border-color .2s, box-shadow .2s;
 }
-.cq-edit-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.13); }
+.cq-edit-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.13); }
 .cq-edit-reask-btn {
-  background: #EDE7F6; color: #4527A0; border: 1.5px solid #B39DDB;
+  background: var(--violet-pale); color: var(--violet-dark); border: 1.5px solid var(--violet-mid-border);
   border-radius: 7px; padding: 5px 10px; font-family: var(--font);
   font-size: .75rem; font-weight: 700; cursor: pointer; white-space: nowrap;
   transition: background .15s; flex-shrink: 0;
 }
-.cq-edit-reask-btn:hover { background: #D1C4E9; }
+.cq-edit-reask-btn:hover { background: var(--violet-pale-2); }
 .cq-edit-reask-btn:disabled { background: #E7E7E7; color: #9E9E9E; border-color: #D4D4D4; cursor: not-allowed; opacity: .75; }
 .cq-edit-reask-btn:disabled:hover { background: #E7E7E7; }
 .cq-edit-reask-btn.cq-edit-reask-btn-active:disabled {
-  background: #EDE7F6; color: #4527A0; border-color: #B39DDB; opacity: 1; cursor: default;
+  background: var(--violet-pale); color: var(--violet-dark); border-color: var(--violet-mid-border); opacity: 1; cursor: default;
 }
 /* Small ⏹ Stop button placed next to an individual AI feature's trigger
    button, shown only while that specific feature is running (see
@@ -942,20 +1070,20 @@
    and separate from the trigger it accompanies, always clickable even
    though the trigger itself is disabled while busy. */
 .ai-tool-stop-btn {
-  display: none; background: #C62828; color: #fff; border: none; border-radius: 7px;
+  display: none; background: var(--wrong-fg); color: #fff; border: none; border-radius: 7px;
   padding: 5px 9px; font-family: var(--font); font-size: .75rem; font-weight: 700;
   cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s;
 }
-.ai-tool-stop-btn:hover { background: #B71C1C; }
+.ai-tool-stop-btn:hover { background: var(--red-deep); }
 .ai-source-picker {
   position: relative; z-index: 20; margin: 4px 0 8px;
 }
 .ai-source-picker-inner {
-  background: #fff; border: 1.5px solid #A5D6A7; border-radius: 9px;
+  background: #fff; border: 1.5px solid var(--green-pale-border); border-radius: 9px;
   padding: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.12); max-width: 320px;
 }
 .ai-source-picker-title {
-  font-size: .72rem; font-weight: 800; color: #2E7D32; text-transform: uppercase;
+  font-size: .72rem; font-weight: 800; color: var(--correct-fg); text-transform: uppercase;
   letter-spacing: .5px; padding: 2px 6px 6px;
 }
 .ai-source-opt {
@@ -964,17 +1092,17 @@
   transition: background .12s;
 }
 .ai-source-opt:hover { background: #F1F8F4; }
-.ai-source-opt-active { background: #E8F5E9; color: #2E7D32; }
+.ai-source-opt-active { background: var(--correct-bg); color: var(--correct-fg); }
 .ai-source-opt-remove {
-  font-size: .7rem; color: #C62828; opacity: .6; padding: 0 3px; border-radius: 4px;
+  font-size: .7rem; color: var(--wrong-fg); opacity: .6; padding: 0 3px; border-radius: 4px;
 }
-.ai-source-opt-remove:hover { opacity: 1; background: #FFEBEE; }
+.ai-source-opt-remove:hover { opacity: 1; background: var(--wrong-bg); }
 .ai-source-picker-divider { height: 1px; background: #E0E0E0; margin: 5px 2px; }
 .ai-source-add-toggle {
   padding: 6px 8px; border-radius: 6px; font-size: .78rem; font-weight: 700;
   color: #1565C0; cursor: pointer; transition: background .12s;
 }
-.ai-source-add-toggle:hover { background: #F0F8FF; }
+.ai-source-add-toggle:hover { background: var(--surface-2); }
 .ai-source-dz { padding: 12px 8px; margin-bottom: 8px; }
 .ai-source-dz .cq-dz-icon { font-size: 1.3rem; margin-bottom: 3px; }
 .ai-source-dz .cq-dz-text { font-size: .72rem; }
@@ -982,25 +1110,25 @@
   margin: 8px 0 12px; padding: 12px 14px; background: #F3F0FF;
   border: 1.5px solid #C5B3F0; border-radius: 10px;
 }
-.cq-bulk-ai-title { font-size: .85rem; font-weight: 800; color: #4527A0; margin-bottom: 4px; }
-.cq-bulk-ai-subtitle { font-size: .72rem; font-weight: 600; color: #6A1B9A; opacity: .8; margin-bottom: 10px; }
+.cq-bulk-ai-title { font-size: .85rem; font-weight: 800; color: var(--violet-dark); margin-bottom: 4px; }
+.cq-bulk-ai-subtitle { font-size: .72rem; font-weight: 600; color: var(--violet-dark); opacity: .8; margin-bottom: 10px; }
 .cq-bulk-ai-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .cq-bulk-ai-tool {
   padding: 9px 0; border-top: 1px solid #DCD0F5;
 }
 .cq-bulk-ai-tool:first-of-type { border-top: none; padding-top: 0; }
 .cq-bulk-ai-tool-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.cq-bulk-ai-no-opts { font-size: .72rem; color: #6A1B9A; opacity: .75; font-weight: 600; }
-.cq-bulk-ai-scope { font-size: .68rem; color: #6A1B9A; opacity: .7; font-weight: 600; margin-top: 5px; font-style: italic; }
+.cq-bulk-ai-no-opts { font-size: .72rem; color: var(--violet-dark); opacity: .75; font-weight: 600; }
+.cq-bulk-ai-scope { font-size: .68rem; color: var(--violet-dark); opacity: .7; font-weight: 600; margin-top: 5px; font-style: italic; }
 .cq-bulk-ai-opts { margin-top: 8px; }
 .cq-bulk-ai-opts summary {
-  font-size: .76rem; font-weight: 700; color: #6A1B9A; cursor: pointer; user-select: none;
+  font-size: .76rem; font-weight: 700; color: var(--violet-dark); cursor: pointer; user-select: none;
 }
-.cq-bulk-ai-label { font-size: .73rem; font-weight: 700; color: #6A1B9A; margin-bottom: 5px; }
+.cq-bulk-ai-label { font-size: .73rem; font-weight: 700; color: var(--violet-dark); margin-bottom: 5px; }
 .cq-bulk-lock { pointer-events: none; opacity: .55; filter: grayscale(.25); transition: opacity .2s; }
 .cq-opt-edit-row {
   display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
-  padding: 5px 8px; border-radius: 7px; border: 1.5px solid #D8EAF7;
+  padding: 5px 8px; border-radius: 7px; border: 1.5px solid var(--border-soft-2);
   background: #fff; transition: border-color .15s, background .15s;
 }
 .cq-opt-edit-row.cq-opt-correct {
@@ -1010,7 +1138,7 @@
 .cq-opt-correct-radio input[type="radio"] { display: none; }
 .cq-radio-dot {
   width: 16px; height: 16px; border-radius: 50%;
-  border: 2px solid #B0D4F0; background: #fff; display: block;
+  border: 2px solid var(--border-soft); background: #fff; display: block;
   transition: border-color .15s, background .15s;
   position: relative;
 }
@@ -1029,33 +1157,33 @@
   font-family: var(--font); font-size: .85rem; color: var(--text-main);
   background: transparent; outline: none; transition: border-color .15s, background .15s;
 }
-.cq-opt-text-input:focus { border-color: #B0D4F0; background: #fff; }
+.cq-opt-text-input:focus { border-color: var(--border-soft); background: #fff; }
 .cq-correct-badge {
   font-size: .72rem; font-weight: 800; color: var(--correct-fg);
-  background: #E8F5E9; border: 1px solid #A5D6A7; border-radius: 10px;
+  background: var(--correct-bg); border: 1px solid var(--green-pale-border); border-radius: 10px;
   padding: 2px 7px; white-space: nowrap; flex-shrink: 0;
 }
 .cq-img-action-btn {
   display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
-  background: #EEF7FF; color: var(--accent); border: 1.5px solid #B0D4F0;
+  background: var(--surface-2-hover); color: var(--accent); border: 1.5px solid var(--border-soft);
   border-radius: 6px; padding: 5px 10px; font-family: var(--font);
   font-size: .78rem; font-weight: 700; transition: background .15s;
 }
 .cq-img-action-btn:hover { background: #DCF0FF; }
-.cq-img-remove-btn { background: #FFF0F0; color: #C62828; border-color: #EF9A9A; }
+.cq-img-remove-btn { background: #FFF0F0; color: var(--wrong-fg); border-color: var(--red-soft-border); }
 .cq-img-remove-btn:hover { background: #FFDDDD; }
 .cq-img-upload-label {
   display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
-  background: #F7FBFF; color: var(--text-muted); border: 1.5px dashed #B0D4F0;
+  background: var(--surface-2); color: var(--text-muted); border: 1.5px dashed var(--border-soft);
   border-radius: 6px; padding: 5px 12px; font-family: var(--font);
   font-size: .78rem; font-weight: 700; transition: all .15s;
 }
-.cq-img-upload-label:hover { border-color: var(--accent); color: var(--accent); background: #EEF7FF; }
+.cq-img-upload-label:hover { border-color: var(--accent); color: var(--accent); background: var(--surface-2-hover); }
 
 .cq-reextract-banner {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 8px; padding: 8px 12px;
-  background: #FFF8E1; border: 1px dashed #FFB300; border-radius: 8px;
+  background: var(--amber-pale); border: 1px dashed var(--amber-mid); border-radius: 8px;
   font-size: .8rem; font-weight: 600; color: #795500;
 }
 .cq-reextract-banner .cq-btn {
@@ -1063,16 +1191,16 @@
 }
 .cq-reextract-drop {
   margin-top: 8px; padding: 10px 14px;
-  border: 2px dashed #B0D4F0; border-radius: 8px;
-  background: #F7FBFF; font-size: .82rem; color: var(--text-muted);
+  border: 2px dashed var(--border-soft); border-radius: 8px;
+  background: var(--surface-2); font-size: .82rem; color: var(--text-muted);
   font-weight: 600; cursor: pointer; text-align: center;
   transition: border-color .15s, background .15s;
 }
 .cq-reextract-drop:hover { 
   border-color: var(--accent); 
-  background: #EEF7FF;
+  background: var(--surface-2-hover);
   background: var(--bg-card);
-  border: 1px solid #B0D4F0;
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
   padding: 16px 20px;
 }
@@ -1085,40 +1213,40 @@
   display: flex; align-items: flex-start; gap: 10px;
   padding: 10px 14px; border-radius: 8px; border: 1px solid transparent;
 }
-.change-flow-item.c2w { background: #FFEBEE; border-color: #EF9A9A; }
-.change-flow-item.w2c { background: #E8F5E9; border-color: #A5D6A7; }
-.change-flow-item.w2w { background: #FFF8E1; border-color: #FFE082; }
+.change-flow-item.c2w { background: var(--wrong-bg); border-color: var(--red-soft-border); }
+.change-flow-item.w2c { background: var(--correct-bg); border-color: var(--green-pale-border); }
+.change-flow-item.w2w { background: var(--amber-pale); border-color: var(--amber-glow); }
 .cf-num {
   font-size: .72rem; font-weight: 800; padding: 3px 8px;
   border-radius: 12px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;
 }
-.c2w .cf-num { background: #C62828; color: white; }
-.w2c .cf-num { background: #2E7D32; color: white; }
-.w2w .cf-num { background: #E65100; color: white; }
+.c2w .cf-num { background: var(--wrong-fg); color: white; }
+.w2c .cf-num { background: var(--correct-fg); color: white; }
+.w2w .cf-num { background: var(--unanswered-fg); color: white; }
 .cf-body { flex: 1; font-size: .87rem; line-height: 1.4; }
 .cf-qnum { font-weight: 700; color: var(--text-main); margin-bottom: 4px; font-size: .85rem; }
-.cf-from { color: #B71C1C; }
+.cf-from { color: var(--red-deep); }
 .cf-arrow { color: var(--text-muted); margin: 0 5px; }
-.c2w .cf-to { color: #C62828; font-weight: 700; }
-.w2c .cf-to { color: #2E7D32; font-weight: 700; }
-.w2w .cf-to { color: #E65100; font-weight: 700; }
+.c2w .cf-to { color: var(--wrong-fg); font-weight: 700; }
+.w2c .cf-to { color: var(--correct-fg); font-weight: 700; }
+.w2w .cf-to { color: var(--unanswered-fg); font-weight: 700; }
 .cf-verdict {
   font-size: .77rem; font-weight: 700; margin-top: 4px;
 }
-.c2w .cf-verdict { color: #C62828; }
-.w2c .cf-verdict { color: #2E7D32; }
-.w2w .cf-verdict { color: #E65100; }
+.c2w .cf-verdict { color: var(--wrong-fg); }
+.w2c .cf-verdict { color: var(--correct-fg); }
+.w2w .cf-verdict { color: var(--unanswered-fg); }
 
 /* ── CQ MODE TABS ── */
 .cq-tabs {
   display: flex; gap: 6px; margin-bottom: 14px;
 }
 .cq-tab-btn {
-  flex: 1; padding: 9px 10px; border-radius: 8px; border: 2px solid #B0D4F0;
-  background: #F7FBFF; font-family: var(--font); font-size: .82rem; font-weight: 700;
+  flex: 1; padding: 9px 10px; border-radius: 8px; border: 2px solid var(--border-soft);
+  background: var(--surface-2); font-family: var(--font); font-size: .82rem; font-weight: 700;
   color: var(--text-muted); cursor: pointer; transition: all .15s; text-align: center;
 }
-.cq-tab-btn:hover { border-color: var(--accent); color: var(--accent); background: #EEF7FF; }
+.cq-tab-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--surface-2-hover); }
 .cq-tab-btn.active {
   border-color: var(--accent); background: var(--accent); color: #fff;
 }
@@ -1126,12 +1254,12 @@
 /* ── GENERATE FROM LECTURE ── */
 .cq-textarea {
   width: 100%; padding: 11px 13px;
-  border: 1.5px solid #B0D4F0; border-radius: 8px;
+  border: 1.5px solid var(--border-soft); border-radius: 8px;
   font-family: var(--font); font-size: .9rem; color: var(--text-main);
-  background: #F7FBFF; outline: none; resize: vertical; min-height: 80px;
+  background: var(--surface-2); outline: none; resize: vertical; min-height: 80px;
   margin-bottom: 10px; transition: border-color .2s, box-shadow .2s;
 }
-.cq-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.cq-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.15); }
 .cq-field-hint {
   font-size: .76rem; color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
 }
@@ -1142,83 +1270,83 @@
   font-size: .82rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;
 }
 .cq-qcount-row input[type="number"] {
-  width: 90px; padding: 9px 11px; border: 1.5px solid #B0D4F0; border-radius: 8px;
-  font-family: var(--font); font-size: .9rem; background: #F7FBFF; outline: none;
+  width: 90px; padding: 9px 11px; border: 1.5px solid var(--border-soft); border-radius: 8px;
+  font-family: var(--font); font-size: .9rem; background: var(--surface-2); outline: none;
 }
-.cq-qcount-row input[type="number"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.cq-qcount-row input[type="number"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.15); }
 .cq-badge-row {
   display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
 }
 .cq-badge {
-  background: #E3F2FD; color: #0D47A1; border-radius: 20px;
+  background: var(--chip-blue-bg); color: var(--nav-current); border-radius: 20px;
   padding: 4px 11px; font-size: .75rem; font-weight: 700;
 }
 
 /* ── SPLIT QUIZ PANEL ── */
 .cq-split-panel {
   margin-top: 10px; padding: 14px 16px;
-  background: #F3E5F5; border: 1.5px solid #CE93D8; border-radius: 10px;
+  background: var(--violet-pale); border: 1.5px solid var(--violet-border); border-radius: 10px;
   animation: fadeIn .15s ease;
 }
 .cq-split-panel-title {
-  font-size: .82rem; font-weight: 800; color: #6A1B9A; margin-bottom: 12px;
+  font-size: .82rem; font-weight: 800; color: var(--violet-dark); margin-bottom: 12px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
 }
 .cq-split-mode-tabs {
   display: flex; gap: 6px; margin-bottom: 12px;
 }
 .cq-split-mode-btn {
-  padding: 5px 13px; border: 1.5px solid #CE93D8; border-radius: 20px;
-  background: #fff; color: #6A1B9A; font-family: var(--font); font-size: .78rem;
+  padding: 5px 13px; border: 1.5px solid var(--violet-border); border-radius: 20px;
+  background: #fff; color: var(--violet-dark); font-family: var(--font); font-size: .78rem;
   font-weight: 700; cursor: pointer; transition: all .15s;
 }
-.cq-split-mode-btn.active { background: #6A1B9A; color: #fff; border-color: #6A1B9A; }
+.cq-split-mode-btn.active { background: var(--violet-dark); color: #fff; border-color: var(--violet-dark); }
 .cq-split-range-row {
   display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
 }
-.cq-split-range-row label { font-size: .78rem; font-weight: 700; color: #4A148C; white-space: nowrap; }
+.cq-split-range-row label { font-size: .78rem; font-weight: 700; color: var(--violet-darkest); white-space: nowrap; }
 .cq-split-range-row input[type="number"] {
-  width: 68px; padding: 7px 8px; border: 1.5px solid #CE93D8; border-radius: 6px;
+  width: 68px; padding: 7px 8px; border: 1.5px solid var(--violet-border); border-radius: 6px;
   font-family: var(--font); font-size: .85rem; background: #fff; outline: none;
 }
 .cq-split-range-row input[type="text"] {
-  flex: 1; min-width: 110px; padding: 7px 9px; border: 1.5px solid #CE93D8; border-radius: 6px;
+  flex: 1; min-width: 110px; padding: 7px 9px; border: 1.5px solid var(--violet-border); border-radius: 6px;
   font-family: var(--font); font-size: .85rem; background: #fff; outline: none;
 }
 .cq-split-add-range-btn {
   display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px;
-  background: #EDE7F6; color: #4527A0; border: 1.5px dashed #9575CD; border-radius: 7px;
+  background: var(--violet-pale); color: var(--violet-dark); border: 1.5px dashed #9575CD; border-radius: 7px;
   font-family: var(--font); font-size: .78rem; font-weight: 700; cursor: pointer; transition: all .15s;
   margin-top: 2px;
 }
-.cq-split-add-range-btn:hover { background: #D1C4E9; border-style: solid; }
+.cq-split-add-range-btn:hover { background: var(--violet-pale-2); border-style: solid; }
 .cq-split-remove-btn {
-  background: none; border: none; color: #CE93D8; font-size: .95rem;
+  background: none; border: none; color: var(--violet-border); font-size: .95rem;
   cursor: pointer; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: color .15s;
 }
-.cq-split-remove-btn:hover { color: #C62828; }
+.cq-split-remove-btn:hover { color: var(--wrong-fg); }
 .cq-split-summary {
-  font-size: .78rem; color: #4A148C; font-weight: 600; margin: 10px 0 6px;
+  font-size: .78rem; color: var(--violet-darkest); font-weight: 600; margin: 10px 0 6px;
   line-height: 1.7; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
 }
 .cq-split-chip {
-  display: inline-block; background: #fff; border: 1.5px solid #CE93D8; border-radius: 14px;
-  padding: 2px 10px; font-weight: 700; color: #6A1B9A; font-size: .76rem; white-space: nowrap;
+  display: inline-block; background: #fff; border: 1.5px solid var(--violet-border); border-radius: 14px;
+  padding: 2px 10px; font-weight: 700; color: var(--violet-dark); font-size: .76rem; white-space: nowrap;
 }
-.cq-split-chip.warn { border-color: #E65100; color: #E65100; background: #FFF3E0; }
+.cq-split-chip.warn { border-color: var(--unanswered-fg); color: var(--unanswered-fg); background: var(--unanswered-bg); }
 .cq-split-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
 /* Visual scissors mode */
 .cq-split-visual-list { margin-top: 4px; }
 .cq-split-q-row {
-  background: #fff; border: 1.5px solid #E1BEE7; border-radius: 8px;
+  background: #fff; border: 1.5px solid var(--violet-pale-2); border-radius: 8px;
   padding: 9px 13px; margin-bottom: 2px;
   display: flex; align-items: flex-start; gap: 10px;
   font-size: .82rem; font-weight: 600; color: var(--text-main); line-height: 1.4;
   transition: background .12s;
 }
 .cq-split-q-num {
-  background: #6A1B9A; color: #fff; border-radius: 20px;
+  background: var(--violet-dark); color: #fff; border-radius: 20px;
   padding: 2px 8px; font-size: .72rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
 }
 .cq-split-q-text { flex: 1; min-width: 0; }
@@ -1232,27 +1360,27 @@
 }
 .cq-scissors-line {
   flex: 1; height: 2px; background: repeating-linear-gradient(
-    to right, #CE93D8 0, #CE93D8 7px, transparent 7px, transparent 13px
+    to right, var(--violet-border) 0, var(--violet-border) 7px, transparent 7px, transparent 13px
   );
   transition: background .15s;
 }
 .cq-scissors-btn {
   width: 30px; height: 30px; border-radius: 50%; background: #fff;
-  border: 2px solid #CE93D8; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--violet-border); display: flex; align-items: center; justify-content: center;
   font-size: 1.05rem; cursor: pointer; transition: all .15s; flex-shrink: 0;
   position: relative; z-index: 1; line-height: 1;
   box-shadow: 0 1px 4px rgba(106,27,154,.1);
 }
-.cq-scissors-btn:hover, .cq-scissors-row:hover .cq-scissors-btn { background: #6A1B9A; border-color: #6A1B9A; color: #fff; transform: scale(1.15); }
-.cq-scissors-row:hover .cq-scissors-line { background: repeating-linear-gradient(to right, #6A1B9A 0, #6A1B9A 7px, transparent 7px, transparent 13px); }
-.cq-scissors-row.cut .cq-scissors-btn { background: #6A1B9A; border-color: #4A148C; color: #fff; }
-.cq-scissors-row.cut .cq-scissors-line { background: repeating-linear-gradient(to right, #4A148C 0, #4A148C 7px, transparent 7px, transparent 13px); }
+.cq-scissors-btn:hover, .cq-scissors-row:hover .cq-scissors-btn { background: var(--violet-dark); border-color: var(--violet-dark); color: #fff; transform: scale(1.15); }
+.cq-scissors-row:hover .cq-scissors-line { background: repeating-linear-gradient(to right, var(--violet-dark) 0, var(--violet-dark) 7px, transparent 7px, transparent 13px); }
+.cq-scissors-row.cut .cq-scissors-btn { background: var(--violet-dark); border-color: var(--violet-darkest); color: #fff; }
+.cq-scissors-row.cut .cq-scissors-line { background: repeating-linear-gradient(to right, var(--violet-darkest) 0, var(--violet-darkest) 7px, transparent 7px, transparent 13px); }
 .cq-split-group-label-row {
   display: flex; align-items: center; gap: 7px; margin: 6px 0 4px; flex-wrap: wrap;
 }
-.cq-split-group-label-row label { font-size: .74rem; font-weight: 700; color: #6A1B9A; white-space: nowrap; }
+.cq-split-group-label-row label { font-size: .74rem; font-weight: 700; color: var(--violet-dark); white-space: nowrap; }
 .cq-split-group-label-row input[type="text"] {
-  flex: 1; min-width: 140px; padding: 5px 9px; border: 1.5px solid #CE93D8; border-radius: 6px;
+  flex: 1; min-width: 140px; padding: 5px 9px; border: 1.5px solid var(--violet-border); border-radius: 6px;
   font-family: var(--font); font-size: .82rem; background: #fff; outline: none;
 }
 .cq-split-part-header {
@@ -1262,7 +1390,7 @@
 
 /* ── COMMUNITY QUIZZES ── */
 .cq-share-btn {
-  background: #7B1FA2; color: white; border: none; border-radius: 8px;
+  background: var(--violet); color: white; border: none; border-radius: 8px;
   padding: 8px 14px; font-family: var(--font); font-size: .82rem; font-weight: 700;
   cursor: pointer; transition: filter .15s;
   display: inline-flex; align-items: center; gap: 5px;
@@ -1271,7 +1399,7 @@
 .cq-share-btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .community-quiz-item {
-  background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border-soft-2); border-radius: 10px;
   padding: 12px 16px; margin-bottom: 10px;
 }
 .community-quiz-header {
@@ -1284,11 +1412,11 @@
   display: flex; gap: 6px; margin-bottom: 14px;
 }
 .community-tab-btn {
-  flex: 1; padding: 9px 10px; border-radius: 8px; border: 2px solid #B0D4F0;
-  background: #F7FBFF; font-family: var(--font); font-size: .82rem; font-weight: 700;
+  flex: 1; padding: 9px 10px; border-radius: 8px; border: 2px solid var(--border-soft);
+  background: var(--surface-2); font-family: var(--font); font-size: .82rem; font-weight: 700;
   color: var(--text-muted); cursor: pointer; transition: all .15s; text-align: center;
 }
-.community-tab-btn:hover { border-color: var(--accent); color: var(--accent); background: #EEF7FF; }
+.community-tab-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--surface-2-hover); }
 .community-tab-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .community-empty {
   text-align: center; padding: 28px 16px; color: var(--text-muted); font-size: .9rem;
@@ -1308,9 +1436,9 @@
 }
 .comm-search-input {
   width: 100%; box-sizing: border-box;
-  padding: 9px 36px 9px 34px; border: 1.5px solid #B0D4F0; border-radius: 8px;
-  font-family: var(--font); font-size: .88rem; background: #fff; color: var(--text-main);
-  outline: none; transition: border-color .15s;
+  padding: 9px 36px 9px 34px; border: 1.5px solid var(--border-soft); border-radius: 8px;
+  font-family: var(--font); font-size: .88rem; background: var(--surface-2); color: var(--text-main);
+  outline: none; transition: border-color .15s, background .2s;
 }
 .comm-search-input:focus { border-color: var(--accent); }
 .comm-search-clear {
@@ -1324,9 +1452,9 @@
 }
 .comm-filter-select {
   flex: 1; min-width: 120px;
-  padding: 8px 10px; border: 1.5px solid #B0D4F0; border-radius: 8px;
-  font-family: var(--font); font-size: .82rem; background: #fff; color: var(--text-main);
-  outline: none; cursor: pointer; transition: border-color .15s;
+  padding: 8px 10px; border: 1.5px solid var(--border-soft); border-radius: 8px;
+  font-family: var(--font); font-size: .82rem; background: var(--surface-2); color: var(--text-main);
+  outline: none; cursor: pointer; transition: border-color .15s, background .2s;
 }
 .comm-filter-select:focus { border-color: var(--accent); }
 .comm-results-count {
@@ -1336,19 +1464,19 @@
 /* Category badge on quiz cards */
 .comm-cat-badge {
   display: inline-block; padding: 2px 8px; border-radius: 20px;
-  font-size: .72rem; font-weight: 700; background: #EEF7FF;
-  color: var(--accent); border: 1px solid #B0D4F0; margin-right: 4px;
+  font-size: .72rem; font-weight: 700; background: var(--surface-2-hover);
+  color: var(--accent); border: 1px solid var(--border-soft); margin-right: 4px;
 }
 .comm-tags-row {
   display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
 }
 .comm-tag {
   display: inline-block; padding: 2px 7px; border-radius: 20px;
-  font-size: .7rem; font-weight: 600; background: #F3E5F5;
-  color: #7B1FA2; border: 1px solid #E1BEE7; cursor: pointer;
+  font-size: .7rem; font-weight: 600; background: var(--violet-pale);
+  color: var(--violet); border: 1px solid var(--violet-pale-2); cursor: pointer;
   transition: background .12s;
 }
-.comm-tag:hover { background: #E1BEE7; }
+.comm-tag:hover { background: var(--violet-pale-2); }
 
 /* ── SHARE QUIZ MODAL ── */
 .sq-overlay {
@@ -1359,13 +1487,13 @@
 .sq-modal {
   background: #fff; border-radius: 16px; padding: 28px 24px 22px;
   box-shadow: 0 8px 40px rgba(0,0,0,.22); width: 100%; max-width: 400px;
-  border-top: 4px solid #7B1FA2;
+  border-top: 4px solid var(--violet);
 }
 .sq-title { font-size: 1.05rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
 .sq-sub  { font-size: .8rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.4; }
 .sq-quiz-name {
   font-weight: 700; color: var(--accent);
-  background: #EEF7FF; border-radius: 6px; padding: 6px 10px;
+  background: var(--surface-2-hover); border-radius: 6px; padding: 6px 10px;
   margin-bottom: 16px; font-size: .9rem; word-break: break-word;
 }
 .sq-field-label {
@@ -1374,22 +1502,22 @@
 }
 .sq-select, .sq-input {
   width: 100%; box-sizing: border-box;
-  padding: 9px 11px; border: 1.5px solid #B0D4F0; border-radius: 8px;
-  font-family: var(--font); font-size: .88rem; background: #fff; color: var(--text-main);
-  outline: none; transition: border-color .15s; margin-bottom: 14px;
+  padding: 9px 11px; border: 1.5px solid var(--border-soft); border-radius: 8px;
+  font-family: var(--font); font-size: .88rem; background: var(--surface-2); color: var(--text-main);
+  outline: none; transition: border-color .15s, background .2s; margin-bottom: 14px;
 }
-.sq-select:focus, .sq-input:focus { border-color: #7B1FA2; }
+.sq-select:focus, .sq-input:focus { border-color: var(--violet); }
 .sq-hint { font-size: .74rem; color: var(--text-muted); margin-top: -10px; margin-bottom: 14px; }
 .sq-actions { display: flex; gap: 8px; margin-top: 6px; }
 .sq-btn-cancel {
-  flex: 1; padding: 10px; border: 2px solid #B0D4F0; border-radius: 9px;
+  flex: 1; padding: 10px; border: 2px solid var(--border-soft); border-radius: 9px;
   background: #fff; font-family: var(--font); font-size: .88rem; font-weight: 700;
   color: var(--text-muted); cursor: pointer; transition: all .15s;
 }
 .sq-btn-cancel:hover { border-color: #90a4ae; color: #607d8b; }
 .sq-btn-share {
   flex: 2; padding: 10px; border: none; border-radius: 9px;
-  background: #7B1FA2; color: #fff; font-family: var(--font); font-size: .88rem;
+  background: var(--violet); color: #fff; font-family: var(--font); font-size: .88rem;
   font-weight: 700; cursor: pointer; transition: filter .15s;
 }
 .sq-btn-share:hover { filter: brightness(1.1); }
@@ -1408,15 +1536,15 @@
 .dn-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; }
 .dn-sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
 .dn-input {
-  width: 100%; padding: 11px 13px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  width: 100%; padding: 11px 13px; border: 1.5px solid var(--border-soft); border-radius: 8px;
   font-family: var(--font); font-size: .95rem; color: var(--text-main);
-  background: #F7FBFF; outline: none; margin-bottom: 14px;
+  background: var(--surface-2); outline: none; margin-bottom: 14px;
   transition: border-color .2s, box-shadow .2s;
 }
-.dn-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.dn-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.15); }
 .dn-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .dn-btn-cancel {
-  background: #F7FBFF; color: var(--text-muted); border: 1.5px solid #B0D4F0;
+  background: var(--surface-2); color: var(--text-muted); border: 1.5px solid var(--border-soft);
   border-radius: 8px; padding: 10px 18px; font-family: var(--font); font-size: .88rem;
   font-weight: 700; cursor: pointer;
 }
@@ -1431,7 +1559,7 @@
 /* ── SHARE CONFIRMATION CHIP ── */
 .share-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  background: #F3E5F5; color: #7B1FA2; border: 1px solid #CE93D8;
+  background: var(--violet-pale); color: var(--violet); border: 1px solid var(--violet-border);
   border-radius: 20px; padding: 4px 12px; font-size: .78rem; font-weight: 700;
   margin-top: 4px;
 }
@@ -1439,31 +1567,31 @@
 /* ── AI EXPLANATION ── */
 .ai-explain-btn {
   display: inline-flex; align-items: center; gap: 5px;
-  background: #EDE7F6; color: #4527A0; border: 1.5px solid #B39DDB;
+  background: var(--violet-pale); color: var(--violet-dark); border: 1.5px solid var(--violet-mid-border);
   border-radius: 7px; padding: 5px 12px; font-family: var(--font);
   font-size: .8rem; font-weight: 700; cursor: pointer;
   transition: all .15s; margin-top: 8px;
 }
-.ai-explain-btn:hover:not(:disabled) { background: #D1C4E9; border-color: #7E57C2; }
+.ai-explain-btn:hover:not(:disabled) { background: var(--violet-pale-2); border-color: var(--violet-strong); }
 .ai-explain-btn:disabled { opacity: .55; cursor: not-allowed; }
 .ai-explain-btn.loading { background: #E8EAF6; color: #3949AB; }
 
 .ai-explain-panel {
   margin-top: 10px; border-radius: 8px;
-  border: 1.5px solid #B39DDB; background: #F8F5FF;
+  border: 1.5px solid var(--violet-mid-border); background: #F8F5FF;
   overflow: hidden;
 }
 .ai-explain-panel-header {
-  background: #EDE7F6; padding: 8px 14px;
+  background: var(--violet-pale); padding: 8px 14px;
   display: flex; align-items: center; gap: 7px;
-  font-size: .8rem; font-weight: 800; color: #4527A0;
+  font-size: .8rem; font-weight: 800; color: var(--violet-dark);
   letter-spacing: .3px;
 }
 .ai-explain-panel-body {
   padding: 12px 16px; font-size: .88rem; line-height: 1.7;
   color: var(--text-main);
 }
-.ai-explain-panel-body strong { color: #4527A0; }
+.ai-explain-panel-body strong { color: var(--violet-dark); }
 .ai-explain-panel-body .exp-section {
   margin-bottom: 10px; padding-bottom: 10px;
   border-bottom: 1px solid #D7CBF5;
@@ -1473,25 +1601,25 @@
   font-size: .75rem; font-weight: 800; text-transform: uppercase;
   letter-spacing: .8px; margin-bottom: 4px;
 }
-.ai-explain-panel-body .exp-label.correct-label { color: #2E7D32; }
-.ai-explain-panel-body .exp-label.wrong-label   { color: #C62828; }
-.ai-explain-panel-body .exp-label.question-label { color: #4527A0; }
+.ai-explain-panel-body .exp-label.correct-label { color: var(--correct-fg); }
+.ai-explain-panel-body .exp-label.wrong-label   { color: var(--wrong-fg); }
+.ai-explain-panel-body .exp-label.question-label { color: var(--violet-dark); }
 .ai-explain-panel .ai-exp-spinner {
   width: 18px; height: 18px; border-radius: 50%;
-  border: 3px solid rgba(69,39,160,.2); border-top-color: #4527A0;
+  border: 3px solid rgba(69,39,160,.2); border-top-color: var(--violet-dark);
   animation: cqspin .8s linear infinite;
 }
 .ai-explain-panel .ai-exp-error {
-  color: #C62828; font-size: .84rem; font-weight: 600; padding: 10px 0;
+  color: var(--wrong-fg); font-size: .84rem; font-weight: 600; padding: 10px 0;
 }
 .ai-explain-all-btn {
   display: inline-flex; align-items: center; gap: 7px;
-  background: #EDE7F6; color: #4527A0; border: 2px solid #9575CD;
+  background: var(--violet-pale); color: var(--violet-dark); border: 2px solid #9575CD;
   border-radius: 8px; padding: 11px 22px; font-family: var(--font);
   font-size: .95rem; font-weight: 700; cursor: pointer;
   transition: all .15s;
 }
-.ai-explain-all-btn:hover:not(:disabled) { background: #D1C4E9; }
+.ai-explain-all-btn:hover:not(:disabled) { background: var(--violet-pale-2); }
 .ai-explain-all-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── AI CHAT (per-question) ── */
@@ -1502,16 +1630,16 @@
   font-size: .8rem; font-weight: 700; cursor: pointer;
   transition: all .15s; margin-top: 8px; margin-left: 8px;
 }
-.ai-chat-btn:hover:not(:disabled) { background: #B3E5FC; border-color: #29B6F6; }
+.ai-chat-btn:hover:not(:disabled) { background: var(--blue-pale); border-color: #29B6F6; }
 
 .ai-apikey-btn {
   display: inline-flex; align-items: center; gap: 5px;
-  background: #F0F8FF; color: var(--accent); border: 1.5px solid #B0D4F0;
+  background: var(--surface-2); color: var(--accent); border: 1.5px solid var(--border-soft);
   border-radius: 7px; padding: 5px 12px; font-family: var(--font);
   font-size: .8rem; font-weight: 700; cursor: pointer;
   transition: all .15s; margin-top: 8px; margin-left: 8px;
 }
-.ai-apikey-btn:hover { background: #E3F2FD; border-color: var(--accent); }
+.ai-apikey-btn:hover { background: var(--chip-blue-bg); border-color: var(--accent); }
 .ai-apikey-btn .apikey-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 .ai-chat-panel { margin-top: 10px; }
@@ -1542,7 +1670,7 @@
   font-size: .87rem; line-height: 1.6; word-break: break-word;
 }
 .ai-chat-msg.user .ai-chat-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
-.ai-chat-msg.model .ai-chat-bubble { background: #fff; color: var(--text-main); border: 1px solid #B3E5FC; border-bottom-left-radius: 3px; }
+.ai-chat-msg.model .ai-chat-bubble { background: #fff; color: var(--text-main); border: 1px solid var(--blue-pale); border-bottom-left-radius: 3px; }
 .ai-chat-text + .ai-chat-text { margin-top: 6px; }
 .ai-chat-attach-thumb img {
   max-width: 160px; max-height: 160px; border-radius: 6px; margin-top: 6px; display: block;
@@ -1552,14 +1680,14 @@
   background: rgba(255,255,255,.25); border-radius: 6px;
   padding: 3px 8px; font-size: .78rem; font-weight: 700; margin-top: 6px;
 }
-.ai-chat-msg.model .ai-chat-file-chip { background: #EEF7FF; color: var(--accent); }
+.ai-chat-msg.model .ai-chat-file-chip { background: var(--surface-2-hover); color: var(--accent); }
 .ai-chat-bubble.ai-chat-loading {
   display: flex; align-items: center; gap: 10px;
 }
-.ai-chat-bubble.ai-chat-error { color: #C62828; border-color: #FFCDD2 !important; background: #FFEBEE; }
+.ai-chat-bubble.ai-chat-error { color: var(--wrong-fg); border-color: var(--red-pale) !important; background: var(--wrong-bg); }
 .ai-chat-error-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ai-chat-stop-btn, .ai-chat-retry-btn {
-  background: #C62828; color: #fff; border: none; border-radius: 6px;
+  background: var(--wrong-fg); color: #fff; border: none; border-radius: 6px;
   padding: 4px 10px; font-size: .78rem; font-weight: 700; cursor: pointer;
   font-family: var(--font); flex-shrink: 0;
 }
@@ -1571,7 +1699,7 @@
 }
 .ai-chat-pending-item {
   position: relative; display: flex; align-items: center;
-  background: #fff; border: 1.5px solid #B3E5FC; border-radius: 8px;
+  background: #fff; border: 1.5px solid var(--blue-pale); border-radius: 8px;
   padding: 4px 8px; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--accent);
 }
 .ai-chat-pending-item { max-width: 100%; }
@@ -1580,7 +1708,7 @@
 }
 .ai-chat-pending-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
 .ai-chat-pending-item button {
-  background: #C62828; color: #fff; border: none; border-radius: 50%;
+  background: var(--wrong-fg); color: #fff; border: none; border-radius: 50%;
   width: 18px; height: 18px; font-size: .7rem; font-weight: 800; cursor: pointer;
   display: flex; align-items: center; justify-content: center; line-height: 1; flex-shrink: 0;
 }
@@ -1590,19 +1718,19 @@
   padding: 10px 14px; border-top: 1px solid #D6EEFB; background: #fff;
 }
 .ai-chat-attach-btn {
-  background: #EEF7FF; border: 1.5px solid #B3E5FC; border-radius: 7px;
+  background: var(--surface-2-hover); border: 1.5px solid var(--blue-pale); border-radius: 7px;
   width: 38px; height: 38px; flex-shrink: 0; font-size: 1rem; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: background .15s;
 }
 .ai-chat-attach-btn:hover:not(:disabled) { background: #DCEFFF; }
 .ai-chat-attach-btn:disabled { opacity: .5; cursor: not-allowed; }
 .ai-chat-text-input {
-  flex: 1; border: 1.5px solid #B3E5FC; border-radius: 7px;
+  flex: 1; border: 1.5px solid var(--blue-pale); border-radius: 7px;
   padding: 9px 12px; font-family: var(--font); font-size: .9rem;
-  outline: none; background: #F7FBFF; color: var(--text-main);
+  outline: none; background: var(--surface-2); color: var(--text-main);
   transition: border-color .2s, box-shadow .2s;
 }
-.ai-chat-text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.12); }
+.ai-chat-text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.12); }
 .ai-chat-text-input:disabled { opacity: .6; }
 .ai-chat-send-btn {
   background: var(--accent); color: #fff; border: none; border-radius: 7px;
@@ -1616,7 +1744,7 @@
 .admin-btn {
   display: inline-flex; align-items: center; gap: 6px;
   background: rgba(255,200,0,.2); border: 2px solid rgba(255,200,0,.6);
-  color: #FFE082; padding: 7px 14px; border-radius: 8px;
+  color: var(--amber-glow); padding: 7px 14px; border-radius: 8px;
   font-family: var(--font); font-size: .85rem; font-weight: 800;
   cursor: pointer; margin-top: 10px;
   transition: background .15s;
@@ -1636,7 +1764,7 @@
   overflow: hidden;
 }
 .admin-modal-header {
-  background: #1B4F72; color: #fff;
+  background: var(--accent-dark); color: #fff;
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 22px; flex-shrink: 0;
 }
@@ -1652,47 +1780,47 @@
   display: flex; gap: 6px; margin-bottom: 4px;
 }
 .admin-source-tab {
-  flex: 1; padding: 9px; border-radius: 8px; border: 2px solid #B0D4F0;
-  background: #F7FBFF; font-family: var(--font); font-size: .82rem; font-weight: 700;
+  flex: 1; padding: 9px; border-radius: 8px; border: 2px solid var(--border-soft);
+  background: var(--surface-2); font-family: var(--font); font-size: .82rem; font-weight: 700;
   color: var(--text-muted); cursor: pointer; text-align: center; transition: all .15s;
 }
-.admin-source-tab.active { border-color: #1B4F72; background: #1B4F72; color: #fff; }
+.admin-source-tab.active { border-color: var(--accent-dark); background: var(--accent-dark); color: #fff; }
 
 .admin-quiz-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
 .admin-quiz-item {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  background: #F7FBFF; border: 1.5px solid #D8EAF7; border-radius: 8px;
+  background: var(--surface-2); border: 1.5px solid var(--border-soft-2); border-radius: 8px;
   padding: 10px 14px; cursor: pointer; transition: all .15s;
 }
-.admin-quiz-item:hover { border-color: var(--accent); background: #EEF7FF; }
-.admin-quiz-item.selected { border-color: #1B4F72; background: #EBF4FA; }
+.admin-quiz-item:hover { border-color: var(--accent); background: var(--surface-2-hover); }
+.admin-quiz-item.selected { border-color: var(--accent-dark); background: #EBF4FA; }
 .admin-quiz-item-info { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
 .admin-quiz-item-title { font-weight: 700; font-size: .9rem; color: var(--text-main); }
 .admin-quiz-item-meta { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .admin-quiz-item-check {
   width: 22px; height: 22px; border-radius: 50%;
-  border: 2px solid #B0D4F0; background: #fff;
+  border: 2px solid var(--border-soft); background: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: .8rem; flex-shrink: 0; transition: all .15s;
 }
 .admin-quiz-item.selected .admin-quiz-item-check {
-  border-color: #1B4F72; background: #1B4F72; color: #fff;
+  border-color: var(--accent-dark); background: var(--accent-dark); color: #fff;
 }
 
-.admin-assign-form { background: #F0F8FF; border: 1px solid #B0D4F0; border-radius: 10px; padding: 16px; }
-.admin-assign-title { font-size: .82rem; font-weight: 800; color: #1B4F72; text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px; }
+.admin-assign-form { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 16px; }
+.admin-assign-title { font-size: .82rem; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px; }
 .admin-field { margin-bottom: 12px; }
 .admin-field label { display: block; font-size: .8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .6px; }
 .admin-field select, .admin-field input[type="text"] {
-  width: 100%; padding: 10px 12px; border: 1.5px solid #B0D4F0; border-radius: 7px;
-  font-family: var(--font); font-size: .9rem; background: #fff;
+  width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-soft); border-radius: 7px;
+  font-family: var(--font); font-size: .9rem; background: var(--surface-2);
   color: var(--text-main); outline: none; appearance: none; -webkit-appearance: none;
 }
 .admin-field select:focus, .admin-field input[type="text"]:focus {
-  border-color: #1B4F72; box-shadow: 0 0 0 3px rgba(27,79,114,.12);
+  border-color: var(--accent-dark); box-shadow: 0 0 0 3px rgba(27,79,114,.12);
 }
 .admin-assign-btn {
-  background: #1B4F72; color: #fff; border: none; border-radius: 8px;
+  background: var(--accent-dark); color: #fff; border: none; border-radius: 8px;
   padding: 12px 22px; font-family: var(--font); font-size: .95rem; font-weight: 800;
   cursor: pointer; width: 100%; transition: filter .15s;
 }
@@ -1706,46 +1834,46 @@
   display: flex; align-items: center; gap: 8px; margin: 2px 0; cursor: pointer;
   padding: 3px 4px; border-radius: 6px; transition: background .12s;
 }
-.admin-publish-here-gap:hover { background: #F0F8FF; }
+.admin-publish-here-gap:hover { background: var(--surface-2); }
 .admin-publish-here-line {
-  flex: 1; height: 1px; background: #D8EAF7;
+  flex: 1; height: 1px; background: var(--border-soft-2);
 }
 .admin-publish-here-btn {
-  font-size: .7rem; font-weight: 800; color: #1B4F72; background: #EAF4FF;
-  border: 1.5px dashed #B0D4F0; border-radius: 20px; padding: 3px 10px;
+  font-size: .7rem; font-weight: 800; color: var(--accent-dark); background: #EAF4FF;
+  border: 1.5px dashed var(--border-soft); border-radius: 20px; padding: 3px 10px;
   white-space: nowrap; transition: all .12s;
 }
 .admin-publish-here-gap:hover .admin-publish-here-btn { border-style: solid; background: #DCEEFF; }
 .admin-publish-here-gap.admin-publish-here-active .admin-publish-here-btn {
-  background: #1B4F72; color: #fff; border-style: solid; border-color: #1B4F72;
+  background: var(--accent-dark); color: #fff; border-style: solid; border-color: var(--accent-dark);
 }
-.admin-publish-here-gap.admin-publish-here-active .admin-publish-here-line { background: #1B4F72; }
+.admin-publish-here-gap.admin-publish-here-active .admin-publish-here-line { background: var(--accent-dark); }
 .admin-assigned-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border-soft-2); border-radius: 8px;
   padding: 10px 14px; margin-bottom: 7px;
 }
 .admin-assigned-info { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
 .admin-assigned-name { font-weight: 700; font-size: .88rem; color: var(--text-main); }
 .admin-assigned-path { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .admin-remove-btn {
-  background: #FFEBEE; color: #C62828; border: 1px solid #EF9A9A;
+  background: var(--wrong-bg); color: var(--wrong-fg); border: 1px solid var(--red-soft-border);
   border-radius: 6px; padding: 5px 10px; font-family: var(--font);
   font-size: .78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
   transition: background .15s;
 }
-.admin-remove-btn:hover { background: #FFCDD2; }
+.admin-remove-btn:hover { background: var(--red-pale); }
 .admin-assigned-insert-summary {
-  font-size: .78rem; font-weight: 700; color: #1B4F72;
-  background: #EAF6FF; border: 1px solid #B0D4F0; border-radius: 8px;
+  font-size: .78rem; font-weight: 700; color: var(--accent-dark);
+  background: #EAF6FF; border: 1px solid var(--border-soft); border-radius: 8px;
   padding: 7px 11px; margin-bottom: 9px;
 }
 .admin-insert-btn-active { border-color: var(--accent) !important; font-weight: 800; box-shadow: 0 0 0 1.5px var(--accent) inset; }
 
 /* Admin panel top-level tabs (Publish / Curriculum) */
 .admin-panel-tabs {
-  display: flex; gap: 0; border-bottom: 2px solid #D8EAF7; flex-shrink: 0;
-  background: #F0F8FF;
+  display: flex; gap: 0; border-bottom: 2px solid var(--border-soft-2); flex-shrink: 0;
+  background: var(--surface-2);
 }
 .admin-panel-tab {
   flex: 1; padding: 11px 10px; border: none; background: none;
@@ -1753,34 +1881,34 @@
   color: var(--text-muted); cursor: pointer; border-bottom: 3px solid transparent;
   margin-bottom: -2px; transition: all .15s;
 }
-.admin-panel-tab.active { color: #1B4F72; border-bottom-color: #1B4F72; background: white; }
+.admin-panel-tab.active { color: var(--accent-dark); border-bottom-color: var(--accent-dark); background: white; }
 .admin-panel-tab:hover:not(.active) { background: #E8F4FB; color: var(--text-main); }
 
 /* Curriculum manager */
 .curr-section {
-  background: #F7FBFF; border: 1.5px solid #B0D4F0; border-radius: 10px; padding: 16px; margin-bottom: 4px;
+  background: var(--surface-2); border: 1.5px solid var(--border-soft); border-radius: 10px; padding: 16px; margin-bottom: 4px;
 }
 .curr-section-title {
-  font-size: .8rem; font-weight: 800; color: #1B4F72; text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px;
+  font-size: .8rem; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px;
 }
 .curr-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
 .curr-row label { display: block; font-size: .77rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
 .curr-row .curr-field { flex: 1; min-width: 100px; }
 .curr-row input, .curr-row select {
-  width: 100%; padding: 9px 11px; border: 1.5px solid #B0D4F0; border-radius: 7px;
-  font-family: var(--font); font-size: .88rem; background: white; color: var(--text-main); outline: none;
+  width: 100%; padding: 9px 11px; border: 1.5px solid var(--border-soft); border-radius: 7px;
+  font-family: var(--font); font-size: .88rem; background: var(--surface-2); color: var(--text-main); outline: none;
 }
-.curr-row input:focus, .curr-row select:focus { border-color: #1B4F72; box-shadow: 0 0 0 3px rgba(27,79,114,.12); }
+.curr-row input:focus, .curr-row select:focus { border-color: var(--accent-dark); box-shadow: 0 0 0 3px rgba(27,79,114,.12); }
 .curr-add-btn {
-  background: #1B4F72; color: #fff; border: none; border-radius: 7px;
+  background: var(--accent-dark); color: #fff; border: none; border-radius: 7px;
   padding: 9px 16px; font-family: var(--font); font-size: .84rem; font-weight: 800;
   cursor: pointer; white-space: nowrap; transition: filter .15s; flex-shrink: 0;
 }
 .curr-add-btn:hover { filter: brightness(1.12); }
-.curr-add-btn.secondary { background: #2E7D32; }
+.curr-add-btn.secondary { background: var(--correct-fg); }
 .curr-status { font-size: .82rem; color: var(--text-muted); padding: 4px 0; min-height: 22px; }
-.curr-status.ok { color: #2E7D32; font-weight: 700; }
-.curr-status.err { color: #C62828; font-weight: 700; }
+.curr-status.ok { color: var(--correct-fg); font-weight: 700; }
+.curr-status.err { color: var(--wrong-fg); font-weight: 700; }
 .curr-list {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 }
@@ -1789,16 +1917,16 @@
 .icon-picker-field { position: relative; }
 .icon-picker-trigger {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  border: 2px solid #B0D4F0; border-radius: 8px; background: #fff;
+  border: 2px solid var(--border-soft); border-radius: 8px; background: #fff;
   padding: 8px 10px; cursor: pointer; font-size: 1.25rem; line-height: 1;
   min-width: 56px; transition: border-color .15s;
 }
-.icon-picker-trigger:hover { border-color: #1B4F72; }
+.icon-picker-trigger:hover { border-color: var(--accent-dark); }
 .icon-picker-trigger .ip-caret { font-size: .65rem; color: var(--text-muted); }
 .icon-picker-pop {
   position: fixed; z-index: 15000;
   width: 300px; max-width: calc(100vw - 24px); max-height: 320px; overflow-y: auto;
-  background: #fff; border: 1px solid #B0D4F0; border-radius: 10px;
+  background: #fff; border: 1px solid var(--border-soft); border-radius: 10px;
   box-shadow: 0 8px 28px rgba(20,40,60,.22); padding: 10px;
 }
 .icon-picker-pop.hidden { display: none; }
@@ -1814,7 +1942,7 @@
   font-size: 1.25rem; padding: 5px 0; border-radius: 6px; cursor: pointer;
   transition: background .12s;
 }
-.icon-picker-grid span:hover { background: #EAF4FB; }
+.icon-picker-grid span:hover { background: var(--bg-main); }
 .icon-picker-add-row {
   display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #EEF3F7;
 }
@@ -1823,24 +1951,24 @@
   font-family: var(--font); font-size: .8rem; text-align: center;
 }
 .icon-picker-add-row button {
-  background: #2E7D32; color: #fff; border: none; border-radius: 6px;
+  background: var(--correct-fg); color: #fff; border: none; border-radius: 6px;
   padding: 6px 10px; font-size: .78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
 }
 .icon-picker-add-row button:hover { filter: brightness(1.1); }
 .curr-tag {
-  background: #E3F2FD; border: 1px solid #90CAF9; color: #0D47A1;
+  background: var(--chip-blue-bg); border: 1px solid var(--nav-default); color: var(--nav-current);
   border-radius: 20px; padding: 3px 12px; font-size: .77rem; font-weight: 700;
 }
-.curr-tag.mod { background: #F3E5F5; border-color: #CE93D8; color: #4A148C; }
-.curr-tag.subj { background: #E8F5E9; border-color: #A5D6A7; color: #1B5E20; }
+.curr-tag.mod { background: var(--violet-pale); border-color: var(--violet-border); color: var(--violet-darkest); }
+.curr-tag.subj { background: var(--correct-bg); border-color: var(--green-pale-border); color: #1B5E20; }
 
 /* API key prompt for explanations */
 .ai-key-prompt {
-  background: #F8F5FF; border: 1.5px solid #B39DDB; border-radius: 10px;
+  background: #F8F5FF; border: 1.5px solid var(--violet-mid-border); border-radius: 10px;
   padding: 16px 18px; margin: 10px 0;
 }
 .ai-key-prompt-title {
-  font-size: .88rem; font-weight: 800; color: #4527A0; margin-bottom: 6px;
+  font-size: .88rem; font-weight: 800; color: var(--violet-dark); margin-bottom: 6px;
 }
 .ai-key-prompt-sub {
   font-size: .8rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5;
@@ -1849,16 +1977,16 @@
   display: flex; gap: 8px; align-items: center;
 }
 .ai-key-prompt-row input {
-  flex: 1; padding: 9px 12px; border: 1.5px solid #B39DDB; border-radius: 7px;
+  flex: 1; padding: 9px 12px; border: 1.5px solid var(--violet-mid-border); border-radius: 7px;
   font-family: var(--font); font-size: .88rem; background: white; outline: none;
 }
-.ai-key-prompt-row input:focus { border-color: #7E57C2; box-shadow: 0 0 0 3px rgba(126,87,194,.15); }
+.ai-key-prompt-row input:focus { border-color: var(--violet-strong); box-shadow: 0 0 0 3px rgba(126,87,194,.15); }
 .ai-key-prompt-row button {
-  background: #7E57C2; color: white; border: none; border-radius: 7px;
+  background: var(--violet-strong); color: white; border: none; border-radius: 7px;
   padding: 9px 16px; font-family: var(--font); font-size: .88rem; font-weight: 700;
   cursor: pointer; white-space: nowrap;
 }
-.ai-key-prompt-row button:hover { background: #6A1B9A; }
+.ai-key-prompt-row button:hover { background: var(--violet-dark); }
 
 /* ── API KEY MANAGER (multi-key) ── */
 .apikey-open-btn {
@@ -1871,13 +1999,13 @@
 }
 .apikey-open-btn:hover { background: rgba(255,255,255,.3); }
 .apikey-open-btn.ghost {
-  background: #F0F8FF; border: 1.5px solid #B0D4F0; color: var(--accent);
+  background: var(--surface-2); border: 1.5px solid var(--border-soft); color: var(--accent);
   margin-top: 0;
 }
-.apikey-open-btn.ghost:hover { background: #E3F2FD; }
+.apikey-open-btn.ghost:hover { background: var(--chip-blue-bg); }
 .apikey-badge {
   display: inline-flex; align-items: center; gap: 7px;
-  background: #F0F8FF; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  background: var(--surface-2); border: 1.5px solid var(--border-soft); border-radius: 8px;
   padding: 8px 12px; font-size: .85rem; font-weight: 700; color: var(--text-main);
 }
 .apikey-badge .apikey-dot {
@@ -1888,14 +2016,14 @@
 .apikey-list { display: flex; flex-direction: column; gap: 10px; }
 .apikey-item {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  background: #F7FBFF; border: 2px solid #D8EAF7; border-radius: 10px;
+  background: var(--surface-2); border: 2px solid var(--border-soft-2); border-radius: 10px;
   padding: 12px 14px; transition: border-color .15s, box-shadow .15s;
   min-width: 0;
 }
 .apikey-item.active {
   border-color: var(--apikey-color, var(--accent));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--apikey-color, var(--accent)) 18%, transparent);
-  background: #FFFFFF;
+  background: var(--bg-card);
 }
 .apikey-num {
   width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
@@ -1910,7 +2038,7 @@
   color: var(--text-main); font-family: var(--font); padding: 2px 4px; border-radius: 4px;
   min-width: 0; flex: 1;
 }
-.apikey-label-input:focus { background: #EEF7FF; outline: none; }
+.apikey-label-input:focus { background: var(--surface-2-hover); outline: none; }
 .apikey-label-display {
   font-weight: 800; font-size: .92rem; color: var(--text-main);
   padding: 2px 4px; min-width: 0; overflow-wrap: anywhere;
@@ -1933,17 +2061,22 @@
 }
 .apikey-item-actions button:hover { filter: brightness(1.08); }
 .apikey-use-btn { background: var(--apikey-color, var(--accent)); color: #fff; }
-.apikey-use-btn:disabled { opacity: .55; cursor: default; }
-.apikey-view-btn { background: #ECEFF1; color: var(--text-main); }
-.apikey-edit-btn { background: #EDE7F6; color: #4527A0; }
-.apikey-del-btn { background: #FFEBEE; color: #C62828; }
+button.apikey-use-btn:disabled {
+  opacity: 1; cursor: default;
+  background: color-mix(in srgb, var(--apikey-color, var(--accent)) 20%, transparent);
+  color: var(--apikey-color, var(--accent));
+  border: 1.5px solid var(--apikey-color, var(--accent));
+}
+button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-main); border: 1.5px solid var(--border-soft); }
+.apikey-edit-btn { background: var(--violet-pale); color: var(--violet-dark); }
+.apikey-del-btn { background: var(--wrong-bg); color: var(--wrong-fg); }
 .apikey-edit-row { margin-top: 4px; }
 .apikey-edit-row input {
-  width: 100%; padding: 8px 10px; border: 1.5px solid #B0D4F0; border-radius: 7px;
+  width: 100%; padding: 8px 10px; border: 1.5px solid var(--border-soft); border-radius: 7px;
   font-family: var(--font); font-size: .85rem; color: var(--text-main);
-  background: #F7FBFF; outline: none; box-sizing: border-box;
+  background: var(--surface-2); outline: none; box-sizing: border-box;
 }
-.apikey-edit-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.apikey-edit-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.15); }
 .apikey-edit-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .apikey-edit-actions button {
   border: none; border-radius: 7px; cursor: pointer; font-family: var(--font);
@@ -1951,24 +2084,24 @@
 }
 .apikey-edit-actions button:hover { filter: brightness(1.08); }
 .apikey-add-form {
-  background: var(--bg-card); border: 1.5px dashed #B0D4F0; border-radius: 10px;
+  background: var(--bg-card); border: 1.5px dashed var(--border-soft); border-radius: 10px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
 }
 .apikey-add-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .apikey-add-row input {
-  padding: 11px 13px; border: 1.5px solid #B0D4F0; border-radius: 8px;
+  padding: 11px 13px; border: 1.5px solid var(--border-soft); border-radius: 8px;
   font-family: var(--font); font-size: .9rem; color: var(--text-main);
-  background: #F7FBFF; outline: none;
+  background: var(--surface-2); outline: none;
 }
-.apikey-add-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(27,138,196,.15); }
+.apikey-add-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,110,130,.15); }
 #apikeyValueInput { flex: 1; min-width: 180px; }
 .apikey-empty {
   text-align: center; padding: 22px 16px; color: var(--text-muted); font-size: .88rem;
 }
 .apikey-empty .ns-icon { font-size: 2rem; margin-bottom: 6px; display: block; }
 .apikey-pending-note {
-  background: #FFF8E1; border-left: 3px solid #FFB300; border-radius: 8px;
-  padding: 10px 14px; font-size: .85rem; color: #E65100; font-weight: 600;
+  background: var(--amber-pale); border-left: 3px solid var(--amber-mid); border-radius: 8px;
+  padding: 10px 14px; font-size: .85rem; color: var(--unanswered-fg); font-weight: 600;
 }
 @media (max-width: 480px) {
   .comm-filter-row { flex-direction: column; }
@@ -2003,6 +2136,60 @@
   </style>
 </head>
 <body>
+<!-- ══════════════════════════════════════════════
+     INTRO SIGIL SEQUENCE — purely aesthetic, fixed-timing,
+     not tied to real asset loading. Draws in, glows, pulses,
+     then wipes away to reveal the app underneath.
+══════════════════════════════════════════════ -->
+<div id="introScreen" aria-hidden="true">
+  <div class="intro-inner">
+    <svg id="introSigilSvg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle class="sigil-path sigil-ring" cx="50" cy="50" r="44" pathLength="1"></circle>
+      <circle class="sigil-ring-spin" cx="50" cy="50" r="44"></circle>
+      <circle class="sigil-pulse-ring" cx="50" cy="50" r="44"></circle>
+      <circle class="sigil-path sigil-q" cx="37" cy="50" r="15" pathLength="1"></circle>
+      <path class="sigil-path sigil-q-tail" d="M45 59 L53 68" pathLength="1"></path>
+      <path class="sigil-path sigil-b-stem" d="M67 35 L67 65" pathLength="1"></path>
+      <path class="sigil-path sigil-b-upper" d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" pathLength="1"></path>
+      <path class="sigil-path sigil-b-lower" d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" pathLength="1"></path>
+    </svg>
+    <div class="intro-wordmark" id="introWordmark">
+      <span class="intro-word-main">ANU MSP QUESTION BANK</span>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var screenEl = document.getElementById('introScreen');
+    var svgEl = document.getElementById('introSigilSvg');
+    var wordEl = document.getElementById('introWordmark');
+
+    function finish() {
+      if (screenEl && screenEl.parentNode) screenEl.parentNode.removeChild(screenEl);
+    }
+
+    if (reduceMotion) {
+      // Respect reduced-motion: skip the choreography, remove almost immediately.
+      setTimeout(function () {
+        if (screenEl) { screenEl.classList.add('intro-hide'); setTimeout(finish, 320); }
+      }, 250);
+      return;
+    }
+
+    setTimeout(function () { if (svgEl) svgEl.classList.add('sigil-glow'); }, 900);
+    setTimeout(function () { if (wordEl) wordEl.classList.add('show'); }, 1350);
+    setTimeout(function () {
+      if (screenEl) {
+        screenEl.classList.add('intro-hide');
+        setTimeout(finish, 750);
+      }
+    }, 2000);
+  })();
+
+
+</script>
+
 <!-- FIRESTORE LOADING TOAST -->
 <div id="fsLoadingToast">
   <div class="fs-toast-spinner"></div>
@@ -2138,8 +2325,21 @@
        HOME SCREEN
   ══════════════════════════════════════════════ -->
   <div id="home">
-    <div class="home-hero">
-      <h1>🏥&nbsp; ANU MSP Question Bank</h1>
+    <div class="home-hero carved-surface">
+      <h1>
+        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="44" stroke-width="1.2" opacity=".35"/>
+          <circle class="bm-ring" cx="50" cy="50" r="44" stroke-width="1" opacity=".55"/>
+          <g class="bm-m" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="37" cy="50" r="15" stroke-width="2.2"/>
+            <path d="M45 59 L53 68" stroke-width="2.2"/>
+            <path d="M67 35 L67 65" stroke-width="2.2"/>
+            <path d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" stroke-width="2.2"/>
+            <path d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" stroke-width="2.2"/>
+          </g>
+        </svg>
+        ANU MSP Question Bank
+      </h1>
       <p>Choose your subject, pick a lecture, and test your knowledge</p>
       <div id="authAreaHome" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 6px;flex-wrap:wrap;"></div>
         <button class="stats-open-btn" onclick="openStats()">📊&nbsp; My Statistics</button>
@@ -2185,12 +2385,12 @@
         <!-- Step 4: Lecture -->
         <div class="field-group" id="lectureGroup">
           <div class="field-label">④ Select Lecture(s)</div>
-          <div id="lectureCheckList" style="max-height:220px;overflow-y:auto;border:1.5px solid #B0D4F0;border-radius:8px;background:#F7FBFF;padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+          <div id="lectureCheckList" style="max-height:220px;overflow-y:auto;border:1.5px solid var(--border-soft);border-radius:8px;background:var(--surface-2);padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
             <div style="color:var(--text-muted);font-size:.9rem;padding:8px;">— Choose a subject first —</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
-            <button class="btn" onclick="selectAllLectures()" style="background:#EEF7FF;color:var(--accent);border:1.5px solid var(--accent);padding:6px 14px;font-size:.82rem;border-radius:6px;">☑ All</button>
-            <button class="btn" onclick="clearAllLectures()" style="background:#F7FBFF;color:var(--text-muted);border:1.5px solid #B0D4F0;padding:6px 14px;font-size:.82rem;border-radius:6px;">☐ Clear</button>
+            <button class="btn" onclick="selectAllLectures()" style="background:var(--surface-2-hover);color:var(--accent);border:1.5px solid var(--accent);padding:6px 14px;font-size:.82rem;border-radius:6px;">☑ All</button>
+            <button class="btn" onclick="clearAllLectures()" style="background:var(--surface-2);color:var(--text-muted);border:1.5px solid var(--border-soft);padding:6px 14px;font-size:.82rem;border-radius:6px;">☐ Clear</button>
             <div class="q-count-badge hidden" id="qCountBadge" style="margin-top:0;">
               📋 <span id="qCountText">0 questions</span>
             </div>
@@ -2204,7 +2404,7 @@
           <div class="field-label">⑤ Duration (minutes) &amp; Options</div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <input type="number" id="timeInput" value="10" min="1" max="120" style="flex:1;min-width:110px;" />
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:700;font-size:.9rem;color:var(--text-main);background:#F7FBFF;border:1.5px solid #B0D4F0;border-radius:8px;padding:10px 14px;white-space:nowrap;">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:700;font-size:.9rem;color:var(--text-main);background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:10px 14px;white-space:nowrap;">
               <input type="checkbox" id="shuffleToggle" style="width:16px;height:16px;accent-color:var(--accent);" />
               🔀 Shuffle
             </label>
@@ -2221,16 +2421,36 @@
         <div class="legend-item"><div class="legend-dot" style="background:var(--nav-default)"></div> Unanswered</div>
       </div>
     </div>
+
+    <div class="home-footer carved-surface">
+      <div class="home-footer-credit">Created by Mahmoud Talat</div>
+      <a class="home-footer-feedback" href="https://t.me/Mahmoud_M_Talat" target="_blank" rel="noopener noreferrer">💬&nbsp; Send Feedback</a>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════
        QUIZ SCREEN
   ══════════════════════════════════════════════ -->
   <div id="quiz" class="hidden">
-    <div class="header">
-      <div class="header-title"><span>🏥</span>&nbsp; ANU MSP Question Bank</div>
+    <div class="header carved-surface">
+      <div class="header-title">
+        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="44" stroke-width="1.2" opacity=".35"/>
+          <circle class="bm-ring" cx="50" cy="50" r="44" stroke-width="1" opacity=".55"/>
+          <g class="bm-m" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="37" cy="50" r="15" stroke-width="2.2"/>
+            <path d="M45 59 L53 68" stroke-width="2.2"/>
+            <path d="M67 35 L67 65" stroke-width="2.2"/>
+            <path d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" stroke-width="2.2"/>
+            <path d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" stroke-width="2.2"/>
+          </g>
+        </svg>
+        ANU MSP Question Bank
+      </div>
       <div id="authAreaQuiz" style="display:flex;align-items:center;gap:8px;"></div>
-      <div class="timer" id="timerDisplay">00:00</div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="timer" id="timerDisplay">00:00</div>
+      </div>
     </div>
     <div class="quiz-body">
       <div class="q-card">
@@ -2260,7 +2480,7 @@
        RESULTS SCREEN
   ══════════════════════════════════════════════ -->
   <div id="results" class="hidden">
-    <div class="results-header">
+    <div class="results-header carved-surface">
       <div class="results-title" id="resultsTitle">📝&nbsp; Quiz Results</div>
       <div class="results-score-badge" id="scoreBadge"></div>
     </div>
@@ -2268,7 +2488,7 @@
     <div class="results-footer">
       <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
       <button class="ai-explain-all-btn" id="explainAllBtn" onclick="explainAllQuestions()">🤖&nbsp; Explain All Questions</button>
-      <button onclick="openApiKeyManager()" style="background:#F0F8FF;color:var(--accent);border:1.5px solid var(--accent);padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">🔑&nbsp; Manage APIs</button>
+      <button onclick="openApiKeyManager()" style="background:var(--surface-2);color:var(--accent);border:1.5px solid var(--accent);padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">🔑&nbsp; Manage APIs</button>
     </div>
   </div>
 
@@ -2508,7 +2728,7 @@ function updateAuthUI(user) {
     // Logged-out state
     const signInHTML = `
       <button onclick="fbSignIn()"
-              style="background:white;color:#1B8AC4;border:none;padding:8px 16px;
+              style="background:white;color:var(--accent);border:none;padding:8px 16px;
                      border-radius:8px;cursor:pointer;font-weight:800;font-size:.85rem;
                      display:flex;align-items:center;gap:7px;font-family:var(--font);
                      box-shadow:0 2px 8px rgba(0,0,0,.15);">
@@ -3112,18 +3332,6 @@ function submitQuiz() {
   const pct   = Math.round(score / total * 100);
   const emoji = pct === 100 ? '🏆' : pct >= 70 ? '🎉' : '📝';
   if (pct === 100) launchConfetti();
-  // Easter egg: cumulative correct questions milestone
-const eggStats = loadStats();
-const prevTotal = eggStats.totalCorrect - score; // before this quiz
-const newTotal = eggStats.totalCorrect;
-const threshold = eggStats.eggThreshold || 200;
-
-if (prevTotal < threshold && newTotal >= threshold) {
-  const nextThreshold = threshold === 200 ? 400 : threshold + 400;
-  eggStats.eggThreshold = nextThreshold;
-  persistStats(eggStats);
-  launchWaterFlood();
-}
 
   document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results`;
   const totalTime = Object.values(questionTimes).reduce((a,b) => a+b, 0);
@@ -3135,7 +3343,7 @@ if (prevTotal < threshold && newTotal >= threshold) {
   document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results  ·  ⏱ avg ${avgLabel}/question`;
   const badge = document.getElementById('scoreBadge');
   badge.textContent  = `${score} / ${total}  (${pct}%)`;
-  badge.style.background = pct >= 70 ? '#A5D6A7' : '#FFCDD2';
+  badge.style.background = pct >= 70 ? 'var(--green-pale-border)' : 'var(--red-pale)';
   const _totalSecs  = Object.values(questionTimes).reduce((a,b)=>a+b,0);
   const _timedQs    = Object.keys(questionTimes).length;
   const _unanswered = currentQuestions.length - Object.keys(userAnswers).length;
@@ -3178,15 +3386,15 @@ function buildResults() {
   body.innerHTML = '';
   if (correctToWrong > 0 || wrongToCorrect > 0) {
     const summary = document.createElement('div');
-    summary.style.cssText = 'background:#fff;border:1px solid #B0D4F0;border-radius:10px;padding:14px 20px;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:4px;';
+    summary.style.cssText = 'background:#fff;border:1px solid var(--border-soft);border-radius:10px;padding:14px 20px;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:4px;';
     summary.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:1.3rem">🔄</span>
         <div>
           <div style="font-size:.78rem;font-weight:700;color:#5A7080;text-transform:uppercase;letter-spacing:.8px;">Answer Changes</div>
           <div style="display:flex;gap:16px;margin-top:4px;flex-wrap:wrap;">
-            <span style="font-weight:700;color:#C62828;">✘ Correct → Wrong: ${correctToWrong}</span>
-            <span style="font-weight:700;color:#2E7D32;">✔ Wrong → Correct: ${wrongToCorrect}</span>
+            <span style="font-weight:700;color:var(--wrong-fg);">✘ Correct → Wrong: ${correctToWrong}</span>
+            <span style="font-weight:700;color:var(--correct-fg);">✔ Wrong → Correct: ${wrongToCorrect}</span>
           </div>
         </div>
       </div>`;
@@ -3272,7 +3480,7 @@ if (changeLog.length > 0) {
 
       let bg='', fg='', pfx='';
       if (isCorrectOpt)      { bg='#C8E6C9'; fg='#1B5E20'; pfx='✔'; }
-      else if (isUserOpt)    { bg='#FFCDD2'; fg='#B71C1C'; pfx='✘'; }
+      else if (isUserOpt)    { bg='var(--red-pale)'; fg='var(--red-deep)'; pfx='✘'; }
 
       const row = document.createElement('div');
       row.className = 'r-option';
@@ -3581,13 +3789,13 @@ function renderStatsModal() {
     const nl = document.createElement('div');
     nl.className = 'net-label';
     if (net > 0) {
-      nl.style.cssText = 'background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7';
+      nl.style.cssText = 'background:var(--correct-bg);color:var(--correct-fg);border:1px solid var(--green-pale-border)';
       nl.textContent   = `✔ Net gain: changing answers gave you +${net} extra correct`;
     } else if (net < 0) {
-      nl.style.cssText = 'background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A';
+      nl.style.cssText = 'background:var(--wrong-bg);color:var(--wrong-fg);border:1px solid var(--red-soft-border)';
       nl.textContent   = `✘ Net loss: changing answers cost you ${Math.abs(net)} correct`;
     } else {
-      nl.style.cssText = 'background:#F7FBFF;color:var(--text-muted);border:1px solid #B0D4F0';
+      nl.style.cssText = 'background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-soft)';
       nl.textContent   = `Neutral: answer changes had no net effect`;
     }
     sec2.appendChild(nl);
@@ -3699,7 +3907,7 @@ function renderRetakeSelector() {
   st.history.forEach((h, idx) => {
     const count = (h.wrongQuestions || []).length;
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:12px;background:#F7FBFF;border:1px solid #D8EAF7;border-radius:8px;padding:10px 14px;cursor:' + (count > 0 ? 'pointer' : 'not-allowed') + ';opacity:' + (count > 0 ? '1' : '.5') + ';';
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--border-soft-2);border-radius:8px;padding:10px 14px;cursor:' + (count > 0 ? 'pointer' : 'not-allowed') + ';opacity:' + (count > 0 ? '1' : '.5') + ';';
     const lecShort = h.lecture.length > 42 ? h.lecture.substring(0, 42) + '…' : h.lecture;
     row.innerHTML = `
       <input type="checkbox" data-idx="${idx}" ${count === 0 ? 'disabled' : ''} style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0;" />
@@ -3720,7 +3928,7 @@ function renderRetakeSelector() {
   selectAllRow.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
 
   const selectAllBtn = document.createElement('button');
-  selectAllBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1.5px solid var(--accent);background:#EEF7FF;color:var(--accent);font-weight:700;cursor:pointer;font-size:.85rem;';
+  selectAllBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1.5px solid var(--accent);background:var(--surface-2-hover);color:var(--accent);font-weight:700;cursor:pointer;font-size:.85rem;';
   selectAllBtn.textContent = '☑ Select All';
   selectAllBtn.onclick = () => {
     document.querySelectorAll('#retakeBody input[type=checkbox]:not(:disabled)')
@@ -3728,7 +3936,7 @@ function renderRetakeSelector() {
   };
 
   const clearBtn = document.createElement('button');
-  clearBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1.5px solid #B0D4F0;background:#F7FBFF;color:var(--text-muted);font-weight:700;cursor:pointer;font-size:.85rem;';
+  clearBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1.5px solid var(--border-soft);background:var(--surface-2);color:var(--text-muted);font-weight:700;cursor:pointer;font-size:.85rem;';
   clearBtn.textContent = '☐ Clear All';
   clearBtn.onclick = () => {
     document.querySelectorAll('#retakeBody input[type=checkbox]')
@@ -3762,69 +3970,6 @@ function renderRetakeSelector() {
   };
   body.appendChild(retakeBtn);
 }
-function launchWaterFlood() {
-  document.getElementById('app').classList.add('flush-app');
-  const overlay = document.createElement('div');
-  overlay.className = 'water-flood-overlay';
-  overlay.id = 'waterFloodOverlay';
-  overlay.innerHTML = `
-    <div class="water-flood-body"></div>
-    <div class="water-flood-message">
-      <div class="water-flood-msg-box">
-        <div class="wf-icon">🚽</div>
-        <div class="wf-title">You Don't Need This Anymore!</div>
-        <div class="wf-sub">You've answered enough questions correctly to flush this whole app down the drain.<br><br>Go ace that exam! 💪</div>
-        <button class="wf-btn" onclick="dismissWaterFlood()">⟵ Back to Reality</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-function dismissWaterFlood() {
-  const ov = document.getElementById('waterFloodOverlay');
-  if (ov) ov.remove();
-  document.getElementById('app').classList.remove('flush-app');
-  showScreen('results');
-}
-/* ══════════════════════════════════════════════════════════
-   YOU DIED IDLE EASTER EGG
-══════════════════════════════════════════════════════════ */
-(function initYouDied() {
-  const IDLE_SECS = 1200; // ← change idle seconds here
-
-  let idleTimer = null;
-
-  function showYouDied() {
-    if (document.getElementById('youDiedOverlay')) return;
-    const overlay = document.createElement('div');
-    overlay.id = 'youDiedOverlay';
-    overlay.innerHTML = `
-      <div class="yd-text">You Died</div>
-      <div class="yd-sub">Slain by inactivity &nbsp;·&nbsp; Tap or press any key to continue</div>
-    `;
-    overlay.addEventListener('click', dismissYouDied);
-    document.addEventListener('keydown', dismissYouDied, { once: true });
-    document.body.appendChild(overlay);
-  }
-
-  function dismissYouDied() {
-    const ov = document.getElementById('youDiedOverlay');
-    if (ov) ov.remove();
-    resetIdleTimer();
-  }
-
-  function resetIdleTimer() {
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(showYouDied, IDLE_SECS * 1000);
-  }
-
-  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(evt =>
-    document.addEventListener(evt, resetIdleTimer, { passive: true })
-  );
-
-  resetIdleTimer();
-})();
-
 /* ══════════════════════════════════════════════════════════
    API KEY MANAGER — multiple Gemini API keys, one active
    Single shared place used by AI explanations, chat, and
@@ -3835,7 +3980,7 @@ const AI_EXPLAIN_KEY_STORE = 'anu_msp_gemini_api_key'; // legacy single-key stor
 const API_KEYS_STORE       = 'anu_msp_gemini_api_keys_v2';     // [{id,label,key,color}]
 const API_ACTIVE_ID_STORE  = 'anu_msp_gemini_active_key_id_v2';
 
-const API_KEY_COLORS = ['#1B8AC4','#8E24AA','#43A047','#FB8C00','#E53935','#00897B','#5E35B1','#D81B60','#3949AB','#6D4C41'];
+const API_KEY_COLORS = ['var(--accent)','#8E24AA','#43A047','#FB8C00','#E53935','#00897B','#5E35B1','#D81B60','#3949AB','#6D4C41'];
 
 let _apiKeyPendingCallback = null; // callback to resume once a key becomes active
 
@@ -4007,7 +4152,7 @@ function apiKeyLabelChanged(id, value) {
 function submitNewApiKey() {
   const valueInp = document.getElementById('apikeyValueInput');
   const key = (valueInp ? valueInp.value : '').trim();
-  if (!key) { if (valueInp) valueInp.style.borderColor = '#C62828'; return; }
+  if (!key) { if (valueInp) valueInp.style.borderColor = 'var(--wrong-fg)'; return; }
 
   // Name and colour are always auto-assigned — the user has no control over them.
   addApiKey(key, '', null);
@@ -4035,7 +4180,7 @@ function cancelEditApiKey() {
 function submitEditApiKey(id) {
   const inp    = document.getElementById('apikeyEditInput_' + id);
   const newKey = (inp ? inp.value : '').trim();
-  if (!newKey) { if (inp) inp.style.borderColor = '#C62828'; return; }
+  if (!newKey) { if (inp) inp.style.borderColor = 'var(--wrong-fg)'; return; }
 
   updateApiKeyValue(id, newKey);
   _apiKeyEditingId = null;
@@ -4050,11 +4195,11 @@ function toggleApiKeyVisibility(btn, id) {
   if (span.dataset.shown === '1') {
     span.textContent = maskApiKey(entry.key);
     span.dataset.shown = '0';
-    btn.textContent = '👁';
+    btn.textContent = 'Show';
   } else {
     span.textContent = entry.key;
     span.dataset.shown = '1';
-    btn.textContent = '🙈';
+    btn.textContent = 'Hide';
   }
 }
 
@@ -4099,7 +4244,7 @@ function renderApiKeyManager() {
           ${isEditing ? `
           <div class="apikey-edit-row">
             <input type="password" id="apikeyEditInput_${k.id}" value="${escapeHtml(k.key)}"
-              oninput="this.style.borderColor='#B0D4F0'" placeholder="Paste new Gemini API key" />
+              oninput="this.style.borderColor='var(--border-soft)'" placeholder="Paste new Gemini API key" />
           </div>
           <div id="apikeyEditStatus_${k.id}"></div>
           <div class="apikey-edit-actions">
@@ -4109,7 +4254,7 @@ function renderApiKeyManager() {
           ` : `
           <div class="apikey-masked-row">
             <span class="apikey-masked" id="apikeyMasked_${k.id}" data-shown="0">${maskApiKey(k.key)}</span>
-            <button class="apikey-view-btn" style="padding:2px 6px;font-size:.7rem;" onclick="toggleApiKeyVisibility(this,'${k.id}')" type="button">👁</button>
+            <button class="apikey-view-btn" style="padding:2px 6px;font-size:.7rem;" onclick="toggleApiKeyVisibility(this,'${k.id}')" type="button">Show</button>
           </div>
           `}
         </div>
@@ -4132,7 +4277,7 @@ function renderApiKeyManager() {
       Its name and colour are assigned automatically — just paste your Gemini key below.
     </div>
     <div class="apikey-add-row">
-      <input type="password" id="apikeyValueInput" placeholder="Paste your Gemini API key here" oninput="this.style.borderColor='#B0D4F0'" style="flex:1;min-width:180px;" />
+      <input type="password" id="apikeyValueInput" placeholder="Paste your Gemini API key here" oninput="this.style.borderColor='var(--border-soft)'" style="flex:1;min-width:180px;" />
     </div>
     <div id="apikeyAddStatus"></div>
     <button class="cq-btn" id="apikeyAddBtn" onclick="submitNewApiKey()" type="button">💾 Save Key</button>
@@ -4490,7 +4635,7 @@ async function explainQuestion(i, forceRegenerate = false) {
           <div class="ai-exp-spinner"></div>
           Getting AI explanation…
         </span>
-        <button onclick="stopExplainQuestion(${i})" style="background:#C62828;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font);flex-shrink:0;">⏹ Stop</button>
+        <button onclick="stopExplainQuestion(${i})" style="background:var(--wrong-fg);color:white;border:none;border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font);flex-shrink:0;">⏹ Stop</button>
       </div>
     </div>`;
 
@@ -5188,6 +5333,12 @@ let cqSplitState = null;
 let cqEditingQuizId = null; // id of the saved quiz currently being edited, or null
 let cqEditQuestions = null; // working copy of that quiz's questions while the editor is open
 
+// Where the inline editor above is currently mounted: the normal Custom
+// Quizzes modal, or the admin panel's "My Custom Quizzes" list. Controls
+// which container id the editor renders into and which screen refreshes
+// itself once the editor closes or saves.
+let cqEditorContext = 'quiz'; // 'quiz' | 'admin'
+
 // ── Writing a brand-new quiz by hand (no AI) — reuses the same editor
 //    as above, just starts from a blank slate instead of an existing quiz ──
 let cqCreatingNew  = false; // true while the "write your own" composer is open
@@ -5447,7 +5598,7 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
       <div class="cq-bulk-ai-tool-row">
         <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFillBtn" type="button"
           ${busy ? 'disabled' : ''} onclick="_editorBulkFillChoices('${editorKey}')"
-          style="background:#E65100;color:#fff;">🧩 Fill Choices (All)</button>
+          style="background:var(--unanswered-fg);color:#fff;">🧩 Fill Choices (All)</button>
         <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkFillStopBtn"
           style="${busy && activeTool === 'Fill' ? 'display:inline-block;' : ''}"
           title="Stop Fill Choices" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
@@ -5459,7 +5610,7 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
       <div class="cq-bulk-ai-tool-row">
         <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkRefineBtn" type="button"
           ${busy ? 'disabled' : ''} onclick="_editorBulkRefineQuestions('${editorKey}')"
-          style="background:#6A1B9A;color:#fff;">🪄 Refine Questions (All)</button>
+          style="background:var(--violet-dark);color:#fff;">🪄 Refine Questions (All)</button>
         <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkRefineStopBtn"
           style="${busy && activeTool === 'Refine' ? 'display:inline-block;' : ''}"
           title="Stop Refine Questions" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
@@ -5694,7 +5845,7 @@ function _renderReorderButtons(editorKey, i, total) {
       <span style="font-size:.7rem;font-weight:700;color:var(--text-muted);">#</span>
       <input type="number" id="${inputId}" min="1" max="${total}" step="1" value="${i + 1}"
         onkeydown="if(event.key==='Enter'){event.preventDefault();_editorMoveQuestionTo('${editorKey}', ${i}, '${inputId}');}"
-        style="width:48px;padding:3px 4px;border:1.5px solid #B0D4F0;border-radius:5px;
+        style="width:48px;padding:3px 4px;border:1.5px solid var(--border-soft);border-radius:5px;
           font-family:var(--font);font-size:.72rem;text-align:center;" />
       <button class="cq-edit-reask-btn" title="Move to this number" type="button"
         onclick="_editorMoveQuestionTo('${editorKey}', ${i}, '${inputId}')"
@@ -5702,7 +5853,7 @@ function _renderReorderButtons(editorKey, i, total) {
     </span>`;
 }
 
-const _CASE_GROUP_COLORS = ['#1B8AC4', '#7B1FA2', '#2E7D32', '#E65100', '#C2185B', '#00838F', '#5D4037', '#616161'];
+const _CASE_GROUP_COLORS = ['var(--accent)', 'var(--violet)', 'var(--correct-fg)', 'var(--unanswered-fg)', '#C2185B', '#00838F', '#5D4037', '#616161'];
 function _caseGroupColor(gid) {
   let h = 0;
   const s = String(gid);
@@ -5747,7 +5898,7 @@ function _renderCaseGroupBlock(editorKey, questions, i) {
   const q = questions[i];
   const { labelOf, membersOf } = _caseGroupSummarize(questions);
   const gid = q.case_group || '';
-  const color = gid ? _caseGroupColor(gid) : '#B0D4F0';
+  const color = gid ? _caseGroupColor(gid) : 'var(--border-soft)';
 
   const coreLabelFor = (g) => {
     const idxs = membersOf[g] || [];
@@ -5769,7 +5920,7 @@ function _renderCaseGroupBlock(editorKey, questions, i) {
   optsHtml += `<option value="__new__">＋ Start a new case group…</option>`;
 
   let html = `<div class="case-link-block" style="margin:8px 0;padding:8px 10px;border-radius:8px;
-    border:1.5px dashed ${color};background:${gid ? color + '14' : '#F7FBFF'};">`;
+    border:1.5px dashed ${color};background:${gid ? color + '14' : 'var(--surface-2)'};">`;
   html += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <span style="font-size:.78rem;font-weight:800;color:${gid ? color : 'var(--text-muted)'};white-space:nowrap;">🔗 Case Link</span>
     <select style="flex:1;min-width:160px;font-family:var(--font);font-size:.78rem;padding:4px 6px;
@@ -5811,7 +5962,7 @@ function _renderCaseGroupBlock(editorKey, questions, i) {
           Context used for solving (Q${coreIdx + 1}'s own text${core.image ? ' + image' : ''}) — edit Q${coreIdx + 1} directly to change it
         </div>
         <div style="font-size:.78rem;color:var(--text-main);font-style:italic;">${escapeHtml(_caseGroupCorePreviewText(core, 220))}</div>
-        ${core.image ? `<img src="${core.image}" alt="Core question image" style="max-width:140px;max-height:90px;object-fit:contain;display:block;margin-top:6px;border-radius:4px;border:1px solid #D8EAF7;" />` : ''}
+        ${core.image ? `<img src="${core.image}" alt="Core question image" style="max-width:140px;max-height:90px;object-fit:contain;display:block;margin-top:6px;border-radius:4px;border:1px solid var(--border-soft-2);" />` : ''}
       </div>`;
     }
   }
@@ -6065,11 +6216,11 @@ function _renderAiRefineTools(editorKey, i) {
         <button class="cq-edit-reask-btn" type="button" id="cqAiSolveBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Ask AI to solve this question using the source chosen below"
           onclick="aiSolveQuestion('${editorKey}', ${i})"
-          style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;border-top-right-radius:0;border-bottom-right-radius:0;">🤖 AI Solve</button>
+          style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);border-top-right-radius:0;border-bottom-right-radius:0;">🤖 AI Solve</button>
         <button class="cq-edit-reask-btn" type="button" id="aiSolveSrcCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Choose what AI Solve should rely on: general AI knowledge, or a specific source"
           onclick="_toggleAiSourcePicker('${editorKey}', ${i})"
-          style="background:#F1F8F4;color:#2E7D32;border-color:#A5D6A7;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_aiSolveSourceShortLabel(editorKey, i))} ▾</button>
+          style="background:#F1F8F4;color:var(--correct-fg);border-color:var(--green-pale-border);border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_aiSolveSourceShortLabel(editorKey, i))} ▾</button>
       </div>
       <button class="ai-tool-stop-btn" type="button" id="cqAiSolveStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'solve' ? 'display:inline-block;' : ''}"
@@ -6078,11 +6229,11 @@ function _renderAiRefineTools(editorKey, i) {
         <button class="cq-edit-reask-btn" type="button" id="aiRefineBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Use AI to rewrite this question with clear, exam-style phrasing and no grammar mistakes or typos"
           onclick="aiRefineQuestion('${editorKey}', ${i})"
-          style="background:#EDE7F6;color:#6A1B9A;border-color:#CE93D8;border-top-right-radius:0;border-bottom-right-radius:0;">🪄 Refine Question</button>
+          style="background:var(--violet-pale);color:var(--violet-dark);border-color:var(--violet-border);border-top-right-radius:0;border-bottom-right-radius:0;">🪄 Refine Question</button>
         <button class="cq-edit-reask-btn" type="button" id="aiRefineInstrCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Optional custom instructions used only when refining this question"
           onclick="_toggleAiRefineInstrPicker('${editorKey}', ${i})"
-          style="background:#F3EEFC;color:#6A1B9A;border-color:#CE93D8;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_aiRefineInstrCaretLabel(editorKey, i)} ▾</button>
+          style="background:#F3EEFC;color:var(--violet-dark);border-color:var(--violet-border);border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_aiRefineInstrCaretLabel(editorKey, i)} ▾</button>
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiRefineStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'refine' ? 'display:inline-block;' : ''}"
@@ -6104,7 +6255,7 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
     html += `<button class="cq-edit-reask-btn" type="button" id="aiAddChoiceBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
       title="Let AI write one more plausible answer choice for this question"
       onclick="aiAddChoice('${editorKey}', ${i})"
-      style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 Add Choice (AI)</button>
+      style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);">🤖 Add Choice (AI)</button>
       <button class="ai-tool-stop-btn" type="button" id="aiAddChoiceStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'addChoice' ? 'display:inline-block;' : ''}"
         title="Stop Add Choice" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>`;
@@ -6113,7 +6264,7 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
     html += `<button class="cq-edit-reask-btn" type="button" id="aiFillChoicesBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
       title="Let AI fill in the remaining choices (up to 4 total)"
       onclick="aiFillChoices('${editorKey}', ${i})"
-      style="background:#FFF3E0;color:#E65100;border-color:#FFB74D;">🧩 Fill Choices (AI)</button>
+      style="background:var(--unanswered-bg);color:var(--unanswered-fg);border-color:var(--amber-strong);">🧩 Fill Choices (AI)</button>
       <button class="ai-tool-stop-btn" type="button" id="aiFillChoicesStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'fillChoices' ? 'display:inline-block;' : ''}"
         title="Stop Fill Choices" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>`;
@@ -6795,7 +6946,11 @@ function renderCustomQuizModal() {
 
   /* ── Saved custom quizzes ── */
   html += `<div class="cq-section">
-    <div class="cq-section-title">📚 Your Custom Quizzes</div>`;
+    <div class="cq-section-title">📚 Your Custom Quizzes</div>
+
+    <!-- API Key -->
+    ${renderCqApiKeyBadge()}
+    `;
   if (!quizzes.length) {
     html += `<div class="empty-state" style="padding:12px;">
       <div class="empty-icon">📭</div>
@@ -6811,7 +6966,7 @@ function renderCustomQuizModal() {
         .filter(q => cqMultiSelected.has(q.id))
         .reduce((sum, q) => sum + q.questions.length, 0);
       const defMins = Math.max(5, totalQs);
-      html += `<div class="cq-quiz-item" style="background:#F0F8FF;border:1.5px solid var(--accent);">
+      html += `<div class="cq-quiz-item" style="background:var(--surface-2);border:1.5px solid var(--accent);">
         <div class="cq-quiz-info">
           <div class="cq-quiz-name">🧩 ${cqMultiSelected.size} quiz${cqMultiSelected.size !== 1 ? 'zes' : ''} selected — ${totalQs} question${totalQs !== 1 ? 's' : ''} total</div>
           <div class="cq-quiz-meta">Start them together in one sitting, in the order checked below.</div>
@@ -6846,7 +7001,7 @@ function renderCustomQuizModal() {
             <input type="checkbox" id="cqShuffle_${q.id}" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
           </label>
           <button class="cq-btn" onclick="startCustomQuiz('${q.id}')">&#9654; Start</button>
-          <button class="cq-btn cq-btn-secondary" onclick="${isEditing ? 'closeCustomQuizEditor()' : `openCustomQuizEditor('${q.id}')`}" style="background:#1B8AC4;color:#fff;">${isEditing ? '✖ Close Editor' : '✏️ Edit'}</button>
+          <button class="cq-btn cq-btn-secondary" onclick="${isEditing ? 'closeCustomQuizEditor()' : `openCustomQuizEditor('${q.id}')`}" style="background:var(--accent);color:#fff;">${isEditing ? '✖ Close Editor' : '✏️ Edit'}</button>
           <button class="cq-share-btn" onclick="shareCustomQuiz('${q.id}')" title="Share with community">&#128279; Share</button>
           <button class="cq-btn cq-btn-danger" onclick="deleteCustomQuiz('${q.id}')">&#128465;</button>
         </div>
@@ -6872,7 +7027,7 @@ function renderCustomQuizModal() {
     <div class="cq-inline-editor" id="cqNewQuizEditorArea"></div>`;
   } else {
     html += `<div class="cq-field-hint">Prefer to type your own questions instead of using AI? Start with one blank question and build it up.</div>
-    <button class="cq-btn cq-btn-secondary" onclick="openNewQuizComposer()" style="background:#4CAF50;margin-top:6px;">＋ Start Writing a New Quiz</button>`;
+    <button class="cq-btn cq-btn-secondary" onclick="openNewQuizComposer()" style="background:var(--green-mid);margin-top:6px;">＋ Start Writing a New Quiz</button>`;
   }
   html += `</div>`;
 
@@ -6904,17 +7059,17 @@ function renderCustomQuizModal() {
            behavior), so it's never ambiguous which one is actually active.
            The Reference Source card sits directly below it since both
            submenu options use it. -->
-      <div style="margin:10px 0 4px;padding:12px 14px;background:${cqAiAnsweringEnabled ? '#EDE7F6' : 'var(--card)'};border:1.5px solid ${cqAiAnsweringEnabled ? '#9C27B0' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+      <div style="margin:10px 0 4px;padding:12px 14px;background:${cqAiAnsweringEnabled ? 'var(--violet-pale)' : 'var(--card)'};border:1.5px solid ${cqAiAnsweringEnabled ? 'var(--violet-strong)' : 'var(--border)'};border-radius:10px;transition:all .2s;">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
           <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
             <input type="checkbox" id="cqAiAnsweringChk" ${cqAiAnsweringEnabled ? 'checked' : ''}
               onchange="cqAiAnsweringEnabled = this.checked; renderCustomQuizModal()"
               style="opacity:0;width:0;height:0;position:absolute;" />
-            <span style="position:absolute;inset:0;border-radius:24px;background:${cqAiAnsweringEnabled ? '#9C27B0' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqAiAnsweringEnabled ? 'var(--violet-strong)' : '#ccc'};transition:background .2s;"></span>
             <span style="position:absolute;top:3px;left:${cqAiAnsweringEnabled ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
           </div>
           <div>
-            <div style="font-size:.82rem;font-weight:800;color:${cqAiAnsweringEnabled ? '#6A1B9A' : 'var(--text)'};letter-spacing:.2px;">
+            <div style="font-size:.82rem;font-weight:800;color:${cqAiAnsweringEnabled ? 'var(--violet-dark)' : 'var(--text)'};letter-spacing:.2px;">
               🤖 AI Answering
             </div>
             <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
@@ -6924,22 +7079,22 @@ function renderCustomQuizModal() {
         </label>
 
         ${cqAiAnsweringEnabled ? `
-        <div style="margin:11px 0 0 8px;padding-left:14px;border-left:2.5px solid #CE93D8;display:flex;flex-direction:column;gap:8px;">
+        <div style="margin:11px 0 0 8px;padding-left:14px;border-left:2.5px solid var(--violet-border);display:flex;flex-direction:column;gap:8px;">
           <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
             <input type="radio" name="cqAiAnswerSubmodeRadio" value="missing" ${cqAiAnswerSubmode === 'missing' ? 'checked' : ''}
               onchange="cqAiAnswerSubmode = 'missing'; renderCustomQuizModal()"
-              style="margin-top:3px;width:16px;height:16px;accent-color:#9C27B0;flex-shrink:0;" />
+              style="margin-top:3px;width:16px;height:16px;accent-color:var(--violet-strong);flex-shrink:0;" />
             <div>
-              <div style="font-size:.78rem;font-weight:700;color:#6A1B9A;">🤖 Only answer questions missing a key</div>
+              <div style="font-size:.78rem;font-weight:700;color:var(--violet-dark);">🤖 Only answer questions missing a key</div>
               <div style="font-size:.71rem;color:var(--text-muted);margin-top:1px;">Fills in an answer only for questions that have no answer key in the source document</div>
             </div>
           </label>
           <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
             <input type="radio" name="cqAiAnswerSubmodeRadio" value="all" ${cqAiAnswerSubmode === 'all' ? 'checked' : ''}
               onchange="cqAiAnswerSubmode = 'all'; renderCustomQuizModal()"
-              style="margin-top:3px;width:16px;height:16px;accent-color:#9C27B0;flex-shrink:0;" />
+              style="margin-top:3px;width:16px;height:16px;accent-color:var(--violet-strong);flex-shrink:0;" />
             <div>
-              <div style="font-size:.78rem;font-weight:700;color:#6A1B9A;">✅ Solve / verify all questions</div>
+              <div style="font-size:.78rem;font-weight:700;color:var(--violet-dark);">✅ Solve / verify all questions</div>
               <div style="font-size:.71rem;color:var(--text-muted);margin-top:1px;">Re-solves every question, including ones that already have an answer key in the source</div>
             </div>
           </label>
@@ -6951,8 +7106,8 @@ function renderCustomQuizModal() {
            submenu options rely on it), so there's no confusion about
            which control it belongs to. -->
       ${cqAiAnsweringEnabled ? `
-      <div style="margin:8px 0 4px;padding:12px 14px;background:#F3E5F5;border:1.5px solid #CE93D8;border-radius:10px;">
-        <div style="font-size:.75rem;font-weight:700;color:#6A1B9A;margin-bottom:5px;">
+      <div style="margin:8px 0 4px;padding:12px 14px;background:var(--violet-pale);border:1.5px solid var(--violet-border);border-radius:10px;">
+        <div style="font-size:.75rem;font-weight:700;color:var(--violet-dark);margin-bottom:5px;">
           📚 Reference Source (optional) — upload images/PDFs the AI should use to answer
         </div>
         <div class="cq-dropzone cq-dz-purple" id="cqSourceDropzone" onclick="document.getElementById('cqSourceFileInput').click()">
@@ -6967,17 +7122,17 @@ function renderCustomQuizModal() {
       ` : ''}
 
       <!-- Fill Choices toggle -->
-      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqFillChoicesToggle ? '#FFF3E0' : 'var(--card)'};border:1.5px solid ${cqFillChoicesToggle ? '#FFB74D' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqFillChoicesToggle ? 'var(--unanswered-bg)' : 'var(--card)'};border:1.5px solid ${cqFillChoicesToggle ? 'var(--amber-strong)' : 'var(--border)'};border-radius:10px;transition:all .2s;">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
           <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
             <input type="checkbox" ${cqFillChoicesToggle ? 'checked' : ''}
               onchange="cqFillChoicesToggle = this.checked; renderCustomQuizModal()"
               style="opacity:0;width:0;height:0;position:absolute;" />
-            <span style="position:absolute;inset:0;border-radius:24px;background:${cqFillChoicesToggle ? '#E65100' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqFillChoicesToggle ? 'var(--unanswered-fg)' : '#ccc'};transition:background .2s;"></span>
             <span style="position:absolute;top:3px;left:${cqFillChoicesToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
           </div>
           <div>
-            <div style="font-size:.82rem;font-weight:800;color:${cqFillChoicesToggle ? '#E65100' : 'var(--text)'};letter-spacing:.2px;">
+            <div style="font-size:.82rem;font-weight:800;color:${cqFillChoicesToggle ? 'var(--unanswered-fg)' : 'var(--text)'};letter-spacing:.2px;">
               🧩 Fill Choices (AI)
             </div>
             <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
@@ -6988,17 +7143,17 @@ function renderCustomQuizModal() {
       </div>
 
       <!-- Refine Questions toggle -->
-      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqRefineToggle ? '#EDE7F6' : 'var(--card)'};border:1.5px solid ${cqRefineToggle ? '#CE93D8' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqRefineToggle ? 'var(--violet-pale)' : 'var(--card)'};border:1.5px solid ${cqRefineToggle ? 'var(--violet-border)' : 'var(--border)'};border-radius:10px;transition:all .2s;">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
           <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
             <input type="checkbox" ${cqRefineToggle ? 'checked' : ''}
               onchange="cqRefineToggle = this.checked; renderCustomQuizModal()"
               style="opacity:0;width:0;height:0;position:absolute;" />
-            <span style="position:absolute;inset:0;border-radius:24px;background:${cqRefineToggle ? '#6A1B9A' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqRefineToggle ? 'var(--violet-dark)' : '#ccc'};transition:background .2s;"></span>
             <span style="position:absolute;top:3px;left:${cqRefineToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
           </div>
           <div>
-            <div style="font-size:.82rem;font-weight:800;color:${cqRefineToggle ? '#6A1B9A' : 'var(--text)'};letter-spacing:.2px;">
+            <div style="font-size:.82rem;font-weight:800;color:${cqRefineToggle ? 'var(--violet-dark)' : 'var(--text)'};letter-spacing:.2px;">
               🪄 Refine Questions (AI)
             </div>
             <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
@@ -7008,13 +7163,13 @@ function renderCustomQuizModal() {
         </label>
         ${cqRefineToggle ? `
         <div style="margin:9px 0 0;">
-          <div style="font-size:.73rem;font-weight:700;color:#6A1B9A;margin-bottom:5px;">
+          <div style="font-size:.73rem;font-weight:700;color:var(--violet-dark);margin-bottom:5px;">
             ⚙️ Custom Instructions (optional) — applied to every question's refine
           </div>
           <textarea class="cq-textarea" id="cqRefineCustomInput" rows="2"
             placeholder="Optional — anything extra you want applied to every question (e.g. &quot;keep each question to one sentence&quot;). Only overrides the default refine behavior where it truly conflicts — grammar and exam phrasing still apply otherwise."
             oninput="cqRefineCustomInstructions = this.value"
-            style="border-color:#CE93D8;">${escapeHtml(cqRefineCustomInstructions)}</textarea>
+            style="border-color:var(--violet-border);">${escapeHtml(cqRefineCustomInstructions)}</textarea>
         </div>
         ` : ''}
       </div>
@@ -7086,9 +7241,9 @@ function renderCustomQuizModal() {
 
     <div id="cqPauseRow" style="display:none;gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap;">
       <button class="cq-btn" id="cqPauseBtn" type="button" onclick="cqRequestPause()"
-        style="background:#FFF3E0;color:#E65100;border:1.5px solid #FFB74D;">⏸️ Pause</button>
+        style="background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);">⏸️ Pause</button>
       <button class="cq-btn" id="cqResumeBtn" type="button" onclick="cqResumeGeneration()"
-        style="display:none;background:#E8F5E9;color:#2E7D32;border:1.5px solid #66BB6A;">▶️ Resume</button>
+        style="display:none;background:var(--correct-bg);color:var(--correct-fg);border:1.5px solid #66BB6A;">▶️ Resume</button>
       <button class="ai-tool-stop-btn" id="cqStopBtn" type="button" onclick="cqRequestStop()"
         style="display:inline-block;padding:7px 12px;font-size:.82rem;" title="Stop extraction/generation immediately">⏹ Stop</button>
     </div>
@@ -8191,8 +8346,8 @@ function _renderAiSourceAddFormHTML(editorKey, i) {
   return `
     <input type="text" placeholder="Source name (e.g. Lecture 4 slides)" value="${escapeHtml(draft.label)}"
       oninput="_aiSourceAddDraftChange('${editorKey}', ${i}, 'label', this.value)"
-      style="width:100%;font-size:.75rem;padding:5px 7px;border:1.5px solid #B0D4F0;border-radius:5px;margin-bottom:8px;box-sizing:border-box;">
-    <div style="font-size:.72rem;font-weight:700;color:#6A1B9A;margin-bottom:4px;">🖼️ Source images / PDFs</div>
+      style="width:100%;font-size:.75rem;padding:5px 7px;border:1.5px solid var(--border-soft);border-radius:5px;margin-bottom:8px;box-sizing:border-box;">
+    <div style="font-size:.72rem;font-weight:700;color:var(--violet-dark);margin-bottom:4px;">🖼️ Source images / PDFs</div>
     <div class="cq-dropzone cq-dz-purple ai-source-dz" id="aiSourceDropzone_${editorKey}_${i}"
       onclick="document.getElementById('aiSourceFileInput_${editorKey}_${i}').click()">
       <div class="cq-dz-icon">🖼️📄</div>
@@ -8859,11 +9014,11 @@ function renderCQPreview() {
 
     /* ── Question header ── */
     const qBadge = q.ai_guessed
-      ? `<span title="AI answered this from its own knowledge — answer was not found in the provided source. Please verify." style="background:#FFF8E1;color:#E65100;font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid #FFB300;">🧠 AI Guess</span>`
+      ? `<span title="AI answered this from its own knowledge — answer was not found in the provided source. Please verify." style="background:var(--amber-pale);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-mid);">🧠 AI Guess</span>`
       : q.ai_answered
-      ? `<span title="AI answered this question from the provided source" style="background:#EDE7F6;color:#6A1B9A;font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid #CE93D8;">🤖 AI-answered</span>`
+      ? `<span title="AI answered this question from the provided source" style="background:var(--violet-pale);color:var(--violet-dark);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--violet-border);">🤖 AI-answered</span>`
       : q.no_answer_key
-      ? `<span title="No answer key found in the PDF — please set the correct answer manually" style="background:#FFF3E0;color:#E65100;font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid #FFB74D;">⚠️ No Key</span>`
+      ? `<span title="No answer key found in the PDF — please set the correct answer manually" style="background:var(--unanswered-bg);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-strong);">⚠️ No Key</span>`
       : '';
     html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
@@ -8874,7 +9029,7 @@ function renderCQPreview() {
       ${_renderReorderButtons('cq', i, cqGeneratedQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="cqDeleteQuestion(${i})"
-        style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
+        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);">🗑 Delete</button>
     </div>`;
 
     /* ── Question textarea ── */
@@ -8889,8 +9044,8 @@ function renderCQPreview() {
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
     if (q.image) {
       html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
-        background:#F0F8FF;border:1.5px solid #B0D4F0;border-radius:8px;padding:8px 10px;">
-        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid #D8EAF7;background:#fff;">
+        background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
+        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
           <img src="${q.image}" alt="Question image"
             style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
         </div>
@@ -8904,7 +9059,7 @@ function renderCQPreview() {
         </div>
       </div>`;
     } else if (q.has_image) {
-      html += `<div style="padding:8px 12px;background:#FFF3E0;border:1.5px dashed #E65100;
+      html += `<div style="padding:8px 12px;background:var(--unanswered-bg);border:1.5px dashed var(--unanswered-fg);
         border-radius:7px;font-size:.78rem;color:#795500;font-weight:700;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
           ⚠️ AI detected an image for this question but couldn't extract it
@@ -8949,9 +9104,9 @@ function renderCQPreview() {
           placeholder="Option ${k} text…" />
         ${isCorrect ? '<span class="cq-correct-badge">✔ Correct</span>' : ''}
         <button onclick="cqDeleteOption(${i}, '${k}')" type="button" title="Remove this option"
-          style="background:none;border:none;cursor:pointer;color:#EF9A9A;font-size:.9rem;
+          style="background:none;border:none;cursor:pointer;color:var(--red-soft-border);font-size:.9rem;
           padding:2px 4px;border-radius:4px;flex-shrink:0;line-height:1;transition:color .15s;"
-          onmouseover="this.style.color='#C62828'" onmouseout="this.style.color='#EF9A9A'">✕</button>
+          onmouseover="this.style.color='var(--wrong-fg)'" onmouseout="this.style.color='var(--red-soft-border)'">✕</button>
       </div>`;
     });
     html += `</div>`; // end opts
@@ -8959,11 +9114,11 @@ function renderCQPreview() {
     /* ── Add option button (if there are remaining keys) ── */
     if (nextKey) {
       html += `<button onclick="cqAddOption(${i})" type="button"
-        style="margin-top:5px;background:#F0F8FF;color:var(--accent);border:1.5px dashed #B0D4F0;
+        style="margin-top:5px;background:var(--surface-2);color:var(--accent);border:1.5px dashed var(--border-soft);
         border-radius:7px;padding:5px 12px;font-family:var(--font);font-size:.78rem;font-weight:700;
         cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.background='#EEF7FF';"
-        onmouseout="this.style.borderColor='#B0D4F0';this.style.background='#F0F8FF';">
+        onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--surface-2-hover)';"
+        onmouseout="this.style.borderColor='var(--border-soft)';this.style.background='var(--surface-2)';">
         ＋ Add Option ${nextKey}
       </button>`;
     }
@@ -8980,11 +9135,11 @@ function renderCQPreview() {
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <button class="cq-btn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
     <button class="cq-btn cq-btn-secondary" onclick="cqAddBlankQuestion()"
-      style="background:#4CAF50;">＋ Add Question</button>
+      style="background:var(--green-mid);">＋ Add Question</button>
     <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('cq')"
-      style="background:#7B1FA2;color:#fff;">🧩 Merge Quizzes In</button>
+      style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
     <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('preview', null)"
-      style="background:#7B1FA2;color:#fff;">✂️ Split into Multiple</button>
+      style="background:var(--violet);color:#fff;">✂️ Split into Multiple</button>
     <button class="cq-btn cq-btn-secondary" onclick="discardGeneratedQuiz()">✖ Discard</button>
   </div>`;
 
@@ -9263,12 +9418,12 @@ function _updateSplitSummary() {
 
 // Returns an array of {colorBg, colorBorder, colorText} for up to 12 groups
 const SPLIT_PART_COLORS = [
-  { bg: '#E3F2FD', border: '#1976D2', text: '#0D47A1' },
-  { bg: '#E8F5E9', border: '#388E3C', text: '#1B5E20' },
-  { bg: '#FFF3E0', border: '#F57C00', text: '#E65100' },
+  { bg: 'var(--chip-blue-bg)', border: '#1976D2', text: 'var(--nav-current)' },
+  { bg: 'var(--correct-bg)', border: '#388E3C', text: '#1B5E20' },
+  { bg: 'var(--unanswered-bg)', border: '#F57C00', text: 'var(--unanswered-fg)' },
   { bg: '#FCE4EC', border: '#C2185B', text: '#880E4F' },
   { bg: '#E0F2F1', border: '#00796B', text: '#004D40' },
-  { bg: '#F3E5F5', border: '#7B1FA2', text: '#4A148C' },
+  { bg: 'var(--violet-pale)', border: 'var(--violet)', text: 'var(--violet-darkest)' },
   { bg: '#FFFDE7', border: '#F9A825', text: '#F57F17' },
   { bg: '#E8EAF6', border: '#3949AB', text: '#1A237E' },
   { bg: '#FBE9E7', border: '#D84315', text: '#BF360C' },
@@ -9306,9 +9461,9 @@ function _buildVisualSplitHTML(questions) {
   let html = `<div class="cq-split-visual-list" id="cqSplitVisual_${cqSplitState.quizId || 'preview'}">`;
 
   // Hint
-  html += `<div style="font-size:.75rem;color:#6A1B9A;font-weight:700;margin-bottom:8px;line-height:1.5;">
+  html += `<div style="font-size:.75rem;color:var(--violet-dark);font-weight:700;margin-bottom:8px;line-height:1.5;">
     Click ✂️ between questions to mark a split point. Click again to remove it.
-    ${cuts.size === 0 ? '<span style="color:#E65100;"> — No cuts yet.</span>' : `<span style="color:#2E7D32;"> — ${cuts.size} cut${cuts.size !== 1 ? 's' : ''} = ${chunks.length} quizzes.</span>`}
+    ${cuts.size === 0 ? '<span style="color:var(--unanswered-fg);"> — No cuts yet.</span>' : `<span style="color:var(--correct-fg);"> — ${cuts.size} cut${cuts.size !== 1 ? 's' : ''} = ${chunks.length} quizzes.</span>`}
   </div>`;
 
   questions.forEach((q, i) => {
@@ -9352,7 +9507,7 @@ function _buildVisualSplitHTML(questions) {
         <div class="cq-scissors-line"></div>
         <button class="cq-scissors-btn" type="button">✂️</button>
         <div class="cq-scissors-line"></div>
-        ${isCut ? `<span style="position:absolute;left:50%;transform:translateX(-50%) translateX(22px);font-size:.68rem;font-weight:800;color:#4A148C;white-space:nowrap;pointer-events:none;">— split here —</span>` : ''}
+        ${isCut ? `<span style="position:absolute;left:50%;transform:translateX(-50%) translateX(22px);font-size:.68rem;font-weight:800;color:var(--violet-darkest);white-space:nowrap;pointer-events:none;">— split here —</span>` : ''}
       </div>`;
     }
   });
@@ -9454,7 +9609,7 @@ function _buildSplitSummaryHTML(total) {
   } else {
     chunks = _computeCustomChunks();
   }
-  if (!chunks.length) return `<span style="color:#E65100;font-size:.78rem;font-weight:700;">⚠️ No valid ranges defined yet.</span>`;
+  if (!chunks.length) return `<span style="color:var(--unanswered-fg);font-size:.78rem;font-weight:700;">⚠️ No valid ranges defined yet.</span>`;
   const coveredSet = new Set();
   chunks.forEach(c => { for (let i = c.start; i <= Math.min(c.end, total); i++) coveredSet.add(i); });
   const uncovered = total - coveredSet.size;
@@ -9498,12 +9653,12 @@ function renderSplitPanel(context, quizId, totalQuestions) {
       <label>Questions per quiz:</label>
       <input type="number" min="1" max="${total}" value="${cqSplitState.chunkSize}"
         oninput="setSplitChunkSize(this.value)" />
-      <span style="font-size:.78rem;color:#6A1B9A;font-weight:600;">
+      <span style="font-size:.78rem;color:var(--violet-dark);font-weight:600;">
         (${total} total → ${_computeEqualChunks(total, cqSplitState.chunkSize).length} quiz${_computeEqualChunks(total, cqSplitState.chunkSize).length !== 1 ? 'zes' : ''})
       </span>
     </div>`;
   } else if (isCustom) {
-    html += `<div style="font-size:.76rem;color:#6A1B9A;font-weight:700;margin-bottom:8px;">
+    html += `<div style="font-size:.76rem;color:var(--violet-dark);font-weight:700;margin-bottom:8px;">
       Define ranges (1–${total}). Each range becomes a separate quiz.
     </div>`;
     cqSplitState.ranges.forEach((r, i) => {
@@ -9532,7 +9687,7 @@ function renderSplitPanel(context, quizId, totalQuestions) {
         title="Publish the split parts as new curriculum lectures and remove the original lecture">
         🚀 Split &amp; Publish to Curriculum</button>
       <button class="cq-btn cq-btn-secondary" onclick="executeSplitQuiz('custom')"
-        style="background:#7B1FA2;color:#fff;" title="Save the split parts as custom quizzes — the curriculum lecture stays untouched">
+        style="background:var(--violet);color:#fff;" title="Save the split parts as custom quizzes — the curriculum lecture stays untouched">
         📄 Split to Custom Quizzes</button>`;
   } else {
     html += `<button class="cq-btn" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>`;
@@ -9875,11 +10030,11 @@ async function confirmDisplayName() {
   const input = document.getElementById('displayNameInput');
   const name  = (input ? input.value.trim() : '');
   if (!name || name.length < 2) {
-    input && (input.style.borderColor = '#C62828');
+    input && (input.style.borderColor = 'var(--wrong-fg)');
     return;
   }
   if (name.length > 30) {
-    input && (input.style.borderColor = '#C62828');
+    input && (input.style.borderColor = 'var(--wrong-fg)');
     return;
   }
   // Save to Firestore
@@ -10270,7 +10425,7 @@ async function renderCommunityQuizzes(forceReload) {
         if (verToStore) _writeSharedCacheVer(verToStore);
       }
     } catch(e) {
-      body.innerHTML = `<div style="text-align:center;padding:32px;color:#C62828;">&#10060; Failed to load community quizzes. Please try again.</div>`;
+      body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--wrong-fg);">&#10060; Failed to load community quizzes. Please try again.</div>`;
       return;
     }
   }
@@ -10417,7 +10572,7 @@ async function renderCommunityQuizzes(forceReload) {
           </div>
         </div>
         <div class="community-quiz-actions">
-          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, item.questionCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid #B0D4F0;border-radius:6px;font-family:var(--font);font-size:.82rem;background:#fff;" />
+          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, item.questionCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid var(--border-soft);border-radius:6px;font-family:var(--font);font-size:.82rem;background:var(--surface-2);color:var(--text-main);" />
           <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;">
             <input type="checkbox" id="cqCommShuffle_${idx}" style="width:14px;height:14px;accent-color:var(--accent);" /> &#128256;
           </label>
@@ -10676,7 +10831,7 @@ async function _mergeLoadCommunityTab() {
   }
   const ok = await ensureSharedQuizzesLoaded(false);
   if (mergeTab !== 'community') return; // user switched tabs while this was loading
-  if (!ok) { el.innerHTML = `<div style="text-align:center;padding:24px;color:#C62828;">&#10060; Failed to load community quizzes.</div>`; return; }
+  if (!ok) { el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--wrong-fg);">&#10060; Failed to load community quizzes.</div>`; return; }
   _renderMergeCommunityList();
 }
 
@@ -11157,6 +11312,7 @@ function openAdminPanel() {
   }
   adminSourceTab    = 'custom'; // Publish tab is curriculum-only now, so this is always the sensible start
   adminSelectedQuiz = null;
+  if (cqEditorContext === 'admin') { cqEditorContext = 'quiz'; cqEditingQuizId = null; cqEditQuestions = null; _questionEditDirty = false; }
   adminTargetYear   = '';
   adminTargetModule = '';
   adminTargetSubject= '';
@@ -11341,6 +11497,7 @@ async function adminRemoveAdminUI(email) {
 function adminSetSourceTab(tab) {
   adminSourceTab = tab;
   adminSelectedQuiz = null;
+  if (cqEditorContext === 'admin') { cqEditorContext = 'quiz'; cqEditingQuizId = null; cqEditQuestions = null; _questionEditDirty = false; }
   adminCommTab           = 'browse';
   adminCommSearchQuery   = '';
   adminCommYearFilter    = '';
@@ -11378,14 +11535,18 @@ async function renderAdminPanel() {
     } else {
       listHtml = quizzes.map(q => {
         const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'custom' && adminSelectedQuiz.sourceId === q.id;
+        const isEditing = cqEditorContext === 'admin' && cqEditingQuizId === q.id;
         return `
           <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('custom','${q.id}')">
             <div class="admin-quiz-item-info">
               <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
               <div class="admin-quiz-item-meta">${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
             </div>
+            <button class="cq-btn cq-btn-secondary" style="background:var(--accent);color:#fff;flex-shrink:0;"
+              onclick="event.stopPropagation();${isEditing ? 'closeCustomQuizEditor()' : `openAdminCustomQuizEditor('${q.id}')`}">${isEditing ? '✖ Close Editor' : '✏️ Edit'}</button>
             <div class="admin-quiz-item-check">✓</div>
-          </div>`;
+          </div>
+          ${isEditing ? `<div class="cq-inline-editor" id="adminCqEditorArea_${q.id}" onclick="event.stopPropagation()" style="margin:-2px 0 10px;"></div>` : ''}`;
       }).join('');
     }
   } else {
@@ -11409,6 +11570,12 @@ async function renderAdminPanel() {
   // Only curriculum-permitted admins get the "assign to curriculum" workflow;
   // a community-only admin just browses/moderates the list above.
   if (canCurriculum) renderAdminAssignForm();
+
+  // If a custom quiz is currently being edited inline from this panel, fill
+  // in its editor now that the container div above exists in the DOM.
+  if (adminSourceTab === 'custom' && cqEditorContext === 'admin' && cqEditingQuizId) {
+    renderCustomQuizEditor();
+  }
 
   if (adminSourceTab === 'community') {
     if (!adminCommunityCache) {
@@ -11439,7 +11606,7 @@ async function renderAdminPanel() {
         _allSharedQuizzes = shared; // keep the browse overlay's in-memory copy in sync too
       } catch (e) {
         document.getElementById('adminQuizList').innerHTML =
-          `<div style="text-align:center;padding:16px;color:#C62828;">❌ Failed to load community quizzes.</div>`;
+          `<div style="text-align:center;padding:16px;color:var(--wrong-fg);">❌ Failed to load community quizzes.</div>`;
         return;
       }
     }
@@ -11677,7 +11844,7 @@ async function renderAdminManageCommunityPanel(forceReload) {
       }
       adminCommunityCache = _allSharedQuizzes; // keep the Publish tab's copy of the cache in sync too
     } catch (e) {
-      body.innerHTML = `<div style="text-align:center;padding:32px;color:#C62828;">&#10060; Failed to load community quizzes. Please try again.</div>`;
+      body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--wrong-fg);">&#10060; Failed to load community quizzes. Please try again.</div>`;
       return;
     }
   }
@@ -11952,7 +12119,7 @@ function renderAdminAssignForm() {
     <div class="admin-assign-form">
       <div class="admin-assign-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <span>Publish "${escapeHtml(adminSelectedQuiz.title)}" (${qCount} q) to:</span>
-        <button class="admin-remove-btn" style="background:#EDE7F6;color:#4527A0;border:1.5px solid #B39DDB;"
+        <button class="admin-remove-btn" style="background:var(--violet-pale);color:var(--violet-dark);border:1.5px solid var(--violet-mid-border);"
           onclick="adminToggleEditBeforePublish()">
           ${adminEditMode === 'publish' ? '✖ Close Editor' : '✏️ Edit Before Publishing'}
         </button>
@@ -12041,7 +12208,7 @@ function renderAdminQuestionEditor(containerId) {
       ${_renderReorderButtons('admin', i, adminEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="adminEditDeleteQuestion(${i})"
-        style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
+        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);">🗑 Delete</button>
     </div>`;
 
     html += `<textarea class="cq-edit-textarea" rows="2"
@@ -12055,8 +12222,8 @@ function renderAdminQuestionEditor(containerId) {
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
     if (q.image) {
       html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
-        background:#F0F8FF;border:1.5px solid #B0D4F0;border-radius:8px;padding:8px 10px;">
-        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid #D8EAF7;background:#fff;">
+        background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
+        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
           <img src="${q.image}" alt="Question image"
             style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
         </div>
@@ -12100,20 +12267,20 @@ function renderAdminQuestionEditor(containerId) {
           placeholder="Option ${k} text…" />
         ${isCorrect ? '<span class="cq-correct-badge">✔ Correct</span>' : ''}
         <button onclick="adminEditDeleteOption(${i}, '${k}')" type="button" title="Remove this option"
-          style="background:none;border:none;cursor:pointer;color:#EF9A9A;font-size:.9rem;
+          style="background:none;border:none;cursor:pointer;color:var(--red-soft-border);font-size:.9rem;
           padding:2px 4px;border-radius:4px;flex-shrink:0;line-height:1;transition:color .15s;"
-          onmouseover="this.style.color='#C62828'" onmouseout="this.style.color='#EF9A9A'">✕</button>
+          onmouseover="this.style.color='var(--wrong-fg)'" onmouseout="this.style.color='var(--red-soft-border)'">✕</button>
       </div>`;
     });
     html += `</div>`;
 
     if (nextKey) {
       html += `<button onclick="adminEditAddOption(${i})" type="button"
-        style="margin-top:5px;background:#F0F8FF;color:var(--accent);border:1.5px dashed #B0D4F0;
+        style="margin-top:5px;background:var(--surface-2);color:var(--accent);border:1.5px dashed var(--border-soft);
         border-radius:7px;padding:5px 12px;font-family:var(--font);font-size:.78rem;font-weight:700;
         cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.background='#EEF7FF';"
-        onmouseout="this.style.borderColor='#B0D4F0';this.style.background='#F0F8FF';">
+        onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--surface-2-hover)';"
+        onmouseout="this.style.borderColor='var(--border-soft)';this.style.background='var(--surface-2)';">
         ＋ Add Option ${nextKey}
       </button>`;
     }
@@ -12127,14 +12294,14 @@ function renderAdminQuestionEditor(containerId) {
   html += `</div>`;
 
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <button class="cq-btn cq-btn-secondary" onclick="adminEditAddBlankQuestion()" style="background:#4CAF50;">＋ Add Question</button>
-    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('admin')" style="background:#7B1FA2;color:#fff;">🧩 Merge Quizzes In</button>
+    <button class="cq-btn cq-btn-secondary" onclick="adminEditAddBlankQuestion()" style="background:var(--green-mid);">＋ Add Question</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('admin')" style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
     ${adminEditMode === 'published' ? `
       <button class="cq-btn cq-btn-secondary" onclick="openAdminSplitPanel('${adminEditingPublishedId}')"
-        style="background:#7B1FA2;color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
+        style="background:var(--violet);color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
       <button class="cq-btn" onclick="adminSavePublishedEdits()" title="Implement these edits on the curriculum lecture">💾 Save Changes</button>
       <button class="cq-btn cq-btn-secondary" onclick="adminSaveEditsAsCustomQuiz()"
-        style="background:#7B1FA2;color:#fff;" title="Save these edits as a new custom quiz — the curriculum lecture stays untouched">📄 Save as Custom Quiz</button>
+        style="background:var(--violet);color:#fff;" title="Save these edits as a new custom quiz — the curriculum lecture stays untouched">📄 Save as Custom Quiz</button>
       <button class="cq-btn cq-btn-secondary" onclick="adminCancelEditPublished()">✖ Cancel</button>
     ` : `
       <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;">Edits will be used when you publish below.</div>
@@ -12307,13 +12474,33 @@ function openCustomQuizEditor(id) {
   if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+/* Same editor as openCustomQuizEditor above, but mounted inside the admin
+   panel's "My Custom Quizzes" list instead of the Custom Quizzes modal —
+   lets an admin edit a quiz's questions right where they're picking it for
+   assignment, without leaving the admin panel. */
+function openAdminCustomQuizEditor(id) {
+  const quizzes = loadCustomQuizzes();
+  const quiz = quizzes.find(q => q.id === id);
+  if (!quiz) return;
+  cqEditorContext = 'admin';
+  cqCreatingNew = false;
+  cqEditingQuizId = id;
+  cqEditQuestions = JSON.parse(JSON.stringify(quiz.questions || []));
+  _questionEditDirty = false;
+  renderAdminPanel();
+  const area = document.getElementById('adminCqEditorArea_' + id);
+  if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 function closeCustomQuizEditor() {
   _guardedClose(() => {
+    const wasAdmin = cqEditorContext === 'admin';
     cqCreatingNew = false;
     cqEditingQuizId = null;
     cqEditQuestions = null;
     cqNewQuizTitle = '';
-    renderCustomQuizModal();
+    cqEditorContext = 'quiz';
+    if (wasAdmin) { renderAdminPanel(); } else { renderCustomQuizModal(); }
   });
 }
 
@@ -12344,7 +12531,10 @@ function openNewQuizComposer() {
    composing a brand-new one (a single fixed area, since it has no id yet). */
 function _cqEditorKey() { return cqCreatingNew ? 'new' : cqEditingQuizId; }
 function _cqEditorContainerId() {
-  return cqCreatingNew ? 'cqNewQuizEditorArea' : ('cqCustomEditorArea_' + cqEditingQuizId);
+  if (cqCreatingNew) return 'cqNewQuizEditorArea';
+  return cqEditorContext === 'admin'
+    ? ('adminCqEditorArea_' + cqEditingQuizId)
+    : ('cqCustomEditorArea_' + cqEditingQuizId);
 }
 
 function renderCustomQuizEditor() {
@@ -12386,7 +12576,7 @@ function renderCustomQuizEditor() {
       ${_renderReorderButtons('customQuiz', i, cqEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="cqEditDeleteQuestion(${i})"
-        style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
+        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);">🗑 Delete</button>
     </div>`;
 
     html += `<textarea class="cq-edit-textarea" rows="2"
@@ -12400,8 +12590,8 @@ function renderCustomQuizEditor() {
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
     if (q.image) {
       html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
-        background:#F0F8FF;border:1.5px solid #B0D4F0;border-radius:8px;padding:8px 10px;">
-        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid #D8EAF7;background:#fff;">
+        background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
+        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
           <img src="${q.image}" alt="Question image"
             style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
         </div>
@@ -12445,20 +12635,20 @@ function renderCustomQuizEditor() {
           placeholder="Option ${k} text…" />
         ${isCorrect ? '<span class="cq-correct-badge">✔ Correct</span>' : ''}
         <button onclick="cqEditDeleteOption(${i}, '${k}')" type="button" title="Remove this option"
-          style="background:none;border:none;cursor:pointer;color:#EF9A9A;font-size:.9rem;
+          style="background:none;border:none;cursor:pointer;color:var(--red-soft-border);font-size:.9rem;
           padding:2px 4px;border-radius:4px;flex-shrink:0;line-height:1;transition:color .15s;"
-          onmouseover="this.style.color='#C62828'" onmouseout="this.style.color='#EF9A9A'">✕</button>
+          onmouseover="this.style.color='var(--wrong-fg)'" onmouseout="this.style.color='var(--red-soft-border)'">✕</button>
       </div>`;
     });
     html += `</div>`;
 
     if (nextKey) {
       html += `<button onclick="cqEditAddOption(${i})" type="button"
-        style="margin-top:5px;background:#F0F8FF;color:var(--accent);border:1.5px dashed #B0D4F0;
+        style="margin-top:5px;background:var(--surface-2);color:var(--accent);border:1.5px dashed var(--border-soft);
         border-radius:7px;padding:5px 12px;font-family:var(--font);font-size:.78rem;font-weight:700;
         cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.background='#EEF7FF';"
-        onmouseout="this.style.borderColor='#B0D4F0';this.style.background='#F0F8FF';">
+        onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--surface-2-hover)';"
+        onmouseout="this.style.borderColor='var(--border-soft)';this.style.background='var(--surface-2)';">
         ＋ Add Option ${nextKey}
       </button>`;
     }
@@ -12472,11 +12662,11 @@ function renderCustomQuizEditor() {
   html += `</div>`;
 
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <button class="cq-btn cq-btn-secondary" onclick="cqEditAddBlankQuestion()" style="background:#4CAF50;">＋ Add Question</button>
-    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('customQuiz')" style="background:#7B1FA2;color:#fff;">🧩 Merge Quizzes In</button>
+    <button class="cq-btn cq-btn-secondary" onclick="cqEditAddBlankQuestion()" style="background:var(--green-mid);">＋ Add Question</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('customQuiz')" style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
     ${!cqCreatingNew ? `
       <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('saved', '${cqEditingQuizId}')"
-        style="background:#7B1FA2;color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
+        style="background:var(--violet);color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
     ` : ''}
     <button class="cq-btn" onclick="saveCustomQuizEdits()">💾 Save Changes</button>
     <button class="cq-btn cq-btn-secondary" onclick="closeCustomQuizEditor()">✖ Cancel</button>
@@ -12671,12 +12861,14 @@ async function saveCustomQuizEdits() {
 
   try {
     await saveCustomQuizzesList(quizzes);
+    const wasAdmin = cqEditorContext === 'admin';
     cqCreatingNew = false;
     cqEditingQuizId = null;
     cqEditQuestions = null;
     cqNewQuizTitle = '';
+    cqEditorContext = 'quiz';
     _questionEditDirty = false;
-    renderCustomQuizModal();
+    if (wasAdmin) { renderAdminPanel(); } else { renderCustomQuizModal(); }
   } catch (e) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status warning">⚠️ Save failed: ${escapeHtml(e.message || String(e))}</div>`;
   }
@@ -12834,18 +13026,18 @@ function _renderAdminAssignedListHTML() {
     sec.innerHTML += `
       <div class="admin-assigned-item">
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
-          <button class="admin-remove-btn" style="padding:3px 8px;background:#F0F8FF;color:var(--accent);border:1.5px solid #B0D4F0;line-height:1;" title="Move up"
+          <button class="admin-remove-btn" style="padding:3px 8px;background:var(--surface-2);color:var(--accent);border:1.5px solid var(--border-soft);line-height:1;" title="Move up"
             onclick="adminSwapLectureOrder('${e.id}','up')" ${idx === 0 ? 'disabled' : ''}>⬆️</button>
-          <button class="admin-remove-btn" style="padding:3px 8px;background:#F0F8FF;color:var(--accent);border:1.5px solid #B0D4F0;line-height:1;" title="Move down"
+          <button class="admin-remove-btn" style="padding:3px 8px;background:var(--surface-2);color:var(--accent);border:1.5px solid var(--border-soft);line-height:1;" title="Move down"
             onclick="adminSwapLectureOrder('${e.id}','down')" ${idx === entries.length - 1 ? 'disabled' : ''}>⬇️</button>
         </div>
         <div class="admin-assigned-info">
           <div class="admin-assigned-name">${escapeHtml(e.lectureName || e.id)}</div>
           <div class="admin-assigned-path">${(e.questions || []).length} question${(e.questions||[]).length !== 1 ? 's' : ''} · ${escapeHtml(adminTargetYear)} → ${escapeHtml(adminTargetModule)} → ${escapeHtml(subjects[subj].label || subj)}</div>
         </div>
-        <button class="admin-remove-btn" style="background:#EDE7F6;color:#4527A0;border:1.5px solid #B39DDB;"
+        <button class="admin-remove-btn" style="background:var(--violet-pale);color:var(--violet-dark);border:1.5px solid var(--violet-mid-border);"
           onclick="adminEditPublished('${e.id}')">✏️ Edit</button>
-        <button class="admin-remove-btn" style="background:#E3F2FD;color:#0D47A1;border:1.5px solid #90CAF9;"
+        <button class="admin-remove-btn" style="background:var(--chip-blue-bg);color:var(--nav-current);border:1.5px solid var(--nav-default);"
           onclick="adminOpenMoveQuiz('${e.id}', '${(e.lectureName||e.id).replace(/'/g,"\'")}')">📋 Copy/Move</button>
         <button class="admin-remove-btn" onclick="adminRemovePublished('${e.id}')">🗑 Delete</button>
       </div>
