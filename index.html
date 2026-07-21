@@ -440,6 +440,10 @@
     .curr-item-row.curr-item-open:hover { background: #EEF7FF; border-color: var(--accent); }
     .curr-item-arrow { color: #B0D4F0; font-size: .8rem; flex-shrink: 0; }
     .curr-item-row.curr-item-open:hover .curr-item-arrow { color: var(--accent); }
+    .admin-publish-picker { padding: 12px 14px; margin: 4px 0; }
+    .admin-publish-target-selected {
+      background: #F0FFF4; border-color: #A5D6A7;
+    }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #B0D4F0; border-radius: 3px; }
@@ -877,6 +881,12 @@
   animation: cqspin .8s linear infinite; flex-shrink: 0;
 }
 @keyframes cqspin { to { transform: rotate(360deg); } }
+.ai-btn-spinner {
+  display: inline-block; width: 11px; height: 11px; margin-right: 5px;
+  vertical-align: -1px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,.15); border-top-color: currentColor;
+  animation: cqspin .7s linear infinite;
+}
 .cq-quiz-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 8px;
@@ -921,6 +931,62 @@
   transition: background .15s; flex-shrink: 0;
 }
 .cq-edit-reask-btn:hover { background: #D1C4E9; }
+.cq-edit-reask-btn:disabled { background: #E7E7E7; color: #9E9E9E; border-color: #D4D4D4; cursor: not-allowed; opacity: .75; }
+.cq-edit-reask-btn:disabled:hover { background: #E7E7E7; }
+.cq-edit-reask-btn.cq-edit-reask-btn-active:disabled {
+  background: #EDE7F6; color: #4527A0; border-color: #B39DDB; opacity: 1; cursor: default;
+}
+.ai-source-picker {
+  position: relative; z-index: 20; margin: 4px 0 8px;
+}
+.ai-source-picker-inner {
+  background: #fff; border: 1.5px solid #A5D6A7; border-radius: 9px;
+  padding: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.12); max-width: 320px;
+}
+.ai-source-picker-title {
+  font-size: .72rem; font-weight: 800; color: #2E7D32; text-transform: uppercase;
+  letter-spacing: .5px; padding: 2px 6px 6px;
+}
+.ai-source-opt {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px;
+  font-size: .78rem; font-weight: 600; color: var(--text-main); cursor: pointer;
+  transition: background .12s;
+}
+.ai-source-opt:hover { background: #F1F8F4; }
+.ai-source-opt-active { background: #E8F5E9; color: #2E7D32; }
+.ai-source-opt-remove {
+  font-size: .7rem; color: #C62828; opacity: .6; padding: 0 3px; border-radius: 4px;
+}
+.ai-source-opt-remove:hover { opacity: 1; background: #FFEBEE; }
+.ai-source-picker-divider { height: 1px; background: #E0E0E0; margin: 5px 2px; }
+.ai-source-add-toggle {
+  padding: 6px 8px; border-radius: 6px; font-size: .78rem; font-weight: 700;
+  color: #1565C0; cursor: pointer; transition: background .12s;
+}
+.ai-source-add-toggle:hover { background: #F0F8FF; }
+.ai-source-dz { padding: 12px 8px; margin-bottom: 8px; }
+.ai-source-dz .cq-dz-icon { font-size: 1.3rem; margin-bottom: 3px; }
+.ai-source-dz .cq-dz-text { font-size: .72rem; }
+.cq-bulk-ai-panel {
+  margin: 8px 0 12px; padding: 12px 14px; background: #F3F0FF;
+  border: 1.5px solid #C5B3F0; border-radius: 10px;
+}
+.cq-bulk-ai-title { font-size: .85rem; font-weight: 800; color: #4527A0; margin-bottom: 4px; }
+.cq-bulk-ai-subtitle { font-size: .72rem; font-weight: 600; color: #6A1B9A; opacity: .8; margin-bottom: 10px; }
+.cq-bulk-ai-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.cq-bulk-ai-tool {
+  padding: 9px 0; border-top: 1px solid #DCD0F5;
+}
+.cq-bulk-ai-tool:first-of-type { border-top: none; padding-top: 0; }
+.cq-bulk-ai-tool-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cq-bulk-ai-no-opts { font-size: .72rem; color: #6A1B9A; opacity: .75; font-weight: 600; }
+.cq-bulk-ai-scope { font-size: .68rem; color: #6A1B9A; opacity: .7; font-weight: 600; margin-top: 5px; font-style: italic; }
+.cq-bulk-ai-opts { margin-top: 8px; }
+.cq-bulk-ai-opts summary {
+  font-size: .76rem; font-weight: 700; color: #6A1B9A; cursor: pointer; user-select: none;
+}
+.cq-bulk-ai-label { font-size: .73rem; font-weight: 700; color: #6A1B9A; margin-bottom: 5px; }
+.cq-bulk-lock { pointer-events: none; opacity: .55; filter: grayscale(.25); transition: opacity .2s; }
 .cq-opt-edit-row {
   display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
   padding: 5px 8px; border-radius: 7px; border: 1.5px solid #D8EAF7;
@@ -1625,6 +1691,24 @@
 
 .admin-assigned-section { margin-top: 4px; }
 .admin-assigned-title { font-size: .8rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+.admin-publish-here-gap {
+  display: flex; align-items: center; gap: 8px; margin: 2px 0; cursor: pointer;
+  padding: 3px 4px; border-radius: 6px; transition: background .12s;
+}
+.admin-publish-here-gap:hover { background: #F0F8FF; }
+.admin-publish-here-line {
+  flex: 1; height: 1px; background: #D8EAF7;
+}
+.admin-publish-here-btn {
+  font-size: .7rem; font-weight: 800; color: #1B4F72; background: #EAF4FF;
+  border: 1.5px dashed #B0D4F0; border-radius: 20px; padding: 3px 10px;
+  white-space: nowrap; transition: all .12s;
+}
+.admin-publish-here-gap:hover .admin-publish-here-btn { border-style: solid; background: #DCEEFF; }
+.admin-publish-here-gap.admin-publish-here-active .admin-publish-here-btn {
+  background: #1B4F72; color: #fff; border-style: solid; border-color: #1B4F72;
+}
+.admin-publish-here-gap.admin-publish-here-active .admin-publish-here-line { background: #1B4F72; }
 .admin-assigned-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   background: #F7FBFF; border: 1px solid #D8EAF7; border-radius: 8px;
@@ -1640,6 +1724,12 @@
   transition: background .15s;
 }
 .admin-remove-btn:hover { background: #FFCDD2; }
+.admin-assigned-insert-summary {
+  font-size: .78rem; font-weight: 700; color: #1B4F72;
+  background: #EAF6FF; border: 1px solid #B0D4F0; border-radius: 8px;
+  padding: 7px 11px; margin-bottom: 9px;
+}
+.admin-insert-btn-active { border-color: var(--accent) !important; font-weight: 800; box-shadow: 0 0 0 1.5px var(--accent) inset; }
 
 /* Admin panel top-level tabs (Publish / Curriculum) */
 .admin-panel-tabs {
@@ -2554,6 +2644,8 @@ function _hasUnsavedProgress() {
   if (typeof cqBusy !== 'undefined' && cqBusy) return true;
   if (typeof adminBusy !== 'undefined' && adminBusy) return true;
   if (typeof _explainAllBusy !== 'undefined' && _explainAllBusy) return true;
+  if (typeof _editorBulkBusy !== 'undefined' && (_editorBulkBusy.admin || _editorBulkBusy.customQuiz)) return true;
+  if (typeof _aiToolsBusy !== 'undefined' && Object.keys(_aiToolsBusy).length) return true;
 
   // A Firestore sync/loading operation is in flight
   const toast = document.getElementById('fsLoadingToast');
@@ -3043,22 +3135,31 @@ if (prevTotal < threshold && newTotal >= threshold) {
   showScreen('results');
 }
 
-function buildResults() {
-  // Cancel any in-progress explanations from a previous result view
+// Cancels any in-flight per-question explanations and chats from the results
+// screen and clears their busy/loading state. Shared by buildResults() (new
+// results view) and showScreen() (leaving results without a new view) — if
+// this never runs on the "leaving" path, a request abandoned mid-flight stays
+// marked busy forever, since nothing else would ever clear it, and every
+// later _guardedClose() confirm() would keep firing for a process the user
+// can no longer see or stop.
+function _cancelAndClearResultsAiState() {
   if (_allCancelToken) { _cancelAiToken(_allCancelToken); _allCancelToken = null; }
   Object.keys(_singleCancelToken).forEach(k => { _cancelAiToken(_singleCancelToken[k]); delete _singleCancelToken[k]; });
-  // Clear explanation cache for new results
   for (const k in _explainCache) delete _explainCache[k];
   for (const k in _explainRawText) delete _explainRawText[k];
-  // Snapshot any shared (Firestore) explanations for this quiz so they can be reused
-  // instantly instead of re-generated, and so newly-generated ones can be shared too.
-  _explainPoolLoadPromise = _loadExplainPool(currentQuestions);
-  // Cancel and clear any in-progress/previous chats
   Object.keys(_chatCancelToken).forEach(k => { _cancelAiToken(_chatCancelToken[k]); delete _chatCancelToken[k]; });
   for (const k in _chatHistory) delete _chatHistory[k];
   for (const k in _chatPending) delete _chatPending[k];
   for (const k in _chatBusy) delete _chatBusy[k];
   _explainAllBusy = false;
+}
+
+function buildResults() {
+  // Cancel any in-progress explanations from a previous result view
+  _cancelAndClearResultsAiState();
+  // Snapshot any shared (Firestore) explanations for this quiz so they can be reused
+  // instantly instead of re-generated, and so newly-generated ones can be shared too.
+  _explainPoolLoadPromise = _loadExplainPool(currentQuestions);
   const explainAllBtn = document.getElementById('explainAllBtn');
   if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '🤖&nbsp; Explain All Questions'; explainAllBtn.onclick = explainAllQuestions; }
 
@@ -4084,6 +4185,15 @@ function _activeAiProcessLabel() {
   if (typeof _chatBusy !== 'undefined' && Object.values(_chatBusy).some(Boolean)) {
     return 'an AI chat response';
   }
+  if (typeof _editorBulkBusy !== 'undefined' && _editorBulkBusy.admin) {
+    return 'running a bulk AI tool on the quiz you\'re editing in the Admin Panel';
+  }
+  if (typeof _editorBulkBusy !== 'undefined' && _editorBulkBusy.customQuiz) {
+    return 'running a bulk AI tool on your custom quiz';
+  }
+  if (typeof _aiToolsBusy !== 'undefined' && Object.keys(_aiToolsBusy).length) {
+    return 'running an AI tool (Refine / Fill Choices / Add Choice / Solve) on a question';
+  }
   return null;
 }
 
@@ -4110,6 +4220,40 @@ function _stopAllAiProcesses() {
   if (typeof _chatCancelToken !== 'undefined') {
     Object.keys(_chatCancelToken).forEach(k => { _cancelAiToken(_chatCancelToken[k]); });
   }
+  // Bulk (whole-quiz) AI tool passes running in the Admin/Custom-Quiz editors —
+  // each has its own cancel token (see _editorBulkAiSolve/FillChoices/RefineQuestions).
+  if (typeof _editorBulkCancelToken !== 'undefined') {
+    Object.keys(_editorBulkCancelToken).forEach(k => { _cancelAiToken(_editorBulkCancelToken[k]); _editorBulkCancelToken[k] = null; });
+  }
+  // Per-question AI tool runs (Refine / Fill Choices / Add Choice / Solve),
+  // keyed by `${editorKey}_${i}` — see _aiToolsKey.
+  if (typeof _aiToolsCancelToken !== 'undefined') {
+    Object.keys(_aiToolsCancelToken).forEach(k => { _cancelAiToken(_aiToolsCancelToken[k]); delete _aiToolsCancelToken[k]; });
+  }
+}
+
+/* ── Guarding menu close / tab-switch attempts while a process is running ──
+   Wraps a close (or tab-switch) action: if an AI process is actively running
+   that would be interrupted, warn the user first — same wording/pattern as
+   the API-key-switch guard above — and only actually stop it and proceed if
+   they confirm. A publish (adminBusy) is a sequence of Firestore writes with
+   no safe mid-flight abort point (partial writes could orphan uploaded
+   images), so unlike the AI processes it isn't offered as "stop and close" —
+   it's simply blocked until it finishes on its own. */
+function _guardedClose(closeFn) {
+  if (typeof adminBusy !== 'undefined' && adminBusy) {
+    alert('A publish is still in progress. Please wait for it to finish before closing.');
+    return;
+  }
+  const activeLabel = _activeAiProcessLabel();
+  if (activeLabel) {
+    const confirmed = confirm(
+      `You're currently ${activeLabel}. Closing this now will stop that process immediately — anything not already completed will be lost.\n\nStop it and close?`
+    );
+    if (!confirmed) return;
+    _stopAllAiProcesses();
+  }
+  closeFn();
 }
 
 // ── Shared explanation pool (Firestore-backed, session-isolated) ──
@@ -4986,11 +5130,22 @@ let cqLectureFiles      = []; // array of File — lecture material to generate 
 let cqCustomPrompt      = '';
 let cqQuestionCount     = '';
 
-// ── AI Answer for missing keys ──
-let cqAiAnswerToggle    = false;  // whether to let AI answer questions without a key
-let cqAiAnswerSource    = '';     // optional source text the AI should rely on
+// ── AI Answering (single menu: master switch + submenu picking exactly
+// one behavior — replaces the old separate "AI Answer Mode" / "AI Solve
+// All" toggles, which as two independent switches could be turned on
+// together and silently conflict) ──
+let cqAiAnsweringEnabled = false;    // master on/off for AI answering
+let cqAiAnswerSubmode   = 'missing'; // 'missing' (only fill no-key questions) | 'all' (solve/verify every question)
+let cqAiAnswerSource    = '';     // kept for compatibility with cqAiSolveQuestions' signature — always '' now that reference sources are files-only (no more paste-text UI)
 let cqAiSourceFiles     = [];     // optional source images/PDFs (array of {base64, mimeType, name})
-let cqAiSolveAllToggle  = false;  // whether to also AI-solve questions that already have a key
+
+// ── Post-extraction AI polish (Refine Question / Fill Choices) ──
+// These reuse the exact same per-question AI tools available in the editor
+// (see "AI QUESTION TOOLS" above), just run once automatically across every
+// question right after extraction instead of one at a time by hand.
+let cqRefineToggle              = false; // whether to AI-refine every extracted question's wording
+let cqRefineCustomInstructions  = '';    // optional custom instructions applied to every refine call
+let cqFillChoicesToggle         = false; // whether to AI-fill every question up to 4 answer choices
 
 // ── Split quiz into multiple quizzes ──
 let cqSplitState = null;
@@ -5146,6 +5301,288 @@ const _caseGroupEditors = {
     rerender: () => renderCustomQuizEditor()
   }
 };
+
+/* ── Bulk (whole-quiz) AI Tools for the Admin and Custom-Quiz editors ──
+   Mirrors the AI Solve / Fill Choices / Refine Questions passes already
+   available during Custom Quiz MCQ Extraction, but scoped to a quiz
+   someone is editing after the fact — same underlying bulk functions
+   (cqAiSolveQuestions / cqBulkFillChoices / cqBulkRefineQuestions), just
+   pointed at whichever editor's live "questions" array via the registry
+   above. Runs strictly one question at a time and locks the whole editor
+   (every per-question AI button, plus reordering/add/delete/save) for the
+   duration, since these functions mutate the same question objects the
+   per-question tools do — running them concurrently would race. */
+const _editorBulkBusy = { admin: false, customQuiz: false };
+// One cancel token per editor, live only while a bulk pass is running —
+// see _stopAllAiProcesses() and the menu-close guard (_guardedClose).
+const _editorBulkCancelToken = { admin: null, customQuiz: null };
+const _editorBulkAiSourceFiles = { admin: [], customQuiz: [] };
+const _editorBulkRefineInstructions = { admin: '', customQuiz: '' };
+
+function _editorBulkStatusEl(editorKey) {
+  return document.getElementById(`${editorKey}BulkAiStatus`);
+}
+
+// True if any single-question AI tool (Refine / Fill / Add Choice / Solve)
+// is mid-run anywhere in this editor — blocks a bulk pass from starting
+// underneath it, and vice versa (bulk locks disable those buttons too).
+function _aiToolsAnyBusyInEditor(editorKey) {
+  return Object.keys(_aiToolsBusy).some(k => k.startsWith(editorKey + '_'));
+}
+
+function _aiToolsSetAllDisabledForEditor(editorKey, disabled) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions) return;
+  questions.forEach((_, i) => {
+    _aiToolsButtonIds(editorKey, i).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    });
+  });
+}
+
+function _editorBulkSetBusy(editorKey, busy) {
+  _editorBulkBusy[editorKey] = busy;
+  ['Solve', 'Fill', 'Refine'].forEach(name => {
+    const btn = document.getElementById(`${editorKey}Bulk${name}Btn`);
+    if (btn) btn.disabled = busy;
+  });
+  const lockWrap = document.getElementById(`${editorKey}BulkLockWrap`);
+  if (lockWrap) lockWrap.classList.toggle('cq-bulk-lock', busy);
+  _aiToolsSetAllDisabledForEditor(editorKey, busy);
+}
+
+// Each bulk tool gets its own row with its own button PLUS (if it takes
+// options) its own labeled sub-menu directly under that button — so it's
+// never ambiguous which instructions belong to which tool. These are bulk,
+// whole-quiz versions of the same AI Solve / Fill Choices / Refine actions
+// available per-question; every tool here still runs one question at a
+// time under the hood, applying its action to each question in the quiz.
+function _renderBulkAiToolsPanel(editorKey, questions) {
+  const busy = _editorBulkBusy[editorKey];
+  const n = questions.length;
+  return `
+  <div class="cq-bulk-ai-panel">
+    <div class="cq-bulk-ai-title">🤖 AI Tools — Whole Quiz
+      <span style="font-weight:600;opacity:.7;">(${n} question${n !== 1 ? 's' : ''})</span>
+    </div>
+    <div class="cq-bulk-ai-subtitle">Each tool below runs on every question in this quiz. Open a tool's ⚙️ to set instructions for that tool only.</div>
+
+    <div class="cq-bulk-ai-tool">
+      <div class="cq-bulk-ai-tool-row">
+        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkSolveBtn" type="button"
+          ${busy ? 'disabled' : ''} onclick="_editorBulkAiSolve('${editorKey}')"
+          style="background:#1565C0;color:#fff;">🤖 AI Solve All</button>
+      </div>
+      <details class="cq-bulk-ai-opts" open>
+        <summary>⚙️ AI Solve settings</summary>
+        <div style="margin-top:8px;">
+          <div class="cq-bulk-ai-label">📚 Reference source (optional) — upload images/PDFs for the AI to use, or leave empty to answer from general knowledge</div>
+          <div class="cq-dropzone cq-dz-purple" id="${editorKey}BulkSourceDropzone"
+            style="${busy ? 'pointer-events:none;opacity:.55;' : ''}"
+            onclick="document.getElementById('${editorKey}BulkSourceFileInput').click()">
+            <div class="cq-dz-icon">🖼️📄</div>
+            <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
+            ${_editorBulkSourceFileListHTML(editorKey, _editorBulkAiSourceFiles[editorKey])}
+            ${_editorBulkAiSourceFiles[editorKey].length ? `<div class="cq-dz-add-more">➕ Click again to add more files</div>` : ''}
+          </div>
+          <input type="file" id="${editorKey}BulkSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
+            onchange="_editorBulkSourceFileSelect('${editorKey}', this)">
+          <div class="cq-bulk-ai-scope">Used only by 🤖 AI Solve All — no effect on Fill Choices or Refine Questions. Any source added here is also selectable per-question (as "Editor bulk source").</div>
+        </div>
+      </details>
+    </div>
+
+    <div class="cq-bulk-ai-tool">
+      <div class="cq-bulk-ai-tool-row">
+        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFillBtn" type="button"
+          ${busy ? 'disabled' : ''} onclick="_editorBulkFillChoices('${editorKey}')"
+          style="background:#E65100;color:#fff;">🧩 Fill Choices (All)</button>
+        <span class="cq-bulk-ai-no-opts">Tops up missing answer choices — no settings needed.</span>
+      </div>
+    </div>
+
+    <div class="cq-bulk-ai-tool">
+      <div class="cq-bulk-ai-tool-row">
+        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkRefineBtn" type="button"
+          ${busy ? 'disabled' : ''} onclick="_editorBulkRefineQuestions('${editorKey}')"
+          style="background:#6A1B9A;color:#fff;">🪄 Refine Questions (All)</button>
+      </div>
+      <details class="cq-bulk-ai-opts">
+        <summary>⚙️ Refine Questions settings</summary>
+        <div style="margin-top:8px;">
+          <div class="cq-bulk-ai-label">🪄 Custom instructions for Refine (optional)</div>
+          <textarea class="cq-textarea" rows="2" id="${editorKey}BulkRefineInput" ${busy ? 'disabled' : ''}
+            oninput="_editorBulkRefineInstructions['${editorKey}'] = this.value"
+            placeholder="e.g. keep each question to one sentence">${escapeHtml(_editorBulkRefineInstructions[editorKey] || '')}</textarea>
+          <div class="cq-bulk-ai-scope">Used only by 🪄 Refine Questions (All) — no effect on AI Solve or Fill Choices.</div>
+        </div>
+      </details>
+    </div>
+
+    <div id="${editorKey}BulkAiStatus" style="margin-top:8px;"></div>
+  </div>`;
+}
+
+// Shared guard for all three bulk actions below: refuses to start if a bulk
+// pass is already running in this editor, if any single-question AI tool is
+// mid-run, or if there's no active API key — surfacing whichever applies in
+// the bulk status box before anything else touches the DOM.
+function _editorBulkGuard(editorKey) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions.length) return null;
+  const statusEl = _editorBulkStatusEl(editorKey);
+  if (_editorBulkBusy[editorKey] || _aiToolsAnyBusyInEditor(editorKey)) {
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML('Another AI action is already running — please wait for it to finish.');
+    return null;
+  }
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML('Add a Gemini API key (⚙️ API Keys) to use AI tools.');
+    return null;
+  }
+  return { ed, questions };
+}
+
+// Renders the staged reference files for a bulk panel's dropzone, with a
+// per-file remove button — same shape/markup as every other reference-
+// source dropzone in the app, just keyed by editor instead of by question.
+function _editorBulkSourceFileListHTML(editorKey, files) {
+  if (!files || !files.length) return '';
+  return `<div class="cq-dz-filelist">` + files.map((f, idx) => `
+    <div class="cq-dz-file-item">
+      <span>✅ ${escapeHtml(f.name)}</span>
+      <button type="button" onclick="event.stopPropagation();_editorBulkSourceRemoveFile('${editorKey}', ${idx})" title="Remove this file">✕</button>
+    </div>`).join('') + `</div>`;
+}
+// Shared validation with every other reference-source dropzone in the app
+// (extraction's cqSourceDropzone, the per-question source library form).
+function _editorBulkSourceAcceptFile(editorKey, file) {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = file.type.startsWith('image/');
+  if (!isPdf && !isImage) { alert(`"${file.name}" isn't an image or PDF — please upload an image (JPG/PNG/WEBP) or a PDF file.`); return; }
+  if (file.size > GEMINI_MAX_FILE_BYTES) { alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`); return; }
+  const mimeType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  _editorBulkAiSourceFiles[editorKey].push({ file, mimeType, name: file.name });
+}
+function _editorBulkSourceFileSelect(editorKey, input) {
+  const files = Array.from((input && input.files) || []);
+  files.forEach(f => _editorBulkSourceAcceptFile(editorKey, f));
+  input.value = '';
+  _editorBulkRerender(editorKey);
+}
+function _editorBulkSourceRemoveFile(editorKey, idx) {
+  _editorBulkAiSourceFiles[editorKey].splice(idx, 1);
+  _editorBulkRerender(editorKey);
+}
+// Wires drag&drop on the bulk panel's reference dropzone. Called after
+// every full render of the editor (the panel is rebuilt via innerHTML
+// each time, same as every other dropzone in this file, so there's no
+// stale-listener risk).
+function _editorBulkSourceSetupDropzone(editorKey) {
+  const dz = document.getElementById(`${editorKey}BulkSourceDropzone`);
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+  }));
+  dz.addEventListener('drop', e => {
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    files.forEach(f => _editorBulkSourceAcceptFile(editorKey, f));
+    _editorBulkRerender(editorKey);
+  });
+}
+// Re-renders the whole editor so the dropzone reflects the updated file
+// list — mirrors every other add/remove handler in these editors (reorder,
+// delete, image change, etc. all go through ed.rerender() too).
+function _editorBulkRerender(editorKey) {
+  const ed = _caseGroupEditors[editorKey];
+  if (ed && ed.rerender) ed.rerender();
+}
+
+async function _editorBulkAiSolve(editorKey) {
+  const ctx = _editorBulkGuard(editorKey);
+  if (!ctx) return;
+  const { ed, questions } = ctx;
+  _editorBulkSetBusy(editorKey, true);
+  // Real per-run cancel token — this is what _stopAllAiProcesses() cancels via
+  // _editorBulkCancelToken[editorKey]. Without creating and passing this down,
+  // that cancel call had nothing to cancel: the loop below kept running for
+  // real in the background even after the user confirmed "stop it".
+  const token = { cancelled: false };
+  _editorBulkCancelToken[editorKey] = token;
+  const statusEl = _editorBulkStatusEl(editorKey);
+  if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML('🤖 AI is solving all questions…', 0);
+  try {
+    const sourceFiles = _editorBulkAiSourceFiles[editorKey] || [];
+    const allIdxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
+    await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, statusEl, token);
+    if (statusEl) statusEl.innerHTML = token.cancelled
+      ? `<div class="cq-status warning">⏹ AI Solve stopped.</div>`
+      : `<div class="cq-status success">✅ AI Solve finished — ${allIdxs.length} question${allIdxs.length !== 1 ? 's' : ''} checked.</div>`;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'AI Solve failed.');
+  } finally {
+    _editorBulkCancelToken[editorKey] = null;
+    _editorBulkSetBusy(editorKey, false);
+    ed.rerender();
+  }
+}
+
+async function _editorBulkFillChoices(editorKey) {
+  const ctx = _editorBulkGuard(editorKey);
+  if (!ctx) return;
+  const { ed, questions } = ctx;
+  _editorBulkSetBusy(editorKey, true);
+  const token = { cancelled: false };
+  _editorBulkCancelToken[editorKey] = token;
+  const statusEl = _editorBulkStatusEl(editorKey);
+  if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML('🧩 Filling choices…', 0);
+  try {
+    const { done, errors } = await cqBulkFillChoices(questions, statusEl, token);
+    let html = token.cancelled
+      ? `<div class="cq-status warning">⏹ Fill Choices stopped — topped up ${done} question${done !== 1 ? 's' : ''} so far.</div>`
+      : `<div class="cq-status success">✅ Fill Choices finished — topped up ${done} question${done !== 1 ? 's' : ''}.</div>`;
+    if (errors.length) html += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
+    if (statusEl) statusEl.innerHTML = html;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Fill Choices failed.');
+  } finally {
+    _editorBulkCancelToken[editorKey] = null;
+    _editorBulkSetBusy(editorKey, false);
+    ed.rerender();
+  }
+}
+
+async function _editorBulkRefineQuestions(editorKey) {
+  const ctx = _editorBulkGuard(editorKey);
+  if (!ctx) return;
+  const { ed, questions } = ctx;
+  _editorBulkSetBusy(editorKey, true);
+  const token = { cancelled: false };
+  _editorBulkCancelToken[editorKey] = token;
+  const statusEl = _editorBulkStatusEl(editorKey);
+  if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML('🪄 Refining question wording…', 0);
+  try {
+    const custom = (_editorBulkRefineInstructions[editorKey] || '').trim();
+    const { done, errors } = await cqBulkRefineQuestions(questions, custom, statusEl, token);
+    let html = token.cancelled
+      ? `<div class="cq-status warning">⏹ Refine stopped — rewrote ${done} question${done !== 1 ? 's' : ''} so far.</div>`
+      : `<div class="cq-status success">✅ Refine finished — rewrote ${done} question${done !== 1 ? 's' : ''}.</div>`;
+    if (errors.length) html += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
+    if (statusEl) statusEl.innerHTML = html;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Refine failed.');
+  } finally {
+    _editorBulkCancelToken[editorKey] = null;
+    _editorBulkSetBusy(editorKey, false);
+    ed.rerender();
+  }
+}
 
 /* Swaps question `i` with its neighbor (dir: -1 = up, +1 = down) in
    whichever editor invoked it, via the registry above. Case-group links
@@ -5374,6 +5811,462 @@ function _caseGroupSetCore(editorKey, i) {
 function _caseGroupOnQuestionDeleted(questions, deletedQuestion) {
   if (deletedQuestion && deletedQuestion.case_group) {
     _caseGroupEnsureSingleCore(questions, deletedQuestion.case_group);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   AI QUESTION TOOLS — Refine Question / Fill Choices / Add Choice
+   Available on every question card, in every question editor
+   (extraction review, admin publish/edit, write-your-own custom
+   quiz editor) via the shared _caseGroupEditors registry, so this
+   is written once and works everywhere without duplication.
+══════════════════════════════════════════════════════════ */
+
+const AI_TOOLS_MODEL = (typeof CQ_MODEL !== 'undefined') ? CQ_MODEL : 'gemini-2.5-flash';
+
+// Per-question UI state for the "Custom Instructions" box (whether it's
+// open, and its draft text) — keyed by `${editorKey}_${i}` since each
+// editor keeps its own independent set of question cards.
+const _aiToolsCustomPromptText = {};
+function _aiToolsKey(editorKey, i) { return editorKey + '_' + i; }
+
+/* ── Per-question AI lock ──
+   Refine Question, Fill Choices, Add Choice (AI), and the existing 🤖 AI
+   Solve button all mutate the SAME question object. Without a lock, firing
+   two of them at once on the same question is a real race: e.g. AI Solve
+   could read/settle on a fabricated distractor that Fill Choices is still
+   in the middle of writing in, or set an answer letter that Add Choice
+   then reassigns to a different option. This lock makes those five actions
+   mutually exclusive per question (not per editor) — other questions, and
+   other editors, are completely unaffected. */
+const _aiToolsBusy = {};
+// One cancel token per question (same keying as _aiToolsBusy), live only
+// while that question's AI tool call is in flight — see _stopAllAiProcesses()
+// and the menu-close guard (_guardedClose).
+const _aiToolsCancelToken = {};
+// Tracks WHICH action is running per question (e.g. 'refine', 'fillChoices',
+// 'addChoice', 'solve') so the spinner can be shown on that one specific
+// button, while its siblings are merely disabled (see _aiToolsSyncButtons).
+const _aiToolsActiveAction = {};
+function _aiToolsIsBusy(editorKey, i) { return !!_aiToolsBusy[_aiToolsKey(editorKey, i)]; }
+function _aiToolsSetBusy(editorKey, i, busy, action) {
+  const key = _aiToolsKey(editorKey, i);
+  if (busy) { _aiToolsBusy[key] = true; _aiToolsActiveAction[key] = action; }
+  else { delete _aiToolsBusy[key]; delete _aiToolsActiveAction[key]; }
+  _aiToolsSyncButtons(editorKey, i, busy, action);
+}
+/* Disables/enables every AI-tool button on this specific question card
+   while a lock is held, so the user can see (and can't accidentally
+   trigger) an overlapping action — success paths also re-render the whole
+   card, which naturally restores normal (enabled) buttons anyway.
+   Additionally, whichever button actually triggered this run gets a small
+   spinning circle inserted into it (via `action`), so it's obvious AT A
+   GLANCE which of the several AI tools is the one currently working —
+   the other, merely-disabled buttons stay plain. */
+function _aiToolsButtonIds(editorKey, i) {
+  return [
+    `aiRefineBtn_${editorKey}_${i}`,
+    `aiRefineInstrCaret_${editorKey}_${i}`,
+    `aiAddChoiceBtn_${editorKey}_${i}`,
+    `aiFillChoicesBtn_${editorKey}_${i}`,
+    `cqAiSolveBtn_${editorKey}_${i}`,   // now available in every editor, not just 'cq'
+    `aiSolveSrcCaret_${editorKey}_${i}` // the ▾ source picker toggle next to it
+  ];
+}
+function _aiToolsSyncButtons(editorKey, i, busy, action) {
+  const ids = _aiToolsButtonIds(editorKey, i);
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = busy;
+  });
+
+  // Which button id corresponds to which action name.
+  const idMap = {
+    refine:      `aiRefineBtn_${editorKey}_${i}`,
+    addChoice:   `aiAddChoiceBtn_${editorKey}_${i}`,
+    fillChoices: `aiFillChoicesBtn_${editorKey}_${i}`,
+    solve:       `cqAiSolveBtn_${editorKey}_${i}`
+  };
+  const activeId = action && idMap[action];
+  const activeEl = activeId && document.getElementById(activeId);
+  if (activeEl) {
+    activeEl.classList.toggle('cq-edit-reask-btn-active', busy);
+    const existingSpinner = activeEl.querySelector('.ai-btn-spinner');
+    if (busy && !existingSpinner) {
+      activeEl.insertAdjacentHTML('afterbegin', '<span class="ai-btn-spinner"></span>');
+    } else if (!busy && existingSpinner) {
+      existingSpinner.remove();
+    }
+  }
+}
+function _aiToolsStatusEl(editorKey, i) {
+  return document.getElementById(`aiToolsStatus_${editorKey}_${i}`);
+}
+function _aiToolsSetStatus(editorKey, i, html) {
+  const el = _aiToolsStatusEl(editorKey, i);
+  if (el) el.innerHTML = html;
+}
+function _aiToolsLoadingHTML(label) {
+  return `<div class="cq-status info" style="font-size:.75rem;padding:5px 10px;">
+    <div class="cq-spinner" style="width:12px;height:12px;border-width:2px;"></div> ${label}</div>`;
+}
+function _aiToolsErrorHTML(msg) {
+  return `<div class="cq-status warning" style="font-size:.75rem;padding:5px 10px;">⚠️ ${escapeHtml(msg)}</div>`;
+}
+/* Every AI tool call shares the same active Gemini key used everywhere else
+   in the app (extraction, AI Solve, explanations) — if none is configured
+   yet, point the user at where to add one instead of silently failing. */
+function _aiToolsRequireKey(editorKey, i) {
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Add a Gemini API key (⚙️ API Keys) to use AI tools.'));
+    return null;
+  }
+  return apiKey;
+}
+function _aiCustomPromptChanged(editorKey, i, val) {
+  _aiToolsCustomPromptText[_aiToolsKey(editorKey, i)] = val;
+  const caret = document.getElementById(`aiRefineInstrCaret_${editorKey}_${i}`);
+  if (caret) caret.innerHTML = _aiRefineInstrCaretLabel(editorKey, i) + ' ▾';
+}
+function _aiRefineInstrCaretLabel(editorKey, i) {
+  const draft = (_aiToolsCustomPromptText[_aiToolsKey(editorKey, i)] || '').trim();
+  return draft ? '⚙️ Instructions •' : '⚙️ Instructions';
+}
+/* Strips ```json fences (Gemini sometimes adds them despite the mime type
+   request) before parsing — same tolerant pattern used elsewhere in the app. */
+function _aiToolsParseJSON(text) {
+  const clean = (text || '').replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+/* Builds the "shared case" context that AI Solve/Explain/Chat already use
+   (see _cqCaseContextBlock) for the AI Tools too (Refine Question, Fill
+   Choices, Add Choice) — WITHOUT this, a dependent question in a case
+   cluster hands the model only its own short stub text, with no idea what
+   patient scenario/vignette (or accompanying image) it's actually about,
+   which can produce distractors or rewording that don't fit the real case.
+   Returns { textBlock, imagePart } — textBlock is '' for standalone/core
+   questions, imagePart is null if there's no shared (or own) image. */
+function _aiToolsCaseContext(questions, q) {
+  const textBlock = _cqCaseContextBlock(questions, q);
+  const img = q.image || _cqFindCaseGroupImage(questions, q);
+  let imagePart = null;
+  if (img) {
+    const match = img.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) imagePart = { mime_type: match[1], data: match[2] };
+  }
+  return { textBlock, imagePart };
+}
+
+/* Renders the "🤖 AI Solve" + "🪄 Refine Question" toolbar, each with its
+   own ▾ caret opening a popover scoped to THAT action only — AI Solve's
+   caret picks the source to solve from; Refine's caret holds the custom
+   instructions used only when refining. Keeping both as the same
+   button+caret+popover shape (rather than one popover and one free-floating
+   "Custom Instructions" button) makes it visually unambiguous which
+   settings belong to which action. Placed directly under the question
+   textarea in every editor. editorKey: 'cq' | 'admin' | 'customQuiz'.
+   See aiSolveQuestion()/_toggleAiSourcePicker() and
+   aiRefineQuestion()/_toggleAiRefineInstrPicker() further down. */
+function _renderAiRefineTools(editorKey, i) {
+  const busy = _aiToolsIsBusy(editorKey, i);
+  return `
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-2px 0 8px;">
+      <div style="display:flex;">
+        <button class="cq-edit-reask-btn" type="button" id="cqAiSolveBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+          title="Ask AI to solve this question using the source chosen below"
+          onclick="aiSolveQuestion('${editorKey}', ${i})"
+          style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;border-top-right-radius:0;border-bottom-right-radius:0;">🤖 AI Solve</button>
+        <button class="cq-edit-reask-btn" type="button" id="aiSolveSrcCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+          title="Choose what AI Solve should rely on: general AI knowledge, or a specific source"
+          onclick="_toggleAiSourcePicker('${editorKey}', ${i})"
+          style="background:#F1F8F4;color:#2E7D32;border-color:#A5D6A7;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_aiSolveSourceShortLabel(editorKey, i))} ▾</button>
+      </div>
+      <div style="display:flex;">
+        <button class="cq-edit-reask-btn" type="button" id="aiRefineBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+          title="Use AI to rewrite this question with clear, exam-style phrasing and no grammar mistakes or typos"
+          onclick="aiRefineQuestion('${editorKey}', ${i})"
+          style="background:#EDE7F6;color:#6A1B9A;border-color:#CE93D8;border-top-right-radius:0;border-bottom-right-radius:0;">🪄 Refine Question</button>
+        <button class="cq-edit-reask-btn" type="button" id="aiRefineInstrCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+          title="Optional custom instructions used only when refining this question"
+          onclick="_toggleAiRefineInstrPicker('${editorKey}', ${i})"
+          style="background:#F3EEFC;color:#6A1B9A;border-color:#CE93D8;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_aiRefineInstrCaretLabel(editorKey, i)} ▾</button>
+      </div>
+    </div>
+    <div id="aiSourcePicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
+    <div id="aiRefineInstrPicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
+    <div id="aiToolsStatus_${editorKey}_${i}" style="margin:-3px 0 8px;"></div>`;
+}
+
+/* Renders the choice-related AI buttons (Add Choice AI, and Fill Choices
+   when under 4 options) — placed next to the existing "＋ Add Option"
+   button in every editor's options footer. */
+function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
+  const busy = _aiToolsIsBusy(editorKey, i);
+  let html = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:5px;">`;
+  if (nextKey) {
+    html += `<button class="cq-edit-reask-btn" type="button" id="aiAddChoiceBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+      title="Let AI write one more plausible answer choice for this question"
+      onclick="aiAddChoice('${editorKey}', ${i})"
+      style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 Add Choice (AI)</button>`;
+  }
+  if (optCount < 4 && nextKey) {
+    html += `<button class="cq-edit-reask-btn" type="button" id="aiFillChoicesBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+      title="Let AI fill in the remaining choices (up to 4 total)"
+      onclick="aiFillChoices('${editorKey}', ${i})"
+      style="background:#FFF3E0;color:#E65100;border-color:#FFB74D;">🧩 Fill Choices (AI)</button>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+/* ── Refine Question ──
+   Rewrites the question stem into clear, grammatically-correct, exam-style
+   phrasing without changing what's actually being asked, the topic, or any
+   fact/name/number in it, and without touching the answer choices. An
+   optional per-question custom instruction can ask for more — it only
+   overrides the default rules above where the two genuinely conflict on
+   that specific point; everything else still applies. */
+/* Shared refine-prompt caller — builds the same prompt/rules used by the
+   per-question "🪄 Refine Question" button, but as a standalone function so
+   the bulk post-extraction pass (cqBulkRefineQuestions) can reuse it without
+   needing an editor/card in the DOM. Returns the refined question string,
+   or throws on failure. */
+async function _aiRefineQuestionCall(apiKey, questions, q, custom, token) {
+  const optEntries = getOptionEntries(q);
+  const optsText = optEntries.map(([k, v]) => `${k}. ${v}`).join('\n') || '(none yet)';
+  const { textBlock: caseBlock, imagePart } = _aiToolsCaseContext(questions, q);
+
+  const prompt = `You are an exam-writing expert. Rewrite ONLY the question stem below so it reads like a polished, professionally written exam question.
+Rules:
+- Fix all grammar, spelling, and typo issues.
+- Use clear, formal, exam-style phrasing and structure.
+- Do NOT change what the question is actually asking, its topic, or any fact/number/name in it.
+- Do NOT reference or rewrite the answer choices — they're given only as context.
+- Keep it roughly the same length unless told otherwise below.
+${caseBlock ? `\nThis question depends on a shared case/vignette${imagePart ? ' (and an accompanying image, attached below)' : ''}, given below for CONTEXT ONLY — do NOT rewrite it, repeat it, or fold it into your output. Only rewrite the "Original question" text itself, using the case to make sure your rewording still makes sense against it:\n${caseBlock}` : ''}
+${custom ? `\nADDITIONAL INSTRUCTIONS FROM THE EDITOR (apply these too — if one of them genuinely conflicts with a rule above, THIS instruction wins for that specific point only; every other rule above still applies):\n"""${custom}"""\n` : ''}
+Original question:
+"""${q.question}"""
+
+Answer choices (context only — do not rewrite them):
+${optsText}
+
+Respond ONLY with a JSON object: {"question": "the refined question text"}. No markdown, no preamble.`;
+
+  const parts = [{ text: prompt }];
+  if (imagePart) {
+    parts.push({ text: '(Shared case image, for context only:)' });
+    parts.push({ inline_data: imagePart });
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_TOOLS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const data = await callGeminiWithRetry(url, {
+    contents: [{ parts }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.4, maxOutputTokens: 1024 }
+  }, { cancelToken: token });
+  const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
+  const parsed = _aiToolsParseJSON(textOut);
+  const refined = (parsed && typeof parsed.question === 'string') ? parsed.question.trim() : '';
+  if (!refined) throw new Error('AI did not return a refined question.');
+  return refined;
+}
+
+async function aiRefineQuestion(editorKey, i) {
+  if (_aiToolsIsBusy(editorKey, i)) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.'));
+    return;
+  }
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const q = questions[i];
+  if (!q.question || !q.question.trim()) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Write the question text first.'));
+    return;
+  }
+  const apiKey = _aiToolsRequireKey(editorKey, i);
+  if (!apiKey) return;
+
+  const custom = (_aiToolsCustomPromptText[_aiToolsKey(editorKey, i)] || '').trim();
+  const key = _aiToolsKey(editorKey, i);
+  const token = { cancelled: false };
+  _aiToolsCancelToken[key] = token;
+  _aiToolsSetBusy(editorKey, i, true, 'refine');
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🪄 Refining question…'));
+
+  try {
+    q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, token);
+    ed.rerender(); // rebuilds this card fresh, which also naturally re-enables its buttons
+  } catch (e) {
+    if (!(e && e._cancelled)) {
+      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not refine this question.'));
+    }
+  } finally {
+    if (_aiToolsCancelToken[key] === token) delete _aiToolsCancelToken[key];
+    _aiToolsSetBusy(editorKey, i, false, 'refine');
+  }
+}
+
+/* Shared distractor generator used by both Fill Choices and Add Choice (AI).
+   Asks for exactly `count` new, plausible-but-incorrect answer choices that
+   fit the question's subject, style, and difficulty — distinct from every
+   existing choice and from each other, and not generic filler. */
+async function _aiGenerateDistractors(apiKey, questions, q, optEntries, count, token) {
+  const existingText = optEntries.map(([k, v]) => `${k}. ${v}`).join('\n') || '(none)';
+  const correctVal = (optEntries.find(([k]) => k === q.answer) || [])[1] || '';
+  const { textBlock: caseBlock, imagePart } = _aiToolsCaseContext(questions, q);
+
+  const prompt = `You are an exam-writing expert creating additional multiple-choice answer options (distractors) for an existing question.
+${caseBlock ? `\nThis question depends on a shared case/vignette${imagePart ? ' (and an accompanying image, attached below)' : ''} — use it to make sure your distractors actually fit the scenario, but don't rewrite or repeat it:\n${caseBlock}` : ''}
+Question:
+"""${q.question}"""
+
+Existing answer choices:
+${existingText}
+${correctVal ? `\nThe correct answer is: "${correctVal}"` : ''}
+
+Write exactly ${count} NEW answer choice${count !== 1 ? 's' : ''} that:
+- Is/are plausible and on-topic — the kind of mistake a student who half-understands the material might pick.
+- Match the style, tone, length, and level of detail of the existing choices.
+- Is/are clearly and unambiguously INCORRECT (do not duplicate or restate the correct answer).
+- Is/are distinct from every existing choice and from each other.
+- Are NOT generic filler like "None of the above", "All of the above", or "I don't know".
+
+Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(', ')}]} containing exactly ${count} string${count !== 1 ? 's' : ''}, in order. No markdown, no preamble.`;
+
+  const parts = [{ text: prompt }];
+  if (imagePart) {
+    parts.push({ text: '(Shared case image, for context only:)' });
+    parts.push({ inline_data: imagePart });
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_TOOLS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const data = await callGeminiWithRetry(url, {
+    contents: [{ parts }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 1024 }
+  }, { cancelToken: token });
+  const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
+  const parsed = _aiToolsParseJSON(textOut);
+  let choices = (parsed && Array.isArray(parsed.choices)) ? parsed.choices.filter(c => typeof c === 'string' && c.trim()) : [];
+  if (!choices.length) throw new Error('AI did not return usable choices.');
+  while (choices.length < count) choices.push('');
+  return choices.slice(0, count);
+}
+
+const _AI_TOOLS_ALL_KEYS = ['A','B','C','D','E','F','G','H','I','J'];
+
+/* ── Fill Choices ──
+   Tops a question up to 4 total answer choices, generating only the
+   missing ones — existing choices (and which one is correct) are untouched. */
+async function aiFillChoices(editorKey, i) {
+  if (_aiToolsIsBusy(editorKey, i)) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.'));
+    return;
+  }
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const q = questions[i];
+  if (!q.question || !q.question.trim()) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Write the question text first.'));
+    return;
+  }
+  const optEntries = getOptionEntries(q);
+  const usedKeys = optEntries.map(([k]) => k);
+  const missing = _AI_TOOLS_ALL_KEYS.filter(k => !usedKeys.includes(k)).slice(0, Math.max(0, 4 - optEntries.length));
+  if (!missing.length) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('This question already has 4 or more choices.'));
+    return;
+  }
+  const apiKey = _aiToolsRequireKey(editorKey, i);
+  if (!apiKey) return;
+
+  // Snapshot the current answer letter — Fill Choices must NEVER change which
+  // option is marked correct, only add new (incorrect) distractor text.
+  const answerBefore = q.answer;
+
+  const _key = _aiToolsKey(editorKey, i);
+  const token = { cancelled: false };
+  _aiToolsCancelToken[_key] = token;
+  _aiToolsSetBusy(editorKey, i, true, 'fillChoices');
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML(`🧩 Filling ${missing.length} more choice${missing.length !== 1 ? 's' : ''}…`));
+
+  try {
+    const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, token);
+    if (!q.optionsOrder) q.optionsOrder = optEntries.map(([k, v]) => ({ key: k, value: v }));
+    missing.forEach((optKey, idx) => {
+      const val = newVals[idx] || '';
+      q.options[optKey] = val;
+      q.optionsOrder.push({ key: optKey, value: val });
+    });
+    // Defensive guarantee: the correct answer is exactly what it was before —
+    // this action only ever adds new wrong choices, never picks or changes one.
+    q.answer = answerBefore;
+    ed.rerender();
+  } catch (e) {
+    if (!(e && e._cancelled)) {
+      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not generate choices.'));
+    }
+  } finally {
+    if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
+    _aiToolsSetBusy(editorKey, i, false, 'fillChoices');
+  }
+}
+
+/* ── Add Choice (AI) ──
+   Adds exactly one new, AI-written, plausible answer choice — regardless
+   of how many choices already exist (up to the 10-choice max). */
+async function aiAddChoice(editorKey, i) {
+  if (_aiToolsIsBusy(editorKey, i)) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.'));
+    return;
+  }
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const q = questions[i];
+  if (!q.question || !q.question.trim()) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Write the question text first.'));
+    return;
+  }
+  const optEntries = getOptionEntries(q);
+  const usedKeys = optEntries.map(([k]) => k);
+  const nextKey = _AI_TOOLS_ALL_KEYS.find(k => !usedKeys.includes(k));
+  if (!nextKey) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Maximum of 10 choices reached.'));
+    return;
+  }
+  const apiKey = _aiToolsRequireKey(editorKey, i);
+  if (!apiKey) return;
+
+  // Snapshot the current answer letter — adding a choice must NEVER change
+  // which option is marked correct, only append one new (incorrect) option.
+  const answerBefore = q.answer;
+
+  const _key = _aiToolsKey(editorKey, i);
+  const token = { cancelled: false };
+  _aiToolsCancelToken[_key] = token;
+  _aiToolsSetBusy(editorKey, i, true, 'addChoice');
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🤖 AI is writing a new choice…'));
+
+  try {
+    const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, 1, token);
+    const val = newVals[0] || '';
+    if (!q.optionsOrder) q.optionsOrder = optEntries.map(([k, v]) => ({ key: k, value: v }));
+    q.options[nextKey] = val;
+    q.optionsOrder.push({ key: nextKey, value: val });
+    // Defensive guarantee: the correct answer is exactly what it was before.
+    q.answer = answerBefore;
+    ed.rerender();
+  } catch (e) {
+    if (!(e && e._cancelled)) {
+      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not generate a new choice.'));
+    }
+  } finally {
+    if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
+    _aiToolsSetBusy(editorKey, i, false, 'addChoice');
   }
 }
 
@@ -5749,8 +6642,10 @@ function openCustomQuizzes() {
   renderCustomQuizModal();
 }
 function closeCustomQuizzes() {
-  document.getElementById('customQuizOverlay').classList.add('hidden');
-  fsLoadingHide();
+  _guardedClose(() => {
+    document.getElementById('customQuizOverlay').classList.add('hidden');
+    fsLoadingHide();
+  });
 }
 
 function renderCqApiKeyBadge() {
@@ -5881,62 +6776,60 @@ function renderCustomQuizModal() {
       </div>
       <input type="file" id="cqFileInput" accept="image/*,application/pdf" multiple style="display:none;" onchange="handleCQFileSelect(event)" />
 
-      <!-- AI Answer Mode toggle -->
-      <div style="margin:10px 0 4px;padding:12px 14px;background:${cqAiAnswerToggle ? '#EDE7F6' : 'var(--card)'};border:1.5px solid ${cqAiAnswerToggle ? '#9C27B0' : 'var(--border)'};border-radius:10px;transition:all .2s;">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:200px;">
-            <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
-              <input type="checkbox" id="cqAiAnswerToggleChk" ${cqAiAnswerToggle ? 'checked' : ''}
-                onchange="cqAiAnswerToggle = this.checked; renderCustomQuizModal()"
-                style="opacity:0;width:0;height:0;position:absolute;" />
-              <span style="position:absolute;inset:0;border-radius:24px;background:${cqAiAnswerToggle ? '#9C27B0' : '#ccc'};transition:background .2s;"></span>
-              <span style="position:absolute;top:3px;left:${cqAiAnswerToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
-            </div>
-            <div>
-              <div style="font-size:.82rem;font-weight:800;color:${cqAiAnswerToggle ? '#6A1B9A' : 'var(--text)'};letter-spacing:.2px;">
-                🤖 AI Answer Mode
-              </div>
-              <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
-                When enabled, Gemini AI will automatically answer any questions that have no answer key in the PDF
-              </div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <!-- AI Solve All toggle -->
-      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqAiSolveAllToggle ? '#E8F5E9' : 'var(--card)'};border:1.5px solid ${cqAiSolveAllToggle ? '#388E3C' : 'var(--border)'};border-radius:10px;transition:all .2s;">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+      <!-- AI Answering — single menu (master switch) + submenu (exactly one
+           behavior), so it's never ambiguous which one is actually active.
+           The Reference Source card sits directly below it since both
+           submenu options use it. -->
+      <div style="margin:10px 0 4px;padding:12px 14px;background:${cqAiAnsweringEnabled ? '#EDE7F6' : 'var(--card)'};border:1.5px solid ${cqAiAnsweringEnabled ? '#9C27B0' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
           <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
-            <input type="checkbox" ${cqAiSolveAllToggle ? 'checked' : ''}
-              onchange="cqAiSolveAllToggle = this.checked; renderCustomQuizModal()"
+            <input type="checkbox" id="cqAiAnsweringChk" ${cqAiAnsweringEnabled ? 'checked' : ''}
+              onchange="cqAiAnsweringEnabled = this.checked; renderCustomQuizModal()"
               style="opacity:0;width:0;height:0;position:absolute;" />
-            <span style="position:absolute;inset:0;border-radius:24px;background:${cqAiSolveAllToggle ? '#388E3C' : '#ccc'};transition:background .2s;"></span>
-            <span style="position:absolute;top:3px;left:${cqAiSolveAllToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqAiAnsweringEnabled ? '#9C27B0' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;top:3px;left:${cqAiAnsweringEnabled ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
           </div>
           <div>
-            <div style="font-size:.82rem;font-weight:800;color:${cqAiSolveAllToggle ? '#1B5E20' : 'var(--text)'};letter-spacing:.2px;">
-              ✅ AI Solve All Questions
+            <div style="font-size:.82rem;font-weight:800;color:${cqAiAnsweringEnabled ? '#6A1B9A' : 'var(--text)'};letter-spacing:.2px;">
+              🤖 AI Answering
             </div>
             <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
-              AI will also verify/solve questions that already have an answer key — uses the reference source below
+              Let Gemini AI determine correct answers during extraction
             </div>
           </div>
         </label>
+
+        ${cqAiAnsweringEnabled ? `
+        <div style="margin:11px 0 0 8px;padding-left:14px;border-left:2.5px solid #CE93D8;display:flex;flex-direction:column;gap:8px;">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+            <input type="radio" name="cqAiAnswerSubmodeRadio" value="missing" ${cqAiAnswerSubmode === 'missing' ? 'checked' : ''}
+              onchange="cqAiAnswerSubmode = 'missing'; renderCustomQuizModal()"
+              style="margin-top:3px;width:16px;height:16px;accent-color:#9C27B0;flex-shrink:0;" />
+            <div>
+              <div style="font-size:.78rem;font-weight:700;color:#6A1B9A;">🤖 Only answer questions missing a key</div>
+              <div style="font-size:.71rem;color:var(--text-muted);margin-top:1px;">Fills in an answer only for questions that have no answer key in the source document</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+            <input type="radio" name="cqAiAnswerSubmodeRadio" value="all" ${cqAiAnswerSubmode === 'all' ? 'checked' : ''}
+              onchange="cqAiAnswerSubmode = 'all'; renderCustomQuizModal()"
+              style="margin-top:3px;width:16px;height:16px;accent-color:#9C27B0;flex-shrink:0;" />
+            <div>
+              <div style="font-size:.78rem;font-weight:700;color:#6A1B9A;">✅ Solve / verify all questions</div>
+              <div style="font-size:.71rem;color:var(--text-muted);margin-top:1px;">Re-solves every question, including ones that already have an answer key in the source</div>
+            </div>
+          </label>
+        </div>
+        ` : ''}
       </div>
 
-      <!-- Shared source input — shown when either AI toggle is on -->
-      ${(cqAiAnswerToggle || cqAiSolveAllToggle) ? `
+      <!-- Reference Source — directly below the AI Answering menu (both
+           submenu options rely on it), so there's no confusion about
+           which control it belongs to. -->
+      ${cqAiAnsweringEnabled ? `
       <div style="margin:8px 0 4px;padding:12px 14px;background:#F3E5F5;border:1.5px solid #CE93D8;border-radius:10px;">
         <div style="font-size:.75rem;font-weight:700;color:#6A1B9A;margin-bottom:5px;">
-          📚 Reference Source (optional) — paste text and/or upload images/PDFs the AI should use to answer
-        </div>
-        <textarea class="cq-textarea" id="cqAiSourceInput" rows="3"
-          placeholder="Paste lecture notes, textbook excerpt, or any reference text here…"
-          oninput="cqAiAnswerSource = this.value"
-          style="border-color:#CE93D8;margin-bottom:8px;">${escapeHtml(cqAiAnswerSource)}</textarea>
-        <div style="font-size:.73rem;font-weight:700;color:#6A1B9A;margin-bottom:5px;">
-          🖼️ Source Images / PDFs (optional) — upload diagrams, charts, or reference PDFs the AI can see
+          📚 Reference Source (optional) — upload images/PDFs the AI should use to answer
         </div>
         <div class="cq-dropzone cq-dz-purple" id="cqSourceDropzone" onclick="document.getElementById('cqSourceFileInput').click()">
           <div class="cq-dz-icon">🖼️📄</div>
@@ -5948,6 +6841,78 @@ function renderCustomQuizModal() {
           onchange="handleCqSourceFileSelect(event)" />
       </div>
       ` : ''}
+
+      <!-- Fill Choices toggle -->
+      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqFillChoicesToggle ? '#FFF3E0' : 'var(--card)'};border:1.5px solid ${cqFillChoicesToggle ? '#FFB74D' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
+            <input type="checkbox" ${cqFillChoicesToggle ? 'checked' : ''}
+              onchange="cqFillChoicesToggle = this.checked; renderCustomQuizModal()"
+              style="opacity:0;width:0;height:0;position:absolute;" />
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqFillChoicesToggle ? '#E65100' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;top:3px;left:${cqFillChoicesToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+          </div>
+          <div>
+            <div style="font-size:.82rem;font-weight:800;color:${cqFillChoicesToggle ? '#E65100' : 'var(--text)'};letter-spacing:.2px;">
+              🧩 Fill Choices (AI)
+            </div>
+            <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
+              AI tops every question up to 4 answer choices — only adds missing distractors, never touches the correct answer
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <!-- Refine Questions toggle -->
+      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqRefineToggle ? '#EDE7F6' : 'var(--card)'};border:1.5px solid ${cqRefineToggle ? '#CE93D8' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
+            <input type="checkbox" ${cqRefineToggle ? 'checked' : ''}
+              onchange="cqRefineToggle = this.checked; renderCustomQuizModal()"
+              style="opacity:0;width:0;height:0;position:absolute;" />
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqRefineToggle ? '#6A1B9A' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;top:3px;left:${cqRefineToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+          </div>
+          <div>
+            <div style="font-size:.82rem;font-weight:800;color:${cqRefineToggle ? '#6A1B9A' : 'var(--text)'};letter-spacing:.2px;">
+              🪄 Refine Questions (AI)
+            </div>
+            <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
+              AI polishes grammar &amp; exam-style phrasing on every question's wording — doesn't change what's being asked or touch the choices
+            </div>
+          </div>
+        </label>
+        ${cqRefineToggle ? `
+        <div style="margin:9px 0 0;">
+          <div style="font-size:.73rem;font-weight:700;color:#6A1B9A;margin-bottom:5px;">
+            ⚙️ Custom Instructions (optional) — applied to every question's refine
+          </div>
+          <textarea class="cq-textarea" id="cqRefineCustomInput" rows="2"
+            placeholder="Optional — anything extra you want applied to every question (e.g. &quot;keep each question to one sentence&quot;). Only overrides the default refine behavior where it truly conflicts — grammar and exam phrasing still apply otherwise."
+            oninput="cqRefineCustomInstructions = this.value"
+            style="border-color:#CE93D8;">${escapeHtml(cqRefineCustomInstructions)}</textarea>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- Sequential-run notice — shown whenever 2+ AI steps are selected,
+           since they all write to the same question objects and could
+           otherwise conflict if fired at once. -->
+      ${(() => {
+        const steps = [
+          cqAiAnsweringEnabled ? 'Solve/Answer' : null,
+          cqFillChoicesToggle ? 'Fill Choices' : null,
+          cqRefineToggle ? 'Refine Questions' : null
+        ].filter(Boolean);
+        if (steps.length < 2) return '';
+        const stepsText = steps.map((s, idx) => `${idx + 1}) ${s}`).join('  →  ');
+        return `
+      <div style="margin:8px 0 4px;padding:10px 14px;background:#FFFDE7;border:1.5px solid #FBC02D;border-radius:10px;font-size:.75rem;color:#7A5C00;">
+        ⚙️ <strong>Multiple AI steps selected</strong> — to avoid conflicting edits on the same question, they'll run one at a time (not simultaneously), in this order:<br>
+        ${stepsText}.
+      </div>`;
+      })()}
+
 
       <div class="cq-input-row">
         <input type="text" id="cqTitleInput" placeholder="Quiz title (e.g. 'Cardio Lecture 3')"
@@ -6627,7 +7592,7 @@ function cqRemoveSourceFile(idx) {
 // sourceText: optional reference text
 // sourceFiles: optional array of {file, mimeType, name}
 // onlyIfNoKey: if true, only process questions with no_answer_key (legacy behaviour)
-async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl) {
+async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken) {
   if (!targetIdxs || !targetIdxs.length) return;
 
   let apiKey = getGeminiKey();
@@ -6681,9 +7646,11 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
   const errors = [];
 
   for (let ci = 0; ci < chunks.length; ci++) {
+    if (cancelToken && cancelToken.cancelled) break;
     // Safe checkpoint between batches — lets the user pause and switch keys
     // without losing any batches already solved.
     apiKey = (await cqCheckPause(statusEl)) || apiKey;
+    if (cancelToken && cancelToken.cancelled) break;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     const chunk = chunks[ci];
@@ -6719,7 +7686,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: [{ role: 'user', parts }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
-      }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken });
+      }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken });
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
       const cleanText = textOut.replace(/```json|```/g, '').trim();
@@ -6754,6 +7721,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         errors.push(`Batch ${ci + 1}: AI returned unexpected format (not an array).`);
       }
     } catch (e) {
+      if (e._cancelled) break; // user stopped — not an error, just stop here
       if (e._rateLimitPauseFallback) {
         apiKey = await cqFallbackPauseForRateLimit(statusEl, chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : null);
         ci--; // retry this same batch (not counted as an error) once resumed
@@ -6781,14 +7749,421 @@ async function cqAiAnswerMissingKeys(questions, sourceText, sourceFiles, statusE
   await cqAiSolveQuestions(questions, noKeyIdxs, sourceText, sourceFiles, statusEl);
 }
 
-// Solve a single question from the preview panel
-async function cqAiSolveOne(i) {
-  if (!cqGeneratedQuestions || !cqGeneratedQuestions[i]) return;
-  const statusEl = document.getElementById('cqReaskStatus_' + i);
-  if (statusEl) statusEl.innerHTML = '<div class="cq-status info" style="font-size:.75rem;padding:5px 10px;"><div class="cq-spinner" style="width:12px;height:12px;border-width:2px;"></div> 🤖 AI is solving this question…</div>';
-  await cqAiSolveQuestions(cqGeneratedQuestions, [i], cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl);
-  if (statusEl) statusEl.innerHTML = '';
-  renderCQPreview();
+/* ── Post-extraction bulk pass: Fill Choices ──
+   Tops every extracted question up to 4 answer choices (same rules as the
+   single-question "🧩 Fill Choices (AI)" tool: only adds missing distractors,
+   never touches which option is marked correct). Runs strictly one question
+   at a time — never in parallel with itself or with the refine pass — since
+   both this and Refine Questions mutate the same question objects, and the
+   whole point of running them sequentially is to avoid that exact race. */
+async function cqBulkFillChoices(questions, statusEl, cancelToken) {
+  const idxs = questions.map((q, i) => i).filter(i => {
+    const q = questions[i];
+    return q && q.question && q.question.trim() && getOptionEntries(q).length < 4;
+  });
+  if (!idxs.length) return { done: 0, errors: [] };
+
+  let apiKey = getActiveApiKey();
+  if (!apiKey) return { done: 0, errors: ['No active API key.'] };
+
+  let done = 0;
+  const errors = [];
+  for (let n = 0; n < idxs.length; n++) {
+    if (cancelToken && cancelToken.cancelled) break;
+    apiKey = (await cqCheckPause(statusEl)) || apiKey;
+    if (cancelToken && cancelToken.cancelled) break;
+    const qi = idxs[n];
+    const q = questions[qi];
+    if (statusEl) {
+      statusEl.innerHTML = _cqProgressStatusHTML(
+        `🧩 Filling choices… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
+    }
+    try {
+      const optEntries = getOptionEntries(q);
+      const usedKeys = optEntries.map(([k]) => k);
+      const missing = _AI_TOOLS_ALL_KEYS.filter(k => !usedKeys.includes(k)).slice(0, Math.max(0, 4 - optEntries.length));
+      if (!missing.length) continue;
+      const answerBefore = q.answer;
+      const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, cancelToken);
+      if (!q.optionsOrder) q.optionsOrder = optEntries.map(([k, v]) => ({ key: k, value: v }));
+      missing.forEach((key, idx) => {
+        const val = newVals[idx] || '';
+        q.options[key] = val;
+        q.optionsOrder.push({ key, value: val });
+      });
+      q.answer = answerBefore; // never change which choice is correct
+      done++;
+    } catch (e) {
+      if (e._cancelled) break; // user stopped — not an error, just stop here
+      if (e._rateLimitPauseFallback) {
+        apiKey = await cqFallbackPauseForRateLimit(statusEl, `question ${n + 1} of ${idxs.length}`);
+        n--; // retry this same question once resumed
+        continue;
+      }
+      errors.push(`Question ${qi + 1}: ${e.message || String(e)}`);
+    }
+    await cancellableSleep(250, cancelToken);
+  }
+  return { done, errors };
+}
+
+/* ── Post-extraction bulk pass: Refine Questions ──
+   Rewrites every extracted question's stem into clean exam-style phrasing
+   (same rules/prompt as the single-question "🪄 Refine Question" tool),
+   optionally guided by a shared custom-instructions box. Also strictly
+   one-at-a-time — see note above cqBulkFillChoices. */
+async function cqBulkRefineQuestions(questions, customInstructions, statusEl, cancelToken) {
+  const idxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
+  if (!idxs.length) return { done: 0, errors: [] };
+
+  let apiKey = getActiveApiKey();
+  if (!apiKey) return { done: 0, errors: ['No active API key.'] };
+
+  const custom = (customInstructions || '').trim();
+  let done = 0;
+  const errors = [];
+  for (let n = 0; n < idxs.length; n++) {
+    if (cancelToken && cancelToken.cancelled) break;
+    apiKey = (await cqCheckPause(statusEl)) || apiKey;
+    if (cancelToken && cancelToken.cancelled) break;
+    const qi = idxs[n];
+    const q = questions[qi];
+    if (statusEl) {
+      statusEl.innerHTML = _cqProgressStatusHTML(
+        `🪄 Refining question wording… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
+    }
+    try {
+      q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, cancelToken);
+      done++;
+    } catch (e) {
+      if (e._cancelled) break; // user stopped — not an error, just stop here
+      if (e._rateLimitPauseFallback) {
+        apiKey = await cqFallbackPauseForRateLimit(statusEl, `question ${n + 1} of ${idxs.length}`);
+        n--; // retry this same question once resumed
+        continue;
+      }
+      errors.push(`Question ${qi + 1}: ${e.message || String(e)}`);
+    }
+    await cancellableSleep(250, cancelToken);
+  }
+  return { done, errors };
+}
+
+/* ══════════════════════════════════════════════════════════
+   AI SOLVE — per-question source picker
+   Every question card's 🤖 AI Solve button now has a ▾ caret beside it
+   that lets the admin choose, PER QUESTION, whether to solve using pure
+   AI knowledge, the bulk source already configured for this editor (the
+   text/files pasted into "AI Solve All" / MCQ-extraction settings), or
+   any source saved to the shared library below. Adding a brand-new
+   source from this picker saves it to that library, so it immediately
+   becomes available as a choice for every OTHER question too — in this
+   editor and any other editor — not just the one it was added from.
+   Library is in-memory only (cleared on page reload), same lifetime as
+   the existing bulk-source textareas.
+══════════════════════════════════════════════════════════ */
+
+// { id, label, text, files: [{file, mimeType, name}] }
+let _aiSourceLibrary = [];
+let _aiSourceLibraryCounter = 0;
+
+// Per-question choice of what AI Solve should rely on, keyed by
+// `${editorKey}_${i}`. { type: 'ai' } | { type: 'bulk' } | { type: 'lib', id }
+const _aiSolveSourceChoice = {};
+
+// Draft state for the inline "add new source" form, keyed the same way,
+// cleared once the source is saved (or the form is cancelled/re-opened).
+const _aiSourceAddDraft = {};
+
+function _aiSolveBulkSourceHasContent(editorKey) {
+  if (editorKey === 'cq') return !!(cqAiSourceFiles && cqAiSourceFiles.length);
+  return !!(_editorBulkAiSourceFiles[editorKey] && _editorBulkAiSourceFiles[editorKey].length);
+}
+function _aiSolveBulkSourceLabel(editorKey) {
+  return editorKey === 'cq' ? 'Bulk / extraction source' : 'Editor bulk source';
+}
+
+// Computes the un-chosen default live (never cached): bulk source if this
+// editor currently has one configured, otherwise plain AI knowledge. Kept
+// live (not written into _aiSolveSourceChoice) so that adding/clearing a
+// bulk source AFTER a card was first rendered still updates that card's
+// displayed default immediately, for every question that hasn't had an
+// explicit choice made yet.
+function _aiSolveDefaultChoice(editorKey) {
+  return _aiSolveBulkSourceHasContent(editorKey) ? { type: 'bulk' } : { type: 'ai' };
+}
+// Returns the user's EXPLICIT choice for this question if one was ever
+// made (via the picker, or by saving a new source) — otherwise the live
+// default above. Only an explicit pick gets written into
+// _aiSolveSourceChoice; until then, nothing is cached for this question.
+function _aiSolveGetChoice(editorKey, i) {
+  const key = _aiToolsKey(editorKey, i);
+  return _aiSolveSourceChoice[key] || _aiSolveDefaultChoice(editorKey);
+}
+
+function _aiSolveSourceShortLabel(editorKey, i) {
+  const choice = _aiSolveGetChoice(editorKey, i);
+  if (choice.type === 'bulk') return '📚 ' + _aiSolveBulkSourceLabel(editorKey);
+  if (choice.type === 'lib') {
+    const src = _aiSourceLibrary.find(s => s.id === choice.id);
+    if (src) return '📄 ' + src.label;
+  }
+  return '🧠 AI knowledge';
+}
+
+// Shared open/close logic for every per-question "button + ▾ caret +
+// popover" control (AI Solve's source picker, Refine's instructions
+// popover, and any future ones). Only one such popover stays open at a
+// time. `pickerId`/`caretId` are the DOM ids; `buildHtml` renders the
+// popover's contents fresh each time it opens.
+function _toggleAiPopover(pickerId, caretId, buildHtml) {
+  const el = document.getElementById(pickerId);
+  if (!el) return;
+  const showing = el.style.display !== 'none';
+  document.querySelectorAll('.ai-source-picker').forEach(p => { if (p !== el) p.style.display = 'none'; });
+  if (showing) { el.style.display = 'none'; return; }
+  el.dataset.caret = caretId;
+  el.innerHTML = buildHtml();
+  el.style.display = 'block';
+}
+
+function _toggleAiSourcePicker(editorKey, i) {
+  _toggleAiPopover(`aiSourcePicker_${editorKey}_${i}`, `aiSolveSrcCaret_${editorKey}_${i}`,
+    () => _renderAiSourcePickerHTML(editorKey, i));
+}
+
+function _toggleAiRefineInstrPicker(editorKey, i) {
+  _toggleAiPopover(`aiRefineInstrPicker_${editorKey}_${i}`, `aiRefineInstrCaret_${editorKey}_${i}`,
+    () => _renderAiRefineInstrPickerHTML(editorKey, i));
+}
+
+// Content of Refine's instructions popover — deliberately labeled so it's
+// unambiguous this text is used ONLY by 🪄 Refine Question, never by AI Solve.
+function _renderAiRefineInstrPickerHTML(editorKey, i) {
+  const key = _aiToolsKey(editorKey, i);
+  const draft = _aiToolsCustomPromptText[key] || '';
+  return `<div class="ai-source-picker-inner" style="max-width:290px;">
+    <div class="ai-source-picker-title">🪄 Custom Instructions — Refine Question only</div>
+    <div style="font-size:.71rem;color:var(--text-muted);padding:0 6px 6px;line-height:1.35;">
+      Optional extra guidance used only when you click 🪄 Refine Question on this question.
+      It has no effect on 🤖 AI Solve. Only overrides the default refine rules (grammar, exam phrasing) where it truly conflicts.
+    </div>
+    <textarea id="aiCustomPromptInput_${editorKey}_${i}" rows="3"
+      oninput="_aiCustomPromptChanged('${editorKey}', ${i}, this.value)"
+      placeholder="e.g. &quot;make it about penicillin resistance&quot;, &quot;keep it to one sentence&quot;"
+      style="width:100%;resize:vertical;font-size:.78rem;padding:6px 8px;border:1.5px solid #D8C4EA;
+        border-radius:6px;font-family:var(--font);background:#FAF7FD;box-sizing:border-box;">${escapeHtml(draft)}</textarea>
+  </div>`;
+}
+
+function _renderAiSourcePickerHTML(editorKey, i) {
+  const choice = _aiSolveGetChoice(editorKey, i);
+  const isSel = (t, id) => choice.type === t && (t !== 'lib' || choice.id === id);
+  let html = `<div class="ai-source-picker-inner">`;
+  html += `<div class="ai-source-picker-title">🤖 Solve using…</div>`;
+  html += `<div class="ai-source-opt${isSel('ai') ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'ai', null)">🧠 AI knowledge only${isSel('ai') ? ' ✓' : ''}</div>`;
+  if (_aiSolveBulkSourceHasContent(editorKey)) {
+    html += `<div class="ai-source-opt${isSel('bulk') ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'bulk', null)">📚 ${escapeHtml(_aiSolveBulkSourceLabel(editorKey))}${isSel('bulk') ? ' ✓' : ''}</div>`;
+  }
+  if (_aiSourceLibrary.length) {
+    html += `<div class="ai-source-picker-divider"></div>`;
+    _aiSourceLibrary.forEach(src => {
+      html += `<div class="ai-source-opt${isSel('lib', src.id) ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'lib', '${src.id}')">
+        <span style="flex:1;">📄 ${escapeHtml(src.label)}${isSel('lib', src.id) ? ' ✓' : ''}</span>
+        <span class="ai-source-opt-remove" title="Remove this source" onclick="event.stopPropagation();_aiSourceLibraryRemove('${src.id}', '${editorKey}', ${i})">✕</span>
+      </div>`;
+    });
+  }
+  html += `<div class="ai-source-picker-divider"></div>`;
+  html += `<div class="ai-source-add-toggle" onclick="event.stopPropagation();_aiSourceAddFormToggle('${editorKey}', ${i})">➕ Add new source</div>`;
+  html += `<div id="aiSourceAddForm_${editorKey}_${i}" style="display:none;margin-top:6px;" onclick="event.stopPropagation();"></div>`;
+  html += `</div>`;
+  return html;
+}
+
+function _aiSolvePickSource(editorKey, i, type, id) {
+  _aiSolveSourceChoice[_aiToolsKey(editorKey, i)] = (type === 'lib') ? { type, id } : { type };
+  const btn = document.getElementById(`aiSolveSrcCaret_${editorKey}_${i}`);
+  if (btn) btn.innerHTML = escapeHtml(_aiSolveSourceShortLabel(editorKey, i)) + ' ▾';
+  const picker = document.getElementById(`aiSourcePicker_${editorKey}_${i}`);
+  if (picker) picker.style.display = 'none';
+}
+
+function _aiSourceAddFormToggle(editorKey, i) {
+  const wrap = document.getElementById(`aiSourceAddForm_${editorKey}_${i}`);
+  if (!wrap) return;
+  const showing = wrap.style.display !== 'none';
+  wrap.style.display = showing ? 'none' : '';
+  if (!showing) {
+    wrap.innerHTML = _renderAiSourceAddFormHTML(editorKey, i);
+    _aiSourceSetupDropzone(editorKey, i);
+  }
+}
+function _aiSourceAddFormRerender(editorKey, i) {
+  const wrap = document.getElementById(`aiSourceAddForm_${editorKey}_${i}`);
+  if (!wrap) return;
+  wrap.innerHTML = _renderAiSourceAddFormHTML(editorKey, i);
+  _aiSourceSetupDropzone(editorKey, i);
+}
+function _aiSourceAddDraftChange(editorKey, i, field, val) {
+  const dk = _aiToolsKey(editorKey, i);
+  if (!_aiSourceAddDraft[dk]) _aiSourceAddDraft[dk] = { label: '', text: '', files: [] };
+  _aiSourceAddDraft[dk][field] = val;
+}
+// Shared by both the click-to-browse input and drag&drop — validates and
+// stages one file into the draft, same rules as the bulk solver's own
+// reference-source dropzone (acceptSourceFile).
+function _aiSourceAddAcceptFile(editorKey, i, file) {
+  const dk = _aiToolsKey(editorKey, i);
+  if (!_aiSourceAddDraft[dk]) _aiSourceAddDraft[dk] = { label: '', text: '', files: [] };
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = file.type.startsWith('image/');
+  if (!isPdf && !isImage) { alert(`"${file.name}" isn't an image or PDF — please upload an image (JPG/PNG/WEBP) or a PDF file.`); return; }
+  if (file.size > GEMINI_MAX_FILE_BYTES) { alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`); return; }
+  const mimeType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  _aiSourceAddDraft[dk].files.push({ file, mimeType, name: file.name });
+}
+function _aiSourceAddFileSelect(editorKey, i, input) {
+  const files = Array.from((input && input.files) || []);
+  files.forEach(f => _aiSourceAddAcceptFile(editorKey, i, f));
+  input.value = '';
+  _aiSourceAddFormRerender(editorKey, i);
+}
+function _aiSourceAddRemoveFile(editorKey, i, idx) {
+  const dk = _aiToolsKey(editorKey, i);
+  if (_aiSourceAddDraft[dk]) _aiSourceAddDraft[dk].files.splice(idx, 1);
+  _aiSourceAddFormRerender(editorKey, i);
+}
+function _aiSourceAddDraftFileListHTML(editorKey, i, files) {
+  if (!files || !files.length) return '';
+  return `<div class="cq-dz-filelist">` + files.map((f, idx) => `
+    <div class="cq-dz-file-item">
+      <span>✅ ${escapeHtml(f.name)}</span>
+      <button type="button" onclick="event.stopPropagation();_aiSourceAddRemoveFile('${editorKey}', ${i}, ${idx})" title="Remove this file">✕</button>
+    </div>`).join('') + `</div>`;
+}
+// Wires drag&drop on the per-question dropzone. Called after every render
+// of the add-source form, since the form is rebuilt via innerHTML each
+// time (fresh nodes each time, so there's no stale-listener risk).
+function _aiSourceSetupDropzone(editorKey, i) {
+  const dz = document.getElementById(`aiSourceDropzone_${editorKey}_${i}`);
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+  }));
+  dz.addEventListener('drop', e => {
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    files.forEach(f => _aiSourceAddAcceptFile(editorKey, i, f));
+    _aiSourceAddFormRerender(editorKey, i);
+  });
+}
+function _renderAiSourceAddFormHTML(editorKey, i) {
+  const dk = _aiToolsKey(editorKey, i);
+  const draft = _aiSourceAddDraft[dk] || { label: '', text: '', files: [] };
+  return `
+    <input type="text" placeholder="Source name (e.g. Lecture 4 slides)" value="${escapeHtml(draft.label)}"
+      oninput="_aiSourceAddDraftChange('${editorKey}', ${i}, 'label', this.value)"
+      style="width:100%;font-size:.75rem;padding:5px 7px;border:1.5px solid #B0D4F0;border-radius:5px;margin-bottom:8px;box-sizing:border-box;">
+    <div style="font-size:.72rem;font-weight:700;color:#6A1B9A;margin-bottom:4px;">🖼️ Source images / PDFs</div>
+    <div class="cq-dropzone cq-dz-purple ai-source-dz" id="aiSourceDropzone_${editorKey}_${i}"
+      onclick="document.getElementById('aiSourceFileInput_${editorKey}_${i}').click()">
+      <div class="cq-dz-icon">🖼️📄</div>
+      <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
+      ${_aiSourceAddDraftFileListHTML(editorKey, i, draft.files)}
+      ${draft.files.length ? `<div class="cq-dz-add-more">➕ Click again to add more files</div>` : ''}
+    </div>
+    <input type="file" id="aiSourceFileInput_${editorKey}_${i}" accept="image/*,application/pdf" multiple style="display:none;"
+      onchange="_aiSourceAddFileSelect('${editorKey}', ${i}, this)">
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button type="button" class="cq-edit-reask-btn" style="background:#1565C0;color:#fff;font-size:.72rem;"
+        onclick="_aiSourceAddSave('${editorKey}', ${i})">✅ Save Source</button>
+      <button type="button" class="cq-edit-reask-btn" style="font-size:.72rem;"
+        onclick="_aiSourceAddFormToggle('${editorKey}', ${i})">Cancel</button>
+    </div>`;
+}
+// Saves the draft to the shared library — this makes it available to
+// EVERY question card from now on (see _aiSourceLibrary), not just the one
+// it was added from — then immediately selects it for the current question.
+function _aiSourceAddSave(editorKey, i) {
+  const dk = _aiToolsKey(editorKey, i);
+  const draft = _aiSourceAddDraft[dk] || { label: '', text: '', files: [] };
+  const label = (draft.label || '').trim();
+  const files = draft.files || [];
+  if (!label) { alert('Give this source a name.'); return; }
+  if (!files.length) { alert('Add at least one reference image or PDF.'); return; }
+  const id = 'src_' + (++_aiSourceLibraryCounter) + '_' + Date.now();
+  _aiSourceLibrary.push({ id, label, text: '', files });
+  delete _aiSourceAddDraft[dk];
+  _aiSolvePickSource(editorKey, i, 'lib', id);
+}
+function _aiSourceLibraryRemove(id, editorKey, i) {
+  const idx = _aiSourceLibrary.findIndex(s => s.id === id);
+  if (idx === -1) return;
+  if (!confirm(`Remove source "${_aiSourceLibrary[idx].label}"? Any question currently set to use it will fall back to AI knowledge.`)) return;
+  _aiSourceLibrary.splice(idx, 1);
+  Object.keys(_aiSolveSourceChoice).forEach(k => {
+    if (_aiSolveSourceChoice[k].type === 'lib' && _aiSolveSourceChoice[k].id === id) delete _aiSolveSourceChoice[k];
+  });
+  const btn = document.getElementById(`aiSolveSrcCaret_${editorKey}_${i}`);
+  if (btn) btn.innerHTML = escapeHtml(_aiSolveSourceShortLabel(editorKey, i)) + ' ▾';
+  const picker = document.getElementById(`aiSourcePicker_${editorKey}_${i}`);
+  if (picker) { picker.innerHTML = _renderAiSourcePickerHTML(editorKey, i); }
+}
+
+// Solve a single question, in ANY editor ('cq' | 'admin' | 'customQuiz'),
+// using whichever source the user has picked for it (see picker above).
+async function aiSolveQuestion(editorKey, i) {
+  // Shares a lock with Refine Question / Fill Choices / Add Choice (AI) on
+  // this same question — see _aiToolsBusy — so AI Solve can never settle on
+  // an answer while one of those is still mid-write to the same question's
+  // options, and vice versa.
+  if (_aiToolsIsBusy(editorKey, i)) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.'));
+    return;
+  }
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const q = questions[i];
+  if (!q.question || !q.question.trim()) {
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Write the question text first.'));
+    return;
+  }
+  const apiKey = _aiToolsRequireKey(editorKey, i);
+  if (!apiKey) return;
+
+  const choice = _aiSolveGetChoice(editorKey, i);
+  let sourceText = '', sourceFiles = [];
+  if (choice.type === 'bulk') {
+    if (editorKey === 'cq') { sourceFiles = cqAiSourceFiles || []; }
+    else { sourceFiles = _editorBulkAiSourceFiles[editorKey] || []; }
+  } else if (choice.type === 'lib') {
+    const src = _aiSourceLibrary.find(s => s.id === choice.id);
+    if (src) { sourceText = src.text || ''; sourceFiles = src.files || []; }
+  }
+  // choice.type === 'ai' → leave both empty so cqAiSolveQuestions answers
+  // from general knowledge only.
+
+  const _key = _aiToolsKey(editorKey, i);
+  const token = { cancelled: false };
+  _aiToolsCancelToken[_key] = token;
+  _aiToolsSetBusy(editorKey, i, true, 'solve');
+  const statusEl = _aiToolsStatusEl(editorKey, i);
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🤖 AI is solving this question…'));
+  try {
+    await cqAiSolveQuestions(questions, [i], sourceText, sourceFiles, statusEl, token);
+  } catch (e) {
+    if (!(e && e._cancelled)) {
+      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not solve this question.'));
+    }
+  } finally {
+    if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
+    _aiToolsSetBusy(editorKey, i, false, 'solve');
+  }
+  ed.rerender();
 }
 
 
@@ -6961,15 +8336,35 @@ async function generateQuizFromAI() {
 
     // Handle questions without answer keys
     const noKeyQs = cleaned.filter(q => q.no_answer_key);
-    if (cqAiSolveAllToggle) {
+    if (cqAiAnsweringEnabled && cqAiAnswerSubmode === 'all') {
       // Solve ALL questions (including those with existing keys)
       const allIdxs = cleaned.map((_, i) => i);
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is solving all ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}… please wait.</div>`;
       await cqAiSolveQuestions(cleaned, allIdxs, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl);
-    } else if (noKeyQs.length > 0 && cqAiAnswerToggle) {
+    } else if (cqAiAnsweringEnabled && cqAiAnswerSubmode === 'missing' && noKeyQs.length > 0) {
       // Solve only no-key questions
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is answering ${noKeyQs.length} question${noKeyQs.length !== 1 ? 's' : ''} without an answer key… please wait.</div>`;
       await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl);
+    }
+
+    // ── Fill Choices, then Refine Questions — run STRICTLY one after the
+    // other (never together, and never alongside the solve/answer step
+    // above, which has already finished by this point). All three steps
+    // write to the same question objects (answer/options/question text),
+    // so firing them concurrently risks one step's write clobbering
+    // another's — e.g. Fill Choices adding a distractor while Refine is
+    // mid-rewrite of the same question's stem. Running them in this fixed
+    // order — Solve/Answer → Fill Choices → Refine — also makes the most
+    // sense content-wise: nail down the correct answer first, then pad out
+    // the remaining choices around it, and only polish the wording last,
+    // once nothing about the question is still changing.
+    let fillResult   = null;
+    let refineResult = null;
+    if (cqFillChoicesToggle) {
+      fillResult = await cqBulkFillChoices(cleaned, statusEl);
+    }
+    if (cqRefineToggle) {
+      refineResult = await cqBulkRefineQuestions(cleaned, cqRefineCustomInstructions.trim(), statusEl);
     }
 
     let warn = '';
@@ -6982,16 +8377,32 @@ async function generateQuizFromAI() {
     const noKeyCount  = noKeyQs.length;
     const aiCount     = cleaned.filter(q => q.ai_answered).length;
     const guessCount  = cleaned.filter(q => q.ai_guessed).length;
-    const solveNote   = cqAiSolveAllToggle && aiCount > 0
+    const solveNote   = cqAiAnsweringEnabled && cqAiAnswerSubmode === 'all' && aiCount > 0
       ? ` · 🤖 ${aiCount} AI-solved${guessCount > 0 ? ' (⚠️ ' + guessCount + ' from own knowledge)' : ''}`
-      : noKeyCount > 0 && cqAiAnswerToggle && aiCount > 0
+      : noKeyCount > 0 && cqAiAnsweringEnabled && cqAiAnswerSubmode === 'missing' && aiCount > 0
       ? ` · 🤖 ${aiCount} AI-answered${guessCount > 0 ? ' (⚠️ ' + guessCount + ' from own knowledge)' : ''}`
       : noKeyCount > 0 ? ` · ⚠️ ${noKeyCount} without key` : '';
-    const fileNote = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
-    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote}${imgNote}${solveNote}. Review below, then save.${warn}</div>`;
-    if (noKeyCount > 0 && !cqAiAnswerToggle && !cqAiSolveAllToggle) {
+    const fileNote   = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
+    const fillNote   = fillResult && fillResult.done > 0
+      ? ` · 🧩 ${fillResult.done} question${fillResult.done !== 1 ? 's' : ''} filled to 4 choices` : '';
+    const refineNote = refineResult && refineResult.done > 0
+      ? ` · 🪄 ${refineResult.done} question${refineResult.done !== 1 ? 's' : ''} refined` : '';
+    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote}${imgNote}${solveNote}${fillNote}${refineNote}. Review below, then save.${warn}</div>`;
+
+    // Surface any per-question errors from the Fill Choices / Refine passes
+    // without blocking the rest of the summary — extraction itself already
+    // succeeded, these are just best-effort polish steps.
+    [['🧩 Fill Choices', fillResult], ['🪄 Refine Questions', refineResult]].forEach(([label, res]) => {
+      if (res && res.errors.length > 0) {
+        const errHtml = res.errors.map(err => `<div>⚠️ ${escapeHtml(err)}</div>`).join('');
+        statusEl.insertAdjacentHTML('beforeend',
+          `<div class="cq-status warning" style="margin-top:6px;">${label} ran into issues on some questions:<br>${errHtml}</div>`
+        );
+      }
+    });
+    if (noKeyCount > 0 && !cqAiAnsweringEnabled) {
       statusEl.insertAdjacentHTML('beforeend',
-        `<div class="cq-status warning" style="margin-top:6px;">⚠️ ${noKeyCount} question${noKeyCount !== 1 ? 's have' : ' has'} no answer key in the source document and ${noKeyCount !== 1 ? 'are' : 'is'} marked below with a <strong>⚠️ No Key</strong> badge. You can set the correct answer manually, or enable <strong>🤖 AI Answer Mode</strong> before extracting to let AI answer them automatically.</div>`
+        `<div class="cq-status warning" style="margin-top:6px;">⚠️ ${noKeyCount} question${noKeyCount !== 1 ? 's have' : ' has'} no answer key in the source document and ${noKeyCount !== 1 ? 'are' : 'is'} marked below with a <strong>⚠️ No Key</strong> badge. You can set the correct answer manually, or enable <strong>🤖 AI Answering</strong> before extracting to let AI answer them automatically.</div>`
       );
     }
     if (guessCount > 0) {
@@ -7327,9 +8738,6 @@ function renderCQPreview() {
       ${_renderMergeSourceBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
       ${_renderReorderButtons('cq', i, cqGeneratedQuestions.length)}
-      <button class="cq-edit-reask-btn" title="Ask AI to solve this question using the configured source"
-        onclick="cqAiSolveOne(${i})"
-        style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7;">🤖 AI Solve</button>
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="cqDeleteQuestion(${i})"
         style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A;">🗑 Delete</button>
@@ -7339,6 +8747,9 @@ function renderCQPreview() {
     html += `<textarea class="cq-edit-textarea" rows="2"
       oninput="cqEditQuestion(${i}, this.value)"
       style="width:100%;resize:vertical;margin-bottom:8px;">${escapeHtml(q.question)}</textarea>`;
+
+    /* ── AI Question Tools: Refine Question + custom instructions ── */
+    html += _renderAiRefineTools('cq', i);
 
     /* ── Image area ── */
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
@@ -7423,8 +8834,8 @@ function renderCQPreview() {
       </button>`;
     }
 
-    /* ── Re-ask / re-extract status area ── */
-    html += `<div id="cqReaskStatus_${i}" style="margin-top:6px;"></div>`;
+    /* ── AI Question Tools: Add Choice (AI) / Fill Choices (AI) ── */
+    html += _renderAiChoiceTools('cq', i, optEntries.length, nextKey);
 
     html += `</div>`; // end .cq-editable-q
   });
@@ -9477,9 +10888,26 @@ async function confirmMergeSelectedQuizzes() {
 ══════════════════════════════════════════════════════════ */
 let adminSourceTab   = 'custom';   // 'custom' | 'community'
 let adminSelectedQuiz = null;      // { title, questions, sourceType, sourceId }
+// NOTE: adminTargetYear/Module/Subject below are used EXCLUSIVELY by the
+// "📚 Manage Curriculum" tab's own drill-down navigation (adminCurrNavLevel
+// etc.) — they track where the admin is browsing *in that tab*.
 let adminTargetYear   = '';
 let adminTargetModule = '';
 let adminTargetSubject= '';
+
+// The Publish tab's own "where does this quiz go" destination picker keeps
+// a fully separate set of Year/Module/Subject targets so that clicking
+// through it never changes — or gets clobbered by — whatever the admin was
+// last browsing in the Manage Curriculum tab, and vice versa.
+let adminPubTargetYear   = '';
+let adminPubTargetModule = '';
+let adminPubTargetSubject= '';
+
+// Where to insert a newly-published quiz among a subject's existing
+// published quizzes: null = append at the end (default), otherwise
+// { lectureId, position } with position 'before' | 'after'.
+let adminPublishInsertPosition = null;
+
 let adminCommunityCache = null;
 let adminBusy = false;
 
@@ -9489,13 +10917,25 @@ let adminEditMode      = null;   // 'publish' | 'published' | null
 let adminEditingPublishedId   = null; // lectureId when editing an already-published lecture
 let adminEditingPublishedName = '';   // its lecture name
 
-// Cache of the currently-listed published lectures for adminTargetSubject.
-// Populated by renderAdminAssignedList(); used as the Split-Quiz source so
-// re-rendering the split panel (mode switches, range edits) doesn't need to
-// re-hit Firestore every keystroke.
+// Cache of the currently-listed published lectures for whichever subject is
+// in focus (adminPubTargetSubject in the Publish tab, adminTargetSubject in
+// the Curriculum tab — see _pubListSubject()). Populated by
+// renderAdminAssignedList(); used as the Split-Quiz source so re-rendering
+// the split panel (mode switches, range edits) doesn't need to re-hit
+// Firestore every keystroke.
 let adminAssignedEntries = [];
 
 let adminActiveTab = 'publish'; // 'publish' | 'curriculum' | 'admins'
+
+// Returns whichever Year/Module/Subject target is relevant to the tab
+// currently on screen — the Curriculum tab's own drill-down position, or
+// the Publish tab's separate destination-picker selection. Used by the
+// shared "already published" list renderer / reorder logic so the exact
+// same functions work correctly from either tab without the two tabs'
+// navigation state bleeding into each other.
+function _pubListSubject() {
+  return adminActiveTab === 'curriculum' ? adminTargetSubject : adminPubTargetSubject;
+}
 
 /* Build the admin panel tab bar to match exactly what this user is allowed to see. */
 function renderAdminPanelTabs() {
@@ -9535,6 +10975,10 @@ function openAdminPanel() {
   adminTargetYear   = '';
   adminTargetModule = '';
   adminTargetSubject= '';
+  adminPubTargetYear   = '';
+  adminPubTargetModule = '';
+  adminPubTargetSubject= '';
+  adminPublishInsertPosition = null;
   adminCommunityCache = null;
   adminCurrNavLevel = 'years';
   const defaultTab = adminDefaultTab();
@@ -9542,14 +10986,16 @@ function openAdminPanel() {
     alert('You do not have admin access.');
     return;
   }
-  adminActiveTab = defaultTab;
+  adminActiveTab = null; // force adminSwitchTab below to actually render instead of no-op'ing
   document.getElementById('adminOverlay').classList.remove('hidden');
   adminSwitchTab(defaultTab);
 }
 
 function closeAdminPanel() {
-  document.getElementById('adminOverlay').classList.add('hidden');
-  fsLoadingHide();
+  _guardedClose(() => {
+    document.getElementById('adminOverlay').classList.add('hidden');
+    fsLoadingHide();
+  });
 }
 
 /* Re-render whatever admin panel tab is currently open (if the panel is
@@ -9572,12 +11018,15 @@ function adminSwitchTab(tab) {
   if (tab === 'publish' && !hasAdminPermission(user, 'curriculum') && !hasAdminPermission(user, 'community')) return;
   if (tab === 'curriculum' && !hasAdminPermission(user, 'curriculum')) return;
   if (tab === 'admins' && !hasAdminPermission(user, 'admins')) return;
+  if (tab === adminActiveTab) return; // already there — nothing to guard or re-render
 
-  adminActiveTab = tab;
-  renderAdminPanelTabs();
-  if (tab === 'publish') renderAdminPanel();
-  else if (tab === 'curriculum') renderAdminCurriculumPanel();
-  else if (tab === 'admins') renderAdminManagePanel();
+  _guardedClose(() => {
+    adminActiveTab = tab;
+    renderAdminPanelTabs();
+    if (tab === 'publish') renderAdminPanel();
+    else if (tab === 'curriculum') renderAdminCurriculumPanel();
+    else if (tab === 'admins') renderAdminManagePanel();
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -9860,43 +11309,108 @@ async function adminDeleteSourceQuiz(sourceType, sourceId) {
   }
 }
 
-function adminYearOptionsHtml() {
-  return Object.keys(curriculum).map(y =>
-    `<option value="${escapeHtml(y)}" ${adminTargetYear === y ? 'selected' : ''}>${escapeHtml(y)}</option>`
-  ).join('');
+/* ── Visual publish-destination picker ──
+   Same click-through card style used by the "📚 Manage Curriculum" browser
+   (_moduleIcon, .curr-item-row, .curr-back-btn, etc.) so picking where a
+   quiz goes is a direct, visual "tap the right box" action. Uses its own
+   adminPubTargetYear/Module/Subject state — entirely separate from the
+   Curriculum tab's adminTargetYear/Module/Subject — so browsing here never
+   affects, and is never affected by, wherever the admin last was in
+   📚 Manage Curriculum. Picking a new subject always simply replaces
+   whatever was previously chosen. */
+function adminAssignBreadcrumbHtml() {
+  let html = `<div class="curr-breadcrumb">`;
+  html += `<span class="curr-crumb ${!adminPubTargetYear ? 'active' : ''}" onclick="adminOnYearChange('')">📅 Years</span>`;
+  if (adminPubTargetYear) {
+    html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${!adminPubTargetModule ? 'active' : ''}" onclick="adminOnModuleChange('')">${escapeHtml(adminPubTargetYear)}</span>`;
+  }
+  if (adminPubTargetModule) {
+    html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${!adminPubTargetSubject ? 'active' : ''}" onclick="adminOnSubjectChange('')">${escapeHtml(adminPubTargetModule)}</span>`;
+  }
+  if (adminPubTargetSubject) {
+    html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb active">${escapeHtml(subjects[adminPubTargetSubject]?.label || adminPubTargetSubject)}</span>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
-function adminModuleOptionsHtml() {
-  const mods = adminTargetYear ? Object.keys(curriculum[adminTargetYear] || {}) : [];
-  if (!mods.length) return `<option value="">— No modules —</option>`;
-  return mods.map(m =>
-    `<option value="${escapeHtml(m)}" ${adminTargetModule === m ? 'selected' : ''}>${escapeHtml(m)}</option>`
-  ).join('');
-}
+function adminPublishTargetPickerHtml() {
+  let html = `<div class="curr-section admin-publish-picker">`;
+  html += `<div class="curr-section-title" style="margin-bottom:8px;">📍 Publish Destination</div>`;
+  html += adminAssignBreadcrumbHtml();
 
-function adminSubjectOptionsHtml() {
-  const subs = (adminTargetYear && adminTargetModule)
-    ? (curriculum[adminTargetYear][adminTargetModule] || []).filter(n => subjects[n])
-    : [];
-  if (!subs.length) return `<option value="">— No subjects —</option>`;
-  return subs.map(s =>
-    `<option value="${escapeHtml(s)}" ${adminTargetSubject === s ? 'selected' : ''}>${escapeHtml(subjects[s].label || s)}</option>`
-  ).join('');
+  if (adminPubTargetSubject) {
+    html += `<button class="curr-back-btn" onclick="adminOnSubjectChange('')">← Back to Subjects</button>`;
+  } else if (adminPubTargetModule) {
+    html += `<button class="curr-back-btn" onclick="adminOnModuleChange('')">← Back to Modules</button>`;
+  } else if (adminPubTargetYear) {
+    html += `<button class="curr-back-btn" onclick="adminOnYearChange('')">← Back to Years</button>`;
+  }
+
+  html += `<div style="margin-top:9px;display:flex;flex-direction:column;gap:6px;">`;
+
+  if (!adminPubTargetYear) {
+    const years = Object.keys(curriculum);
+    html += years.length ? years.map(y => `
+      <div class="curr-item-row curr-item-open" onclick="adminOnYearChange('${escapeHtml(y)}')">
+        <div style="flex:1;">
+          <div class="curr-item-name">📅 ${escapeHtml(y)}</div>
+          <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)</div>
+        </div>
+        <span class="curr-item-arrow">▶</span>
+      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">No years yet — add one in 📚 Manage Curriculum first.</div>`;
+
+  } else if (!adminPubTargetModule) {
+    const mods = Object.keys(curriculum[adminPubTargetYear] || {});
+    html += mods.length ? mods.map(m => `
+      <div class="curr-item-row curr-item-open" onclick="adminOnModuleChange('${escapeHtml(m)}')">
+        <div style="flex:1;">
+          <div class="curr-item-name">${escapeHtml(_moduleIcon(adminPubTargetYear, m))} ${escapeHtml(m)}</div>
+          <div class="curr-item-sub">${(curriculum[adminPubTargetYear][m] || []).filter(k => subjects[k]).length} subject(s)</div>
+        </div>
+        <span class="curr-item-arrow">▶</span>
+      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">No modules yet in ${escapeHtml(adminPubTargetYear)}.</div>`;
+
+  } else if (!adminPubTargetSubject) {
+    const subs = (curriculum[adminPubTargetYear][adminPubTargetModule] || []).filter(k => subjects[k]);
+    html += subs.length ? subs.map(s => `
+      <div class="curr-item-row curr-item-open" onclick="adminOnSubjectChange('${escapeHtml(s)}')">
+        <div style="flex:1;">
+          <div class="curr-item-name">${escapeHtml(subjects[s].icon || '📘')} ${escapeHtml(subjects[s].label || s)}</div>
+        </div>
+        <span class="curr-item-arrow">▶</span>
+      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">No subjects yet in ${escapeHtml(adminPubTargetModule)}.</div>`;
+
+  } else {
+    html += `
+      <div class="curr-item-row admin-publish-target-selected">
+        <div style="flex:1;">
+          <div class="curr-item-name">✅ ${escapeHtml(subjects[adminPubTargetSubject].icon || '📘')} ${escapeHtml(subjects[adminPubTargetSubject].label || adminPubTargetSubject)}</div>
+          <div class="curr-item-sub">${escapeHtml(adminPubTargetYear)} → ${escapeHtml(adminPubTargetModule)}</div>
+        </div>
+      </div>`;
+  }
+
+  html += `</div></div>`;
+  return html;
 }
 
 function adminOnYearChange(val) {
-  adminTargetYear   = val;
-  adminTargetModule = '';
-  adminTargetSubject = '';
+  adminPubTargetYear   = val;
+  adminPubTargetModule = '';
+  adminPubTargetSubject = '';
+  adminPublishInsertPosition = null;
   renderAdminAssignForm();
 }
 function adminOnModuleChange(val) {
-  adminTargetModule = val;
-  adminTargetSubject = '';
+  adminPubTargetModule = val;
+  adminPubTargetSubject = '';
+  adminPublishInsertPosition = null;
   renderAdminAssignForm();
 }
 function adminOnSubjectChange(val) {
-  adminTargetSubject = val;
+  adminPubTargetSubject = val;
+  adminPublishInsertPosition = null;
   renderAdminAssignForm();
 }
 
@@ -9923,47 +11437,26 @@ function renderAdminAssignForm() {
 
       <div id="adminEditorArea"></div>
 
-      <div class="admin-field">
-        <label>Year</label>
-        <select onchange="adminOnYearChange(this.value)">
-          <option value="">— Select year —</option>
-          ${adminYearOptionsHtml()}
-        </select>
-      </div>
-
-      <div class="admin-field">
-        <label>Module</label>
-        <select onchange="adminOnModuleChange(this.value)" ${!adminTargetYear ? 'disabled' : ''}>
-          <option value="">— Select module —</option>
-          ${adminModuleOptionsHtml()}
-        </select>
-      </div>
-
-      <div class="admin-field">
-        <label>Subject</label>
-        <select onchange="adminOnSubjectChange(this.value)" ${!adminTargetModule ? 'disabled' : ''}>
-          <option value="">— Select subject —</option>
-          ${adminSubjectOptionsHtml()}
-        </select>
-      </div>
+      ${adminPublishTargetPickerHtml()}
 
       <div class="admin-field">
         <label>Lecture / Topic Name</label>
         <input type="text" id="adminLectureName" placeholder="e.g. Quiz: Liver Pathology (uploaded)" />
       </div>
 
-      <button class="admin-assign-btn" id="adminPublishBtn" onclick="adminPublishQuiz()"
-        ${(!adminTargetYear || !adminTargetModule || !adminTargetSubject) ? 'disabled' : ''}>
+      <div class="admin-assigned-section" id="adminAssignedSection"></div>
+
+      <button class="admin-assign-btn" id="adminPublishBtn" onclick="adminPublishQuiz()" style="margin-top:14px;"
+        ${(!adminPubTargetYear || !adminPubTargetModule || !adminPubTargetSubject) ? 'disabled' : ''}>
         📤 Publish to Question Bank
       </button>
       <div class="admin-status" id="adminStatus"></div>
     </div>
-    <div class="admin-assigned-section" id="adminAssignedSection"></div>
   `;
 
   if (adminEditMode === 'publish') renderAdminQuestionEditor('adminEditorArea');
 
-  if (adminTargetSubject) renderAdminAssignedList();
+  if (adminPubTargetSubject) renderAdminAssignedList();
 }
 
 function adminToggleEditBeforePublish() {
@@ -10002,6 +11495,8 @@ function renderAdminQuestionEditor(containerId) {
       🔘 = correct answer &nbsp;·&nbsp; 🔗 = linked case questions
     </div>
   </div>`;
+  html += _renderBulkAiToolsPanel('admin', adminEditQuestions);
+  html += `<div id="adminBulkLockWrap"${_editorBulkBusy.admin ? ' class="cq-bulk-lock"' : ''}>`;
   html += `<div class="cq-preview-list" id="adminEditList">`;
 
   adminEditQuestions.forEach((q, i) => {
@@ -10025,6 +11520,9 @@ function renderAdminQuestionEditor(containerId) {
     html += `<textarea class="cq-edit-textarea" rows="2"
       oninput="adminEditQuestionText(${i}, this.value)"
       style="width:100%;resize:vertical;margin-bottom:8px;">${escapeHtml(q.question)}</textarea>`;
+
+    /* ── AI Question Tools: Refine Question + custom instructions ── */
+    html += _renderAiRefineTools('admin', i);
 
     /* Image area */
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
@@ -10093,6 +11591,9 @@ function renderAdminQuestionEditor(containerId) {
       </button>`;
     }
 
+    /* ── AI Question Tools: Add Choice (AI) / Fill Choices (AI) ── */
+    html += _renderAiChoiceTools('admin', i, optEntries.length, nextKey);
+
     html += `</div>`; // end .cq-editable-q
   });
 
@@ -10113,9 +11614,11 @@ function renderAdminQuestionEditor(containerId) {
     `}
   </div>
   ${adminEditMode === 'published' ? renderSplitPanel('adminPublished', adminEditingPublishedId, adminEditQuestions.length) : ''}
+  </div>
   <div class="admin-status" id="adminEditStatus"></div>`;
 
   area.innerHTML = html;
+  _editorBulkSourceSetupDropzone('admin');
 
   // Restore scroll position (unless this is the very first render)
   if (_prevScrollTop !== null) {
@@ -10268,11 +11771,13 @@ function openCustomQuizEditor(id) {
 }
 
 function closeCustomQuizEditor() {
-  cqCreatingNew = false;
-  cqEditingQuizId = null;
-  cqEditQuestions = null;
-  cqNewQuizTitle = '';
-  renderCustomQuizModal();
+  _guardedClose(() => {
+    cqCreatingNew = false;
+    cqEditingQuizId = null;
+    cqEditQuestions = null;
+    cqNewQuizTitle = '';
+    renderCustomQuizModal();
+  });
 }
 
 /* Opens the same editor used for existing quizzes, but starting from one
@@ -10324,6 +11829,8 @@ function renderCustomQuizEditor() {
       🔘 = correct answer &nbsp;·&nbsp; 🔗 = linked case questions
     </div>
   </div>`;
+  html += _renderBulkAiToolsPanel('customQuiz', cqEditQuestions);
+  html += `<div id="customQuizBulkLockWrap"${_editorBulkBusy.customQuiz ? ' class="cq-bulk-lock"' : ''}>`;
   html += `<div class="cq-preview-list" id="cqCustomEditList_${key}">`;
 
   cqEditQuestions.forEach((q, i) => {
@@ -10347,6 +11854,9 @@ function renderCustomQuizEditor() {
     html += `<textarea class="cq-edit-textarea" rows="2"
       oninput="cqEditQuestionText(${i}, this.value)"
       style="width:100%;resize:vertical;margin-bottom:8px;">${escapeHtml(q.question)}</textarea>`;
+
+    /* ── AI Question Tools: Refine Question + custom instructions ── */
+    html += _renderAiRefineTools('customQuiz', i);
 
     /* Image area */
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
@@ -10415,6 +11925,9 @@ function renderCustomQuizEditor() {
       </button>`;
     }
 
+    /* ── AI Question Tools: Add Choice (AI) / Fill Choices (AI) ── */
+    html += _renderAiChoiceTools('customQuiz', i, optEntries.length, nextKey);
+
     html += `</div>`; // end .cq-editable-q
   });
 
@@ -10431,9 +11944,11 @@ function renderCustomQuizEditor() {
     <button class="cq-btn cq-btn-secondary" onclick="closeCustomQuizEditor()">✖ Cancel</button>
   </div>
   ${!cqCreatingNew ? renderSplitPanel('saved', cqEditingQuizId, cqEditQuestions.length) : ''}
+  </div>
   <div class="admin-status" id="cqCustomEditStatus_${key}"></div>`;
 
   area.innerHTML = html;
+  _editorBulkSourceSetupDropzone('customQuiz');
 
   if (_prevScrollTop !== null) {
     const _newList = document.getElementById('cqCustomEditList_' + key);
@@ -10624,9 +12139,10 @@ async function saveCustomQuizEdits() {
    bumps both entries' manifest timestamp so every user's cache picks up
    the new order on their next load, and refreshes the current view. */
 async function adminSwapLectureOrder(lectureId, direction) {
-  if (!adminTargetSubject) return;
+  const subj = _pubListSubject();
+  if (!subj) return;
   try {
-    const col  = window._collection(window._db, 'publishedQuestions', adminTargetSubject, 'lectures');
+    const col  = window._collection(window._db, 'publishedQuestions', subj, 'lectures');
     const snap = await window._getDocs(col);
     const entries = [];
     snap.forEach(d => entries.push({ id: d.id, ...d.data() }));
@@ -10643,23 +12159,23 @@ async function adminSwapLectureOrder(lectureId, direction) {
     const bOrder = b.order ?? b.publishedAt ?? 0;
 
     await window._setDoc(
-      window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', a.id),
+      window._doc(window._db, 'publishedQuestions', subj, 'lectures', a.id),
       { order: bOrder }, { merge: true }
     );
     await window._setDoc(
-      window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', b.id),
+      window._doc(window._db, 'publishedQuestions', subj, 'lectures', b.id),
       { order: aOrder }, { merge: true }
     );
 
     // Only these two quizzes are invalidated for every other user — nothing
     // else they've already cached is touched.
     const now = Date.now();
-    await _updatePublishedManifest(adminTargetSubject, a.id, now);
-    await _updatePublishedManifest(adminTargetSubject, b.id, now + 1);
+    await _updatePublishedManifest(subj, a.id, now);
+    await _updatePublishedManifest(subj, b.id, now + 1);
 
     // Refresh in-memory ordering + whatever the admin currently has open
     await loadPublishedQuestionsIntoSubjects();
-    if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
+    if (selectedSubject === subj) selectSubject(subj);
     renderAdminAssignedList();
   } catch (e) {
     alert('Failed to reorder: ' + (e.message || e));
@@ -10669,11 +12185,13 @@ async function adminSwapLectureOrder(lectureId, direction) {
 async function renderAdminAssignedList() {
   const sec = document.getElementById('adminAssignedSection');
   if (!sec) return;
-  sec.innerHTML = `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[adminTargetSubject].label || adminTargetSubject)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
+  const subj = _pubListSubject();
+  if (!subj) { sec.innerHTML = ''; return; }
+  sec.innerHTML = `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
 
   let entries = [];
   try {
-    const col = window._collection(window._db, 'publishedQuestions', adminTargetSubject, 'lectures');
+    const col = window._collection(window._db, 'publishedQuestions', subj, 'lectures');
     const snap = await window._getDocs(col);
     snap.forEach(d => entries.push({ id: d.id, ...d.data() }));
   } catch (e) {
@@ -10683,6 +12201,12 @@ async function renderAdminAssignedList() {
 
   entries.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
   adminAssignedEntries = entries;
+
+  // A previously-chosen before/after insertion target might no longer
+  // exist in this subject's freshly-loaded list — drop it if so.
+  if (adminPublishInsertPosition && !entries.some(e => e.id === adminPublishInsertPosition.lectureId)) {
+    adminPublishInsertPosition = null;
+  }
 
   _renderAdminAssignedListHTML();
 }
@@ -10695,11 +12219,66 @@ function _renderAdminAssignedListHTML() {
   const sec = document.getElementById('adminAssignedSection');
   if (!sec) return;
   const entries = adminAssignedEntries;
+  const subj = _pubListSubject();
+  if (!subj) { sec.innerHTML = ''; return; }
 
-  sec.innerHTML = `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[adminTargetSubject].label || adminTargetSubject)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
+  // The "Publish Quizzes" tab only needs a quick read-only glance at what's
+  // already there (so the admin doesn't duplicate a lecture by accident) —
+  // reordering, editing, copy/move, and delete all live one place now:
+  // the "📚 Manage Curriculum" tab. Showing them here too was redundant
+  // and easy to trigger by mistake mid-publish. It does let the admin pick
+  // where the new quiz will land relative to these, via before/after markers.
+  const simple = adminActiveTab !== 'curriculum';
+
+  sec.innerHTML = simple
+    ? `<div class="admin-assigned-title">Publish Here — "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— tap 📤 Publish Here to choose where the new quiz lands in the list below</span></div>`
+    : `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
 
   if (!entries.length) {
-    sec.innerHTML += `<div style="color:var(--text-muted);font-size:.82rem;">No quizzes have been published to this subject yet.</div>`;
+    if (simple) {
+      // Nothing published yet — there's only one possible spot, so no gap
+      // markers are needed; publishing always lands at the end (empty list).
+      sec.innerHTML += `<div style="color:var(--text-muted);font-size:.82rem;">No quizzes have been published to this subject yet — the new quiz will be the first one.</div>`;
+    } else {
+      sec.innerHTML += `<div style="color:var(--text-muted);font-size:.82rem;">No quizzes have been published to this subject yet.</div>`;
+    }
+    return;
+  }
+
+  if (simple) {
+    // Renders as ONE column: a "📤 Publish Here" gap marker before each
+    // quiz, the quiz itself (read-only, same card style as the quiz-picker
+    // list above), then a final gap marker after the last quiz for the
+    // default "append at the end" spot — so there's exactly one way to pick
+    // a spot, no separate before/after buttons to reconcile.
+    const pos = adminPublishInsertPosition;
+    const gapHtml = (activeCheck, onclick) => {
+      const active = activeCheck;
+      return `
+        <div class="admin-publish-here-gap ${active ? 'admin-publish-here-active' : ''}" onclick="${onclick}" title="Publish the new quiz here">
+          <span class="admin-publish-here-line"></span>
+          <span class="admin-publish-here-btn">${active ? '📍 Publishing Here ✓' : '📤 Publish Here'}</span>
+          <span class="admin-publish-here-line"></span>
+        </div>`;
+    };
+    entries.forEach(e => {
+      const isActiveGap = !!(pos && pos.lectureId === e.id && pos.position === 'before');
+      sec.innerHTML += gapHtml(isActiveGap, `adminSetPublishInsertPosition('${e.id}','before')`);
+      sec.innerHTML += `
+        <div class="admin-quiz-item" style="cursor:default;">
+          <div class="admin-quiz-item-info">
+            <div class="admin-quiz-item-title">${escapeHtml(e.lectureName || e.id)}</div>
+            <div class="admin-quiz-item-meta">${(e.questions || []).length} question${(e.questions||[]).length !== 1 ? 's' : ''}</div>
+          </div>
+        </div>`;
+    });
+    // Final gap = default behavior (append at the end) = no insert position set.
+    sec.innerHTML += gapHtml(!pos, `adminClearPublishInsertPosition()`);
+    sec.innerHTML += `
+      <div style="font-size:.76rem;color:var(--text-muted);font-weight:600;margin-top:8px;">
+        Need to edit, reorder, copy/move, or delete one of these? Head to
+        <span style="color:var(--accent);cursor:pointer;font-weight:800;" onclick="adminJumpToCurriculumQuizzes()">📚 Manage Curriculum</span>.
+      </div>`;
     return;
   }
 
@@ -10714,7 +12293,7 @@ function _renderAdminAssignedListHTML() {
         </div>
         <div class="admin-assigned-info">
           <div class="admin-assigned-name">${escapeHtml(e.lectureName || e.id)}</div>
-          <div class="admin-assigned-path">${(e.questions || []).length} question${(e.questions||[]).length !== 1 ? 's' : ''} · ${escapeHtml(adminTargetYear)} → ${escapeHtml(adminTargetModule)} → ${escapeHtml(subjects[adminTargetSubject].label || adminTargetSubject)}</div>
+          <div class="admin-assigned-path">${(e.questions || []).length} question${(e.questions||[]).length !== 1 ? 's' : ''} · ${escapeHtml(adminTargetYear)} → ${escapeHtml(adminTargetModule)} → ${escapeHtml(subjects[subj].label || subj)}</div>
         </div>
         <button class="admin-remove-btn" style="background:#EDE7F6;color:#4527A0;border:1.5px solid #B39DDB;"
           onclick="adminEditPublished('${e.id}')">✏️ Edit</button>
@@ -10729,6 +12308,35 @@ function _renderAdminAssignedListHTML() {
   if (adminEditMode === 'published' && adminEditingPublishedId) {
     renderAdminQuestionEditor('adminPublishedEditorArea_' + adminEditingPublishedId);
   }
+}
+
+// Toggle which existing quiz the about-to-be-published one should land
+// before/after. Clicking the already-selected button clears it (back to
+// the default: append at the end).
+function adminSetPublishInsertPosition(lectureId, position) {
+  if (adminPublishInsertPosition && adminPublishInsertPosition.lectureId === lectureId && adminPublishInsertPosition.position === position) {
+    adminPublishInsertPosition = null;
+  } else {
+    adminPublishInsertPosition = { lectureId, position };
+  }
+  _renderAdminAssignedListHTML();
+}
+function adminClearPublishInsertPosition() {
+  adminPublishInsertPosition = null;
+  _renderAdminAssignedListHTML();
+}
+
+// Shortcut from the simplified "Publish Quizzes" list straight to the same
+// subject's full quiz-management view in "📚 Manage Curriculum". This is a
+// deliberate one-time hand-off — it copies the Publish tab's destination
+// into the Curriculum tab's own (otherwise entirely separate) navigation
+// state, rather than the two tabs sharing state all the time.
+function adminJumpToCurriculumQuizzes() {
+  adminTargetYear    = adminPubTargetYear;
+  adminTargetModule  = adminPubTargetModule;
+  adminTargetSubject = adminPubTargetSubject;
+  adminCurrNavLevel = 'quizzes';
+  adminSwitchTab('curriculum');
 }
 
 /* Opens the Split Quiz panel for a published curriculum lecture.
@@ -10919,7 +12527,8 @@ async function adminRemovePublished(lectureId) {
 
 async function adminPublishQuiz() {
   if (adminBusy) return;
-  if (!adminSelectedQuiz || !adminTargetSubject) return;
+  if (!adminSelectedQuiz || !adminPubTargetSubject) return;
+  const targetSubject = adminPubTargetSubject;
 
   const nameInput = document.getElementById('adminLectureName');
   let lectureName = (nameInput?.value || '').trim();
@@ -10965,10 +12574,41 @@ async function adminPublishQuiz() {
     // 1 MB limit — and so the published lecture is fully self-contained, independent of the
     // source quiz.  Even if the source quiz is later deleted, images remain here.
     if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Uploading images…</div>`;
-    await uploadPublishedLectureImages(adminTargetSubject, lectureId, cleanQuestions);
+    await uploadPublishedLectureImages(targetSubject, lectureId, cleanQuestions);
 
-    const ref = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', lectureId);
     const publishedAt = Date.now();
+
+    // Work out where in the list this new quiz should sit. Default: newest
+    // goes last (order = publishedAt, the largest of all existing values).
+    // If the admin picked a before/after spot in the picker, compute an
+    // order value that slots it exactly there — midpoint between the two
+    // neighboring order values (or one below/above the first/last entry).
+    let order = publishedAt;
+    const pos = adminPublishInsertPosition;
+    if (pos) {
+      try {
+        const col  = window._collection(window._db, 'publishedQuestions', targetSubject, 'lectures');
+        const snap = await window._getDocs(col);
+        const existing = [];
+        snap.forEach(d => existing.push({ id: d.id, ...d.data() }));
+        existing.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
+        const idx = existing.findIndex(e => e.id === pos.lectureId);
+        if (idx !== -1) {
+          const targetOrder = existing[idx].order ?? existing[idx].publishedAt ?? 0;
+          if (pos.position === 'before') {
+            const prev = existing[idx - 1];
+            order = prev ? ((prev.order ?? prev.publishedAt ?? 0) + targetOrder) / 2 : targetOrder - 1;
+          } else {
+            const next = existing[idx + 1];
+            order = next ? (targetOrder + (next.order ?? next.publishedAt ?? 0)) / 2 : targetOrder + 1;
+          }
+        }
+      } catch (e) {
+        // If this lookup fails for any reason, just fall back to appending at the end.
+      }
+    }
+
+    const ref = window._doc(window._db, 'publishedQuestions', targetSubject, 'lectures', lectureId);
     await window._setDoc(ref, cleanForFirestore({
       id: lectureId,
       lectureName,
@@ -10977,23 +12617,23 @@ async function adminPublishQuiz() {
       sourceType: adminSelectedQuiz.sourceType,
       publishedBy: window._currentUser ? window._currentUser.uid : null,
       publishedAt,
-      order: publishedAt // default position: newest goes last; admin can reorder afterward
+      order // newest goes last by default, or the admin-chosen before/after spot
     }));
 
     // Merge into the in-memory subject so it's usable immediately.
     // Build a hydrated copy (with q.image restored) for in-memory use,
     // while cleanQuestions (with pubImageIdx sentinels) was what we saved to Firestore.
     const hydratedForMemory = JSON.parse(JSON.stringify(cleanQuestions));
-    await hydratePublishedLectureImages(adminTargetSubject, lectureId, hydratedForMemory);
-    if (!subjects[adminTargetSubject].lectures) subjects[adminTargetSubject].lectures = {};
-    subjects[adminTargetSubject].lectures[lectureName] = hydratedForMemory;
+    await hydratePublishedLectureImages(targetSubject, lectureId, hydratedForMemory);
+    if (!subjects[targetSubject].lectures) subjects[targetSubject].lectures = {};
+    subjects[targetSubject].lectures[lectureName] = hydratedForMemory;
 
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[adminTargetSubject].label || adminTargetSubject)}!</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
     if (nameInput) nameInput.value = '';
 
     // Only THIS new quiz shows up as changed for every other user —
     // their cache for every other quiz/subject stays untouched.
-    await _updatePublishedManifest(adminTargetSubject, lectureId, publishedAt);
+    await _updatePublishedManifest(targetSubject, lectureId, publishedAt);
 
     // Close the editor after a successful publish
     adminEditMode = null;
@@ -11001,8 +12641,11 @@ async function adminPublishQuiz() {
     const editorArea = document.getElementById('adminEditorArea');
     if (editorArea) editorArea.innerHTML = '';
 
+    // Reset the insert-position picker for next time
+    adminPublishInsertPosition = null;
+
     // Refresh subject view if currently open
-    if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
+    if (selectedSubject === targetSubject) selectSubject(targetSubject);
 
     renderAdminAssignedList();
   } catch (e) {
@@ -11694,6 +13337,20 @@ document.addEventListener('click', (e) => {
     if (pop) pop.classList.add('hidden');
     _openIconPickerId = null;
   }
+});
+
+// Close any open per-question AI popover (AI Solve's source picker, or
+// Refine's instructions popover) when clicking outside it — but not when
+// clicking the ▾ caret that opens it, which has its own toggle logic.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.ai-source-picker').forEach(picker => {
+    if (picker.style.display === 'none') return;
+    if (picker.contains(e.target)) return;
+    const caretId = picker.dataset.caret;
+    const caret = caretId && document.getElementById(caretId);
+    if (caret && caret.contains(e.target)) return;
+    picker.style.display = 'none';
+  });
 });
 
 /* ══════════════════════════════════════════════════════════
