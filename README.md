@@ -183,7 +183,7 @@ rather than growing one of the existing files indefinitely.
 ## Author
 
 Created and maintained by **Mahmoud Talat**, a second-year student in the
-Medical Student Program (MSP) at Alexandria National University, at the
+Medical School Program (MSP) at Alexandria National University, at the
 time of this project's development.
 
 ## License
