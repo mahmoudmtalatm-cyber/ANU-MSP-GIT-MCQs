@@ -1,0 +1,24 @@
+{
+  "name": "anu-msp-question-bank",
+  "version": "1.0.0",
+  "description": "A community-driven MCQ question bank and quiz platform for ANU MSP students, with AI-assisted question creation, custom quizzes, and an admin curriculum manager.",
+  "author": "Mahmoud Talat",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "npx --yes serve . -l 5173",
+    "dev": "npx --yes serve . -l 5173"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/anu-msp-question-bank.git"
+  },
+  "keywords": [
+    "quiz",
+    "mcq",
+    "question-bank",
+    "education",
+    "firebase",
+    "study-tool"
+  ]
+}

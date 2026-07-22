@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Shared permission helpers ──
+    // Mirrors the client-side ADMIN_PERMISSIONS model (roster doc shape:
+    // appConfig/adminRoster { admins: { [emailLower]: { permissions:[...] } } }).
+    // The super admin always has every permission implicitly (same as
+    // getAdminPermissions() does client-side); everyone else's permissions
+    // come from the roster doc itself.
+    function isSuperAdmin() {
+      return request.auth != null
+             && request.auth.token.email == "mahmoudmtalatm@gmail.com";
+    }
+    function hasRosterPermission(perm) {
+      return request.auth != null
+             && exists(/databases/$(database)/documents/appConfig/adminRoster)
+             && request.auth.token.email.lower() in
+                  get(/databases/$(database)/documents/appConfig/adminRoster).data.admins
+             && perm in
+                  get(/databases/$(database)/documents/appConfig/adminRoster)
+                    .data.admins[request.auth.token.email.lower()].permissions;
+    }
+    function isCurriculumAdmin() { return isSuperAdmin() || hasRosterPermission('curriculum'); }
+    function isCommunityAdmin()  { return isSuperAdmin() || hasRosterPermission('community'); }
+    function isAdminsAdmin()     { return isSuperAdmin() || hasRosterPermission('admins'); }
+
+    // Personal stats — only the owner can read/write
+    match /stats/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Personal custom quizzes — only the owner can read/write
+    match /users/{userId}/customQuizzes/{quizId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Quiz images subcollection — only the owner can read/write
+    match /users/{userId}/customQuizzes/{quizId}/images/{imgIdx} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Per-user cache-version doc for the custom-quizzes local cache
+    // (users/{userId}/meta/cacheVersion). Owner-only, same as their other data.
+    match /users/{userId}/meta/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Display names — each user can only read/write their own profile
+    match /userProfiles/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Community shared quizzes — any signed-in user can read,
+    // only the author can create, and the author or anyone holding the
+    // 'community' roster permission (or the super admin) can delete.
+    match /sharedQuizzes/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.authorUid == request.auth.uid;
+      allow delete: if request.auth != null
+                    && (resource.data.authorUid == request.auth.uid
+                        || isCommunityAdmin());
+      // No update allowed — share is immutable (delete & re-share to replace)
+    }
+    // Shared-quiz images subcollection — same read/write access as the parent quiz.
+    match /sharedQuizzes/{docId}/images/{imgIdx} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    // Published question bank — readable by everyone (even logged out).
+    // Writable (including delete, e.g. from the cascading Year/Module/Subject
+    // delete) by the super admin OR anyone holding the 'curriculum' roster
+    // permission.
+    match /publishedQuestions/{subject}/lectures/{lectureId} {
+      allow read: if true;
+      allow write: if isCurriculumAdmin();
+    }
+    // Published lecture images subcollection — same rules as the parent lecture
+    match /publishedQuestions/{subject}/lectures/{lectureId}/images/{imgIdx} {
+      allow read: if true;
+      allow write: if isCurriculumAdmin();
+    }
+    // App-wide config (curriculum structure: years, modules, subjects;
+    // curriculum/published cache-version doc; publishedManifest, etc.) —
+    // writable by the super admin OR anyone holding the 'curriculum' roster
+    // permission. adminRoster and sharedQuizzesVersion below add their own,
+    // more specific rules on top of this — Firestore grants access if ANY
+    // matching rule allows it.
+    match /appConfig/{docId} {
+      allow read: if true;
+      allow write: if isCurriculumAdmin();
+    }
+    // Admin roster doc (appConfig/adminRoster). Writable by the super admin
+    // (via the generic appConfig rule above, since isCurriculumAdmin()
+    // includes isSuperAdmin()) or by anyone currently holding the 'admins'
+    // roster permission — so an assigned (non-super) admin with the
+    // 'admins' permission can actually persist the admins they grant/revoke,
+    // instead of it being accepted locally and then rejected by the server.
+    //
+    // Note: this only gates *who* may write the doc at all — it does not
+    // re-validate on the server that the acting admin only grants
+    // permissions they hold, or respects the assigner-chain rules; those
+    // checks currently live client-side only (in assignAdmin/removeAdmin).
+    // Fine as long as 'admins' permission is only ever handed to people you
+    // trust, since anyone with it could in principle write this doc
+    // directly (e.g. via the SDK) and bypass those client-side checks.
+    match /appConfig/adminRoster {
+      allow read: if true;
+      allow write: if isAdminsAdmin();
+    }
+    // Community-quiz cache-version doc (appConfig/sharedQuizzesVersion).
+    // Any signed-in user can bump it (they do, whenever they publish/delete
+    // their own shared quiz) — it only ever holds a timestamp, nothing sensitive.
+    match /appConfig/sharedQuizzesVersion {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    // Shared AI explanation pool — any signed-in user can read,
+    // any signed-in user can create or update (to save/replace an explanation)
+    match /explanations/{questionHash} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}

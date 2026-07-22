@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ANU MSP Question Bank</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230A3F52'/%3E%3Ccircle cx='36' cy='54' r='16' fill='none' stroke='%236FE3F0' stroke-width='11'/%3E%3Cpath d='M46 65 L58 78' fill='none' stroke='%236FE3F0' stroke-width='11' stroke-linecap='round'/%3E%3Cpath d='M66 30 L66 74' fill='none' stroke='%236FE3F0' stroke-width='11' stroke-linecap='round'/%3E%3Cpath d='M66 30 L78 30 A11 10 0 0 1 78 50 L66 50' fill='none' stroke='%236FE3F0' stroke-width='11'/%3E%3Cpath d='M66 50 L80 50 A12 12 0 0 1 80 74 L66 74' fill='none' stroke='%236FE3F0' stroke-width='11'/%3E%3C/svg%3E" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<!-- ══════════════════════════════════════════════
+     INTRO SIGIL SEQUENCE — purely aesthetic, fixed-timing,
+     not tied to real asset loading. Draws in, glows, pulses,
+     then wipes away to reveal the app underneath.
+══════════════════════════════════════════════ -->
+<div id="introScreen" aria-hidden="true">
+  <div class="intro-inner">
+    <svg id="introSigilSvg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle class="sigil-path sigil-ring" cx="50" cy="50" r="44" pathLength="1"></circle>
+      <circle class="sigil-ring-spin" cx="50" cy="50" r="44"></circle>
+      <circle class="sigil-pulse-ring" cx="50" cy="50" r="44"></circle>
+      <circle class="sigil-path sigil-q" cx="37" cy="50" r="15" pathLength="1"></circle>
+      <path class="sigil-path sigil-q-tail" d="M45 59 L53 68" pathLength="1"></path>
+      <path class="sigil-path sigil-b-stem" d="M67 35 L67 65" pathLength="1"></path>
+      <path class="sigil-path sigil-b-upper" d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" pathLength="1"></path>
+      <path class="sigil-path sigil-b-lower" d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" pathLength="1"></path>
+    </svg>
+    <div class="intro-wordmark" id="introWordmark">
+      <span class="intro-word-main">ANU MSP QUESTION BANK</span>
+    </div>
+  </div>
+</div>
+<script src="js/intro-animation.js"></script>
+
+<!-- FIRESTORE LOADING TOAST -->
+<div id="fsLoadingToast">
+  <div class="fs-toast-spinner"></div>
+  <span id="fsLoadingMsg">Loading…</span>
+</div>
+
+<div id="app">
+<canvas id="confettiCanvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none;"></canvas>
+
+<!-- RETAKE SELECTOR MODAL -->
+<div id="retakeOverlay" class="stats-overlay hidden"
+     onclick="if(event.target===this)closeRetake()">
+  <div class="stats-modal">
+    <div class="stats-modal-header">
+      <h2>🔄&nbsp; Retake Wrong Questions</h2>
+      <button class="stats-close-btn" onclick="closeRetake()">✕</button>
+    </div>
+    <div class="stats-body" id="retakeBody"></div>
+  </div>
+</div>
+
+<!-- STATS MODAL -->
+  <div id="statsOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeStats()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>📊&nbsp; My Statistics</h2>
+        <button class="stats-close-btn" onclick="closeStats()">✕</button>
+      </div>
+      <div class="stats-body" id="statsBody"></div>
+    </div>
+  </div>
+
+<!-- CUSTOM QUIZZES MODAL -->
+  <div id="customQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeCustomQuizzes()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>🤖&nbsp; Custom Quizzes (AI)</h2>
+        <button class="stats-close-btn" onclick="closeCustomQuizzes()">✕</button>
+      </div>
+      <div class="stats-body" id="customQuizBody"></div>
+    </div>
+  </div>
+
+<!-- API KEY MANAGER MODAL -->
+  <div id="apiKeyOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeApiKeyManager()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>🔑&nbsp; Manage API Keys</h2>
+        <button class="stats-close-btn" onclick="closeApiKeyManager()">✕</button>
+      </div>
+      <div class="stats-body apikey-manager-body" id="apiKeyManagerBody"></div>
+    </div>
+  </div>
+
+<!-- COMMUNITY QUIZZES MODAL -->
+  <div id="communityQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeCommunityQuizzes()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>🌐&nbsp; Community Quizzes</h2>
+        <button class="stats-close-btn" onclick="closeCommunityQuizzes()">✕</button>
+      </div>
+      <div class="stats-body" id="communityQuizBody"></div>
+    </div>
+  </div>
+
+<!-- MERGE QUIZZES PICKER MODAL -->
+  <div id="mergeQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeMergePicker()">
+    <div class="stats-modal" style="max-width:720px;">
+      <div class="stats-modal-header">
+        <h2>🧩&nbsp; Merge Quizzes In</h2>
+        <button class="stats-close-btn" onclick="closeMergePicker()">✕</button>
+      </div>
+      <div class="stats-body" id="mergeQuizBody"></div>
+    </div>
+  </div>
+
+<!-- SHARE QUIZ MODAL -->
+  <div id="shareQuizOverlay" class="sq-overlay hidden">
+    <div class="sq-modal">
+      <div class="sq-title">🌐 Share with Community</div>
+      <div class="sq-sub">Your quiz will be visible to all signed-in users. Your display name will be shown.</div>
+      <div class="sq-quiz-name" id="sqQuizName"></div>
+      <div class="sq-field-label">Year</div>
+      <select class="sq-select" id="sqYear" onchange="sqOnYearChange(this.value)">
+        <option value="">— Select a year —</option>
+      </select>
+      <div class="sq-field-label">Module</div>
+      <select class="sq-select" id="sqModule" onchange="sqOnModuleChange(this.value)" disabled>
+        <option value="">— Select a module —</option>
+      </select>
+      <div class="sq-field-label">Subject</div>
+      <select class="sq-select" id="sqSubject" disabled>
+        <option value="">— Select a subject —</option>
+      </select>
+      <div class="sq-field-label">Tags <span style="font-weight:400;text-transform:none;">(optional)</span></div>
+      <input class="sq-input" id="sqTags" type="text" maxlength="80" placeholder="e.g. renal, exam1, OSCE" />
+      <div class="sq-hint">Comma-separated keywords to help others find your quiz</div>
+      <div class="sq-actions">
+        <button class="sq-btn-cancel" onclick="cancelShareQuiz()">Cancel</button>
+        <button class="sq-btn-share" onclick="confirmShareQuiz()">🌐 Share Quiz</button>
+      </div>
+    </div>
+  </div>
+
+<!-- ADMIN PANEL MODAL -->
+  <div id="adminOverlay" class="admin-overlay hidden" onclick="if(event.target===this)closeAdminPanel()">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <h2>🛠️&nbsp; Admin Panel</h2>
+        <button onclick="closeAdminPanel()">✕</button>
+      </div>
+      <div class="admin-panel-tabs" id="adminPanelTabs"></div>
+      <div class="admin-body" id="adminBody"></div>
+    </div>
+  </div>
+
+<!-- DISPLAY NAME MODAL -->
+  <div id="displayNameOverlay" class="dn-overlay hidden">
+    <div class="dn-modal">
+      <div class="dn-title">&#128100; Choose a Display Name</div>
+      <div class="dn-sub">This name will appear publicly when you share quizzes. Your email address will never be shown.</div>
+      <input class="dn-input" id="displayNameInput" type="text" maxlength="30"
+             placeholder="e.g. MedStudent2026" oninput="updateDnCounter()" />
+      <div class="dn-char-counter"><span id="dnCharCount">0</span>/30</div>
+      <div class="dn-actions">
+        <button class="dn-btn-cancel" onclick="cancelDisplayName()">Cancel</button>
+        <button class="dn-btn-confirm" onclick="confirmDisplayName()">Save &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       HOME SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="home">
+    <div class="home-hero carved-surface">
+      <h1>
+        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="44" stroke-width="1.2" opacity=".35"/>
+          <circle class="bm-ring" cx="50" cy="50" r="44" stroke-width="1" opacity=".55"/>
+          <g class="bm-m" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="37" cy="50" r="15" stroke-width="2.2"/>
+            <path d="M45 59 L53 68" stroke-width="2.2"/>
+            <path d="M67 35 L67 65" stroke-width="2.2"/>
+            <path d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" stroke-width="2.2"/>
+            <path d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" stroke-width="2.2"/>
+          </g>
+        </svg>
+        ANU MSP Question Bank
+      </h1>
+      <p>Choose your subject, pick a lecture, and test your knowledge</p>
+      <div id="authAreaHome" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 6px;flex-wrap:wrap;"></div>
+        <button class="stats-open-btn" onclick="openStats()">📊&nbsp; My Statistics</button>
+        <button class="stats-open-btn" onclick="openRetake()">🔄&nbsp; Retake Wrong Qs</button>
+        <button class="stats-open-btn" onclick="openCustomQuizzes()">🤖&nbsp; Custom Quizzes</button>
+        <button class="stats-open-btn" onclick="openCommunityQuizzes()">🌐&nbsp; Community Quizzes</button>
+        <button class="apikey-open-btn" onclick="openApiKeyManager()">🔑&nbsp; Manage APIs</button>
+        <button class="stats-open-btn admin-btn hidden" id="adminOpenBtn" onclick="openAdminPanel()">🛠️&nbsp; Admin Panel</button>
+    </div>
+    <div class="home-body">
+      <div class="card">
+
+<!-- Step 1: Year -->
+        <div class="field-group">
+          <div class="field-label">① Select Year</div>
+          <div class="year-grid" id="yearGrid">
+            <div class="year-skeleton"></div>
+            <div class="year-skeleton"></div>
+            <div class="year-skeleton"></div>
+          </div>
+        </div>
+
+        <!-- Module section -->
+        <div id="moduleSection" class="hidden">
+          <div class="card-divider"></div>
+          <div class="field-group">
+            <div class="field-label">② Select Module</div>
+            <div class="module-grid" id="moduleGrid"></div>
+          </div>
+        </div>
+
+        <!-- Subject section -->
+        <div id="subjectSection" class="hidden">
+          <div class="card-divider"></div>
+          <div class="field-group">
+            <div class="field-label">③ Select Subject</div>
+            <div class="subject-grid" id="subjectGrid"></div>
+          </div>
+        </div>
+
+        <div class="card-divider"></div>
+
+        <!-- Step 4: Lecture -->
+        <div class="field-group" id="lectureGroup">
+          <div class="field-label">④ Select Lecture(s)</div>
+          <div id="lectureCheckList" style="max-height:220px;overflow-y:auto;border:1.5px solid var(--border-soft);border-radius:8px;background:var(--surface-2);padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+            <div style="color:var(--text-muted);font-size:.9rem;padding:8px;">— Choose a subject first —</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+            <button class="btn" onclick="selectAllLectures()" style="background:var(--surface-2-hover);color:var(--accent);border:1.5px solid var(--accent);padding:6px 14px;font-size:.82rem;border-radius:6px;">☑ All</button>
+            <button class="btn" onclick="clearAllLectures()" style="background:var(--surface-2);color:var(--text-muted);border:1.5px solid var(--border-soft);padding:6px 14px;font-size:.82rem;border-radius:6px;">☐ Clear</button>
+            <div class="q-count-badge hidden" id="qCountBadge" style="margin-top:0;">
+              📋 <span id="qCountText">0 questions</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-divider"></div>
+
+        <!-- Step 3: Options -->
+        <div class="field-group">
+          <div class="field-label">⑤ Duration (minutes) &amp; Options</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input type="number" id="timeInput" value="10" min="1" max="120" style="flex:1;min-width:110px;" />
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:700;font-size:.9rem;color:var(--text-main);background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:10px 14px;white-space:nowrap;">
+              <input type="checkbox" id="shuffleToggle" style="width:16px;height:16px;accent-color:var(--accent);" />
+              🔀 Shuffle
+            </label>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="startBtn" onclick="startQuiz()" disabled>▶&nbsp; Start Quiz</button>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-answered)"></div> Answered</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-marked)"></div> Marked</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-current)"></div> Current</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--nav-default)"></div> Unanswered</div>
+      </div>
+    </div>
+
+    <div class="home-footer carved-surface">
+      <div class="home-footer-credit">Created by Mahmoud Talat</div>
+      <a class="home-footer-feedback" href="https://t.me/Mahmoud_M_Talat" target="_blank" rel="noopener noreferrer">💬&nbsp; Send Feedback</a>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       QUIZ SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="quiz" class="hidden">
+    <div class="header carved-surface">
+      <div class="header-title">
+        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="44" stroke-width="1.2" opacity=".35"/>
+          <circle class="bm-ring" cx="50" cy="50" r="44" stroke-width="1" opacity=".55"/>
+          <g class="bm-m" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="37" cy="50" r="15" stroke-width="2.2"/>
+            <path d="M45 59 L53 68" stroke-width="2.2"/>
+            <path d="M67 35 L67 65" stroke-width="2.2"/>
+            <path d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" stroke-width="2.2"/>
+            <path d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" stroke-width="2.2"/>
+          </g>
+        </svg>
+        ANU MSP Question Bank
+      </div>
+      <div id="authAreaQuiz" style="display:flex;align-items:center;gap:8px;"></div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="timer" id="timerDisplay">00:00</div>
+      </div>
+    </div>
+    <div class="quiz-body">
+      <div class="q-card">
+        <div class="q-number" id="qNumber">Q1 / 16</div>
+        <div class="q-text" id="qText"></div>
+        <div class="q-image-wrap hidden" id="qImageWrap">
+          <img id="qImage" src="" alt="Question image" />
+        </div>
+        <div class="options-list" id="optionsList"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-nav btn-prev" onclick="prevQ()">◀&nbsp; Previous</button>
+        <button class="btn btn-nav btn-mark" id="markBtn" onclick="toggleMark()">🔴&nbsp; Mark / Unmark</button>
+        <button class="btn btn-nav btn-next" onclick="nextQ()">Next&nbsp; ▶</button>
+        <button class="btn btn-nav btn-submit" onclick="confirmSubmit()">✔&nbsp; Submit</button>
+      </div>
+
+      <div class="navigator-wrap">
+        <div class="nav-label">Questions Navigator</div>
+        <div class="nav-grid" id="navGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       RESULTS SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="results" class="hidden">
+    <div class="results-header carved-surface">
+      <div class="results-title" id="resultsTitle">📝&nbsp; Quiz Results</div>
+      <div class="results-score-badge" id="scoreBadge"></div>
+    </div>
+    <div class="results-body" id="resultsBody"></div>
+    <div class="results-footer">
+      <button class="btn btn-home" onclick="goHome()">⟵&nbsp; Back to Home</button>
+      <button class="ai-explain-all-btn" id="explainAllBtn" onclick="explainAllQuestions()">🤖&nbsp; Explain All Questions</button>
+      <button onclick="openApiKeyManager()" style="background:var(--surface-2);color:var(--accent);border:1.5px solid var(--accent);padding:9px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;font-family:inherit;">🔑&nbsp; Manage APIs</button>
+    </div>
+  </div>
+
+</div>
+<script src="js/app-core.js"></script>
+<script src="js/ai-features.js"></script>
+<script src="js/ai-question-tools.js"></script>
+<script src="js/firebase-storage.js"></script>
+<script src="js/gemini-uploads.js"></script>
+<script src="js/ai-solve.js"></script>
+<script src="js/split-quiz.js"></script>
+<script src="js/user-profile.js"></script>
+<script src="js/sharing.js"></script>
+<script src="js/community-quizzes.js"></script>
+<script src="js/admin-panel.js"></script>
+<script src="js/quiz-editor.js"></script>
+<script src="js/data-sync.js"></script>
+<script src="js/icon-picker.js"></script>
+<script src="js/curriculum-admin.js"></script>
+<script src="js/firebase-init.js" type="module"></script>
+<!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "f4142a9a44aa49c6a67437c3b8932b61"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
