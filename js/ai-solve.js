@@ -349,7 +349,6 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: CQ_RESPONSE_SCHEMA,
-      temperature: 0,
       maxOutputTokens: 65536
     }
   }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey });
@@ -686,7 +685,6 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: CQ_RESPONSE_SCHEMA,
-        temperature: 0.7,
         maxOutputTokens: 65536
       }
     };
@@ -707,7 +705,6 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: CQ_RESPONSE_SCHEMA,
-        temperature: 0.7,
         maxOutputTokens: 65536
       }
     };

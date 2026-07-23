@@ -391,7 +391,7 @@ Respond ONLY with a JSON object: {"question": "the refined question text"}. No m
   const data = await callGeminiWithRetry(url, {
     contents: [{ parts }],
     generationConfig: {
-      responseMimeType: 'application/json', temperature: 0.4, maxOutputTokens: 2048,
+      responseMimeType: 'application/json', maxOutputTokens: 2048,
       // Gemini 2.5 Flash reasons by default, and those "thinking" tokens are
       // drawn from the SAME maxOutputTokens budget as the visible JSON
       // answer. For a short, deterministic rewrite like this, that reasoning
@@ -486,7 +486,7 @@ Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(
   const data = await callGeminiWithRetry(url, {
     contents: [{ parts }],
     generationConfig: {
-      responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 2048,
+      responseMimeType: 'application/json', maxOutputTokens: 2048,
       // See matching comment in _aiRefineQuestionCall — writing a few
       // distractor choices doesn't need Gemini 2.5 Flash's default
       // reasoning pass, so it's off by default, freeing the full token

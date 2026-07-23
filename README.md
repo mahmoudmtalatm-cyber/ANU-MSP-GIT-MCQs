@@ -288,6 +288,17 @@ AI-related is required for the core quiz/browsing experience to work.
 > other. (The bounding-box helper additionally gets one extra retry
 > attempt beyond the switch itself, since it's a best-effort feature that
 > otherwise only got two tries total.)
+>
+> **Note on `temperature`:** `GEMINI_FALLBACK_MODEL` (`gemini-flash-latest`)
+> currently resolves to a Gemini 3.x model, which rejects the sampling
+> parameters `temperature` / `top_p` / `top_k` with an HTTP 400 if they're
+> present in `generationConfig` at all — even a single retry with the
+> fallback URL will keep failing until the field is gone. Because of this,
+> no AI request in the app sets `temperature`; every `generationConfig`
+> across `ai-features.js`, `ai-question-tools.js`, `ai-solve.js`, and
+> `gemini-uploads.js` was audited and left with sampling parameters
+> omitted, so the fallback switch actually resolves the request instead of
+> looping into a fresh 400.
 
 ## Adding questions
 

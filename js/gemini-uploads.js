@@ -558,7 +558,7 @@ Output nothing besides the JSON array.`;
 
   const requestBody = {
     contents: [{ parts: [filePart, { text: prompt }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 4096 }
+    generationConfig: { maxOutputTokens: 4096 }
   };
 
   // This feature is best-effort (missing bounding boxes just means a
@@ -857,7 +857,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
       const data = await callGeminiWithRetry(url, {
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 }
       }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken, apiKey });
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');

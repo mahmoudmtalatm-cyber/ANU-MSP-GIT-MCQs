@@ -695,7 +695,7 @@ async function explainQuestion(i, forceRegenerate = false) {
 
     const data = await callGeminiWithRetry(url, {
       contents: [{ parts }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
+      generationConfig: { maxOutputTokens: 2048 }
     }, {
       cancelToken: token,
       apiKey
@@ -1228,7 +1228,7 @@ async function runChatRequest(i) {
     const data = await callGeminiWithRetry(url, {
       contents: apiContents,
       systemInstruction: { parts: [{ text: buildChatSystemInstruction(i) }] },
-      generationConfig: { temperature: 0.4, maxOutputTokens: 1536 }
+      generationConfig: { maxOutputTokens: 1536 }
     }, {
       cancelToken: token,
       apiKey
