@@ -44,6 +44,25 @@ function isGeminiModelFallbackTrigger(status) {
   return GEMINI_MODEL_FALLBACK_STATUSES.includes(status);
 }
 
+/* Sampling params are only safe on the primary model. GEMINI_FALLBACK_MODEL
+   currently resolves to a Gemini 3.x model, which hard-rejects a
+   generationConfig containing temperature/topP/topK with an HTTP 400 --
+   even after the URL has already been switched to the fallback, those keys
+   left over from the original request would keep failing forever. Rather
+   than have every call site guess in advance whether it'll end up on the
+   fallback (it can't know that before the first attempt), each feature sets
+   its own tuned sampling values unconditionally and this list is stripped
+   out of the request body, in place, at the exact moment
+   resolveGeminiFallbackUrl() below decides to switch models -- so the
+   primary model always gets the tuned values, and the fallback model never
+   sees a key it would reject. */
+const GEMINI_SAMPLING_PARAM_KEYS = ['temperature', 'topP', 'topK'];
+
+function _stripGeminiSamplingParams(bodyObj) {
+  if (!bodyObj || !bodyObj.generationConfig) return;
+  GEMINI_SAMPLING_PARAM_KEYS.forEach(k => { delete bodyObj.generationConfig[k]; });
+}
+
 // Set once, automatically, the first time the primary model draws one of
 // the statuses above (see isGeminiModelFallbackTrigger). After that every
 // NEW request goes straight to the fallback so the app doesn't re-discover
@@ -77,11 +96,16 @@ function _geminiSwapModelInUrl(url, model) {
    (bad key, quota, network, account issue), and should be treated like
    any other error rather than re-announcing a switch that isn't
    happening. */
-function resolveGeminiFallbackUrl(status, url, logPrefix) {
+function resolveGeminiFallbackUrl(status, url, logPrefix, bodyObj) {
   if (!isGeminiModelFallbackTrigger(status)) return url;
   if (url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) return url; // already on the fallback — nothing left to switch to
   console.warn(`${logPrefix}: "${geminiActiveModel()}" returned ${status} — switching to fallback model "${GEMINI_FALLBACK_MODEL}"${logPrefix === 'Gemini' ? ' for this and future requests' : ''}.`);
   _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
+  // The fallback model rejects temperature/topP/topK outright — strip them
+  // from THIS request's body (in place) so the very next retry attempt
+  // against the new URL doesn't just trade a 404/400 "wrong model" for a
+  // fresh 400 "bad generationConfig". See _stripGeminiSamplingParams above.
+  _stripGeminiSamplingParams(bodyObj);
   return _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
 }
 
@@ -430,7 +454,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         // alias — so the *next* iteration of this same infinite retry
         // loop (below, unchanged) has a real chance of succeeding instead
         // of retrying the identical broken request forever.
-        url = resolveGeminiFallbackUrl(resp.status, url, 'Gemini');
+        url = resolveGeminiFallbackUrl(resp.status, url, 'Gemini', bodyObj);
 
         if (resp.status === 429) {
           consecutive429++;
@@ -558,7 +582,12 @@ Output nothing besides the JSON array.`;
 
   const requestBody = {
     contents: [{ parts: [filePart, { text: prompt }] }],
-    generationConfig: { maxOutputTokens: 4096 }
+    // temperature: 0 — this is coordinate detection, not creative
+    // generation, so deterministic is what we want. Safe to always set:
+    // resolveGeminiFallbackUrl() strips it automatically the moment a
+    // fallback-model switch happens (see GEMINI_SAMPLING_PARAM_KEYS above),
+    // so it never reaches a model that rejects it.
+    generationConfig: { maxOutputTokens: 4096, temperature: 0 }
   };
 
   // This feature is best-effort (missing bounding boxes just means a
@@ -586,7 +615,7 @@ Output nothing besides the JSON array.`;
       if (!resp.ok) {
         const data = await resp.json().catch(() => null);
         if (attempt < MAX_ATTEMPTS - 1 && isGeminiModelFallbackTrigger(resp.status)) {
-          url = resolveGeminiFallbackUrl(resp.status, url, 'getBoundingBoxes');
+          url = resolveGeminiFallbackUrl(resp.status, url, 'getBoundingBoxes', requestBody);
           continue;
         }
         console.warn('getBoundingBoxes failed:', resp.status, data && data.error ? data.error.message : '');
@@ -857,7 +886,10 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
       const data = await callGeminiWithRetry(url, {
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 }
+        // temperature: 0 — solving questions from the given source material
+        // is a factual task, not creative generation. Auto-stripped on a
+        // fallback-model switch (see GEMINI_SAMPLING_PARAM_KEYS above).
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192, temperature: 0 }
       }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken, apiKey });
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');

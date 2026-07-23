@@ -695,7 +695,11 @@ async function explainQuestion(i, forceRegenerate = false) {
 
     const data = await callGeminiWithRetry(url, {
       contents: [{ parts }],
-      generationConfig: { maxOutputTokens: 2048 }
+      // temperature: 0.3 — mostly consistent explanations with a little
+      // natural variation in phrasing, rather than robotically identical
+      // wording every time. Auto-stripped on a fallback-model switch (see
+      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      generationConfig: { maxOutputTokens: 2048, temperature: 0.3 }
     }, {
       cancelToken: token,
       apiKey
@@ -1228,7 +1232,12 @@ async function runChatRequest(i) {
     const data = await callGeminiWithRetry(url, {
       contents: apiContents,
       systemInstruction: { parts: [{ text: buildChatSystemInstruction(i) }] },
-      generationConfig: { maxOutputTokens: 1536 }
+      // temperature: 0.4 — this is an open-ended follow-up conversation
+      // rather than a one-shot factual answer, so a bit more natural
+      // variation is appropriate here than in the explain call above.
+      // Auto-stripped on a fallback-model switch (see
+      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      generationConfig: { maxOutputTokens: 1536, temperature: 0.4 }
     }, {
       cancelToken: token,
       apiKey

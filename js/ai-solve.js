@@ -349,7 +349,13 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: CQ_RESPONSE_SCHEMA,
-      maxOutputTokens: 65536
+      maxOutputTokens: 65536,
+      // Deterministic — this is transcription/extraction, not generation.
+      // Safe to always set: callGeminiWithRetry strips it automatically if
+      // a fallback-model switch happens mid-request (see
+      // GEMINI_SAMPLING_PARAM_KEYS / resolveGeminiFallbackUrl in
+      // gemini-uploads.js), so it never survives onto a model that rejects it.
+      temperature: 0
     }
   }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey });
 
@@ -685,7 +691,13 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: CQ_RESPONSE_SCHEMA,
-        maxOutputTokens: 65536
+        maxOutputTokens: 65536,
+        // temperature: 0.7 — this is question generation, not transcription,
+        // so some creative variety is wanted. Auto-stripped on a
+        // fallback-model switch (see GEMINI_SAMPLING_PARAM_KEYS in
+        // gemini-uploads.js), so it never survives onto a model that
+        // rejects it.
+        temperature: 0.7
       }
     };
   } else {
@@ -705,7 +717,11 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: CQ_RESPONSE_SCHEMA,
-        maxOutputTokens: 65536
+        maxOutputTokens: 65536,
+        // temperature: 0.7 — see matching comment in the lecture-text
+        // branch above; this is generation, not transcription, so the
+        // same reasoning applies.
+        temperature: 0.7
       }
     };
   }

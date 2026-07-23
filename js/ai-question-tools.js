@@ -392,6 +392,10 @@ Respond ONLY with a JSON object: {"question": "the refined question text"}. No m
     contents: [{ parts }],
     generationConfig: {
       responseMimeType: 'application/json', maxOutputTokens: 2048,
+      // temperature: 0.4 — mostly consistent rewrites with a little room
+      // for natural phrasing variation. Auto-stripped on a fallback-model
+      // switch (see GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      temperature: 0.4,
       // Gemini 2.5 Flash reasons by default, and those "thinking" tokens are
       // drawn from the SAME maxOutputTokens budget as the visible JSON
       // answer. For a short, deterministic rewrite like this, that reasoning
@@ -487,6 +491,11 @@ Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(
     contents: [{ parts }],
     generationConfig: {
       responseMimeType: 'application/json', maxOutputTokens: 2048,
+      // temperature: 0.7 — distractors benefit from more creative variety
+      // than a refine/rewrite task does, so several choices don't all read
+      // the same way. Auto-stripped on a fallback-model switch (see
+      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      temperature: 0.7,
       // See matching comment in _aiRefineQuestionCall — writing a few
       // distractor choices doesn't need Gemini 2.5 Flash's default
       // reasoning pass, so it's off by default, freeing the full token

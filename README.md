@@ -292,13 +292,21 @@ AI-related is required for the core quiz/browsing experience to work.
 > **Note on `temperature`:** `GEMINI_FALLBACK_MODEL` (`gemini-flash-latest`)
 > currently resolves to a Gemini 3.x model, which rejects the sampling
 > parameters `temperature` / `top_p` / `top_k` with an HTTP 400 if they're
-> present in `generationConfig` at all — even a single retry with the
-> fallback URL will keep failing until the field is gone. Because of this,
-> no AI request in the app sets `temperature`; every `generationConfig`
-> across `ai-features.js`, `ai-question-tools.js`, `ai-solve.js`, and
-> `gemini-uploads.js` was audited and left with sampling parameters
-> omitted, so the fallback switch actually resolves the request instead of
-> looping into a fresh 400.
+> present in `generationConfig` at all. Rather than remove `temperature`
+> everywhere (which would work, but flattens every feature to Gemini's
+> default of ~1.0 even on the primary model, where the tuned value is fine),
+> each feature sets its own tuned `temperature` unconditionally —
+> deterministic (`0`) for extraction, solving, and bounding-box detection;
+> a little variation (`0.4`–`0.6`) for explain/refine/chat; more (`0.7`) for
+> distractor generation, which benefits from varied wrong answers. A shared
+> helper, `_stripGeminiSamplingParams()` in `js/gemini-uploads.js`, deletes
+> `GEMINI_SAMPLING_PARAM_KEYS` (`temperature`/`topP`/`topK`) from the
+> in-flight request body at the exact moment `resolveGeminiFallbackUrl()`
+> switches a request to the fallback model — so the primary model keeps its
+> tuned values, and the fallback model never sees a key it would reject.
+> Both call sites that can trigger a fallback switch (the main retry loop in
+> `callGeminiWithRetry`, and the bounding-box helper's own retry loop) pass
+> their request body through so this applies uniformly everywhere.
 
 ## Adding questions
 
@@ -321,12 +329,32 @@ Every question follows this shape:
 }
 ```
 
+## Working with AI across accounts
+
+If you're using an AI assistant (e.g. Claude) to work on this project
+and your team uses **separate accounts/conversations**, read and keep
+[`AI_CONTEXT.md`](./AI_CONTEXT.md) up to date. It's a shared "memory"
+file that survives across sessions and accounts: a quick-scan status
+block (what's in progress right now, if anything), standing project
+rules, a current snapshot of the project, a permanent decision log
+(why past choices were made, not just what happened), a small glossary
+of project-specific terms, and a running log of what each session did
+— including a checkpoint left before a session runs out of context, so
+the next person's session can pick up exactly where the last one
+stopped instead of re-discovering it or losing in-progress work. Once
+that log gets long, older entries move to `AI_CONTEXT_ARCHIVE.md`
+rather than being lost.
+
 ## Contributing
 
 Issues and pull requests are welcome — whether that's bug fixes, UI
 polish, new AI-tool integrations, or accessibility improvements. Please
 keep the file-per-feature layout above when adding new functionality
-rather than growing one of the existing files indefinitely.
+rather than growing one of the existing files indefinitely. When
+working with an AI assistant, follow the standing rules in
+[`AI_CONTEXT.md`](./AI_CONTEXT.md) (professional/well-structured
+changes, README kept current, responsive UI) and update its session
+log before finishing up.
 
 ## Author
 
