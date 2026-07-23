@@ -21,15 +21,33 @@ const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024;       // stay safely und
      2. If Google ever renames/retires GEMINI_PRIMARY_MODEL, the
         app self-heals to Google's auto-updating alias instead of
         hard-failing — or, worse, silently retrying a permanent
-        404 forever. See the 404 handling in callGeminiWithRetry
+        bad-request response forever. See isGeminiModelFallbackTrigger()
+        and its call sites in callGeminiWithRetry and getBoundingBoxes
         below, which is what actually triggers the fallback.
 ══════════════════════════════════════════════════════════ */
 const GEMINI_PRIMARY_MODEL  = 'gemini-2.5-flash';
 const GEMINI_FALLBACK_MODEL = 'gemini-flash-latest'; // Google's auto-updating "current stable Flash" alias
 
-// Set once, automatically, the first time the primary model 404s (see
-// callGeminiWithRetry). After that every NEW request goes straight to the
-// fallback so the app doesn't re-discover the same 404 on every call.
+/* Any of these HTTP statuses is treated as "this model isn't valid for
+   this request/account" rather than a transient failure — a retired or
+   renamed model can come back as either a 404 (Not Found) or a 400
+   (Bad Request), depending on the account and which Gemini endpoint
+   version is hit. Both are handled identically: swap in
+   GEMINI_FALLBACK_MODEL and let the caller's existing retry loop try
+   again. Auth/key problems (401/403, or a 400 whose message names an
+   API_KEY_* error) are NOT in this set — those are genuine key errors
+   and are always surfaced immediately by isKeyError() instead, checked
+   first at every call site below. */
+const GEMINI_MODEL_FALLBACK_STATUSES = [400, 404];
+
+function isGeminiModelFallbackTrigger(status) {
+  return GEMINI_MODEL_FALLBACK_STATUSES.includes(status);
+}
+
+// Set once, automatically, the first time the primary model draws one of
+// the statuses above (see isGeminiModelFallbackTrigger). After that every
+// NEW request goes straight to the fallback so the app doesn't re-discover
+// the same bad request on every call.
 let _geminiResolvedModel = null;
 
 function geminiActiveModel() { return _geminiResolvedModel || GEMINI_PRIMARY_MODEL; }
@@ -40,6 +58,31 @@ function geminiEndpoint(model) {
 
 function _geminiSwapModelInUrl(url, model) {
   return url.replace(/\/models\/[^/:]+:generateContent/, `/models/${model}:generateContent`);
+}
+
+/* Shared by callGeminiWithRetry and getBoundingBoxes: given a failed
+   response's status/body and the request URL that produced it, decides
+   whether to switch to GEMINI_FALLBACK_MODEL and returns the corrected
+   URL to use for the next attempt (or the original URL, unchanged, if no
+   switch is warranted). Centralizing this means both call sites — the
+   main retry loop and the best-effort bounding-box helper — treat every
+   bad-request status exactly the same way instead of drifting apart.
+
+   Only actually switches once: if the request is already pointed at
+   GEMINI_FALLBACK_MODEL, there's no second model left to fall back to,
+   so a repeat bad request here is left alone and falls through to the
+   caller's normal retry/give-up handling instead of re-logging a
+   no-op "switching..." message that wouldn't reflect anything real —
+   at that point the problem is something other than "wrong model"
+   (bad key, quota, network, account issue), and should be treated like
+   any other error rather than re-announcing a switch that isn't
+   happening. */
+function resolveGeminiFallbackUrl(status, url, logPrefix) {
+  if (!isGeminiModelFallbackTrigger(status)) return url;
+  if (url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) return url; // already on the fallback — nothing left to switch to
+  console.warn(`${logPrefix}: "${geminiActiveModel()}" returned ${status} — switching to fallback model "${GEMINI_FALLBACK_MODEL}"${logPrefix === 'Gemini' ? ' for this and future requests' : ''}.`);
+  _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
+  return _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
 }
 
 /* Parses a JSON array returned by Gemini, and — if generation was cut off
@@ -293,14 +336,20 @@ async function _geminiRateGate(cancelToken) {
    Only surfaces an error immediately if it's API-key-related
    (HTTP 400 with API_KEY_INVALID / 401 / 403).
 
-   A 404 ("model not found") does NOT surface immediately and does NOT
-   change the loop's structure — it still goes through the exact same
-   onRetry/backoff/continue path as any other error below. The only extra
-   thing that happens on a 404 is that `url` gets corrected in place to
-   point at GEMINI_FALLBACK_MODEL before that same retry fires, so the
-   loop it's already going to run keeps retrying, just against a request
-   that's actually able to succeed. See the model config at the top of
-   this file for GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL.
+   A bad-request response — HTTP 404 ("model not found") or HTTP 400
+   ("bad request", e.g. an invalid model name/parameter) — does NOT
+   surface immediately and does NOT change the loop's structure — it
+   still goes through the exact same onRetry/backoff/continue path as any
+   other error below. The only extra thing that happens is that `url`
+   gets corrected in place to point at GEMINI_FALLBACK_MODEL before that
+   same retry fires, so the loop it's already going to run keeps
+   retrying, just against a request that's actually able to succeed.
+   Both statuses are handled identically via resolveGeminiFallbackUrl();
+   see the model config at the top of this file for
+   GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL /
+   GEMINI_MODEL_FALLBACK_STATUSES. A 400 whose message names an
+   API_KEY_* error is still caught by isKeyError() below FIRST, so
+   genuine key problems never fall through to this fallback path.
 
    The API key is sent via the `x-goog-api-key` header (Google's documented
    auth method: https://ai.google.dev/gemini-api/docs/api-key), NOT as a
@@ -374,17 +423,14 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         // Always surface key errors immediately — no point retrying
         if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
 
-        // A 404 usually means the model this app is requesting isn't valid
-        // for this account (renamed/retired/not enabled). Correct the URL
-        // itself here — swap in Google's auto-updating fallback alias — so
-        // the *next* iteration of this same infinite retry loop (below,
-        // unchanged) has a real chance of succeeding instead of retrying
-        // the identical broken request forever.
-        if (resp.status === 404 && !url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) {
-          console.warn(`Gemini: "${geminiActiveModel()}" returned 404 — switching to fallback model "${GEMINI_FALLBACK_MODEL}" for this and future requests.`);
-          _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
-          url = _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
-        }
+        // A bad-request response (404 "model not found", or 400 "bad
+        // request") usually means the model this app is requesting isn't
+        // valid for this account (renamed/retired/not enabled). Correct
+        // the URL itself here — swap in Google's auto-updating fallback
+        // alias — so the *next* iteration of this same infinite retry
+        // loop (below, unchanged) has a real chance of succeeding instead
+        // of retrying the identical broken request forever.
+        url = resolveGeminiFallbackUrl(resp.status, url, 'Gemini');
 
         if (resp.status === 429) {
           consecutive429++;
@@ -519,10 +565,17 @@ Output nothing besides the JSON array.`;
   // question's image doesn't get auto-cropped, nothing breaks), so it
   // still fails silently to the caller on any error — but it now logs the
   // real reason to the console instead of a bare unexplained no-op, and
-  // self-heals a 404 exactly like callGeminiWithRetry does, so it doesn't
-  // stay permanently broken after Google renames/retires the primary model.
+  // self-heals a bad-request response (400 or 404) exactly like
+  // callGeminiWithRetry does, via the same shared resolveGeminiFallbackUrl()
+  // helper, so it doesn't stay permanently broken after Google renames or
+  // retires the primary model. The switch itself only happens once (see
+  // resolveGeminiFallbackUrl) — the extra attempt below beyond that is
+  // just one more plain retry against the fallback model, not another
+  // model switch, matching how callGeminiWithRetry treats a repeat
+  // bad request that happens after already being on the fallback.
   let url = geminiEndpoint();
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const MAX_ATTEMPTS = 3; // primary model, the fallback model, and one more try against the fallback in case its own first response is a transient 400/404
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       await _geminiRateGate();
       const resp = await fetch(url, {
@@ -532,10 +585,8 @@ Output nothing besides the JSON array.`;
       });
       if (!resp.ok) {
         const data = await resp.json().catch(() => null);
-        if (resp.status === 404 && attempt === 0 && !url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) {
-          console.warn(`getBoundingBoxes: "${geminiActiveModel()}" returned 404 — retrying with fallback model "${GEMINI_FALLBACK_MODEL}".`);
-          _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
-          url = _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
+        if (attempt < MAX_ATTEMPTS - 1 && isGeminiModelFallbackTrigger(resp.status)) {
+          url = resolveGeminiFallbackUrl(resp.status, url, 'getBoundingBoxes');
           continue;
         }
         console.warn('getBoundingBoxes failed:', resp.status, data && data.error ? data.error.message : '');

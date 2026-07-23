@@ -266,14 +266,28 @@ AI-related is required for the core quiz/browsing experience to work.
 > only one constant to change if you ever want to switch models.
 >
 > If Google renames or retires that model for a given account, requests
-> come back as `404 Not Found`. Rather than get stuck retrying an
-> identical broken request forever, the app self-heals: the first 404
-> automatically switches every subsequent request to
-> `GEMINI_FALLBACK_MODEL` (`gemini-flash-latest`, Google's own
-> auto-updating "current stable Flash" alias). The existing
-> retry-with-backoff behavior is unchanged either way — a 404 doesn't
+> come back as either `404 Not Found` or `400 Bad Request` (which one
+> depends on the account and API version) — the app treats both the same
+> way. Rather than get stuck retrying an identical broken request
+> forever, the app self-heals: the first 400 or 404 automatically
+> switches every subsequent request to `GEMINI_FALLBACK_MODEL`
+> (`gemini-flash-latest`, Google's own auto-updating "current stable
+> Flash" alias). This only ever switches once per session — if the
+> fallback model *itself* later returns a 400/404, that's treated as a
+> genuine error (bad key, quota, network, account issue) rather than
+> "wrong model" and is retried the normal way, since there's no second
+> model left to fall back to. Genuine key errors (401/403, or a 400 that
+> names an `API_KEY_*` problem) are excluded from the fallback check
+> entirely and always surface immediately instead. The existing
+> retry-with-backoff behavior is unchanged either way — a 400/404 doesn't
 > stop the retry loop, it just corrects the request so the retry loop it
-> was already going to run has a real chance of succeeding.
+> was already going to run has a real chance of succeeding. This logic
+> lives in one shared helper, `resolveGeminiFallbackUrl()` in
+> `js/gemini-uploads.js`, used by both the main request path and the
+> bounding-box helper so they can never drift out of sync with each
+> other. (The bounding-box helper additionally gets one extra retry
+> attempt beyond the switch itself, since it's a best-effort feature that
+> otherwise only got two tries total.)
 
 ## Adding questions
 
