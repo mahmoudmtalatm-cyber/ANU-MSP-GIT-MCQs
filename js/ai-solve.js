@@ -336,7 +336,7 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   report(0, `Reading "${escapeHtml(file.name)}"…`);
   const filePart = await buildGeminiFilePart(file, apiKey, mimeType);
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
+  const url = geminiEndpoint();
 
   report(0.1, `Extracting questions from "${escapeHtml(file.name)}"…`);
   const data = await callGeminiWithRetry(url, {
@@ -668,7 +668,7 @@ function fileToText(file) {
 async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey, onProgress) {
   const report = (frac, label) => { if (onProgress) onProgress(frac, label); };
   const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
+  const url = geminiEndpoint();
 
   let requestBody;
 

@@ -258,6 +258,23 @@ AI-related is required for the core quiz/browsing experience to work.
 > the `x-goog-api-key` HTTP header (Google's documented method) rather than
 > the old `?key=` URL parameter, which is unreliable for Auth keys.
 
+> **Note on the Gemini model used:** the app targets one model, configured
+> in a single place — `GEMINI_PRIMARY_MODEL` in `js/gemini-uploads.js`
+> (currently `gemini-2.5-flash`). Every AI feature (extraction, AI Solve,
+> chat, explain, bulk tools, bounding-box detection) builds its request
+> through the shared `geminiEndpoint()` helper in that file, so there's
+> only one constant to change if you ever want to switch models.
+>
+> If Google renames or retires that model for a given account, requests
+> come back as `404 Not Found`. Rather than get stuck retrying an
+> identical broken request forever, the app self-heals: the first 404
+> automatically switches every subsequent request to
+> `GEMINI_FALLBACK_MODEL` (`gemini-flash-latest`, Google's own
+> auto-updating "current stable Flash" alias). The existing
+> retry-with-backoff behavior is unchanged either way — a 404 doesn't
+> stop the retry loop, it just corrects the request so the retry loop it
+> was already going to run has a real chance of succeeding.
+
 ## Adding questions
 
 Questions are stored in Firestore, not hardcoded, so the primary way to

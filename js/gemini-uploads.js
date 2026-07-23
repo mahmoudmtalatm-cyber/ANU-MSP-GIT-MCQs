@@ -12,6 +12,36 @@
 const GEMINI_MAX_FILE_BYTES         = 2 * 1024 * 1024 * 1024; // Gemini Files API hard limit, per file (free tier included)
 const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024;       // stay safely under Gemini's ~20MB inline request cap once base64 (~33%) overhead is added
 
+/* ══════════════════════════════════════════════════════════
+   MODEL CONFIG — single source of truth.
+   Every feature (extraction, AI Solve, chat, explain, bulk tools,
+   bounding-box detection) builds its request URL through
+   geminiEndpoint() instead of hardcoding a model string, so:
+     1. There's exactly one place to change the default model.
+     2. If Google ever renames/retires GEMINI_PRIMARY_MODEL, the
+        app self-heals to Google's auto-updating alias instead of
+        hard-failing — or, worse, silently retrying a permanent
+        404 forever. See the 404 handling in callGeminiWithRetry
+        below, which is what actually triggers the fallback.
+══════════════════════════════════════════════════════════ */
+const GEMINI_PRIMARY_MODEL  = 'gemini-2.5-flash';
+const GEMINI_FALLBACK_MODEL = 'gemini-flash-latest'; // Google's auto-updating "current stable Flash" alias
+
+// Set once, automatically, the first time the primary model 404s (see
+// callGeminiWithRetry). After that every NEW request goes straight to the
+// fallback so the app doesn't re-discover the same 404 on every call.
+let _geminiResolvedModel = null;
+
+function geminiActiveModel() { return _geminiResolvedModel || GEMINI_PRIMARY_MODEL; }
+
+function geminiEndpoint(model) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model || geminiActiveModel()}:generateContent`;
+}
+
+function _geminiSwapModelInUrl(url, model) {
+  return url.replace(/\/models\/[^/:]+:generateContent/, `/models/${model}:generateContent`);
+}
+
 /* Parses a JSON array returned by Gemini, and — if generation was cut off
    partway through (hit maxOutputTokens, so the JSON is syntactically
    incomplete) — salvages every fully-formed element instead of discarding
@@ -263,6 +293,15 @@ async function _geminiRateGate(cancelToken) {
    Only surfaces an error immediately if it's API-key-related
    (HTTP 400 with API_KEY_INVALID / 401 / 403).
 
+   A 404 ("model not found") does NOT surface immediately and does NOT
+   change the loop's structure — it still goes through the exact same
+   onRetry/backoff/continue path as any other error below. The only extra
+   thing that happens on a 404 is that `url` gets corrected in place to
+   point at GEMINI_FALLBACK_MODEL before that same retry fires, so the
+   loop it's already going to run keeps retrying, just against a request
+   that's actually able to succeed. See the model config at the top of
+   this file for GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL.
+
    The API key is sent via the `x-goog-api-key` header (Google's documented
    auth method: https://ai.google.dev/gemini-api/docs/api-key), NOT as a
    `?key=` query parameter. As of mid-2026 Google AI Studio issues new keys
@@ -334,6 +373,18 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         err._apiData    = data;
         // Always surface key errors immediately — no point retrying
         if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
+
+        // A 404 usually means the model this app is requesting isn't valid
+        // for this account (renamed/retired/not enabled). Correct the URL
+        // itself here — swap in Google's auto-updating fallback alias — so
+        // the *next* iteration of this same infinite retry loop (below,
+        // unchanged) has a real chance of succeeding instead of retrying
+        // the identical broken request forever.
+        if (resp.status === 404 && !url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) {
+          console.warn(`Gemini: "${geminiActiveModel()}" returned 404 — switching to fallback model "${GEMINI_FALLBACK_MODEL}" for this and future requests.`);
+          _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
+          url = _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
+        }
 
         if (resp.status === 429) {
           consecutive429++;
@@ -459,32 +510,49 @@ Where:
 If you cannot find a visual element for a question, omit that entry from the array.
 Output nothing besides the JSON array.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
-  try {
-    await _geminiRateGate();
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            filePart,
-            { text: prompt }
-          ]
-        }],
-        generationConfig: { temperature: 0, maxOutputTokens: 4096 }
-      })
-    });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    const textOut = ((data.candidates || [])[0]?.content?.parts || [])
-      .map(p => p.text || '').join('').trim();
-    if (!textOut) return;
-    const clean = textOut.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
-  } catch (e) {
-    return null;
+  const requestBody = {
+    contents: [{ parts: [filePart, { text: prompt }] }],
+    generationConfig: { temperature: 0, maxOutputTokens: 4096 }
+  };
+
+  // This feature is best-effort (missing bounding boxes just means a
+  // question's image doesn't get auto-cropped, nothing breaks), so it
+  // still fails silently to the caller on any error — but it now logs the
+  // real reason to the console instead of a bare unexplained no-op, and
+  // self-heals a 404 exactly like callGeminiWithRetry does, so it doesn't
+  // stay permanently broken after Google renames/retires the primary model.
+  let url = geminiEndpoint();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await _geminiRateGate();
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(requestBody)
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => null);
+        if (resp.status === 404 && attempt === 0 && !url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) {
+          console.warn(`getBoundingBoxes: "${geminiActiveModel()}" returned 404 — retrying with fallback model "${GEMINI_FALLBACK_MODEL}".`);
+          _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
+          url = _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
+          continue;
+        }
+        console.warn('getBoundingBoxes failed:', resp.status, data && data.error ? data.error.message : '');
+        return null;
+      }
+      const data = await resp.json();
+      const textOut = ((data.candidates || [])[0]?.content?.parts || [])
+        .map(p => p.text || '').join('').trim();
+      if (!textOut) return null;
+      const clean = textOut.replace(/```json|```/g, '').trim();
+      return JSON.parse(clean);
+    } catch (e) {
+      console.warn('getBoundingBoxes failed:', e);
+      return null;
+    }
   }
+  return null;
 }
 
 /* ── Crop a region from a rendered image using Canvas ── */
@@ -704,7 +772,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     // without losing any batches already solved.
     apiKey = (await cqCheckPause(statusEl)) || apiKey;
     if (cancelToken && cancelToken.cancelled) break;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
+    const url = geminiEndpoint();
 
     const chunk = chunks[ci];
 

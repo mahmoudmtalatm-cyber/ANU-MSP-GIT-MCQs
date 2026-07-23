@@ -324,7 +324,8 @@ function renderApiKeyManager() {
    AI EXPLANATION — per-question and explain-all
 ══════════════════════════════════════════════════════════ */
 
-const AI_EXPLAIN_MODEL     = 'gemini-2.5-flash';
+// Model is now configured in one place: GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL
+// in gemini-uploads.js (loaded before this file) — see geminiEndpoint().
 
 // Track which questions are loaded/loading to avoid duplicate calls
 const _explainCache = {};   // { qIndex: 'loading' | html-string }
@@ -678,7 +679,7 @@ async function explainQuestion(i, forceRegenerate = false) {
   try {
     const userAnswer = userAnswers[i] || '';
     const prompt     = buildExplainPrompt(currentQuestions, q, userAnswer);
-    const url        = `https://generativelanguage.googleapis.com/v1beta/models/${AI_EXPLAIN_MODEL}:generateContent`;
+    const url        = geminiEndpoint();
 
     // Build parts — prepend the question's image if it has one, or fall back
     // to the case group's shared image (i.e. the core question's image) when
@@ -920,7 +921,8 @@ async function explainAllQuestions() {
 /* ══════════════════════════════════════════════════════════
    AI CHAT — per-question chat with attachments
 ══════════════════════════════════════════════════════════ */
-const CHAT_MODEL = 'gemini-2.5-flash';
+// Model is now configured in one place: GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL
+// in gemini-uploads.js (loaded before this file) — see geminiEndpoint().
 
 // Conversation state, keyed by question index
 const _chatHistory     = {}; // { qIndex: [{role:'user'|'model', parts:[{text}|{inline_data}|{file_data},_name]}] }
@@ -1202,7 +1204,7 @@ async function runChatRequest(i) {
   _chatCancelToken[i] = token;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CHAT_MODEL}:generateContent`;
+    const url = geminiEndpoint();
 
     // If this question has an embedded image — or, for a dependent question
     // in a case cluster, if the core question has one — inject it as the
@@ -1265,7 +1267,8 @@ async function runChatRequest(i) {
    CUSTOM QUIZZES — AI-POWERED (GEMINI)
 ══════════════════════════════════════════════════════════ */
 const CQ_KEY           = 'anu_msp_custom_quizzes_v1';
-const CQ_MODEL         = 'gemini-2.5-flash';
+// Model is now configured in one place: GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL
+// in gemini-uploads.js (loaded before this file) — see geminiEndpoint().
 
 /* ── PER-USER CACHE for Custom Quizzes ──────────────────────
    These are private, so each user gets their own tiny version

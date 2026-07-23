@@ -6,7 +6,8 @@
    is written once and works everywhere without duplication.
 ══════════════════════════════════════════════════════════ */
 
-const AI_TOOLS_MODEL = (typeof CQ_MODEL !== 'undefined') ? CQ_MODEL : 'gemini-2.5-flash';
+// Model is now configured in one place: GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL
+// in gemini-uploads.js (loaded before this file) — see geminiEndpoint().
 
 /* ── Optional "thinking" toggle for the lightweight AI tools ──
    Refine Question, Fill Choices, Add Choice, and their bulk counterparts
@@ -386,7 +387,7 @@ Respond ONLY with a JSON object: {"question": "the refined question text"}. No m
     parts.push({ inline_data: imagePart });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_TOOLS_MODEL}:generateContent`;
+  const url = geminiEndpoint();
   const data = await callGeminiWithRetry(url, {
     contents: [{ parts }],
     generationConfig: {
@@ -481,7 +482,7 @@ Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(
     parts.push({ inline_data: imagePart });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_TOOLS_MODEL}:generateContent`;
+  const url = geminiEndpoint();
   const data = await callGeminiWithRetry(url, {
     contents: [{ parts }],
     generationConfig: {
