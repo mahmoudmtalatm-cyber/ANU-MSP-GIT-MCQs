@@ -1111,6 +1111,48 @@
   cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s;
 }
 .ai-tool-stop-btn:hover { background: var(--red-deep); }
+/* Compact "🧠 Thinking" pill-checkbox — one independent instance per AI
+   tool (Refine Question, Fill Choices, Add Choice, and their bulk
+   counterparts). Off (grey) by default; violet + filled when the user has
+   opted that specific tool into Gemini's reasoning pass. Every rendered
+   copy of the same tool's checkbox is kept in sync via _aiToolsSetThinking
+   (see js/ai-question-tools.js) — toggling one never affects another tool. */
+.ai-thinking-toggle {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: .68rem; font-weight: 700; color: var(--text-muted);
+  padding: 4px 10px 4px 7px; border-radius: 20px; border: 1.5px solid var(--border-soft);
+  background: var(--surface-2); transition: background .15s, border-color .15s, color .15s;
+  user-select: none; white-space: nowrap; flex-shrink: 0;
+}
+.ai-thinking-toggle:hover { border-color: var(--violet-mid-border); }
+.ai-thinking-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ai-thinking-cb-box {
+  position: relative; width: 26px; height: 15px; border-radius: 10px; background: #ccc;
+  flex-shrink: 0; transition: background .2s;
+}
+.ai-thinking-cb-box::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+  border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 2px rgba(0,0,0,.3);
+}
+.ai-thinking-toggle input:checked ~ .ai-thinking-cb-box { background: var(--violet-dark); }
+.ai-thinking-toggle input:checked ~ .ai-thinking-cb-box::after { left: 13px; }
+.ai-thinking-toggle.ai-thinking-on {
+  color: var(--violet-dark); border-color: var(--violet-mid-border); background: var(--violet-pale);
+}
+/* Color variants — match the pill to the specific tool's own button color,
+   set via the `variant` argument to _renderAiThinkingToggle, so it reads
+   as belonging to that button rather than a generic nearby setting. */
+.ai-thinking-toggle.ai-thinking-amber:hover { border-color: var(--amber-strong); }
+.ai-thinking-toggle.ai-thinking-amber input:checked ~ .ai-thinking-cb-box { background: var(--amber-strong); }
+.ai-thinking-toggle.ai-thinking-amber.ai-thinking-on {
+  color: var(--unanswered-fg); border-color: var(--amber-strong); background: var(--unanswered-bg);
+}
+.ai-thinking-toggle.ai-thinking-green:hover { border-color: var(--green-pale-border); }
+.ai-thinking-toggle.ai-thinking-green input:checked ~ .ai-thinking-cb-box { background: var(--correct-fg); }
+.ai-thinking-toggle.ai-thinking-green.ai-thinking-on {
+  color: var(--correct-fg); border-color: var(--green-pale-border); background: var(--correct-bg);
+}
+.ai-thinking-cb-label { letter-spacing: .2px; }
 .ai-source-picker {
   position: relative; z-index: 20; margin: 4px 0 8px;
 }
@@ -2186,6 +2228,16 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .cq-opt-edit-row { padding: 6px; }
   .cq-opt-text-input { min-width: 70px; }
   .cq-quiz-item { padding: 10px; }
+
+  /* 🧠 Thinking toggles: same shrink treatment as the other small AI-tool
+     controls above, plus its button+toggle group (see ai-question-tools.js
+     / ai-features.js) is already allowed to wrap internally, so on very
+     narrow phones the toggle drops cleanly under its own button instead of
+     forcing the row to scroll sideways. */
+  .ai-thinking-toggle { font-size: .64rem; padding: 3px 8px 3px 6px; gap: 5px; }
+  .ai-thinking-cb-box { width: 22px; height: 13px; }
+  .ai-thinking-cb-box::after { width: 9px; height: 9px; }
+  .ai-thinking-toggle input:checked ~ .ai-thinking-cb-box::after { left: 11px; }
 }
 @media (max-width: 360px) {
   .apikey-item-actions { justify-content: stretch; }

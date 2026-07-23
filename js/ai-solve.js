@@ -336,7 +336,7 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   report(0, `Reading "${escapeHtml(file.name)}"…`);
   const filePart = await buildGeminiFilePart(file, apiKey, mimeType);
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
 
   report(0.1, `Extracting questions from "${escapeHtml(file.name)}"…`);
   const data = await callGeminiWithRetry(url, {
@@ -348,25 +348,31 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
     }],
     generationConfig: {
       responseMimeType: 'application/json',
+      responseSchema: CQ_RESPONSE_SCHEMA,
       temperature: 0,
       maxOutputTokens: 65536
     }
-  }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken });
+  }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey });
 
   const candidate = data && data.candidates && data.candidates[0];
   if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or blocked — try a clearer image or PDF.`);
 
-  const finishReason = candidate.finishReason;
+  let finishReason = candidate.finishReason;
   const textOut = (candidate.content && candidate.content.parts || [])
     .map(p => p.text || '').join('');
   if (!textOut.trim()) throw new Error(`Gemini returned an empty response for "${file.name}". Please try again.`);
 
-  let parsed;
-  try { const cleanOut = textOut.replace(/```json|```/g, '').trim(); parsed = JSON.parse(cleanOut); }
-  catch (e) { throw new Error(`Could not understand the AI response for "${file.name}". Please try again.`); }
+  // parseGeminiJsonArray salvages every complete question already generated
+  // even if the response was cut off mid-array (large document hit
+  // maxOutputTokens) — previously any truncation lost the WHOLE file's
+  // questions, not just the last incomplete one.
+  const { data: parsed, truncated } = parseGeminiJsonArray(textOut);
+  if (truncated) finishReason = 'MAX_TOKENS';
 
   if (!Array.isArray(parsed) || !parsed.length) {
-    throw new Error(`No questions could be detected in "${file.name}".`);
+    throw new Error(truncated
+      ? `Gemini's response for "${file.name}" was cut off before any complete question came through — try splitting this file into smaller sections.`
+      : `No questions could be detected in "${file.name}".`);
   }
 
   report(0.6, `Processing questions from "${escapeHtml(file.name)}"…`);
@@ -435,6 +441,7 @@ async function generateQuizFromAI() {
   cqGeneratedTitle = title;
   cqBusy = true;
   cqPauseRequested = false;
+  cqPauseSkipRequested = false;
   cqIsPaused = false;
   cqStopRequested = false;
   cqCancelToken = { cancelled: false };
@@ -448,7 +455,7 @@ async function generateQuizFromAI() {
 
   try {
     let cleaned = [];
-    let anyMaxTokens = false;
+    let truncatedFiles = [];
     const totalFiles = cqSelectedFiles.length;
     for (let fi = 0; fi < totalFiles; fi++) {
       // Safe checkpoint — takes effect only if the user clicked Pause, and
@@ -470,6 +477,19 @@ async function generateQuizFromAI() {
           result = await _extractQuestionsFromFile(file, apiKey, onProgress);
           break;
         } catch (fileErr) {
+          // User clicked "pause now" instead of waiting for this file to
+          // finish — abort landed here as a cancellation. Step back to the
+          // last completed checkpoint (before this file) rather than losing
+          // the whole run, exactly like the automatic rate-limit fallback
+          // below, just user-triggered instead of automatic.
+          if (fileErr._cancelled && typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested) {
+            cqPauseSkipRequested = false;
+            cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
+            apiKey = await _cqEnterPause(statusEl,
+              `⏸️ Paused — stepped back to before "${escapeHtml(file.name)}" so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`);
+            if (!apiKey) throw new Error('No active API key. Add or select one, then click Extract Questions again.');
+            continue; // retry this same file
+          }
           if (fileErr._rateLimitPauseFallback) {
             apiKey = await cqFallbackPauseForRateLimit(statusEl, `"${file.name}"`);
             if (!apiKey) throw new Error('No active API key. Add or select one, then click Extract Questions again.');
@@ -479,7 +499,7 @@ async function generateQuizFromAI() {
         }
       }
       cleaned = cleaned.concat(result.cleaned);
-      if (result.finishReason === 'MAX_TOKENS') anyMaxTokens = true;
+      if (result.finishReason === 'MAX_TOKENS') truncatedFiles.push(file.name);
     }
 
     if (!cleaned.length) throw new Error('No questions could be detected in the uploaded file(s).');
@@ -493,11 +513,11 @@ async function generateQuizFromAI() {
       // Solve ALL questions (including those with existing keys)
       const allIdxs = cleaned.map((_, i) => i);
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is solving all ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}… please wait.</div>`;
-      await cqAiSolveQuestions(cleaned, allIdxs, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl);
+      await cqAiSolveQuestions(cleaned, allIdxs, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
     } else if (cqAiAnsweringEnabled && cqAiAnswerSubmode === 'missing' && noKeyQs.length > 0) {
       // Solve only no-key questions
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is answering ${noKeyQs.length} question${noKeyQs.length !== 1 ? 's' : ''} without an answer key… please wait.</div>`;
-      await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl);
+      await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
     }
 
     // ── Fill Choices, then Refine Questions — run STRICTLY one after the
@@ -514,15 +534,16 @@ async function generateQuizFromAI() {
     let fillResult   = null;
     let refineResult = null;
     if (cqFillChoicesToggle) {
-      fillResult = await cqBulkFillChoices(cleaned, statusEl);
+      fillResult = await cqBulkFillChoices(cleaned, statusEl, cqCancelToken);
     }
     if (cqRefineToggle) {
-      refineResult = await cqBulkRefineQuestions(cleaned, cqRefineCustomInstructions.trim(), statusEl);
+      refineResult = await cqBulkRefineQuestions(cleaned, cqRefineCustomInstructions.trim(), statusEl, cqCancelToken);
     }
 
     let warn = '';
-    if (anyMaxTokens) {
-      warn = ` ⚠️ One of the responses may have been cut off because the document is very large — please check below that the last question is complete, and split very long documents into smaller files if needed.`;
+    if (truncatedFiles.length) {
+      const fileList = truncatedFiles.map(n => `"${escapeHtml(n)}"`).join(', ');
+      warn = ` ⚠️ ${truncatedFiles.length > 1 ? 'These files\' responses were' : 'This file\'s response was'} cut off because the document is very large: ${fileList}. Every complete question up to that point was still recovered, but check below that nothing near the end is missing, and split very long documents into smaller files if needed.`;
     }
 
     const imgCount    = cleaned.filter(q => q.image).length;
@@ -580,6 +601,7 @@ async function generateQuizFromAI() {
   } finally {
     cqBusy = false;
     cqPauseRequested = false;
+    cqPauseSkipRequested = false;
     cqIsPaused = false;
     cqStopRequested = false;
     cqCancelToken = null;
@@ -646,7 +668,7 @@ function fileToText(file) {
 async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey, onProgress) {
   const report = (frac, label) => { if (onProgress) onProgress(frac, label); };
   const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
 
   let requestBody;
 
@@ -663,6 +685,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       }],
       generationConfig: {
         responseMimeType: 'application/json',
+        responseSchema: CQ_RESPONSE_SCHEMA,
         temperature: 0.7,
         maxOutputTokens: 65536
       }
@@ -683,6 +706,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       }],
       generationConfig: {
         responseMimeType: 'application/json',
+        responseSchema: CQ_RESPONSE_SCHEMA,
         temperature: 0.7,
         maxOutputTokens: 65536
       }
@@ -690,24 +714,26 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
   }
 
   report(0.15, `Generating questions from "${escapeHtml(file.name)}"…`);
-  const data = await callGeminiWithRetry(url, requestBody, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken });
+  const data = await callGeminiWithRetry(url, requestBody, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey });
 
   const candidate = data && data.candidates && data.candidates[0];
   if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or too large — try splitting it into smaller sections.`);
 
-  const finishReason = candidate.finishReason;
+  let finishReason = candidate.finishReason;
   const textOut = (candidate.content && candidate.content.parts || [])
     .map(p => p.text || '').join('');
   if (!textOut.trim()) throw new Error(`Gemini returned an empty response for "${file.name}". Please try again.`);
 
-  let parsed;
-  try {
-    const clean = textOut.replace(/```json|```/g, '').trim();
-    parsed = JSON.parse(clean);
-  } catch (e) { throw new Error(`Could not understand the AI response for "${file.name}". Please try again.`); }
+  // See matching comment in _extractQuestionsFromFile — salvages whatever
+  // complete questions came through before a truncated response, instead of
+  // discarding all of them.
+  const { data: parsed, truncated } = parseGeminiJsonArray(textOut);
+  if (truncated) finishReason = 'MAX_TOKENS';
 
   if (!Array.isArray(parsed) || !parsed.length) {
-    throw new Error(`No questions were generated from "${file.name}". Try uploading a more detailed lecture or reducing the question count.`);
+    throw new Error(truncated
+      ? `Gemini's response for "${file.name}" was cut off before any complete question came through — try reducing the question count or splitting the lecture into smaller sections.`
+      : `No questions were generated from "${file.name}". Try uploading a more detailed lecture or reducing the question count.`);
   }
 
   report(0.75, `Processing questions from "${escapeHtml(file.name)}"…`);
@@ -755,6 +781,7 @@ async function generateQuizFromLecture() {
   cqQuestionCount  = qCount;
   cqBusy = true;
   cqPauseRequested = false;
+  cqPauseSkipRequested = false;
   cqIsPaused = false;
   cqStopRequested = false;
   cqCancelToken = { cancelled: false };
@@ -772,7 +799,7 @@ async function generateQuizFromLecture() {
     const generationPrompt = buildGenerationPrompt(qCount, prompt);
 
     let cleaned = [];
-    let anyMaxTokens = false;
+    let truncatedFiles = [];
     const totalFiles = cqLectureFiles.length;
     for (let fi = 0; fi < totalFiles; fi++) {
       // Safe checkpoint — takes effect only if the user clicked Pause, and
@@ -794,6 +821,18 @@ async function generateQuizFromLecture() {
           result = await _generateQuestionsFromLectureFile(file, generationPrompt, apiKey, onProgress);
           break;
         } catch (fileErr) {
+          // User clicked "pause now" instead of waiting for this file to
+          // finish — step back to the last completed checkpoint (before this
+          // file) rather than losing the whole run. See the matching comment
+          // in generateQuizFromAI for the full explanation.
+          if (fileErr._cancelled && typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested) {
+            cqPauseSkipRequested = false;
+            cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
+            apiKey = await _cqEnterPause(statusEl,
+              `⏸️ Paused — stepped back to before "${escapeHtml(file.name)}" so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`);
+            if (!apiKey) throw new Error('No active API key. Add or select one, then click Generate Questions again.');
+            continue; // retry this same file
+          }
           if (fileErr._rateLimitPauseFallback) {
             apiKey = await cqFallbackPauseForRateLimit(statusEl, `"${file.name}"`);
             if (!apiKey) throw new Error('No active API key. Add or select one, then click Generate Questions again.');
@@ -803,7 +842,7 @@ async function generateQuizFromLecture() {
         }
       }
       cleaned = cleaned.concat(result.cleaned);
-      if (result.finishReason === 'MAX_TOKENS') anyMaxTokens = true;
+      if (result.finishReason === 'MAX_TOKENS') truncatedFiles.push(file.name);
     }
 
     if (!cleaned.length) throw new Error('No questions were generated. Try uploading a more detailed lecture or reducing the question count.');
@@ -812,8 +851,9 @@ async function generateQuizFromLecture() {
     _markQuestionEditDirty(); // freshly generated content is unsaved — warn before it's closed away
 
     let warn = '';
-    if (anyMaxTokens) {
-      warn = ` ⚠️ One of the responses may have been cut off — try splitting very long documents into smaller files.`;
+    if (truncatedFiles.length) {
+      const fileList = truncatedFiles.map(n => `"${escapeHtml(n)}"`).join(', ');
+      warn = ` ⚠️ ${truncatedFiles.length > 1 ? 'These files\' responses were' : 'This file\'s response was'} cut off because the document is very large: ${fileList}. Every complete question up to that point was still recovered, but try splitting very long documents into smaller files for a full set.`;
     }
 
     const clinicalCount = cleaned.filter(q =>
@@ -840,6 +880,7 @@ async function generateQuizFromLecture() {
   } finally {
     cqBusy = false;
     cqPauseRequested = false;
+    cqPauseSkipRequested = false;
     cqIsPaused = false;
     cqStopRequested = false;
     cqCancelToken = null;
@@ -1177,6 +1218,29 @@ async function saveGeneratedCustomQuiz() {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions.length) return;
   const titleInput = document.getElementById('cqTitleInput');
   const title = (titleInput && titleInput.value.trim()) || cqGeneratedTitle || 'Custom Quiz';
+
+  // Same validation the quiz editor enforces on save — applied HERE too so a
+  // question that only made it out of extraction with one option (e.g. the
+  // source only had one choice visible, or a choice got missed) is caught
+  // immediately, while it's still fresh in the review screen, rather than
+  // saving silently and only surfacing as a forced fix-up the next time this
+  // quiz happens to be opened for editing.
+  for (let i = 0; i < cqGeneratedQuestions.length; i++) {
+    const q = cqGeneratedQuestions[i];
+    if (!q.question || !q.question.trim()) {
+      alert(`Q${i + 1} needs question text before saving.`);
+      return;
+    }
+    const filledOpts = getOptionEntries(q).filter(([, v]) => v && v.trim());
+    if (filledOpts.length < 2) {
+      alert(`Q${i + 1} only has ${filledOpts.length} option${filledOpts.length === 1 ? '' : 's'} — add at least 2 before saving. Scroll to it below to fix.`);
+      return;
+    }
+    if (!q.answer || !q.options[q.answer] || !q.options[q.answer].trim()) {
+      alert(`Q${i + 1} needs a correct answer selected before saving.`);
+      return;
+    }
+  }
 
   _cqNormalizeCaseGroups(cqGeneratedQuestions);
   _stripEditorTransientFields(cqGeneratedQuestions);

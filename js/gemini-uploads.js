@@ -12,6 +12,81 @@
 const GEMINI_MAX_FILE_BYTES         = 2 * 1024 * 1024 * 1024; // Gemini Files API hard limit, per file (free tier included)
 const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024;       // stay safely under Gemini's ~20MB inline request cap once base64 (~33%) overhead is added
 
+/* Parses a JSON array returned by Gemini, and — if generation was cut off
+   partway through (hit maxOutputTokens, so the JSON is syntactically
+   incomplete) — salvages every fully-formed element instead of discarding
+   the whole response. Without this, one truncated response used to throw
+   away ALL items already generated (a whole file's worth of questions, or
+   every choice already written), not just the one that got cut off.
+
+   Returns { data, truncated }:
+     - data:      the parsed array (possibly shorter than what the model
+                   intended to return), or null if nothing usable was found.
+     - truncated: true if repair kicked in, so callers can flag the result
+                   as MAX_TOKENS-affected even when the API's own
+                   `finishReason` was missing/wrong.
+
+   Repair strategy: walk the raw text tracking string/escape state and
+   bracket depth so we only ever cut at a genuine top-level array-element
+   boundary — either a '}' that closes an object element back to depth 1,
+   or the closing quote of a bare top-level string element (for arrays of
+   strings, e.g. {"choices": [...]}'s inner array) — never inside an
+   element's own text, which may itself contain literal '}",' sequences. */
+function parseGeminiJsonArray(text) {
+  const clean = (text || '').replace(/```json|```/g, '').trim();
+  try {
+    const data = JSON.parse(clean);
+    return { data, truncated: false };
+  } catch (_) { /* fall through to repair */ }
+
+  if (!clean.startsWith('[')) return { data: null, truncated: false };
+
+  let depth = 0, inString = false, escaped = false, lastElementEnd = -1;
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') {
+        inString = false;
+        if (depth === 1) lastElementEnd = i; // closed a bare top-level string element
+      }
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 1 && ch === '}') lastElementEnd = i; // closed a top-level object element
+    }
+  }
+  if (lastElementEnd === -1) return { data: null, truncated: true };
+
+  try {
+    const data = JSON.parse(clean.slice(0, lastElementEnd + 1) + ']');
+    return { data, truncated: true };
+  } catch (_) {
+    return { data: null, truncated: true };
+  }
+}
+
+/* Same salvage idea as parseGeminiJsonArray, but for a small JSON OBJECT
+   whose one array-valued field got cut off mid-generation — e.g.
+   {"choices": ["...", "...", "..."]} from the distractor-writing tools,
+   where a small maxOutputTokens budget occasionally isn't quite enough.
+   Finds `"<fieldName>":` then locates that field's own '[' ... and runs it
+   through the same bracket/string-aware repair used above.
+
+   Returns { data, truncated } where `data` is the recovered array (or null
+   if nothing after the field name was complete). */
+function parseGeminiJsonObjectArrayField(text, fieldName) {
+  const clean = (text || '').replace(/```json|```/g, '').trim();
+  const keyMatch = clean.match(new RegExp(`"${fieldName}"\\s*:\\s*\\[`));
+  if (!keyMatch) return { data: null, truncated: true };
+  const arrayText = clean.slice(keyMatch.index + keyMatch[0].length - 1); // from the '[' onward
+  return parseGeminiJsonArray(arrayText);
+}
+
 function formatBytes(bytes) {
   if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + 'GB';
   if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
@@ -32,9 +107,10 @@ function assertWithinGeminiFileLimit(file) {
 async function uploadFileToGeminiFileAPI(file, apiKey, mimeType) {
   mimeType = mimeType || file.type || 'application/octet-stream';
 
-  const startResp = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`, {
+  const startResp = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files`, {
     method: 'POST',
     headers: {
+      'x-goog-api-key': apiKey,
       'X-Goog-Upload-Protocol': 'resumable',
       'X-Goog-Upload-Command': 'start',
       'X-Goog-Upload-Header-Content-Length': String(file.size),
@@ -66,7 +142,9 @@ async function uploadFileToGeminiFileAPI(file, apiKey, mimeType) {
   while (fileInfo.state === 'PROCESSING' && attempts < 30) {
     await new Promise(r => setTimeout(r, 2000));
     try {
-      const checkResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileInfo.name}?key=${encodeURIComponent(apiKey)}`);
+      const checkResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileInfo.name}`, {
+        headers: { 'x-goog-api-key': apiKey }
+      });
       if (checkResp.ok) fileInfo = await checkResp.json();
     } catch (e) {}
     attempts++;
@@ -107,6 +185,11 @@ STRICT RULES — follow exactly, no exceptions:
    - Give every question in the cluster — the core question AND every question that depends on it — the SAME "case_group" string (e.g. "case_1", "case_2", ...). Leave "case_group" empty/omitted for standalone questions that don't share context with any other question.
    - Output the core question immediately followed by its dependent questions, in the same order they appear in the source document.
    - Do not invent a cluster — only use "case_group"/"case_is_core" when the source document actually presents shared context that multiple questions depend on. A cluster always needs exactly one core question — never zero, never more than one.
+9. CROSS-PAGE CONTINUATIONS: treat the ENTIRE document as one continuous stream of content — page boundaries are just where the scan/print was cut and carry NO semantic meaning. Never let a page break cause you to drop, truncate, or duplicate anything. In particular:
+   - A question's stem, its answer choices, and its indicated correct answer may be split across two (or more) pages — e.g. the stem and choices A–C end at the bottom of one page and choice D plus the answer marking appear at the top of the next, or a question appears on one page with its answer key only in an answer-key section on a different/later page. Always look across the WHOLE document and merge these into a single complete question object. Do not treat "no answer choices found on this page" or "question looks cut off at the page edge" as a reason to drop the question — first search the rest of the document (including the next page and any answer-key section) for the missing pieces before falling back to the "no options" or "__NO_KEY__" handling.
+   - Likewise, if an answer-key section (e.g. a list like "12-C, 13-A, 14-B...") appears anywhere in the document — even on a page far from the questions themselves, such as at the very end — match each entry to its corresponding question by number and use it to set "answer", even though the key is physically separated from the question text.
+   - A case/vignette cluster (rule 8) can itself span a page break — the shared case text may end one page and the dependent questions continue on the next; keep them in the same cluster and never cut the case text short just because the page changed.
+   - Never emit a partial or truncated question just because its remaining text, options, or answer live on a different page. If, after checking the entire document, some piece genuinely cannot be found anywhere, apply rule 5 ("__NO_KEY__") for a missing answer, but still include every option and word of stem text that does exist anywhere in the document — do not drop the question outright.
 
 Return ONLY a JSON array, one object per question, in exactly this format:
 [
@@ -145,10 +228,51 @@ const CQ_RESPONSE_SCHEMA = {
   }
 };
 
+/* ── Shared request pacing (prevents hitting Gemini's free-tier RPM cap) ──
+   Google's free tier caps Gemini 2.5 Flash at roughly 10–15 requests per
+   minute *per project* (see https://ai.google.dev/gemini-api/docs/rate-limits) —
+   and that cap is shared across every request this app makes with a given
+   key, no matter which feature fired it.
+
+   Extraction only ever sends one request per uploaded file (usually just a
+   couple), so it naturally stays well under that cap. The bulk per-question
+   passes — AI Solve, Fill Choices, Refine Questions, whether run from the
+   post-extraction pipeline or from an editor's own bulk-tools panel — fire
+   one request per question (or per 20-question batch, for Solve) and used
+   to only pace themselves internally (250ms, or nothing at all) — nowhere
+   near enough spacing, and each loop only knew about its OWN requests, so
+   two bulk passes running at once (e.g. one editor's Fill Choices while
+   another's Refine is also going) could double up and blow through the cap
+   even faster.
+
+   This gate enforces one shared minimum spacing between ANY two Gemini
+   requests the app sends, tracked globally rather than per-loop, so every
+   caller — bulk or single, extraction or editor — automatically queues
+   behind the same pace instead of assuming it has the whole rate budget to
+   itself. If your key is on a paid tier (much higher RPM), this constant
+   can safely be lowered. */
+const GEMINI_MIN_REQUEST_SPACING_MS = 6500; // ≈9 requests/minute — a safe margin under the ~10–15 RPM free-tier cap
+let _geminiLastRequestAt = 0;
+async function _geminiRateGate(cancelToken) {
+  const wait = _geminiLastRequestAt + GEMINI_MIN_REQUEST_SPACING_MS - Date.now();
+  if (wait > 0) await cancellableSleep(wait, cancelToken);
+  _geminiLastRequestAt = Date.now();
+}
+
 /* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
    Only surfaces an error immediately if it's API-key-related
-   (HTTP 400 with API_KEY_INVALID / 401 / 403). ──────── */
-async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCheck } = {}) {
+   (HTTP 400 with API_KEY_INVALID / 401 / 403).
+
+   The API key is sent via the `x-goog-api-key` header (Google's documented
+   auth method: https://ai.google.dev/gemini-api/docs/api-key), NOT as a
+   `?key=` query parameter. As of mid-2026 Google AI Studio issues new keys
+   in the "Auth key" format (prefixed `AQ.`, replacing the old `AIza...`
+   "Standard key" format) — Auth keys are unreliable when passed as a query
+   parameter (inconsistent 401/403/404 responses depending on the account),
+   but work correctly via this header regardless of which key format the
+   user has. Every caller must pass `apiKey` in the options object instead
+   of appending it to `url` itself. ──────── */
+async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCheck, apiKey } = {}) {
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
 
@@ -167,6 +291,14 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   // this only changes behavior when the user is actively trying to pause.
   const RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD = 20;
 
+  // Wait for a shared slot before this call's very first attempt — retries
+  // after a failure already back off exponentially below, so they don't
+  // need (and shouldn't get) a second helping of this same delay.
+  await _geminiRateGate(cancelToken);
+  if (cancelToken && cancelToken.cancelled) {
+    const e = new Error('cancelled'); e._cancelled = true; throw e;
+  }
+
   let attempt = 0;
   let consecutive429 = 0;
   while (true) {
@@ -184,9 +316,11 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
     if (cancelToken) cancelToken.controller = controller;
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['x-goog-api-key'] = apiKey;
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(bodyObj),
         signal: controller.signal
       });
@@ -325,11 +459,12 @@ Where:
 If you cannot find a visual element for a question, omit that entry from the array.
 Output nothing besides the JSON array.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
   try {
+    await _geminiRateGate();
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{
           parts: [
@@ -569,7 +704,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     // without losing any batches already solved.
     apiKey = (await cqCheckPause(statusEl)) || apiKey;
     if (cancelToken && cancelToken.cancelled) break;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CQ_MODEL}:generateContent`;
 
     const chunk = chunks[ci];
 
@@ -604,24 +739,18 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: [{ role: 'user', parts }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 8192 }
-      }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken });
+      }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken, apiKey });
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
       const cleanText = textOut.replace(/```json|```/g, '').trim();
 
-      let answers;
-      try {
-        answers = JSON.parse(cleanText);
-      } catch (parseErr) {
-        // Try to salvage partial JSON by finding the last complete object
-        const lastBrace = cleanText.lastIndexOf('},');
-        if (lastBrace !== -1) {
-          try { answers = JSON.parse(cleanText.substring(0, lastBrace + 1) + ']'); } catch (_) {}
-        }
-        if (!answers) {
-          errors.push(`Batch ${ci + 1}: Could not parse AI response (response may have been truncated).`);
-          continue;
-        }
+      const { data: answers, truncated } = parseGeminiJsonArray(cleanText);
+      if (!answers) {
+        errors.push(`Batch ${ci + 1}: Could not parse AI response (response may have been truncated).`);
+        continue;
+      }
+      if (truncated) {
+        errors.push(`Batch ${ci + 1}: response was cut off partway through — recovered ${answers.length} answer${answers.length !== 1 ? 's' : ''} from it; the rest of this batch may need re-running.`);
       }
 
       if (Array.isArray(answers)) {
@@ -639,7 +768,22 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         errors.push(`Batch ${ci + 1}: AI returned unexpected format (not an array).`);
       }
     } catch (e) {
-      if (e._cancelled) break; // user stopped — not an error, just stop here
+      if (e._cancelled) {
+        // User clicked "pause now" instead of waiting for this batch to
+        // finish — step back to the last completed checkpoint (before this
+        // batch) instead of losing the whole run. A plain Stop leaves
+        // cqPauseSkipRequested false, so it still just breaks as before.
+        if (typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested) {
+          cqPauseSkipRequested = false;
+          cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
+          cancelToken = cqCancelToken;
+          apiKey = (await _cqEnterPause(statusEl,
+            `⏸️ Paused — stepped back to before ${chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : 'this batch'} so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+          ci--; // retry this same batch once resumed
+          continue;
+        }
+        break; // user stopped — not an error, just stop here
+      }
       if (e._rateLimitPauseFallback) {
         apiKey = await cqFallbackPauseForRateLimit(statusEl, chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : null);
         ci--; // retry this same batch (not counted as an error) once resumed
@@ -662,9 +806,9 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
 }
 
 // Backward-compat wrapper used in the extraction flow for no-key questions
-async function cqAiAnswerMissingKeys(questions, sourceText, sourceFiles, statusEl) {
+async function cqAiAnswerMissingKeys(questions, sourceText, sourceFiles, statusEl, cancelToken) {
   const noKeyIdxs = questions.map((q, i) => q.no_answer_key ? i : -1).filter(i => i >= 0);
-  await cqAiSolveQuestions(questions, noKeyIdxs, sourceText, sourceFiles, statusEl);
+  await cqAiSolveQuestions(questions, noKeyIdxs, sourceText, sourceFiles, statusEl, cancelToken);
 }
 
 /* ── Post-extraction bulk pass: Fill Choices ──
@@ -702,7 +846,7 @@ async function cqBulkFillChoices(questions, statusEl, cancelToken) {
       const missing = _AI_TOOLS_ALL_KEYS.filter(k => !usedKeys.includes(k)).slice(0, Math.max(0, 4 - optEntries.length));
       if (!missing.length) continue;
       const answerBefore = q.answer;
-      const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, cancelToken);
+      const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, cancelToken, 'fillBulk');
       if (!q.optionsOrder) q.optionsOrder = optEntries.map(([k, v]) => ({ key: k, value: v }));
       missing.forEach((key, idx) => {
         const val = newVals[idx] || '';
@@ -712,7 +856,22 @@ async function cqBulkFillChoices(questions, statusEl, cancelToken) {
       q.answer = answerBefore; // never change which choice is correct
       done++;
     } catch (e) {
-      if (e._cancelled) break; // user stopped — not an error, just stop here
+      if (e._cancelled) {
+        // User clicked "pause now" instead of waiting for this question to
+        // finish — step back to the last completed checkpoint instead of
+        // losing the whole run. A plain Stop leaves cqPauseSkipRequested
+        // false, so it still just breaks as before.
+        if (typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested) {
+          cqPauseSkipRequested = false;
+          cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
+          cancelToken = cqCancelToken;
+          apiKey = (await _cqEnterPause(statusEl,
+            `⏸️ Paused — stepped back to before question ${n + 1} of ${idxs.length} so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+          n--; // retry this same question once resumed
+          continue;
+        }
+        break; // user stopped — not an error, just stop here
+      }
       if (e._rateLimitPauseFallback) {
         apiKey = await cqFallbackPauseForRateLimit(statusEl, `question ${n + 1} of ${idxs.length}`);
         n--; // retry this same question once resumed
@@ -720,7 +879,9 @@ async function cqBulkFillChoices(questions, statusEl, cancelToken) {
       }
       errors.push(`Question ${qi + 1}: ${e.message || String(e)}`);
     }
-    await cancellableSleep(250, cancelToken);
+    // No fixed sleep here anymore — _geminiRateGate() inside callGeminiWithRetry
+    // already paces every request centrally, shared across every bulk/single
+    // AI call in the app, not just this loop.
   }
   return { done, errors };
 }
@@ -751,10 +912,25 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
         `🪄 Refining question wording… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
     }
     try {
-      q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, cancelToken);
+      q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, cancelToken, 'refineBulk');
       done++;
     } catch (e) {
-      if (e._cancelled) break; // user stopped — not an error, just stop here
+      if (e._cancelled) {
+        // User clicked "pause now" instead of waiting for this question to
+        // finish — step back to the last completed checkpoint instead of
+        // losing the whole run. A plain Stop leaves cqPauseSkipRequested
+        // false, so it still just breaks as before.
+        if (typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested) {
+          cqPauseSkipRequested = false;
+          cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
+          cancelToken = cqCancelToken;
+          apiKey = (await _cqEnterPause(statusEl,
+            `⏸️ Paused — stepped back to before question ${n + 1} of ${idxs.length} so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+          n--; // retry this same question once resumed
+          continue;
+        }
+        break; // user stopped — not an error, just stop here
+      }
       if (e._rateLimitPauseFallback) {
         apiKey = await cqFallbackPauseForRateLimit(statusEl, `question ${n + 1} of ${idxs.length}`);
         n--; // retry this same question once resumed
@@ -762,7 +938,9 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
       }
       errors.push(`Question ${qi + 1}: ${e.message || String(e)}`);
     }
-    await cancellableSleep(250, cancelToken);
+    // No fixed sleep here anymore — _geminiRateGate() inside callGeminiWithRetry
+    // already paces every request centrally, shared across every bulk/single
+    // AI call in the app, not just this loop.
   }
   return { done, errors };
 }

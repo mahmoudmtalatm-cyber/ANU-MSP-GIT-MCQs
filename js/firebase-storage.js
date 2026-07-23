@@ -424,6 +424,7 @@ function renderCustomQuizModal() {
             </div>
           </div>
         </label>
+        ${cqFillChoicesToggle ? `<div style="margin:9px 0 0;">${_renderAiThinkingToggle('fillBulk', 'amber')}</div>` : ''}
       </div>
 
       <!-- Refine Questions toggle -->
@@ -445,6 +446,7 @@ function renderCustomQuizModal() {
             </div>
           </div>
         </label>
+        ${cqRefineToggle ? `<div style="margin:9px 0 0;">${_renderAiThinkingToggle('refineBulk', 'violet')}</div>` : ''}
         ${cqRefineToggle ? `
         <div style="margin:9px 0 0;">
           <div style="font-size:.73rem;font-weight:700;color:var(--violet-dark);margin-bottom:5px;">

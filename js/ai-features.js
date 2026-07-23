@@ -397,6 +397,7 @@ function _stopAllAiProcesses() {
     cqStopRequested = true;
     if (typeof cqCancelToken !== 'undefined' && cqCancelToken) _cancelAiToken(cqCancelToken);
     cqPauseRequested = false;
+    cqPauseSkipRequested = false;
     // If it's sitting paused, wake it up so it can see the stop flag and exit.
     if (cqIsPaused && cqResumeResolve) {
       const resolve = cqResumeResolve;
@@ -677,7 +678,7 @@ async function explainQuestion(i, forceRegenerate = false) {
   try {
     const userAnswer = userAnswers[i] || '';
     const prompt     = buildExplainPrompt(currentQuestions, q, userAnswer);
-    const url        = `https://generativelanguage.googleapis.com/v1beta/models/${AI_EXPLAIN_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const url        = `https://generativelanguage.googleapis.com/v1beta/models/${AI_EXPLAIN_MODEL}:generateContent`;
 
     // Build parts — prepend the question's image if it has one, or fall back
     // to the case group's shared image (i.e. the core question's image) when
@@ -695,7 +696,8 @@ async function explainQuestion(i, forceRegenerate = false) {
       contents: [{ parts }],
       generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
     }, {
-      cancelToken: token
+      cancelToken: token,
+      apiKey
     });
 
     const text = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
@@ -1200,7 +1202,7 @@ async function runChatRequest(i) {
   _chatCancelToken[i] = token;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CHAT_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CHAT_MODEL}:generateContent`;
 
     // If this question has an embedded image — or, for a dependent question
     // in a case cluster, if the core question has one — inject it as the
@@ -1226,7 +1228,8 @@ async function runChatRequest(i) {
       systemInstruction: { parts: [{ text: buildChatSystemInstruction(i) }] },
       generationConfig: { temperature: 0.4, maxOutputTokens: 1536 }
     }, {
-      cancelToken: token
+      cancelToken: token,
+      apiKey
     });
 
     const replyText = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
@@ -1324,6 +1327,15 @@ let cqBusy              = false;
 let cqPauseRequested = false; // user clicked Pause, take effect at next safe checkpoint
 let cqIsPaused        = false; // actually sitting paused right now
 let cqResumeResolve   = null;  // resolves the in-flight "await" that's holding the loop
+
+// While cqPauseRequested is true but cqIsPaused is still false (i.e. the
+// loop hasn't reached its next natural checkpoint yet), the user can click
+// a second "pause now" action to skip waiting for that checkpoint — this
+// aborts whatever's in flight right now and steps back to the LAST
+// completed checkpoint instead, exactly like the automatic rate-limit
+// pause fallback already does. Nothing extracted/generated so far is lost;
+// only the one file/batch/question in flight is retried once resumed.
+let cqPauseSkipRequested = false;
 
 // ── Hard stop (used when the user confirms switching API keys mid-run —
 //    unlike Pause, this actually ends the run instead of just holding it) ──
@@ -1629,21 +1641,27 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
 
     <div class="cq-bulk-ai-tool">
       <div class="cq-bulk-ai-tool-row">
-        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFillBtn" type="button"
-          ${busy ? 'disabled' : ''} onclick="_editorBulkFillChoices('${editorKey}')"
-          style="background:var(--unanswered-fg);color:#fff;">🧩 Fill Choices (All)</button>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFillBtn" type="button"
+            ${busy ? 'disabled' : ''} onclick="_editorBulkFillChoices('${editorKey}')"
+            style="background:var(--unanswered-fg);color:#fff;">🧩 Fill Choices (All)</button>
+          ${_renderAiThinkingToggle('fillBulk', 'amber')}
+        </div>
         <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkFillStopBtn"
           style="${busy && activeTool === 'Fill' ? 'display:inline-block;' : ''}"
           title="Stop Fill Choices" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
-        <span class="cq-bulk-ai-no-opts">Tops up missing answer choices — no settings needed.</span>
+        <span class="cq-bulk-ai-no-opts">Tops up missing answer choices.</span>
       </div>
     </div>
 
     <div class="cq-bulk-ai-tool">
       <div class="cq-bulk-ai-tool-row">
-        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkRefineBtn" type="button"
-          ${busy ? 'disabled' : ''} onclick="_editorBulkRefineQuestions('${editorKey}')"
-          style="background:var(--violet-dark);color:#fff;">🪄 Refine Questions (All)</button>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkRefineBtn" type="button"
+            ${busy ? 'disabled' : ''} onclick="_editorBulkRefineQuestions('${editorKey}')"
+            style="background:var(--violet-dark);color:#fff;">🪄 Refine Questions (All)</button>
+          ${_renderAiThinkingToggle('refineBulk', 'violet')}
+        </div>
         <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkRefineStopBtn"
           style="${busy && activeTool === 'Refine' ? 'display:inline-block;' : ''}"
           title="Stop Refine Questions" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>

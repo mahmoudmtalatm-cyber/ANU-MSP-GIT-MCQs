@@ -27,6 +27,105 @@ else is plain HTML/CSS/JavaScript.
   slides/PDFs, generate new questions, auto-answer, refine question
   wording, fill in missing choices, and produce step-by-step explanations
   or a per-question AI chat.
+  - Extraction/generation runs (⏸️ Pause / ▶️ Resume / ⏹ Stop) cover the
+    whole pipeline — extraction, AI answering, Fill Choices, and Refine
+    Questions all share one cancel token, so ⏹ Stop aborts whichever of
+    those is currently running, immediately, not just at the next
+    checkpoint. While ⏸️ Pause is waiting for its next natural checkpoint
+    (between files/batches/questions), a "⏭️ pause now" option lets you
+    skip that wait and step back to the last completed checkpoint instead
+    — the in-progress file/batch/question is simply retried once you
+    press ▶️ Resume, nothing already done is lost.
+  - Every Gemini request the app makes — extraction, AI Solve, Fill
+    Choices, Refine Questions, explanations, chat — shares one global
+    pacing clock (`GEMINI_MIN_REQUEST_SPACING_MS` in `gemini-uploads.js`),
+    so the app self-throttles under Google's free-tier rate cap (~10–15
+    requests/minute per project) even when several bulk tools are running
+    at once across different editors. If your key is on a paid tier with
+    a much higher limit, that constant can be safely lowered.
+  - Extraction sends the whole source PDF to Gemini in a single request
+    (not split page-by-page), and the extraction prompt (`CQ_EXTRACTION_PROMPT`
+    in `gemini-uploads.js`) explicitly instructs the model to treat page
+    breaks as non-semantic — so a question's stem, choices, or marked
+    answer that spans two pages (or an answer-key section that's separated
+    from its questions) gets merged into one complete question instead of
+    being truncated or dropped.
+  - Extraction and lecture-based generation both constrain Gemini's output
+    with an explicit `responseSchema` (`CQ_RESPONSE_SCHEMA` in
+    `gemini-uploads.js`), on top of `responseMimeType: 'application/json'` —
+    this makes the model far less likely to drift from the expected
+    question/options/answer shape in the first place.
+  - If a response is still cut off mid-array despite that (a very large
+    document that runs past the model's own output-token cap), the app no
+    longer discards the whole file's results: `parseGeminiJsonArray`
+    (`gemini-uploads.js`) walks the raw JSON tracking string/bracket state and
+    recovers every fully-formed question up to the cut-off point. The review
+    screen is flagged with a ⚠️ naming the specific file(s) that were cut
+    off, so you know exactly what to check and which file to consider
+    splitting. This applies to extraction, lecture-based generation, and
+    bulk AI-answering alike.
+  - The single-question AI tools (🪄 Refine Question, 🧩 Fill Choices,
+    ➕ Add Choice — in `ai-question-tools.js`) had the same truncation
+    problem on a smaller scale: their own small per-question token budget
+    could occasionally cut a response off mid-JSON, and the raw
+    `JSON.parse` error (e.g. "Unterminated string in JSON at position…")
+    used to be shown to the user verbatim. `_aiToolsParseJSON` now always
+    throws a clear, actionable message instead, and Fill Choices/Add
+    Choice additionally salvage any already-complete distractor choices
+    via `parseGeminiJsonObjectArrayField` rather than failing the whole
+    request over one trailing partial choice. Token budgets for both tools
+    were also raised (1024 → 2048) as extra headroom.
+  - The actual root cause of that truncation: Gemini 2.5 Flash reasons
+    ("thinks") by default before writing its answer, and those thinking
+    tokens are drawn from the *same* `maxOutputTokens` budget as the
+    visible response — with the budget dynamic and unpredictable per
+    request, it could occasionally consume most of a small budget and
+    leave too little for the actual JSON, truncating it. Both calls now
+    set `thinkingConfig: { thinkingBudget: 0 }` (Refine Question and the
+    shared distractor generator behind Fill Choices/Add Choice) — these
+    are short, deterministic rewrite/generation tasks that don't need a
+    reasoning pass, so disabling it reclaims the whole budget for the
+    real answer and is faster too. (Extraction and lecture-generation
+    keep thinking enabled, since their much larger 65536-token budget and
+    genuinely harder task — parsing a whole document's worth of questions
+    — benefit more from it.)
+  - Thinking is opt-in per tool: a small 🧠 Thinking pill-checkbox now sits
+    beside 🪄 Refine Question, 🧩 Fill Choices, and ➕ Add Choice on every
+    question card, and beside their bulk counterparts (🧩 Fill Choices
+    (All) / 🪄 Refine Questions (All), in both the post-extraction settings
+    panel and each editor's "Whole Quiz" AI tools panel). These are **five
+    completely independent switches** — `refineSingle`, `fillSingle`,
+    `addChoice`, `fillBulk`, `refineBulk` — persisted in `localStorage`
+    (`aiToolsThinkingSettings`). Turning bulk Fill Choices on has no effect
+    on the per-question Fill Choices button, or on Add Choice, or on
+    Refine, and vice versa; every checkbox for the same tool (a
+    per-question tool's checkbox is duplicated on every question card)
+    stays in sync with that one shared value, without touching any other
+    tool's setting. See `_aiToolsGenConfigExtra` / `_aiToolsSetThinking` /
+    `_renderAiThinkingToggle` in `ai-question-tools.js`. Off remains the
+    default for all five, matching the behaviour above; switching one on
+    lets Gemini's default reasoning pass run for that tool, trading some
+    speed/cost for a chance at higher-quality output. Each pill is nested
+    directly against its own trigger button (in its own tight flex group,
+    separate from that row's ⏹ Stop button) and color-matched to it —
+    violet for Refine, amber for Fill Choices, green for Add Choice — so
+    it's visually unambiguous which checkbox controls which tool even when
+    several buttons sit close together on the same row. Every row (and each
+    button+toggle group within it) uses `flex-wrap: wrap`, so on narrow/
+    mobile screens a whole cluster drops to its own line — or, in the
+    worst case, the toggle drops directly under its own button — instead of
+    ever forcing the row to scroll sideways; a `max-width: 480px` rule
+    also shrinks the pill itself to match the app's existing small-screen
+    sizing for other AI-tool controls.
+  - Freshly extracted/generated questions are validated (question text
+    present, 2+ filled options, a valid answer selected) before the initial
+    save — the same rule the quiz editor already enforced on every later
+    edit (`saveGeneratedCustomQuiz` in `ai-solve.js`, matching
+    `saveCustomQuizEdits` in `quiz-editor.js`). Previously a question could
+    slip through extraction with only one option and save without
+    complaint, only to force you to add a second option the next time you
+    opened it for editing; now that's caught immediately on the review
+    screen, right after extraction, while it's easy to fix.
 - **Admin panel** — publish quizzes into the official bank, manage the
   curriculum tree (years/modules/subjects), manage other admins and their
   permissions, and edit/split/reorder published lectures.
@@ -151,6 +250,13 @@ AI features are opt-in per user — each person adds their own key from
 the app's **Manage APIs** button (Google AI Studio issues free keys at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey)). Nothing
 AI-related is required for the core quiz/browsing experience to work.
+
+> **Note on key formats:** since mid-2026 Google AI Studio issues new Gemini
+> keys as "Auth keys" (prefixed `AQ.`, replacing the older `AIza...`
+> "Standard key" format — see [Google's key docs](https://ai.google.dev/gemini-api/docs/api-key)).
+> Both formats work with this app: every Gemini request sends the key via
+> the `x-goog-api-key` HTTP header (Google's documented method) rather than
+> the old `?key=` URL parameter, which is unreliable for Auth keys.
 
 ## Adding questions
 
