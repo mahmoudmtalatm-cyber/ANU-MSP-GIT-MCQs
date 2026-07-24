@@ -551,7 +551,7 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
    { inline_data: {...} } for small files or { file_data: {...} } for large
    ones uploaded via the Files API. Callers build this via buildGeminiFilePart
    so this function works the same regardless of source file size. */
-async function getBoundingBoxes(questions, filePart, apiKey) {
+async function getBoundingBoxes(questions, filePart, apiKey, customInstructions) {
   const imageQs = questions.map((q, i) => ({ idx: i, q })).filter(({ q }) => q.has_image);
   if (!imageQs.length) return;
 
@@ -559,13 +559,22 @@ async function getBoundingBoxes(questions, filePart, apiKey) {
     `Q${idx + 1}: "${q.question.substring(0, 200)}"`
   ).join('\n');
 
+  // customInstructions is optional and only ever set by a manual re-extract
+  // (see cqReextractImage in ai-solve.js) — it lets the user correct a
+  // specific, observed mistake (box too tight/wide, wrong region, wrong
+  // page) instead of retrying blind. Omitted entirely (undefined/'') on the
+  // normal bulk extraction pass, so that call's prompt/behavior is unchanged.
+  const instructionsBlock = (customInstructions && customInstructions.trim())
+    ? `\n\nThe user has manually reviewed a previous attempt and left this correction —\nfollow it carefully, it takes priority over your own judgement:\n"${customInstructions.trim()}"\n`
+    : '';
+
   const prompt = `You are given a document. For each question below, locate the visual element (image, diagram, figure, table, chart, X-ray, ECG, histology slide, graph, etc.) associated with it.
 
 For each question, return the bounding box of ONLY that visual element on the page where it appears, as normalized coordinates (0.0 to 1.0 relative to the full page width and height). Also return the 1-based page number where the visual element appears.
 
 Questions:
 ${descriptions}
-
+${instructionsBlock}
 Return ONLY a JSON array — one entry per question — in exactly this format:
 [
   { "q_index": 1, "page": 1, "x": 0.05, "y": 0.10, "w": 0.90, "h": 0.35 }
@@ -678,8 +687,14 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
    work correctly for large PDFs/images, not just the initial extraction.
    An already-built `filePart` can optionally be passed in (e.g. by the
    main extraction call, which builds one anyway) to avoid uploading the
-   same large file to the Files API twice. ── */
-async function extractImagesForQuestions(questions, file, apiKey, filePart) {
+   same large file to the Files API twice.
+
+   `customInstructions` is optional and forwarded as-is to getBoundingBoxes
+   — used only by a manual single-question re-extract (cqReextractImage in
+   ai-solve.js) to let the user correct a mistake they've actually seen
+   (e.g. "widen the frame", "wrong position, it's the graph on page 2").
+   Left undefined on the normal bulk pass, so nothing changes there. ── */
+async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions) {
   const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
   const isPdf = mimeType === 'application/pdf';
 
@@ -688,7 +703,7 @@ async function extractImagesForQuestions(questions, file, apiKey, filePart) {
   // small files, Files API upload for large ones — same size ceiling as
   // question extraction, so this never hits Gemini's ~20MB inline cap).
   const part = filePart || await buildGeminiFilePart(file, apiKey, mimeType);
-  const boxes = await getBoundingBoxes(questions, part, apiKey);
+  const boxes = await getBoundingBoxes(questions, part, apiKey, customInstructions);
   if (!boxes || !Array.isArray(boxes) || !boxes.length) return;
 
   // Build a map: question index (0-based) → box info

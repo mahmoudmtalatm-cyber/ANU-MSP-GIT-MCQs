@@ -966,6 +966,13 @@ function renderCQPreview() {
     /* ── Image area ── */
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
     if (q.image) {
+      // Re-extract is only meaningful when this question can still be traced
+      // back to the file it came from (_sourceFile) — hand-typed questions
+      // and ones merged in from another quiz (_notExtractable, see
+      // _mergeCloneQuestions in community-quizzes.js) have no source to
+      // re-run extraction against, so the control is hidden for them.
+      const _canReextract = !!q._sourceFile && !q._notExtractable;
+      const _reBusy = _aiToolsIsBusy('cq', i);
       html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
         background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
         <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
@@ -978,7 +985,19 @@ function renderCQPreview() {
             🔄 Change Image
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
+          ${_canReextract ? `<div style="display:flex;">
+            <button class="cq-img-action-btn" type="button" id="aiReextractImageBtn_cq_${i}" ${_reBusy ? 'disabled' : ''}
+              title="Ask AI to re-locate and re-crop this image from the original source file"
+              onclick="cqReextractImage(${i})"
+              style="border-top-right-radius:0;border-bottom-right-radius:0;">🔁 Re-extract Image</button>
+            <button class="cq-img-action-btn" type="button" id="aiReextractInstrCaret_cq_${i}" ${_reBusy ? 'disabled' : ''}
+              title="Optional correction used only when re-extracting this image (e.g. widen the frame, fix the position)"
+              onclick="_toggleReextractInstrPicker(${i})"
+              style="border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_reextractInstrCaretLabel(i)} ▾</button>
+          </div>` : ''}
           <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
+          ${_canReextract ? `<div id="aiReextractInstrPicker_cq_${i}" class="ai-source-picker" style="display:none;"></div>
+          <div id="aiReextractStatus_cq_${i}" style="max-width:220px;"></div>` : ''}
         </div>
       </div>`;
     } else if (q.has_image) {
@@ -1126,6 +1145,93 @@ function cqRemoveImage(idx) {
   cqGeneratedQuestions[idx].has_image = false;
   _markQuestionEditDirty();
   renderCQPreview();
+}
+
+/* ── Re-extract Image (single question) ──
+   Lets the user re-run image extraction for just one question against its
+   original source file — for when the AI got it wrong the first time
+   (wrong region, too tight/wide a crop, wrong page) rather than forcing a
+   manual re-upload. Reuses the same extraction engine as the initial bulk
+   pass (extractImagesForQuestions/getBoundingBoxes in gemini-uploads.js)
+   and shares the same per-question busy lock as Refine/Solve/Add Choice/
+   Fill Choices (via _aiToolsSetBusy('cq', i, ...)) so it can't run at the
+   same time as another AI tool mutating this same question. ── */
+
+// Draft text for the optional "Custom Instructions" box, keyed by question
+// index — same lifetime/shape as _aiToolsCustomPromptText's Refine draft,
+// but kept separate since these two instruction boxes serve different
+// tools and must never bleed into each other.
+const _cqReextractInstrText = {};
+
+function _reextractInstrChanged(i, val) {
+  _cqReextractInstrText[i] = val;
+  const caret = document.getElementById(`aiReextractInstrCaret_cq_${i}`);
+  if (caret) caret.innerHTML = _reextractInstrCaretLabel(i) + ' ▾';
+}
+function _reextractInstrCaretLabel(i) {
+  const draft = (_cqReextractInstrText[i] || '').trim();
+  return draft ? '⚙️ Instructions •' : '⚙️ Instructions';
+}
+function _toggleReextractInstrPicker(i) {
+  _toggleAiPopover(`aiReextractInstrPicker_cq_${i}`, `aiReextractInstrCaret_cq_${i}`,
+    () => _renderReextractInstrPickerHTML(i));
+}
+function _renderReextractInstrPickerHTML(i) {
+  const draft = _cqReextractInstrText[i] || '';
+  return `<div class="ai-source-picker-inner" style="max-width:290px;">
+    <div class="ai-source-picker-title">🔁 Custom Instructions — Re-extract Image only</div>
+    <div style="font-size:.71rem;color:var(--text-muted);padding:0 6px 6px;line-height:1.35;">
+      If AI keeps getting this image wrong, tell it what to fix — e.g.
+      "widen the frame, it's cutting off the left edge" or "wrong position,
+      it's actually the graph on the next page". Used only for
+      🔁 Re-extract Image on this question.
+    </div>
+    <textarea id="reextractInstrInput_${i}" rows="3"
+      oninput="_reextractInstrChanged(${i}, this.value)"
+      placeholder="e.g. &quot;widen the frame&quot;, &quot;correct the position, it's higher up on the page&quot;"
+      style="width:100%;resize:vertical;font-size:.78rem;padding:6px 8px;border:1.5px solid var(--border-soft);
+        border-radius:6px;font-family:var(--font);background:var(--surface-2);box-sizing:border-box;">${escapeHtml(draft)}</textarea>
+  </div>`;
+}
+
+async function cqReextractImage(i) {
+  if (!cqGeneratedQuestions || !cqGeneratedQuestions[i]) return;
+  const q = cqGeneratedQuestions[i];
+  if (!q._sourceFile || q._notExtractable) return; // nothing to re-extract against
+
+  const statusEl = () => document.getElementById(`aiReextractStatus_cq_${i}`);
+
+  if (_aiToolsIsBusy('cq', i)) {
+    if (statusEl()) statusEl().innerHTML = _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.');
+    return;
+  }
+  const apiKey = _aiToolsRequireKey('cq', i);
+  if (!apiKey) return;
+
+  const instructions = (_cqReextractInstrText[i] || '').trim();
+  const prevImage = q.image;
+
+  _aiToolsSetBusy('cq', i, true, 'reextractImage');
+  if (statusEl()) statusEl().innerHTML = _aiToolsLoadingHTML('🔁 Re-extracting image from source…');
+
+  try {
+    // Passing just this one question keeps the request scoped to it —
+    // getBoundingBoxes only asks about (and only returns) entries for the
+    // questions it's given.
+    await extractImagesForQuestions([q], q._sourceFile, apiKey, undefined, instructions || undefined);
+    _markQuestionEditDirty();
+    _aiToolsSetBusy('cq', i, false, 'reextractImage');
+    if (q.image && q.image !== prevImage) {
+      // Found a (possibly new) crop — rebuild the card to show it.
+      renderCQPreview();
+    } else if (statusEl()) {
+      // Best-effort feature: a miss just means nothing changed, not an error.
+      statusEl().innerHTML = _aiToolsErrorHTML('Couldn\u2019t locate the image again — try adding a correction above, or use Change Image to upload it manually.');
+    }
+  } catch (e) {
+    _aiToolsSetBusy('cq', i, false, 'reextractImage');
+    if (statusEl()) statusEl().innerHTML = _aiToolsErrorHTML(e.message || 'Re-extraction failed.');
+  }
 }
 
 function cqReplaceImage(idx, event) {

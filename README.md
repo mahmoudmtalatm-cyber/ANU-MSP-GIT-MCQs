@@ -117,6 +117,30 @@ else is plain HTML/CSS/JavaScript.
     ever forcing the row to scroll sideways; a `max-width: 480px` rule
     also shrinks the pill itself to match the app's existing small-screen
     sizing for other AI-tool controls.
+  - **🔁 Re-extract Image** — on the post-extraction review screen, any
+    question with an embedded image gets a Re-extract Image button next to
+    🔄 Change Image, so a bad auto-crop (wrong region, too tight/wide, wrong
+    page) can be fixed by asking Gemini to try again against the original
+    source file instead of only being fixable by a manual re-upload. Its
+    own ⚙️ Instructions caret opens a small popover (same button+caret+
+    popover shape as 🪄 Refine Question's) for an optional correction —
+    e.g. "widen the frame, it's cutting off the left edge" or "wrong
+    position, it's actually the graph on the next page" — which gets
+    appended to the bounding-box prompt (`getBoundingBoxes` in
+    `gemini-uploads.js`) and takes priority over the model's own judgement.
+    It's only shown for questions that still have a traceable source file
+    (`q._sourceFile`) and aren't `_notExtractable` (hand-typed questions,
+    or ones merged in from another quiz — see `_mergeCloneQuestions` in
+    `community-quizzes.js` — have nothing to re-extract against). It shares
+    the same per-question busy lock as Refine/Solve/Fill Choices/Add Choice
+    (`_aiToolsSetBusy('cq', i, …)` in `ai-question-tools.js`), so it can't
+    run at the same time as another AI tool mutating that question, and
+    reuses the exact same extraction engine as the initial bulk pass
+    (`extractImagesForQuestions`/`getBoundingBoxes`), including its
+    `temperature: 0` and shared fallback-model handling — a miss (image
+    still not found) is treated as best-effort, same as the first pass,
+    and just leaves a message suggesting a correction or a manual upload
+    instead of failing loudly.
   - Freshly extracted/generated questions are validated (question text
     present, 2+ filled options, a valid answer selected) before the initial
     save — the same rule the quiz editor already enforced on every later
@@ -329,32 +353,14 @@ Every question follows this shape:
 }
 ```
 
-## Working with AI across accounts
-
-If you're using an AI assistant (e.g. Claude) to work on this project
-and your team uses **separate accounts/conversations**, read and keep
-[`AI_CONTEXT.md`](./AI_CONTEXT.md) up to date. It's a shared "memory"
-file that survives across sessions and accounts: a quick-scan status
-block (what's in progress right now, if anything), standing project
-rules, a current snapshot of the project, a permanent decision log
-(why past choices were made, not just what happened), a small glossary
-of project-specific terms, and a running log of what each session did
-— including a checkpoint left before a session runs out of context, so
-the next person's session can pick up exactly where the last one
-stopped instead of re-discovering it or losing in-progress work. Once
-that log gets long, older entries move to `AI_CONTEXT_ARCHIVE.md`
-rather than being lost.
-
 ## Contributing
 
 Issues and pull requests are welcome — whether that's bug fixes, UI
 polish, new AI-tool integrations, or accessibility improvements. Please
 keep the file-per-feature layout above when adding new functionality
-rather than growing one of the existing files indefinitely. When
-working with an AI assistant, follow the standing rules in
-[`AI_CONTEXT.md`](./AI_CONTEXT.md) (professional/well-structured
-changes, README kept current, responsive UI) and update its session
-log before finishing up.
+rather than growing one of the existing files indefinitely, keep the
+README current, and ensure UI changes stay responsive across screen
+sizes.
 
 ## Author
 

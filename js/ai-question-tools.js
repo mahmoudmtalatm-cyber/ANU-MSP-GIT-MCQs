@@ -140,7 +140,9 @@ function _aiToolsButtonIds(editorKey, i) {
     `aiAddChoiceBtn_${editorKey}_${i}`,
     `aiFillChoicesBtn_${editorKey}_${i}`,
     `cqAiSolveBtn_${editorKey}_${i}`,   // now available in every editor, not just 'cq'
-    `aiSolveSrcCaret_${editorKey}_${i}` // the ▾ source picker toggle next to it
+    `aiSolveSrcCaret_${editorKey}_${i}`, // the ▾ source picker toggle next to it
+    `aiReextractImageBtn_${editorKey}_${i}`, // 🔁 Re-extract Image (currently only rendered in 'cq')
+    `aiReextractInstrCaret_${editorKey}_${i}` // its ▾ custom-instructions caret
   ];
 }
 function _aiToolsSyncButtons(editorKey, i, busy, action) {
@@ -155,7 +157,8 @@ function _aiToolsSyncButtons(editorKey, i, busy, action) {
     refine:      `aiRefineBtn_${editorKey}_${i}`,
     addChoice:   `aiAddChoiceBtn_${editorKey}_${i}`,
     fillChoices: `aiFillChoicesBtn_${editorKey}_${i}`,
-    solve:       `cqAiSolveBtn_${editorKey}_${i}`
+    solve:       `cqAiSolveBtn_${editorKey}_${i}`,
+    reextractImage: `aiReextractImageBtn_${editorKey}_${i}`
   };
   const activeId = action && idMap[action];
   const activeEl = activeId && document.getElementById(activeId);
