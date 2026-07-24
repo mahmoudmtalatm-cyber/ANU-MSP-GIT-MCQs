@@ -4,10 +4,11 @@ service cloud.firestore {
 
     // ── Shared permission helpers ──
     // Mirrors the client-side ADMIN_PERMISSIONS model (roster doc shape:
-    // appConfig/adminRoster { admins: { [emailLower]: { permissions:[...] } } }).
-    // The super admin always has every permission implicitly (same as
-    // getAdminPermissions() does client-side); everyone else's permissions
-    // come from the roster doc itself.
+    // appConfig/adminRoster { admins: { [emailLower]: { permissions:[...],
+    // curriculumScope:{...}, addedBy, addedAt } } }). The super admin
+    // always has every permission implicitly (same as getAdminPermissions()
+    // does client-side); everyone else's permissions come from the roster
+    // doc itself. Keep in sync with js/admin-curriculum-scope.js.
     function isSuperAdmin() {
       return request.auth != null
              && request.auth.token.email == "mahmoudmtalatm@gmail.com";
@@ -24,6 +25,56 @@ service cloud.firestore {
     function isCurriculumAdmin() { return isSuperAdmin() || hasRosterPermission('curriculum'); }
     function isCommunityAdmin()  { return isSuperAdmin() || hasRosterPermission('community'); }
     function isAdminsAdmin()     { return isSuperAdmin() || hasRosterPermission('admins'); }
+
+    // ── Scoped curriculum permission helpers ──
+    // A 'curriculum' admin can be granted either the WHOLE curriculum
+    // (curriculumScope.type == 'all') or a specific slice of it
+    // (curriculumScope.type == 'scoped', .years is a tree keyed by year):
+    //   { "Year A": true }                                  → whole year
+    //   { "Year B": { "Module 1": true } }                   → whole module
+    //   { "Year B": { "Module 2": ["subjKeyA","subjKeyB"] } } → specific subjects
+    // Mirrors getCurriculumScope() / scopeSubjectAccess() in
+    // js/admin-curriculum-scope.js — keep both in sync if this ever changes.
+    // Admins created before this feature existed have no curriculumScope
+    // field at all; they're treated as 'all' so nothing breaks for them.
+    function _curriculumScope() {
+      return isSuperAdmin()
+        ? {'type': 'all'}
+        : get(/databases/$(database)/documents/appConfig/adminRoster)
+            .data.admins[request.auth.token.email.lower()].get('curriculumScope', {'type': 'all'});
+    }
+    function _curriculumScopeIsAll() {
+      return _curriculumScope().type == 'all';
+    }
+    // True if this admin's curriculum scope covers `subject` — looked up
+    // via that subject's Year/Module placement, recorded in
+    // appConfig/curriculumExtensions.subjects[subject] = {year, module, ...}.
+    function curriculumScopeAllowsSubject(subject) {
+      return _curriculumScopeIsAll() ||
+        (
+          exists(/databases/$(database)/documents/appConfig/curriculumExtensions) &&
+          subject in get(/databases/$(database)/documents/appConfig/curriculumExtensions).data.get('subjects', {}) &&
+          _subjectAllowedByScope(
+            get(/databases/$(database)/documents/appConfig/curriculumExtensions).data.subjects[subject].get('year', ''),
+            get(/databases/$(database)/documents/appConfig/curriculumExtensions).data.subjects[subject].get('module', ''),
+            subject
+          )
+        );
+    }
+    function _subjectAllowedByScope(year, module, subject) {
+      let scopeYears = _curriculumScope().get('years', {});
+      return (year in scopeYears) &&
+        (
+          scopeYears[year] == true ||
+          (
+            (module in scopeYears[year]) &&
+            (
+              scopeYears[year][module] == true ||
+              subject in scopeYears[year][module]
+            )
+          )
+        );
+    }
 
     // Personal stats — only the owner can read/write
     match /stats/{userId} {
@@ -65,26 +116,58 @@ service cloud.firestore {
     }
     // Published question bank — readable by everyone (even logged out).
     // Writable (including delete, e.g. from the cascading Year/Module/Subject
-    // delete) by the super admin OR anyone holding the 'curriculum' roster
-    // permission.
+    // delete) by the super admin, OR by anyone holding the 'curriculum'
+    // roster permission whose curriculum SCOPE covers this particular
+    // subject — whole curriculum, whole Year, whole Module, or this exact
+    // subject specifically (see the scoped-curriculum helpers above). This
+    // is the main enforcement point for "give an admin permission to a
+    // specific year/module/subject only": it's checked per write, per
+    // subject, directly against Firestore — not just trusted client-side.
     match /publishedQuestions/{subject}/lectures/{lectureId} {
       allow read: if true;
-      allow write: if isCurriculumAdmin();
+      allow write: if isCurriculumAdmin() && curriculumScopeAllowsSubject(subject);
     }
     // Published lecture images subcollection — same rules as the parent lecture
     match /publishedQuestions/{subject}/lectures/{lectureId}/images/{imgIdx} {
       allow read: if true;
-      allow write: if isCurriculumAdmin();
+      allow write: if isCurriculumAdmin() && curriculumScopeAllowsSubject(subject);
     }
-    // App-wide config (curriculum structure: years, modules, subjects;
-    // curriculum/published cache-version doc; publishedManifest, etc.) —
-    // writable by the super admin OR anyone holding the 'curriculum' roster
-    // permission. adminRoster and sharedQuizzesVersion below add their own,
-    // more specific rules on top of this — Firestore grants access if ANY
-    // matching rule allows it.
+    // App-wide config (curriculum/published cache-version doc,
+    // publishedManifest, etc.) — writable by the super admin OR anyone
+    // holding the 'curriculum' roster permission, REGARDLESS of their
+    // curriculum scope, since these are global bookkeeping documents, not
+    // curriculum content or structure. appConfig/curriculumExtensions is
+    // explicitly excluded here (docId != 'curriculumExtensions') and gets
+    // its own, stricter rule right below it — a scoped curriculum admin
+    // must NOT be able to reach it through this more permissive generic
+    // rule, since Firestore grants access if ANY matching rule allows it.
+    // adminRoster and sharedQuizzesVersion further below add their own
+    // *additional* permissive rules on top of this one (which is fine,
+    // since those are meant to grant more access, not less).
     match /appConfig/{docId} {
       allow read: if true;
-      allow write: if isCurriculumAdmin();
+      allow write: if docId != 'curriculumExtensions' && isCurriculumAdmin();
+    }
+    // Curriculum STRUCTURE doc (appConfig/curriculumExtensions — the Years,
+    // Modules and Subjects that exist, plus their icons). Restructuring the
+    // curriculum itself (adding/renaming/deleting a Year, Module, or
+    // Subject) is treated as a whole-curriculum operation and is
+    // deliberately NOT unlocked by a scoped ("specific Year/Module/
+    // Subject") curriculum grant — only the super admin, or an admin whose
+    // curriculumScope.type == 'all', may write this doc.
+    //
+    // A scoped admin can still fully publish, edit, reorder and delete
+    // quizzes inside whatever subjects their scope covers (see the
+    // publishedQuestions rule above) — they just can't reshape the tree
+    // itself (that would let them grant themselves access to arbitrary new
+    // subjects by inventing them under a module they already hold). This
+    // mirrors the boundary drawn in the Manage Curriculum tab client-side:
+    // Add/Rename/Delete Year/Module/Subject controls are hidden entirely
+    // for scoped admins there too. See README.md → "Scoped Curriculum
+    // Permissions" for the full picture.
+    match /appConfig/curriculumExtensions {
+      allow read: if true;
+      allow write: if isCurriculumAdmin() && _curriculumScopeIsAll();
     }
     // Admin roster doc (appConfig/adminRoster). Writable by the super admin
     // (via the generic appConfig rule above, since isCurriculumAdmin()
@@ -95,11 +178,19 @@ service cloud.firestore {
     //
     // Note: this only gates *who* may write the doc at all — it does not
     // re-validate on the server that the acting admin only grants
-    // permissions they hold, or respects the assigner-chain rules; those
-    // checks currently live client-side only (in assignAdmin/removeAdmin).
-    // Fine as long as 'admins' permission is only ever handed to people you
-    // trust, since anyone with it could in principle write this doc
-    // directly (e.g. via the SDK) and bypass those client-side checks.
+    // permissions (or curriculum scopes) they hold themselves, or respects
+    // the assigner-chain rules; those checks currently live client-side
+    // only (in assignAdmin/removeAdmin/isCurriculumScopeSubset). Fine as
+    // long as 'admins' permission is only ever handed to people you trust,
+    // since anyone with it could in principle write this doc directly
+    // (e.g. via the SDK) and bypass those client-side checks. What IS
+    // enforced server-side regardless is that a curriculum admin — however
+    // they ended up with whatever scope is recorded here — can only
+    // actually publish/edit/delete quiz content within that recorded
+    // scope (publishedQuestions rule above) and can only restructure the
+    // curriculum at all if that scope is 'all' (curriculumExtensions rule
+    // above). So even a maliciously-edited roster doc can't grant broader
+    // *content* access than what the scope-check functions above allow.
     match /appConfig/adminRoster {
       allow read: if true;
       allow write: if isAdminsAdmin();

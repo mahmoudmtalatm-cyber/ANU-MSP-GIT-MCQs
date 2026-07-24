@@ -88,12 +88,22 @@ function adminCurrOpenSubject(key) {
 
 /* ── LEVEL 1: Years ── */
 function renderAdminCurrYearsLevel(body) {
-  const years = Object.keys(curriculum);
+  // Restructuring the curriculum (adding a Year, renaming/deleting one, or
+  // editing its icon) is a whole-curriculum operation — see the matching
+  // firestore.rules comment on appConfig/curriculumExtensions. A scoped
+  // ("specific Year/Module/Subject") admin only sees, and can only drill
+  // into, the Years their own access covers; the Add-Year form and every
+  // structural edit button are hidden for them entirely.
+  const scope  = getCurriculumScope(window._currentUser);
+  const isFull = scope.type === 'all';
+  const years  = Object.keys(curriculum).filter(y => isFull || scopeYearAccess(scope, y) !== 'none');
+
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${adminCurrBreadcrumbHtml()}
 
       <div class="curr-section">
+        ${isFull ? `
         <div class="curr-section-title">➕ Add New Academic Year</div>
         <div class="curr-row">
           <div class="curr-field">
@@ -104,6 +114,7 @@ function renderAdminCurrYearsLevel(body) {
           <button class="curr-add-btn" onclick="adminAddYear()">Add Year</button>
         </div>
         <div class="curr-status" id="currYearStatus"></div>
+        ` : `<div class="scope-hint">📍 Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects — you can still fully manage quizzes anywhere within your access.</div>`}
         <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Existing Years — tap one to manage its modules</div>
         <div id="currYearList">${years.length ? years.map((y, i) => `
           <div class="curr-item-row curr-item-open" onclick="adminCurrOpenYear('${escapeHtml(y)}')">
@@ -111,9 +122,11 @@ function renderAdminCurrYearsLevel(body) {
               <div class="curr-item-name">${escapeHtml(_yearIcon(y, i))} ${escapeHtml(y)}</div>
               <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)</div>
             </div>
+            ${isFull ? `
             <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditYearIcon('${escapeHtml(y)}')">🎨 Icon</button>
             <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameYear('${escapeHtml(y)}')">✏️ Rename</button>
             <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteYear('${escapeHtml(y)}')">🗑 Delete</button>
+            ` : ''}
             <span class="curr-item-arrow">▶</span>
           </div>`).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">None yet</span>'}</div>
       </div>
@@ -125,13 +138,16 @@ function renderAdminCurrYearsLevel(body) {
 /* ── LEVEL 2: Modules within a Year ── */
 function renderAdminCurrModulesLevel(body) {
   const year = adminTargetYear;
-  const mods = Object.keys(curriculum[year] || {});
+  const scope  = getCurriculumScope(window._currentUser);
+  const isFull = scope.type === 'all';
+  const mods = Object.keys(curriculum[year] || {}).filter(m => isFull || scopeModuleAccess(scope, year, m) !== 'none');
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${adminCurrBreadcrumbHtml()}
       <button class="curr-back-btn" onclick="adminCurrGoYears()">← Back to Years</button>
 
       <div class="curr-section">
+        ${isFull ? `
         <div class="curr-section-title">➕ Add New Module to "${escapeHtml(year)}"</div>
         <div class="curr-row">
           <div class="curr-field">
@@ -142,6 +158,7 @@ function renderAdminCurrModulesLevel(body) {
           <button class="curr-add-btn" onclick="adminAddModule()">Add Module</button>
         </div>
         <div class="curr-status" id="currModuleStatus"></div>
+        ` : `<div class="scope-hint">📍 Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects.</div>`}
         <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Modules in ${escapeHtml(year)} — tap one to manage its subjects</div>
         <div id="currModuleList">${mods.length ? mods.map(m => `
           <div class="curr-item-row curr-item-open" onclick="adminCurrOpenModule('${escapeHtml(m)}')">
@@ -149,11 +166,13 @@ function renderAdminCurrModulesLevel(body) {
               <div class="curr-item-name">${escapeHtml(_moduleIcon(year, m))} ${escapeHtml(m)}</div>
               <div class="curr-item-sub">${(curriculum[year][m] || []).filter(k => subjects[k]).length} subject(s)</div>
             </div>
+            ${isFull ? `
             <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditModuleIcon('${escapeHtml(year)}','${escapeHtml(m)}')">🎨 Icon</button>
             <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameModule('${escapeHtml(year)}','${escapeHtml(m)}')">✏️ Rename</button>
             <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteModule('${escapeHtml(year)}','${escapeHtml(m)}')">🗑 Delete</button>
+            ` : ''}
             <span class="curr-item-arrow">▶</span>
-          </div>`).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">No modules yet in this year</span>'}</div>
+          </div>`).join('') : `<span style="color:var(--text-muted);font-size:.8rem;">${isFull ? 'No modules yet in this year' : 'No modules within your curriculum access in this year'}</span>`}</div>
       </div>
 
     </div>
@@ -163,13 +182,18 @@ function renderAdminCurrModulesLevel(body) {
 /* ── LEVEL 3: Subjects within a Module ── */
 function renderAdminCurrSubjectsLevel(body) {
   const year = adminTargetYear, mod = adminTargetModule;
-  const keys = (curriculum[year] && curriculum[year][mod]) ? curriculum[year][mod].filter(k => subjects[k]) : [];
+  const scope  = getCurriculumScope(window._currentUser);
+  const isFull = scope.type === 'all';
+  const keys = (curriculum[year] && curriculum[year][mod])
+    ? curriculum[year][mod].filter(k => subjects[k] && (isFull || scopeSubjectAccess(scope, year, mod, k) === 'all'))
+    : [];
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${adminCurrBreadcrumbHtml()}
       <button class="curr-back-btn" onclick="adminCurrGoModules()">← Back to Modules</button>
 
       <div class="curr-section">
+        ${isFull ? `
         <div class="curr-section-title">➕ Add New Subject to "${escapeHtml(mod)}"</div>
         <div class="curr-row">
           <div class="curr-field">
@@ -187,6 +211,7 @@ function renderAdminCurrSubjectsLevel(body) {
           <button class="curr-add-btn secondary" onclick="adminAddSubject()">Add Subject</button>
         </div>
         <div class="curr-status" id="currSubjStatus"></div>
+        ` : `<div class="scope-hint">📍 Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects — tap a subject below to manage its quizzes.</div>`}
         <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Subjects in ${escapeHtml(mod)} — tap one to manage its quizzes</div>
         <div id="currSubjList" class="curr-list">${keys.length ? keys.map(k => {
           const s = subjects[k];
@@ -195,8 +220,10 @@ function renderAdminCurrSubjectsLevel(body) {
               <div class="curr-item-name">${escapeHtml(s.icon || '📘')} ${escapeHtml(s.label || k)}</div>
               <div class="curr-item-sub">key: ${escapeHtml(k)}</div>
             </div>
+            ${isFull ? `
             <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditSubject('${escapeHtml(k)}')">✏️ Edit</button>
             <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteSubject('${escapeHtml(k)}')">🗑 Delete</button>
+            ` : ''}
             <span class="curr-item-arrow">▶</span>
           </div>`;
         }).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">No subjects yet in this module</span>'}</div>
@@ -210,6 +237,13 @@ function renderAdminCurrSubjectsLevel(body) {
    Reuses renderAdminAssignedList() (Edit / Copy-Move / Delete / reorder),
    the same list and functions the Publish tab uses after publishing. */
 function renderAdminCurrQuizzesLevel(body) {
+  // Defensive: if the admin's own scope changed (or was revoked) live while
+  // this level was open, don't let a stale deep-link stay parked on a
+  // subject they can no longer manage.
+  if (!canManageSubject(window._currentUser, adminTargetSubject)) {
+    adminCurrGoSubjects();
+    return;
+  }
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${adminCurrBreadcrumbHtml()}

@@ -1,4 +1,4 @@
-  /* ══════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    ADMIN CONFIG — permission-based admin system
    ─────────────────────────────────────────────
    • SUPER_ADMIN_EMAIL is hardcoded, always has every permission,
@@ -98,8 +98,13 @@ async function saveAdminRoster() {
 }
 
 /* Grant `permissions` to `targetEmail`. `actingUser` must hold 'admins' permission,
-   and can only grant permissions they themselves currently hold. */
-async function assignAdmin(actingUser, targetEmail, permissions) {
+   and can only grant permissions they themselves currently hold. If 'curriculum' is
+   among the granted permissions, `curriculumScope` narrows it to specific
+   Year(s)/Module(s)/Subject(s) (or the whole curriculum) — the acting admin can
+   never grant curriculum access wider than their own (isCurriculumScopeSubset,
+   defined in js/admin-curriculum-scope.js), mirroring the same "can only grant
+   what you hold" rule already enforced for the flat permissions list. */
+async function assignAdmin(actingUser, targetEmail, permissions, curriculumScope) {
   if (!hasAdminPermission(actingUser, 'admins')) {
     throw new Error('You do not have permission to manage admins.');
   }
@@ -114,11 +119,25 @@ async function assignAdmin(actingUser, targetEmail, permissions) {
     throw new Error('You cannot grant permissions you do not hold yourself: ' + invalid.join(', '));
   }
 
-  window._adminRoster[emailLower] = {
+  const newEntry = {
     permissions: permissions.slice(),
     addedBy: actingUser.email.toLowerCase(),
     addedAt: Date.now()
   };
+
+  if (permissions.includes('curriculum')) {
+    const normalizedScope = _normalizeCurriculumScope(curriculumScope || { type: 'all' });
+    if (normalizedScope.type === 'scoped' && !Object.keys(normalizedScope.years).length) {
+      throw new Error('Select at least one Year, Module, or Subject for curriculum access, or choose Whole Curriculum.');
+    }
+    const actingScope = isSuperAdmin(actingUser) ? { type: 'all' } : getCurriculumScope(actingUser);
+    if (!isCurriculumScopeSubset(normalizedScope, actingScope)) {
+      throw new Error('You cannot grant curriculum access wider than your own (specific Year/Module/Subject only within what you hold).');
+    }
+    newEntry.curriculumScope = normalizedScope;
+  }
+
+  window._adminRoster[emailLower] = newEntry;
   await saveAdminRoster();
 }
 
@@ -172,8 +191,16 @@ async function removeAdmin(actingUser, targetEmail) {
     }
     const actingPerms = getAdminPermissions(actingUser);
     const targetPerms = target.permissions || [];
-    const exceeds = targetPerms.some(p => !actingPerms.includes(p));
-    if (exceeds) throw new Error('You cannot remove an admin who has permissions you do not hold.');
+    const exceedsFlatPerms = targetPerms.some(p => !actingPerms.includes(p));
+    // A target with 'curriculum' whose SCOPE isn't fully covered by the acting
+    // admin's own scope also counts as "outranking" them — e.g. a Year-2-only
+    // curriculum admin can't remove one with Year-3 access, even though both
+    // hold the flat 'curriculum' permission tag.
+    const exceedsCurriculumScope = targetPerms.includes('curriculum') &&
+      !isCurriculumScopeSubset(target.curriculumScope || { type: 'all' }, getCurriculumScope(actingUser));
+    if (exceedsFlatPerms || exceedsCurriculumScope) {
+      throw new Error('You cannot remove an admin who has permissions or curriculum access you do not hold.');
+    }
   }
 
   // Splice the removed admin out of the chain: anyone they directly assigned

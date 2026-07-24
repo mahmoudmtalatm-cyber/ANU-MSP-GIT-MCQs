@@ -1,4 +1,4 @@
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       /* ── Meridian design system — Day ── */
@@ -681,6 +681,38 @@
     .admin-publish-target-selected {
       background: #F0FFF4; border-color: var(--green-pale-border);
     }
+
+    /* ── SCOPED CURRICULUM PERMISSIONS (Manage Admins → Curriculum Access picker,
+       and the read-only scope notice shown to scoped admins in Manage Curriculum) ── */
+    .scope-mode-row {
+      display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+      font-size: .84rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px;
+    }
+    .scope-mode-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .scope-mode-opt input[type="radio"]:disabled ~ * { opacity: .5; }
+    .scope-hint {
+      font-size: .78rem; color: var(--accent-dark); background: #EAF6FF;
+      border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 11px; margin: 8px 0;
+      font-weight: 600;
+    }
+    .scope-pick-row { padding: 6px 10px; }
+    .scope-pick-checkbox {
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      width: 22px; height: 22px; cursor: pointer;
+    }
+    .scope-pick-checkbox input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent-dark); }
+    .scope-partial-badge {
+      display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .4px; color: var(--amber-mid); background: var(--amber-pale);
+      border-radius: 5px; padding: 1px 6px; margin-left: 5px; vertical-align: middle;
+    }
+    .scope-selection-summary {
+      font-size: .8rem; font-weight: 700; color: var(--accent-dark); background: #EAF6FF;
+      border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 11px; margin-top: 10px;
+      overflow-wrap: anywhere;
+    }
+    .scope-summary-chip { color: var(--accent-dark); font-weight: 700; }
+
     ::-webkit-scrollbar { width: 7px; height: 7px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 4px; }
@@ -2226,6 +2258,9 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .curr-item-row { padding: 8px; }
   .curr-item-row > div:first-child { flex-basis: 100%; }
   .curr-item-btn { font-size: .72rem; padding: 5px 7px; }
+  .scope-mode-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .scope-pick-row { flex-wrap: nowrap; }
+  .scope-pick-row > div:first-child { flex-basis: auto; }
   .cq-section { padding: 12px 14px; }
   .cq-opt-edit-row { padding: 6px; }
   .cq-opt-text-input { min-width: 70px; }

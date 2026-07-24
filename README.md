@@ -179,6 +179,15 @@ else is plain HTML/CSS/JavaScript.
 - **Admin panel** — publish quizzes into the official bank, manage the
   curriculum tree (years/modules/subjects), manage other admins and their
   permissions, and edit/split/reorder published lectures.
+- **Scoped curriculum permissions** — an `admins`-permission holder can
+  grant the `curriculum` permission for the whole curriculum, or narrow it
+  to specific Year(s), Module(s), or Subject(s) via the same
+  click-through Year → Module → Subject picker used elsewhere in the admin
+  panel. A scoped admin only sees and can manage quizzes within their
+  granted slice; only a whole-curriculum admin can restructure the
+  curriculum tree itself (add/rename/delete Years, Modules, Subjects).
+  Enforced both client-side and, authoritatively, in `firestore.rules`.
+  See [Scoped Curriculum Permissions](#scoped-curriculum-permissions) below.
 - **Offline-friendly caching** — curriculum and published questions are
   cached locally and versioned so returning users don't re-fetch
   everything on every visit.
@@ -223,6 +232,10 @@ anu-msp-question-bank/
 │   ├── icon-picker.js            # Icon library + reusable icon-picker widget
 │   ├── admin-panel.js            # Publish flow, manage admins, manage
 │   │                              #   community submissions
+│   ├── admin-curriculum-scope.js # Scoped curriculum-permission model:
+│   │                              #   grant a curriculum admin the whole
+│   │                              #   curriculum or specific Year/Module/
+│   │                              #   Subject(s); the Add-Admin scope picker
 │   ├── quiz-editor.js            # Inline editors for published & custom quizzes
 │   └── curriculum-admin.js       # Admin curriculum tree management
 ├── firestore.rules               # Firestore security rules (owner-only data,
@@ -258,9 +271,11 @@ Then:
    enforces per-user ownership on personal data (stats, custom quizzes,
    profiles), public read access to the published question bank, and a
    roster-based (`curriculum` / `community` / `admins`) permission model
-   for everything admin-only. If you fork this project, update the
-   hardcoded `isSuperAdmin()` email at the top to your own account before
-   deploying.
+   for everything admin-only — including per-Year/Module/Subject scoping
+   for the `curriculum` permission (see
+   [Scoped curriculum permissions](#scoped-curriculum-permissions)). If
+   you fork this project, update the hardcoded `isSuperAdmin()` email at
+   the top to your own account before deploying.
 4. **Project settings → General → Your apps** → add a Web app, and copy
    the generated config object into `js/config/firebase-config.js`.
 
@@ -357,6 +372,49 @@ AI-related is required for the core quiz/browsing experience to work.
 > Both call sites that can trigger a fallback switch (the main retry loop in
 > `callGeminiWithRetry`, and the bounding-box helper's own retry loop) pass
 > their request body through so this applies uniformly everywhere.
+
+## Scoped curriculum permissions
+
+By default, granting an admin the `curriculum` permission gives them
+publish/edit/delete access to the **entire** curriculum. From **Admin
+Panel → Manage Admins → Add New Admin**, whoever holds the `admins`
+permission can instead narrow that down when checking `curriculum`:
+
+- **🌍 Whole Curriculum** — the classic, unrestricted grant.
+- **🎯 Specific Year / Module / Subject** — opens the same
+  click-through Year → Module → Subject navigator used elsewhere in the
+  admin panel. Checking a Year grants everything under it; checking a
+  Module grants every subject in it; checking individual subjects grants
+  just those. A partially-covered Year/Module shows a "partial" badge.
+
+A few rules keep this from ever letting someone escalate their own
+access:
+
+- **You can only grant what you already hold.** The picker only ever
+  shows Years/Modules/Subjects the *acting* admin's own scope covers, and
+  `assignAdmin()` re-validates that the chosen scope is a strict subset
+  of the acting admin's scope (`isCurriculumScopeSubset()` in
+  `js/admin-curriculum-scope.js`) before saving.
+- **Scoped admins can't reshape the curriculum tree.** Adding, renaming,
+  or deleting a Year/Module/Subject (or changing its icon) requires the
+  `curriculum` permission **and** a `type: 'all'` scope — a scoped admin
+  can fully publish, edit, reorder, and delete quizzes anywhere within
+  their granted slice, but can't invent new subjects to grant themselves
+  access to, or rename their way around their own boundary.
+- **"Outranks you" also checks scope, not just the flat permission
+  list.** In Manage Admins, a scoped curriculum admin can't remove
+  another admin whose curriculum access exceeds their own, even if both
+  simply hold the `curriculum` tag.
+- **Enforced server-side, not just in the UI.** `firestore.rules`
+  independently re-checks the acting user's recorded `curriculumScope`
+  against the specific `subject` being written to
+  `publishedQuestions/{subject}/...`, by looking up that subject's
+  Year/Module placement in `appConfig/curriculumExtensions`. A scoped
+  admin cannot bypass their limits by calling the Firestore SDK directly.
+
+Roster entries created before this feature existed have no
+`curriculumScope` field at all — both the client and the rules treat that
+as `{ type: 'all' }`, so nothing changes for existing admins.
 
 ## Adding questions
 

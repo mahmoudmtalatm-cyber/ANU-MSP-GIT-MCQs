@@ -150,6 +150,7 @@ function openAdminPanel() {
   commManageModuleFilter  = '';
   commManageSubjectFilter = '';
   commManageSort          = 'newest';
+  resetAdminNewAdminScopeState();
   const defaultTab = adminDefaultTab();
   if (!defaultTab) {
     alert('You do not have admin access.');
@@ -235,8 +236,14 @@ function renderAdminManagePanel() {
       const info  = roster[email] || {};
       const perms = Array.isArray(info.permissions) ? info.permissions : [];
       const permLabel = perms.map(p => ADMIN_PERMISSION_LABELS[p] || p).join(' · ') || '—';
-      const isAncestor   = !isSuperAdmin(user) && isInAssignerChain(actingEmailLower, email);
-      const exceedsPerms = !isSuperAdmin(user) && perms.some(p => !actingPerms.includes(p));
+      const scopeChip = perms.includes('curriculum')
+        ? ` · 📍 ${escapeHtml(curriculumScopeSummary(info.curriculumScope || { type: 'all' }))}`
+        : '';
+      const isAncestor = !isSuperAdmin(user) && isInAssignerChain(actingEmailLower, email);
+      const exceedsPerms = !isSuperAdmin(user) && (
+        perms.some(p => !actingPerms.includes(p)) ||
+        (perms.includes('curriculum') && !isCurriculumScopeSubset(info.curriculumScope || { type: 'all' }, getCurriculumScope(user)))
+      );
       const canRemove = isSuperAdmin(user) || (!isAncestor && !exceedsPerms);
       let blockedReason = '';
       if (!canRemove) blockedReason = isAncestor ? "assigned you — can't remove" : "outranks you — can't remove";
@@ -244,7 +251,7 @@ function renderAdminManagePanel() {
         <div class="admin-quiz-item" style="cursor:default;">
           <div class="admin-quiz-item-info">
             <div class="admin-quiz-item-title">${escapeHtml(email)}</div>
-            <div class="admin-quiz-item-meta">${escapeHtml(permLabel)}${info.addedBy ? ' · added by ' + escapeHtml(info.addedBy) : ''}</div>
+            <div class="admin-quiz-item-meta">${escapeHtml(permLabel)}${scopeChip}${info.addedBy ? ' · added by ' + escapeHtml(info.addedBy) : ''}</div>
           </div>
           ${canRemove
             ? `<button class="admin-remove-btn" onclick="adminRemoveAdminUI('${escapeHtml(email)}')">🗑 Remove</button>`
@@ -255,9 +262,10 @@ function renderAdminManagePanel() {
 
   const permCheckboxesHtml = ADMIN_PERMISSIONS.map(p => {
     const allowed = actingPerms.includes(p);
+    const extraAttrs = p === 'curriculum' ? ' onchange="adminOnCurrPermToggle()"' : '';
     return `
       <label style="display:flex;align-items:center;gap:7px;font-size:.85rem;padding:4px 0;${allowed ? '' : 'opacity:.4;cursor:not-allowed;'}">
-        <input type="checkbox" id="adminNewPerm_${p}" ${allowed ? '' : 'disabled'} />
+        <input type="checkbox" id="adminNewPerm_${p}" ${allowed ? '' : 'disabled'}${extraAttrs} />
         ${escapeHtml(ADMIN_PERMISSION_LABELS[p])}
       </label>`;
   }).join('');
@@ -271,10 +279,15 @@ function renderAdminManagePanel() {
       <input type="email" id="adminNewEmail" placeholder="admin-email@gmail.com"
              style="width:100%;box-sizing:border-box;padding:9px 10px;border:1.5px solid #ccc;border-radius:8px;margin-bottom:10px;font-family:inherit;font-size:.9rem;" />
       <div style="display:flex;flex-direction:column;margin-bottom:6px;">${permCheckboxesHtml}</div>
-      <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:12px;">You can only grant permissions you hold yourself.</div>
-      <button class="admin-assign-btn" id="adminAddAdminBtn" onclick="adminAssignAdminUI()">➕ Add Admin</button>
+      <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:12px;">You can only grant permissions (and curriculum access) you hold yourself.</div>
+      ${adminCurrScopePickerSectionHtml()}
+      <button class="admin-assign-btn" id="adminAddAdminBtn" onclick="adminAssignAdminUI()" style="margin-top:14px;">➕ Add Admin</button>
       <div class="admin-status" id="adminManageStatus"></div>
     </div>`;
+
+  // Re-apply the scope section's visibility to match the (possibly
+  // freshly-rendered, unchecked-by-default) curriculum checkbox.
+  adminOnCurrPermToggle();
 }
 
 async function adminAssignAdminUI() {
@@ -291,8 +304,9 @@ async function adminAssignAdminUI() {
   if (statusEl) statusEl.innerHTML = `<div class="cq-status info">⏳ Adding admin…</div>`;
 
   try {
-    await assignAdmin(window._currentUser, email, perms);
+    await assignAdmin(window._currentUser, email, perms, adminNewAdminScope);
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ ${escapeHtml(email.trim().toLowerCase())} added as admin.</div>`;
+    resetAdminNewAdminScopeState();
     setTimeout(() => renderAdminManagePanel(), 600);
   } catch (e) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(e.message || String(e))}</div>`;
@@ -851,8 +865,16 @@ function adminPublishTargetPickerHtml() {
 
   html += `<div style="margin-top:9px;display:flex;flex-direction:column;gap:6px;">`;
 
+  // A scoped ('specific Year/Module/Subject') curriculum admin only ever
+  // sees — and can only publish into — the part of the curriculum their
+  // own access covers. This mirrors, and stays consistent with, the
+  // firestore.rules server-side check (curriculumScopeAllowsSubject), so
+  // this picker never lets someone attempt a publish that would just be
+  // rejected by the server.
+  const myScope = getCurriculumScope(window._currentUser);
+
   if (!adminPubTargetYear) {
-    const years = Object.keys(curriculum);
+    const years = Object.keys(curriculum).filter(y => scopeYearAccess(myScope, y) !== 'none');
     html += years.length ? years.map(y => `
       <div class="curr-item-row curr-item-open" onclick="adminOnYearChange('${escapeHtml(y)}')">
         <div style="flex:1;">
@@ -860,10 +882,10 @@ function adminPublishTargetPickerHtml() {
           <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)</div>
         </div>
         <span class="curr-item-arrow">▶</span>
-      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">No years yet — add one in 📚 Manage Curriculum first.</div>`;
+      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">${myScope.type === 'all' ? 'No years yet — add one in 📚 Manage Curriculum first.' : 'No years within your curriculum access.'}</div>`;
 
   } else if (!adminPubTargetModule) {
-    const mods = Object.keys(curriculum[adminPubTargetYear] || {});
+    const mods = Object.keys(curriculum[adminPubTargetYear] || {}).filter(m => scopeModuleAccess(myScope, adminPubTargetYear, m) !== 'none');
     html += mods.length ? mods.map(m => `
       <div class="curr-item-row curr-item-open" onclick="adminOnModuleChange('${escapeHtml(m)}')">
         <div style="flex:1;">
@@ -871,10 +893,10 @@ function adminPublishTargetPickerHtml() {
           <div class="curr-item-sub">${(curriculum[adminPubTargetYear][m] || []).filter(k => subjects[k]).length} subject(s)</div>
         </div>
         <span class="curr-item-arrow">▶</span>
-      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">No modules yet in ${escapeHtml(adminPubTargetYear)}.</div>`;
+      </div>`).join('') : `<div style="color:var(--text-muted);font-size:.82rem;">No modules within your curriculum access in ${escapeHtml(adminPubTargetYear)}.</div>`;
 
   } else if (!adminPubTargetSubject) {
-    const subs = (curriculum[adminPubTargetYear][adminPubTargetModule] || []).filter(k => subjects[k]);
+    const subs = (curriculum[adminPubTargetYear][adminPubTargetModule] || []).filter(k => subjects[k] && scopeSubjectAccess(myScope, adminPubTargetYear, adminPubTargetModule, k) === 'all');
     html += subs.length ? subs.map(s => `
       <div class="curr-item-row curr-item-open" onclick="adminOnSubjectChange('${escapeHtml(s)}')">
         <div style="flex:1;">
@@ -975,4 +997,3 @@ function adminToggleEditBeforePublish() {
   _questionEditDirty = false;
   renderAdminAssignForm();
 }
-
