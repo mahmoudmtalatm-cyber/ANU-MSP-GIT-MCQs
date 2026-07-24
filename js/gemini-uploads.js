@@ -463,12 +463,13 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
     return false;
   }
 
-  // How many *successive* 429s to tolerate, once a pause has actually been
-  // requested, before giving up on reaching the next checkpoint normally
-  // and falling back to pausing right here instead of retrying forever.
-  // While no pause is requested, 429s are retried exactly as before —
-  // this only changes behavior when the user is actively trying to pause.
-  // (In practice, automatic key rotation below now resolves most 429
+  // How many *successive* rate-limit/model-error failures to tolerate,
+  // once a pause has actually been requested, before giving up on reaching
+  // the next checkpoint normally and falling back to pausing right here
+  // instead of retrying forever. While no pause is requested, these are
+  // retried exactly as before — this only changes behavior when the user
+  // is actively trying to pause.
+  // (In practice, automatic key rotation below now resolves most such
   // streaks long before this even has a chance to matter — this remains
   // as a last-resort safety net for the single-key case.)
   const RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD = 20;
@@ -529,7 +530,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   }
 
   let attempt = 0;
-  let consecutive429 = 0;
+  let consecutiveRotatableFail = 0; // 429s AND plain (non-key-error) 400s both count here
   while (true) {
     // Check for cancellation before every attempt (including between retries)
     if (cancelToken && cancelToken.cancelled) {
@@ -567,7 +568,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
           // work fine, so try rotating once before giving up entirely.
           if (currentKeyId && typeof markKeyInvalid === 'function') markKeyInvalid(currentKeyId);
           if (await _tryRotate(currentKeyId)) {
-            consecutive429 = 0; attempt = 0;
+            consecutiveRotatableFail = 0; attempt = 0;
             if (onRetry) onRetry(attempt, { rotated: true });
             continue;
           }
@@ -583,16 +584,24 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         // of retrying the identical broken request forever.
         url = resolveGeminiFallbackUrl(resp.status, url, 'Gemini', bodyObj);
 
-        if (resp.status === 429) {
-          consecutive429++;
-          const justRateLimited = currentKeyId && typeof recordApiFailure === 'function'
-            ? recordApiFailure(currentKeyId, 429) : false;
+        // A plain 400 ("bad request" — usually the model isn't valid for
+        // this account/key, or some other request-shape rejection that
+        // isn't about the key itself) is treated exactly like a 429 here:
+        // 3 consecutive hits triggers the same rotation/cooldown logic in
+        // js/api-rotation.js. The only difference is cosmetic — it's
+        // recorded under reason 'model_error' instead of 'rate_limited',
+        // so the API Key Manager's status chip reads "Model error" rather
+        // than "Rate-limited" for a key excluded this way.
+        if (resp.status === 429 || resp.status === 400) {
+          consecutiveRotatableFail++;
+          const justExcluded = currentKeyId && typeof recordApiFailure === 'function'
+            ? recordApiFailure(currentKeyId, resp.status) : false;
 
-          if (justRateLimited || (currentKeyId && typeof isKeyExcluded === 'function' && isKeyExcluded(currentKeyId))) {
+          if (justExcluded || (currentKeyId && typeof isKeyExcluded === 'function' && isKeyExcluded(currentKeyId))) {
             if (await _tryRotate(currentKeyId)) {
               // Fresh key, fresh streak — retry right away instead of
               // sleeping out a backoff that belonged to the old, exhausted key.
-              consecutive429 = 0; attempt = 0;
+              consecutiveRotatableFail = 0; attempt = 0;
               if (onRetry) onRetry(attempt, { rotated: true });
               continue;
             }
@@ -602,11 +611,11 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
             try { onAllRateLimited(); } catch (e) {}
           }
 
-          if (pauseCheck && pauseCheck() && consecutive429 >= RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD) {
+          if (pauseCheck && pauseCheck() && consecutiveRotatableFail >= RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD) {
             throw Object.assign(err, { _rateLimitPauseFallback: true });
           }
         } else {
-          consecutive429 = 0;
+          consecutiveRotatableFail = 0;
         }
 
         if (onRetry) onRetry(attempt);
@@ -634,7 +643,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         const e = new Error('cancelled'); e._cancelled = true; throw e;
       }
       if (err._keyError || err._cancelled || err._rateLimitPauseFallback) throw err; // propagate immediately
-      consecutive429 = 0; // a non-HTTP-429 failure (network error etc.) resets the streak
+      consecutiveRotatableFail = 0; // a genuine network error resets the streak (unrelated to key health)
       if (onRetry) onRetry(attempt);
       await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
     }

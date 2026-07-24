@@ -3,9 +3,13 @@
    Sits on top of the API Key Manager (js/ai-features.js) and the
    Gemini request layer (js/gemini-uploads.js). This is the ONE place
    that decides:
-     - when a key counts as "rate-limited" (3 consecutive HTTP 429s)
+     - when a key counts as excluded — either "rate-limited" (3
+       consecutive HTTP 429s) or "model error" (3 consecutive plain
+       HTTP 400s that aren't a key-error) — both use the same
+       3-strikes threshold and cooldown, just tracked as separate
+       streaks and labeled differently in the UI
      - which key to rotate to next
-     - what happens once every configured key is rate-limited
+     - what happens once every configured key is excluded
      - how the UI (badges, quick buttons, the Manager modal) finds out
        a rotation just happened, so they can update live
 
@@ -46,16 +50,22 @@ function setSmartRotationEnabled(enabled) {
   _broadcastRotationUI({ rotationToggled: true, enabled: !!enabled });
 }
 
-// How many *consecutive* 429s on one key before it's treated as rate-limited
-// and rotation kicks in.
-const API_ROTATION_429_THRESHOLD = 3;
+// How many *consecutive* failures of ONE kind (429s, or plain 400s) on one
+// key before it's treated as excluded and rotation kicks in. Both kinds
+// share this same threshold and the same cooldown below — they're tracked
+// as independent streaks (see _apiRotState) purely so the UI can label
+// *why* a key got excluded ("Rate-limited" vs "Model error") without
+// changing when rotation actually triggers.
+const API_ROTATION_FAILURE_THRESHOLD = 3;
 
-// A rate-limited key is retried again automatically after this cooldown —
-// Gemini's free-tier limits are per-minute/per-day and often clear on their
-// own, so a key shouldn't stay excluded forever once it's been rested.
+// An excluded key is retried again automatically after this cooldown —
+// Gemini's free-tier rate limits are per-minute/per-day and often clear on
+// their own, and a run of model errors can also just be transient, so a
+// key shouldn't stay excluded forever once it's been rested.
 const API_ROTATION_COOLDOWN_MS = 60 * 1000;
 
-// Per-key rotation state, id -> { consecutive429, rateLimitedAt, invalid }
+// Per-key rotation state, id -> { consecutive429, consecutive400,
+// excludedAt, excludedReason: 'rate_limited'|'model_error'|null, invalid }
 let _apiRotationState = Object.create(null);
 
 // Bumped any time the key list itself changes (add/remove/edit) so an
@@ -68,7 +78,11 @@ function getApiKeysGeneration() { return _apiKeysGeneration; }
 function _apiRotState(id) {
   if (!id) return null;
   if (!_apiRotationState[id]) {
-    _apiRotationState[id] = { consecutive429: 0, rateLimitedAt: null, invalid: false };
+    _apiRotationState[id] = {
+      consecutive429: 0, consecutive400: 0,
+      excludedAt: null, excludedReason: null,
+      invalid: false
+    };
   }
   return _apiRotationState[id];
 }
@@ -81,40 +95,60 @@ function clearKeyRotationState(id) {
 }
 
 /* A successful response always means the key is healthy right now —
-   clear both the 429 streak and any rate-limited/invalid marking. */
+   clear every failure streak and any excluded/invalid marking. */
 function recordApiSuccess(id) {
   const st = _apiRotState(id);
   if (!st) return;
-  const wasExcluded = st.rateLimitedAt || st.invalid;
-  st.consecutive429 = 0;
-  st.rateLimitedAt  = null;
-  st.invalid        = false;
+  const wasExcluded = st.excludedAt || st.invalid;
+  st.consecutive429  = 0;
+  st.consecutive400  = 0;
+  st.excludedAt      = null;
+  st.excludedReason  = null;
+  st.invalid         = false;
   if (wasExcluded) _broadcastRotationUI({ recoveredId: id });
 }
 
 /* Records one failed attempt for a key. `status` is the HTTP status Gemini
-   returned (429, 401, 403, ...). Returns true if this failure just tipped
-   the key over into "rate-limited" (i.e. rotation should happen now). */
+   returned (429, 400, 401, 403, ...). 429s and plain 400s (never key-error
+   400s — those go through markKeyInvalid instead, see callGeminiWithRetry)
+   are tracked as two independent consecutive streaks, each using the same
+   3-strikes threshold and cooldown, just recorded under a different
+   `excludedReason` so the UI can say which one actually happened. A streak
+   of one kind is unaffected by an isolated failure of the other kind, but
+   two different failure kinds never combine into a single streak.
+   Returns true if this failure just tipped the key over into "excluded"
+   (i.e. rotation should happen now). */
 function recordApiFailure(id, status) {
   const st = _apiRotState(id);
   if (!st) return false;
   if (status === 429) {
     st.consecutive429++;
-    if (st.consecutive429 >= API_ROTATION_429_THRESHOLD && !st.rateLimitedAt) {
-      st.rateLimitedAt = Date.now();
-      return true; // just became rate-limited this call
+    if (st.consecutive429 >= API_ROTATION_FAILURE_THRESHOLD && !st.excludedAt) {
+      st.excludedAt     = Date.now();
+      st.excludedReason = 'rate_limited';
+      return true; // just became excluded this call
     }
     return false;
   }
-  // Any non-429 failure breaks a 429 streak (matches the pre-existing
-  // behavior in callGeminiWithRetry for its own local counter).
+  if (status === 400) {
+    st.consecutive400++;
+    if (st.consecutive400 >= API_ROTATION_FAILURE_THRESHOLD && !st.excludedAt) {
+      st.excludedAt     = Date.now();
+      st.excludedReason = 'model_error';
+      return true; // just became excluded this call
+    }
+    return false;
+  }
+  // Any other failure kind breaks both streaks (matches the pre-existing
+  // "a non-429 failure resets the 429 streak" behavior).
   st.consecutive429 = 0;
+  st.consecutive400 = 0;
   return false;
 }
 
 /* Marks a key as permanently invalid (bad/revoked API key — 401/403/
    API_KEY_INVALID) so rotation stops offering it, without waiting on the
-   429 cooldown logic which doesn't apply to a broken key. */
+   cooldown logic which doesn't apply to a broken key. */
 function markKeyInvalid(id) {
   const st = _apiRotState(id);
   if (!st) return;
@@ -122,19 +156,21 @@ function markKeyInvalid(id) {
 }
 
 /* Whether a key is currently excluded from being picked as the "preferred"
-   rotation target — either genuinely invalid, or rate-limited and still
-   within its cooldown window. Cooldown expiry is lazy (checked here, not
-   via a timer) so a key silently becomes eligible again the next time
-   anyone asks, with no polling needed. */
+   rotation target — either genuinely invalid, or rate-limited/model-error
+   and still within its cooldown window. Cooldown expiry is lazy (checked
+   here, not via a timer) so a key silently becomes eligible again the next
+   time anyone asks, with no polling needed. */
 function isKeyExcluded(id) {
   const st = _apiRotationState[id];
   if (!st) return false;
   if (st.invalid) return true;
-  if (st.rateLimitedAt) {
-    if (Date.now() - st.rateLimitedAt >= API_ROTATION_COOLDOWN_MS) {
+  if (st.excludedAt) {
+    if (Date.now() - st.excludedAt >= API_ROTATION_COOLDOWN_MS) {
       // Cooldown elapsed — give it another chance automatically.
-      st.rateLimitedAt = null;
-      st.consecutive429 = 0;
+      st.excludedAt      = null;
+      st.excludedReason  = null;
+      st.consecutive429  = 0;
+      st.consecutive400  = 0;
       return false;
     }
     return true;
@@ -151,14 +187,15 @@ function allKeysRateLimited() {
   return keys.every(k => isKeyExcluded(k.id));
 }
 
-/* Small, UI-facing summary for one key — used to draw the "rate-limited"
-   chip on its row in the API Key Manager. */
+/* Small, UI-facing summary for one key — used to draw the status chip
+   (Invalid / Rate-limited / Model error) on its row in the API Key
+   Manager. */
 function getApiKeyStatusInfo(id) {
   const st = _apiRotationState[id];
   if (!st) return { excluded: false };
   if (st.invalid) return { excluded: true, reason: 'invalid' };
-  if (st.rateLimitedAt && !isKeyExcluded(id)) return { excluded: false }; // cooldown just lapsed
-  if (st.rateLimitedAt) return { excluded: true, reason: 'rate_limited' };
+  if (st.excludedAt && !isKeyExcluded(id)) return { excluded: false }; // cooldown just lapsed
+  if (st.excludedAt) return { excluded: true, reason: st.excludedReason };
   return { excluded: false };
 }
 
@@ -166,11 +203,12 @@ function getApiKeyStatusInfo(id) {
    - Returns null if there's nothing to rotate to (0 or 1 keys total).
    - Prefers the next non-excluded key, walking forward from just after
      the current one (so a 3-key rotation cycles 1→2→3→1→2→3…).
-   - If every key is currently excluded, it still returns the next key in
-     line rather than giving up — see allKeysRateLimited() above for the
-     "add another key" note this pairs with; a key can also be mid-way
-     through its cooldown and start working again at any moment, so it's
-     worth continuing to cycle instead of freezing on one. */
+   - If every key is currently excluded (rate-limited, hitting model
+     errors, or invalid), it still returns the next key in line rather
+     than giving up — see allKeysRateLimited() below for the "add another
+     key" note this pairs with; an excluded key can also come out of its
+     cooldown and start working again at any moment, so it's worth
+     continuing to cycle instead of freezing on one. */
 function pickNextApiKey(currentId) {
   if (!isSmartRotationEnabled()) return null;
   const keys = loadApiKeys();
@@ -203,14 +241,16 @@ function _broadcastRotationUI(detail) {
   try { window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: detail || {} })); } catch (e) {}
 }
 
-/* Shared "all keys are currently rate-limited" banner, shown inside the
+/* Shared "all keys are currently excluded" banner, shown inside the
    AI-tools progress boxes (ai-question-tools.js's _cqProgressStatusHTML)
    so anyone watching an active extraction/generation run sees it without
    needing to open the API Key Manager. Purely informational — the run
-   itself keeps going, cycling through keys automatically. */
+   itself keeps going, cycling through keys automatically. Wording stays
+   generic ("issues") since the underlying cause could be rate limits on
+   some keys and repeated model errors on others at the same time. */
 function _apiAllRateLimitedBannerHTML() {
   const msg = isSmartRotationEnabled()
-    ? `⚠️ All your API keys are currently rate-limited by Google. This will keep automatically rotating between them and retrying — it may just be a little slower right now. Adding another API key (🔑 Manage APIs) will speed things back up as soon as you paste it in.`
-    : `⚠️ All your API keys are currently rate-limited by Google, and Smart Rotation is off, so the app is retrying on the same key instead of switching. Turn Smart Rotation back on in 🔑 Manage APIs, or add another key, to speed things back up.`;
+    ? `⚠️ All your API keys are currently hitting issues (rate limits and/or model errors). This will keep automatically rotating between them and retrying — it may just be a little slower right now. Adding another API key (🔑 Manage APIs) will speed things back up as soon as you paste it in.`
+    : `⚠️ All your API keys are currently hitting issues (rate limits and/or model errors), and Smart Rotation is off, so the app is retrying on the same key instead of switching. Turn Smart Rotation back on in 🔑 Manage APIs, or add another key, to speed things back up.`;
   return `<div class="cq-status warning api-rotation-banner" style="margin-top:6px;">${msg}</div>`;
 }

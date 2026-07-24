@@ -318,6 +318,8 @@ function renderApiKeyManager() {
       const statusChip = !rotStatus.excluded ? '' :
         rotStatus.reason === 'invalid'
           ? `<span class="apikey-status-chip apikey-status-invalid" title="This key was rejected by Google — check the value or replace it.">✕ Invalid</span>`
+          : rotStatus.reason === 'model_error'
+          ? `<span class="apikey-status-chip apikey-status-model-error" title="3 requests in a row came back as bad requests on this key — temporarily skipped by auto-rotation and will be retried automatically.">⚠️ Model Error</span>`
           : `<span class="apikey-status-chip apikey-status-limited" title="Temporarily skipped by auto-rotation — will be retried automatically.">⏳ Rate-limited</span>`;
       html += `<div class="apikey-item ${isActive ? 'active' : ''}" style="--apikey-color:${color};">
         <div class="apikey-num">${idx + 1}</div>

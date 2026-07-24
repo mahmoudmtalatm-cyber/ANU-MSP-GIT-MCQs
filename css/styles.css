@@ -2311,6 +2311,7 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
 }
 .apikey-status-limited { background: var(--amber-pale); color: var(--unanswered-fg); }
 .apikey-status-invalid { background: var(--wrong-bg); color: var(--wrong-fg); }
+.apikey-status-model-error { background: var(--violet-pale); color: var(--violet-dark); }
 
 /* Banner shown inside an active AI run's progress box while every
    configured key is rate-limited — same visual language as the existing
