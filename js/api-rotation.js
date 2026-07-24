@@ -3,10 +3,10 @@
    Sits on top of the API Key Manager (js/ai-features.js) and the
    Gemini request layer (js/gemini-uploads.js). This is the ONE place
    that decides:
-     - when a key counts as excluded — either "rate-limited" (3
-       consecutive HTTP 429s) or "model error" (3 consecutive plain
+     - when a key counts as excluded — either "rate-limited" (2
+       consecutive HTTP 429s) or "model error" (2 consecutive plain
        HTTP 400s that aren't a key-error) — both use the same
-       3-strikes threshold and cooldown, just tracked as separate
+       2-strikes threshold and cooldown, just tracked as separate
        streaks and labeled differently in the UI
      - which key to rotate to next
      - what happens once every configured key is excluded
@@ -56,7 +56,7 @@ function setSmartRotationEnabled(enabled) {
 // as independent streaks (see _apiRotState) purely so the UI can label
 // *why* a key got excluded ("Rate-limited" vs "Model error") without
 // changing when rotation actually triggers.
-const API_ROTATION_FAILURE_THRESHOLD = 3;
+const API_ROTATION_FAILURE_THRESHOLD = 2;
 
 // An excluded key is retried again automatically after this cooldown —
 // Gemini's free-tier rate limits are per-minute/per-day and often clear on
@@ -112,7 +112,7 @@ function recordApiSuccess(id) {
    returned (429, 400, 401, 403, ...). 429s and plain 400s (never key-error
    400s — those go through markKeyInvalid instead, see callGeminiWithRetry)
    are tracked as two independent consecutive streaks, each using the same
-   3-strikes threshold and cooldown, just recorded under a different
+   2-strikes threshold and cooldown, just recorded under a different
    `excludedReason` so the UI can say which one actually happened. A streak
    of one kind is unaffected by an isolated failure of the other kind, but
    two different failure kinds never combine into a single streak.

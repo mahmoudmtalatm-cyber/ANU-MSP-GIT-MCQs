@@ -643,7 +643,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         // A plain 400 ("bad request" — usually the model isn't valid for
         // this account/key, or some other request-shape rejection that
         // isn't about the key itself) is treated exactly like a 429 here:
-        // 3 consecutive hits triggers the same rotation/cooldown logic in
+        // 2 consecutive hits triggers the same rotation/cooldown logic in
         // js/api-rotation.js. The only difference is cosmetic — it's
         // recorded under reason 'model_error' instead of 'rate_limited',
         // so the API Key Manager's status chip reads "Model error" rather

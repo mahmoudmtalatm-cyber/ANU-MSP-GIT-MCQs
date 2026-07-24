@@ -478,13 +478,13 @@ required.
   `pickNextApiKey()` in `js/api-rotation.js`, so this one flag is the only
   thing that needed to change to gate the entire feature.
 
-- **Rate-limit detection** — a key is marked rate-limited after **3
+- **Rate-limit detection** — a key is marked rate-limited after **2
   consecutive HTTP 429 responses**. A single 429, or a 429 followed by a
-  success, doesn't count — only an unbroken streak of three.
-- **Model-error detection** — the same 3-strikes rule applies to plain
+  success, doesn't count — only an unbroken streak of two.
+- **Model-error detection** — the same 2-strikes rule applies to plain
   HTTP 400 responses that *aren't* about the key itself (a genuinely
   invalid/revoked key is handled separately below, and rotates away
-  immediately without waiting for 3). Three consecutive plain 400s in a
+  immediately without waiting for 2). Two consecutive plain 400s in a
   row on one key excludes it exactly like a 429 streak would — same
   rotation trigger, same 60-second cooldown — the only difference is
   cosmetic: the API Key Manager's status chip reads **"⚠️ Model Error"**
