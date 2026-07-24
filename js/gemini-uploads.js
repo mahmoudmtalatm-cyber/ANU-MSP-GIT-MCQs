@@ -63,6 +63,26 @@ function _stripGeminiSamplingParams(bodyObj) {
   GEMINI_SAMPLING_PARAM_KEYS.forEach(k => { delete bodyObj.generationConfig[k]; });
 }
 
+/* Same story as the sampling params above, for a different field:
+   js/ai-question-tools.js (Refine Question, Fill Choices, Add Choice) sets
+   `generationConfig.thinkingConfig: { thinkingBudget: 0 }` by default to
+   turn OFF Gemini 2.5's reasoning pass for those tools. GEMINI_FALLBACK_MODEL's
+   Gemini 3.x family uses a different thinking-config shape and hard-rejects
+   that field with its own HTTP 400 -- and because it was never being
+   stripped, every retry after the switch kept resending the exact same
+   rejected field, re-triggering the exact same 400 forever. That's why
+   this specifically showed up as a repeating "model error" loop only on
+   Refine/Fill Choices/Add Choice (the only features that ever set this
+   field), and only on keys that actually needed the fallback model in the
+   first place (a key that stays on the primary model never sends this
+   field to a model that rejects it). Stripped here, in place, the same
+   moment sampling params are, so the very next retry against the fallback
+   model doesn't carry over a field it doesn't understand either. */
+function _stripGeminiThinkingConfig(bodyObj) {
+  if (!bodyObj || !bodyObj.generationConfig) return;
+  delete bodyObj.generationConfig.thinkingConfig;
+}
+
 // Set once, automatically, the first time the primary model draws one of
 // the statuses above (see isGeminiModelFallbackTrigger). After that every
 // NEW request goes straight to the fallback so the app doesn't re-discover
@@ -111,11 +131,14 @@ function resolveGeminiFallbackUrl(status, url, logPrefix, bodyObj) {
   if (url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) return url; // already on the fallback — nothing left to switch to
   console.warn(`${logPrefix}: "${geminiActiveModel()}" returned ${status} — switching to fallback model "${GEMINI_FALLBACK_MODEL}"${logPrefix === 'Gemini' ? ' for this and future requests' : ''}.`);
   _geminiResolvedModel = GEMINI_FALLBACK_MODEL;
-  // The fallback model rejects temperature/topP/topK outright — strip them
-  // from THIS request's body (in place) so the very next retry attempt
-  // against the new URL doesn't just trade a 404/400 "wrong model" for a
-  // fresh 400 "bad generationConfig". See _stripGeminiSamplingParams above.
+  // The fallback model rejects temperature/topP/topK, and separately
+  // rejects thinkingConfig (a different field, different reason — see
+  // _stripGeminiThinkingConfig above) -- strip both from THIS request's
+  // body (in place) so the very next retry attempt against the new URL
+  // doesn't just trade a 404/400 "wrong model" for a fresh 400 on
+  // whichever of these fields it happens to hit first.
   _stripGeminiSamplingParams(bodyObj);
+  _stripGeminiThinkingConfig(bodyObj);
   return _geminiSwapModelInUrl(url, GEMINI_FALLBACK_MODEL);
 }
 

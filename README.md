@@ -381,6 +381,21 @@ AI-related is required for the core quiz/browsing experience to work.
 > `callGeminiWithRetry`, and the bounding-box helper's own retry loop) pass
 > their request body through so this applies uniformly everywhere.
 >
+> **Note on `thinkingConfig`:** the fallback model rejects this field too,
+> for the same reason as the sampling params above, but it's set by a
+> different (and much smaller) set of features — only Refine Question,
+> Fill Choices, and Add Choice ever include
+> `generationConfig.thinkingConfig: { thinkingBudget: 0 }` (to keep those
+> quick rewrite/generation calls fast by default; see the 🧠 Thinking
+> toggle on each). Before this was fixed, falling back to
+> `GEMINI_FALLBACK_MODEL` on those three tools specifically could get
+> stuck retrying the exact same rejected `thinkingConfig` forever, since
+> nothing ever removed it from the body — every other feature never sets
+> this field at all, so they never hit it, and a key that never needed the
+> fallback model never hit it either. `_stripGeminiThinkingConfig()`
+> deletes it at the same moment `_stripGeminiSamplingParams()` runs, so
+> the very next retry against the fallback model is clean.
+>
 > **Note on key changes and the fallback model:** whether a given model
 > works can depend on the account/project behind a particular key — so
 > resolving to the fallback on one key doesn't mean the next key needs it
