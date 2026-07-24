@@ -373,6 +373,25 @@ AI-related is required for the core quiz/browsing experience to work.
 > `callGeminiWithRetry`, and the bounding-box helper's own retry loop) pass
 > their request body through so this applies uniformly everywhere.
 
+## Admin permission boundaries: `curriculum` vs `community`
+
+The **📤 Publish Quizzes** tab is gated entirely by the `curriculum`
+permission — it's the only permission that matters there. Inside it, an
+admin can pick a quiz to publish from **either** source list:
+
+- **🤖 My Custom Quizzes** — their own custom quizzes.
+- **🌐 Community Quizzes** — anyone's shared community quizzes.
+
+Both source lists are shown to any admin holding `curriculum`, regardless
+of whether they also hold `community`. This is intentional: publishing a
+quiz into the curriculum only ever writes to `publishedQuestions`, which
+`firestore.rules` gates on `isCurriculumAdmin()` alone, and reading
+`sharedQuizzes` requires nothing more than being signed in. `community`
+permission is reserved for the separate **🗂️ Manage Community Quiz**
+tab — moderating/deleting other users' shared quizzes — which is a
+distinct, unrelated capability from simply using a community quiz as a
+publish source.
+
 ## Scoped curriculum permissions
 
 By default, granting an admin the `curriculum` permission gives them

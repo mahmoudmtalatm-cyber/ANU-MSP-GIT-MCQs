@@ -348,12 +348,18 @@ function adminCommOnSearchInput(val) {
 async function renderAdminPanel() {
   const user = window._currentUser;
   const canCurriculum = hasAdminPermission(user, 'curriculum');
-  const canCommunity  = hasAdminPermission(user, 'community');
   const body = document.getElementById('adminBody');
 
-  // Force onto a source tab this user is actually allowed to see.
-  if (adminSourceTab === 'custom' && !canCurriculum) adminSourceTab = 'community';
-  if (adminSourceTab === 'community' && !canCommunity) adminSourceTab = 'custom';
+  // Both source tabs — "My Custom Quizzes" and "Community Quizzes" — are
+  // just two ways of picking a quiz to publish into the curriculum, so
+  // both are gated on 'curriculum' permission alone (the permission that
+  // actually governs this whole tab, per adminSwitchTab above). Reading
+  // sharedQuizzes itself requires no special permission in firestore.rules
+  // either — any signed-in user can read that collection. 'community'
+  // permission is reserved for the separate "Manage Community Quiz" tab
+  // (moderation/deletion of shared quizzes), which is unrelated to simply
+  // using a community quiz as a publish source here.
+  if (!canCurriculum) adminSourceTab = 'custom'; // shouldn't happen (Publish tab itself requires 'curriculum'), but guard anyway
 
   let listHtml = '';
   if (adminSourceTab === 'custom') {
@@ -380,7 +386,7 @@ async function renderAdminPanel() {
   const sourceTabsHtml = `
     <div class="admin-quiz-source-tabs">
       ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'custom' ? 'active' : ''}" onclick="adminSetSourceTab('custom')">🤖 My Custom Quizzes</button>` : ''}
-      ${canCommunity ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
+      ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
     </div>`;
 
   body.innerHTML = `
