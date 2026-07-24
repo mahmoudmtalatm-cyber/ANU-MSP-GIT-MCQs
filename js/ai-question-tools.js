@@ -375,6 +375,7 @@ Rules:
 - Do NOT change what the question is actually asking, its topic, or any fact/number/name in it.
 - Do NOT reference or rewrite the answer choices — they're given only as context.
 - Keep it roughly the same length unless told otherwise below.
+- Small, natural phrasing variation between rewrites is fine; the underlying meaning must stay identical every time.
 ${caseBlock ? `\nThis question depends on a shared case/vignette${imagePart ? ' (and an accompanying image, attached below)' : ''}, given below for CONTEXT ONLY — do NOT rewrite it, repeat it, or fold it into your output. Only rewrite the "Original question" text itself, using the case to make sure your rewording still makes sense against it:\n${caseBlock}` : ''}
 ${custom ? `\nADDITIONAL INSTRUCTIONS FROM THE EDITOR (apply these too — if one of them genuinely conflicts with a rule above, THIS instruction wins for that specific point only; every other rule above still applies):\n"""${custom}"""\n` : ''}
 Original question:
@@ -398,7 +399,8 @@ Respond ONLY with a JSON object: {"question": "the refined question text"}. No m
       responseMimeType: 'application/json', maxOutputTokens: 2048,
       // temperature: 0.4 — mostly consistent rewrites with a little room
       // for natural phrasing variation. Auto-stripped on a fallback-model
-      // switch (see GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      // switch (see GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js) — the
+      // rule added to the prompt above is the backstop for that case.
       temperature: 0.4,
       // Gemini 2.5 Flash reasons by default, and those "thinking" tokens are
       // drawn from the SAME maxOutputTokens budget as the visible JSON
@@ -481,6 +483,7 @@ Write exactly ${count} NEW answer choice${count !== 1 ? 's' : ''} that:
 - Is/are clearly and unambiguously INCORRECT (do not duplicate or restate the correct answer).
 - Is/are distinct from every existing choice and from each other.
 - Are NOT generic filler like "None of the above", "All of the above", or "I don't know".
+- Draw from varied angles (different mechanisms, related-but-wrong conditions, common misconceptions) rather than minor rewordings of the same idea.
 
 Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(', ')}]} containing exactly ${count} string${count !== 1 ? 's' : ''}, in order. No markdown, no preamble.`;
 
@@ -498,7 +501,9 @@ Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(
       // temperature: 0.7 — distractors benefit from more creative variety
       // than a refine/rewrite task does, so several choices don't all read
       // the same way. Auto-stripped on a fallback-model switch (see
-      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js) — the "varied
+      // angles" rule added to the prompt above is the backstop for that
+      // case.
       temperature: 0.7,
       // See matching comment in _aiRefineQuestionCall — writing a few
       // distractor choices doesn't need Gemini 2.5 Flash's default

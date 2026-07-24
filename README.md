@@ -381,6 +381,30 @@ AI-related is required for the core quiz/browsing experience to work.
 > `callGeminiWithRetry`, and the bounding-box helper's own retry loop) pass
 > their request body through so this applies uniformly everywhere.
 >
+> **Note on `temperature` and the fallback model's own guidance:** stripping
+> the field on a fallback call is the correct fix, but it also means a
+> request that lands on the fallback model no longer gets any steering from
+> `temperature` at all — Google's own guidance for the Gemini 3.x family
+> (what `GEMINI_FALLBACK_MODEL` resolves to) is to leave `temperature` at
+> its default and steer output through the prompt/system-instruction text
+> instead, since the parameter itself is being phased out for that model
+> family. Every feature that tunes `temperature` now also has a matching
+> one-line instruction baked directly into its prompt, so the intended
+> behavior holds even on a fallback-model call where the parameter itself
+> never arrives:
+> - **Deterministic (`0`) features** — extraction (`CQ_EXTRACTION_PROMPT`),
+>   AI Solve (`systemInstruction` in `cqAiSolveQuestions`), and bounding-box
+>   detection all end with an explicit "be fully deterministic" line.
+> - **Mild-variation features** — Refine Question (`0.4`) and Explain
+>   (`0.3`) each have a line clarifying that only small, natural wording
+>   variation is expected and the underlying content/reasoning must stay
+>   identical; the follow-up chat (`0.4`) has an equivalent line about never
+>   contradicting something already established in the conversation.
+> - **More-variety features** — question generation from lecture material
+>   (`0.7`) and distractor generation (`0.7`) both have a rule asking the
+>   model to actively favor varied phrasing/angles rather than defaulting to
+>   the most generic option every time.
+>
 > **Note on `thinkingConfig`:** the fallback model rejects this field too,
 > for the same reason as the sampling params above, but it's set by a
 > different (and much smaller) set of features — only Refine Question,
@@ -395,6 +419,30 @@ AI-related is required for the core quiz/browsing experience to work.
 > fallback model never hit it either. `_stripGeminiThinkingConfig()`
 > deletes it at the same moment `_stripGeminiSamplingParams()` runs, so
 > the very next retry against the fallback model is clean.
+>
+> **Note on a request that starts ALREADY on the fallback model:** both
+> strips above originally only ran *reactively* — at the exact moment
+> `resolveGeminiFallbackUrl()` decided to switch a request from the
+> primary model to the fallback mid-loop. That covers a request that
+> starts on the primary model and gets rejected once, but not a request
+> that's already pointed at the fallback from its very first attempt —
+> which happens whenever an earlier, unrelated call this session already
+> resolved `_geminiResolvedModel` to the fallback (e.g. extraction already
+> discovered this key needs it, and now Refine Question runs for the first
+> time). That first attempt still carried whatever `temperature`/
+> `thinkingConfig` the feature unconditionally set, drew an immediate 400
+> from the fallback model, and `resolveGeminiFallbackUrl`'s own "already on
+> the fallback, nothing left to switch to" early return skipped the strip
+> entirely — so the exact same rejected body kept getting resent forever,
+> an infinite 400 loop on every retry that looked identical to the
+> original bug from the outside (this is what showed up as Refine
+> Question/Fill Choices/Add Choice still 400ing even after the reactive
+> fix above). `_stripGeminiFallbackIncompatibleParamsIfNeeded()` closes
+> this gap: both `callGeminiWithRetry` and the bounding-box helper now also
+> strip proactively, once, before their very first attempt, whenever the
+> URL they're about to call already points at the fallback model —
+> regardless of whether the switch is happening in this call or already
+> happened in an earlier one.
 >
 > **Note on key changes and the fallback model:** whether a given model
 > works can depend on the account/project behind a particular key — so

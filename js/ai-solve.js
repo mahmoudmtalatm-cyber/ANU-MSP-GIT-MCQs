@@ -354,7 +354,9 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
       // Safe to always set: callGeminiWithRetry strips it automatically if
       // a fallback-model switch happens mid-request (see
       // GEMINI_SAMPLING_PARAM_KEYS / resolveGeminiFallbackUrl in
-      // gemini-uploads.js), so it never survives onto a model that rejects it.
+      // gemini-uploads.js), so it never survives onto a model that rejects
+      // it — the closing "Be fully deterministic" line in
+      // CQ_EXTRACTION_PROMPT is the prompt-level backstop for that case.
       temperature: 0
     }
   }, {
@@ -667,6 +669,7 @@ STRICT RULES:
 4. The correct answer must be definitively supported by the lecture content.
 5. Do NOT include any question that cannot be answered from the provided material.
 6. Do NOT add explanations, rationales, or commentary.
+7. Favor variety: vary question phrasing, clinical scenario details (patient age/sex/presentation), and which concepts get emphasized rather than defaulting to the most obvious or generic phrasing every time.
 
 Return ONLY a JSON array, one object per question, in exactly this format:
 [
@@ -719,7 +722,9 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
         // so some creative variety is wanted. Auto-stripped on a
         // fallback-model switch (see GEMINI_SAMPLING_PARAM_KEYS in
         // gemini-uploads.js), so it never survives onto a model that
-        // rejects it.
+        // rejects it — rule 7 in buildGenerationPrompt() above is the
+        // prompt-level backstop for that case, since Gemini 3.x no longer
+        // treats temperature as a reliable variety lever.
         temperature: 0.7
       }
     };
@@ -744,7 +749,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
         maxOutputTokens: 65536,
         // temperature: 0.7 — see matching comment in the lecture-text
         // branch above; this is generation, not transcription, so the
-        // same reasoning applies.
+        // same reasoning applies, including the rule-7 prompt backstop.
         temperature: 0.7
       }
     };

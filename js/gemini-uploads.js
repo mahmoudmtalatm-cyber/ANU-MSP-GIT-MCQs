@@ -83,6 +83,30 @@ function _stripGeminiThinkingConfig(bodyObj) {
   delete bodyObj.generationConfig.thinkingConfig;
 }
 
+/* Both strips above only ever ran REACTIVELY, at the exact moment
+   resolveGeminiFallbackUrl() decided to switch a request from the primary
+   to the fallback model mid-loop. That covers a request that starts on the
+   primary model and gets rejected once. It does NOT cover a request that
+   is ALREADY pointed at the fallback model from the very first attempt —
+   which happens any time _geminiResolvedModel was already set to the
+   fallback by an earlier, unrelated call this session (e.g. extraction
+   already discovered this key needs the fallback, and now Refine Question
+   runs for the first time). That first attempt still carries whatever
+   temperature/thinkingConfig the feature unconditionally set, draws an
+   immediate 400 from the fallback model, and then resolveGeminiFallbackUrl's
+   own "already on the fallback, nothing left to switch to" early return
+   (see below) skips the strip entirely — so the exact same rejected body
+   gets resent forever, an infinite 400 loop that looks identical to the
+   original bug from the outside. This helper closes that gap by stripping
+   proactively, before the very first attempt, whenever the URL already
+   points at the fallback model — regardless of whether a switch is
+   happening in this call or already happened in a previous one. */
+function _stripGeminiFallbackIncompatibleParamsIfNeeded(url, bodyObj) {
+  if (!url || !url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) return;
+  _stripGeminiSamplingParams(bodyObj);
+  _stripGeminiThinkingConfig(bodyObj);
+}
+
 // Set once, automatically, the first time the primary model draws one of
 // the statuses above (see isGeminiModelFallbackTrigger). After that every
 // NEW request goes straight to the fallback so the app doesn't re-discover
@@ -333,7 +357,9 @@ Return ONLY a JSON array, one object per question, in exactly this format:
   }
 ]
 
-The "answer" value must be one of the keys present in that question's "options" object. Output nothing besides this JSON array — no markdown fences, no commentary.`;
+The "answer" value must be one of the keys present in that question's "options" object. Output nothing besides this JSON array — no markdown fences, no commentary.
+
+Be fully deterministic: given the same document, always extract the exact same questions, options, and answers, in the exact same way every time.`;
 
 const CQ_RESPONSE_SCHEMA = {
   type: 'ARRAY',
@@ -508,6 +534,13 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   if (cancelToken && cancelToken.cancelled) {
     const e = new Error('cancelled'); e._cancelled = true; throw e;
   }
+
+  // See _stripGeminiFallbackIncompatibleParamsIfNeeded above: covers the
+  // case where this call's very first attempt is already pointed at
+  // GEMINI_FALLBACK_MODEL (because an earlier, unrelated call this session
+  // already resolved to it), which the reactive strip inside the retry
+  // loop below never reaches.
+  _stripGeminiFallbackIncompatibleParamsIfNeeded(url, bodyObj);
 
   /* Attempts to rotate away from `fromKeyId` to another configured key.
      Returns true if a rotation actually happened (and updates `apiKey` /
@@ -788,7 +821,9 @@ Where:
 - w, h = width and height of the bounding box (normalized 0–1)
 
 If you cannot find a visual element for a question, omit that entry from the array.
-Output nothing besides the JSON array.`;
+Output nothing besides the JSON array.
+
+Be fully deterministic: given the same document and questions, always locate the same coordinates the same way. Do not introduce arbitrary variation between runs.`;
 
   const requestBody = {
     contents: [{ parts: [filePart, { text: prompt }] }],
@@ -797,6 +832,14 @@ Output nothing besides the JSON array.`;
     // resolveGeminiFallbackUrl() strips it automatically the moment a
     // fallback-model switch happens (see GEMINI_SAMPLING_PARAM_KEYS above),
     // so it never reaches a model that rejects it.
+    //
+    // Gemini 3.x (what GEMINI_FALLBACK_MODEL resolves to) no longer treats
+    // temperature as a reliable lever — Google's own guidance is to keep it
+    // at the default and steer determinism through the prompt instead (see
+    // GEMINI_SAMPLING_PARAM_KEYS comment above). The "Be fully
+    // deterministic" line above is that prompt-level backstop, so
+    // coordinate detection stays consistent even on a fallback-model call
+    // where temperature:0 gets stripped and never reaches the request.
     generationConfig: { maxOutputTokens: 4096, temperature: 0 }
   };
 
@@ -813,6 +856,12 @@ Output nothing besides the JSON array.`;
   // model switch, matching how callGeminiWithRetry treats a repeat
   // bad request that happens after already being on the fallback.
   let url = geminiEndpoint();
+  // See _stripGeminiFallbackIncompatibleParamsIfNeeded above callGeminiWithRetry:
+  // covers the case where this call's very first attempt is already pointed
+  // at GEMINI_FALLBACK_MODEL because an earlier, unrelated call this session
+  // already resolved to it — the reactive strip inside the loop below would
+  // never reach that case.
+  _stripGeminiFallbackIncompatibleParamsIfNeeded(url, requestBody);
   const MAX_ATTEMPTS = 3; // primary model, the fallback model, and one more try against the fallback in case its own first response is a transient 400/404
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     if (cancelToken && cancelToken.cancelled) {
@@ -1055,16 +1104,24 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
 
   const hasSource = (sourceText && sourceText.trim()) || (sourceFiles && sourceFiles.length > 0);
 
+  // The trailing "Be fully deterministic" sentence on both branches is a
+  // prompt-level backstop for temperature: 0 below (see comment at the
+  // generationConfig further down) — Gemini 3.x, what GEMINI_FALLBACK_MODEL
+  // resolves to, no longer treats temperature as a reliable determinism
+  // lever, so the same instruction is spelled out in the prompt itself and
+  // holds even on a fallback-model call where temperature gets stripped.
   const systemInstruction = hasSource
     ? 'You are a medical/academic expert. Reference source material is provided (text and/or images/PDFs). ' +
       'For each question, answer based on the source. ' +
       'If the answer is clearly found in the source, set found_in_source to true; otherwise set it to false and use your own knowledge. ' +
       'Some questions may include an image — analyse it carefully. ' +
-      'Respond ONLY with a JSON array.'
+      'Respond ONLY with a JSON array. ' +
+      'Be fully deterministic: given the same question and source material, always give the same answer.'
     : 'You are a medical/academic expert. Answer each question using your expert knowledge. ' +
       'Since no source is provided, set found_in_source to false for all. ' +
       'Some questions may include an image — analyse it carefully. ' +
-      'Respond ONLY with a JSON array.';
+      'Respond ONLY with a JSON array. ' +
+      'Be fully deterministic: given the same question, always give the same answer.';
 
   // Build source parts (shared across all chunks)
   const sourceParts = [];
@@ -1142,7 +1199,9 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         contents: [{ role: 'user', parts }],
         // temperature: 0 — solving questions from the given source material
         // is a factual task, not creative generation. Auto-stripped on a
-        // fallback-model switch (see GEMINI_SAMPLING_PARAM_KEYS above).
+        // fallback-model switch (see GEMINI_SAMPLING_PARAM_KEYS above); the
+        // "Be fully deterministic" line in systemInstruction above is the
+        // prompt-level backstop for that case.
         generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192, temperature: 0 }
       }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken, apiKey });
 

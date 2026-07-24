@@ -619,7 +619,7 @@ CORRECT ANSWER — ${q.answer}. ${q.options[q.answer] || ''}:
 [1–2 sentences with only the essential medical reasoning for why this is correct]
 ${wrongOptLines}
 
-Be as brief as possible while keeping every piece of medical reasoning — cut words, never cut content. Use plain text only — no markdown, no bullet points, no asterisks.`;
+Be as brief as possible while keeping every piece of medical reasoning — cut words, never cut content. Use plain text only — no markdown, no bullet points, no asterisks. Keep the medical reasoning itself consistent every time; only natural, minor variation in phrasing is expected between runs.`;
 }
 
 /* ── Render the "no active API key" prompt inside an explain panel ── */
@@ -755,7 +755,9 @@ async function explainQuestion(i, forceRegenerate = false) {
       // temperature: 0.3 — mostly consistent explanations with a little
       // natural variation in phrasing, rather than robotically identical
       // wording every time. Auto-stripped on a fallback-model switch (see
-      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js) — the trailing
+      // sentence in buildExplainPrompt() above is the prompt-level backstop
+      // for that case.
       generationConfig: { maxOutputTokens: 2048, temperature: 0.3 }
     }, {
       cancelToken: token,
@@ -1044,7 +1046,7 @@ ${rawExplain}
 Build on this explanation rather than repeating it verbatim — clarify, expand, or address follow-up questions about it.`;
   }
 
-  ctx += `\n\nThe student may attach images or files (e.g. photos of notes, diagrams, or screenshots) — consider their contents when responding. Default to short, direct replies; expand only if the question truly needs it. Plain text only — no markdown, no asterisks.`;
+  ctx += `\n\nThe student may attach images or files (e.g. photos of notes, diagrams, or screenshots) — consider their contents when responding. Default to short, direct replies; expand only if the question truly needs it. Plain text only — no markdown, no asterisks. Keep the underlying medical facts consistent across the conversation; natural variation in wording between replies is fine, but never contradict something already established.`;
   return ctx;
 }
 
@@ -1293,7 +1295,9 @@ async function runChatRequest(i) {
       // rather than a one-shot factual answer, so a bit more natural
       // variation is appropriate here than in the explain call above.
       // Auto-stripped on a fallback-model switch (see
-      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js).
+      // GEMINI_SAMPLING_PARAM_KEYS in gemini-uploads.js) — the closing
+      // sentence in buildChatSystemInstruction() above is the prompt-level
+      // backstop for that case.
       generationConfig: { maxOutputTokens: 1536, temperature: 0.4 }
     }, {
       cancelToken: token,
