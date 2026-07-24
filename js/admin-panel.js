@@ -150,7 +150,7 @@ function openAdminPanel() {
   commManageModuleFilter  = '';
   commManageSubjectFilter = '';
   commManageSort          = 'newest';
-  resetAdminNewAdminScopeState();
+  resetAdminNewAdminFormState();
   const defaultTab = adminDefaultTab();
   if (!defaultTab) {
     alert('You do not have admin access.');
@@ -262,10 +262,11 @@ function renderAdminManagePanel() {
 
   const permCheckboxesHtml = ADMIN_PERMISSIONS.map(p => {
     const allowed = actingPerms.includes(p);
-    const extraAttrs = p === 'curriculum' ? ' onchange="adminOnCurrPermToggle()"' : '';
+    const checked = allowed && adminNewPermsChecked[p];
     return `
       <label style="display:flex;align-items:center;gap:7px;font-size:.85rem;padding:4px 0;${allowed ? '' : 'opacity:.4;cursor:not-allowed;'}">
-        <input type="checkbox" id="adminNewPerm_${p}" ${allowed ? '' : 'disabled'}${extraAttrs} />
+        <input type="checkbox" id="adminNewPerm_${p}" ${allowed ? '' : 'disabled'}${checked ? ' checked' : ''}
+               onchange="adminOnPermCheckboxChange('${p}')" />
         ${escapeHtml(ADMIN_PERMISSION_LABELS[p])}
       </label>`;
   }).join('');
@@ -276,7 +277,8 @@ function renderAdminManagePanel() {
       <div class="admin-quiz-list">${rows}</div>
 
       <h3 style="margin:22px 0 10px;font-size:1rem;">Add New Admin</h3>
-      <input type="email" id="adminNewEmail" placeholder="admin-email@gmail.com"
+      <input type="email" id="adminNewEmail" placeholder="admin-email@gmail.com" value="${escapeHtml(adminNewEmailDraft)}"
+             oninput="adminNewEmailDraft=this.value"
              style="width:100%;box-sizing:border-box;padding:9px 10px;border:1.5px solid #ccc;border-radius:8px;margin-bottom:10px;font-family:inherit;font-size:.9rem;" />
       <div style="display:flex;flex-direction:column;margin-bottom:6px;">${permCheckboxesHtml}</div>
       <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:12px;">You can only grant permissions (and curriculum access) you hold yourself.</div>
@@ -284,10 +286,6 @@ function renderAdminManagePanel() {
       <button class="admin-assign-btn" id="adminAddAdminBtn" onclick="adminAssignAdminUI()" style="margin-top:14px;">➕ Add Admin</button>
       <div class="admin-status" id="adminManageStatus"></div>
     </div>`;
-
-  // Re-apply the scope section's visibility to match the (possibly
-  // freshly-rendered, unchecked-by-default) curriculum checkbox.
-  adminOnCurrPermToggle();
 }
 
 async function adminAssignAdminUI() {
@@ -306,7 +304,7 @@ async function adminAssignAdminUI() {
   try {
     await assignAdmin(window._currentUser, email, perms, adminNewAdminScope);
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ ${escapeHtml(email.trim().toLowerCase())} added as admin.</div>`;
-    resetAdminNewAdminScopeState();
+    resetAdminNewAdminFormState();
     setTimeout(() => renderAdminManagePanel(), 600);
   } catch (e) {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(e.message || String(e))}</div>`;

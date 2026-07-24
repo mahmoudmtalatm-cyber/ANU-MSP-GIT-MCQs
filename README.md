@@ -416,6 +416,19 @@ Roster entries created before this feature existed have no
 `curriculumScope` field at all — both the client and the rules treat that
 as `{ type: 'all' }`, so nothing changes for existing admins.
 
+**Note on the "Add New Admin" form's state:** every click inside the
+Year/Module/Subject scope picker (and the Whole/Specific mode switch)
+re-renders the whole Manage Admins panel to redraw the tree. The
+permission checkboxes, the curriculum scope selection, and the email
+field are therefore kept in plain JS variables
+(`adminNewPermsChecked`, `adminNewAdminScope`, `adminNewEmailDraft` in
+`js/admin-curriculum-scope.js`) and re-applied on every render, rather
+than being read back off the DOM — otherwise a re-render would silently
+reset them to their unchecked/empty defaults mid-way through filling out
+the form. `resetAdminNewAdminFormState()` clears all three together
+whenever the form should start fresh (opening the admin panel, or after
+successfully adding an admin).
+
 ## Adding questions
 
 Questions are stored in Firestore, not hardcoded, so the primary way to

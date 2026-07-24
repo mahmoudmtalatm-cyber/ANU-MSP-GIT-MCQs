@@ -204,6 +204,21 @@ let adminScopePickLevel  = 'years';   // 'years' | 'modules' | 'subjects'
 let adminScopePickYear   = '';
 let adminScopePickModule = '';
 
+// Which of the 3 "Add New Admin" permission checkboxes are currently
+// checked, and the in-progress email draft. Tracked here (not just read
+// off the DOM) because every scope-tree interaction below
+// (adminScopeSetMode/ToggleYear/ToggleModule/ToggleSubject/Go*/Open*) calls
+// a full renderAdminManagePanel() re-render to redraw the tree — and a
+// full re-render rebuilds the checkboxes/input from scratch. Without this
+// state living outside the DOM, that rebuild would drop back to the
+// template's unchecked/empty defaults, which is exactly what used to make
+// the 'curriculum' checkbox (and the scope section it reveals) appear to
+// un-check itself the moment you picked a Year/Module/Subject or switched
+// Whole/Specific mode. Every render now reads from here instead of
+// re-deriving "checked" state from a DOM node that's about to be replaced.
+let adminNewPermsChecked = { curriculum: false, community: false, admins: false };
+let adminNewEmailDraft   = '';
+
 function resetAdminNewAdminScopeState() {
   const actingScope = getCurriculumScope(window._currentUser);
   adminNewAdminScope   = actingScope.type === 'all' ? { type: 'all' } : { type: 'scoped', years: {} };
@@ -212,11 +227,29 @@ function resetAdminNewAdminScopeState() {
   adminScopePickModule = '';
 }
 
-/* Toggle the scope section's visibility to match the 'curriculum' checkbox. */
-function adminOnCurrPermToggle() {
-  const box = document.getElementById('adminNewPerm_curriculum');
-  const section = document.getElementById('adminCurrScopeSection');
-  if (section) section.style.display = (box && box.checked) ? '' : 'none';
+/* Resets the ENTIRE "Add New Admin" form — permission checkboxes, email
+   draft, and curriculum scope/navigation state. Call this (not just
+   resetAdminNewAdminScopeState) whenever the form should start fresh:
+   opening the admin panel, or after successfully adding an admin. */
+function resetAdminNewAdminFormState() {
+  adminNewPermsChecked = { curriculum: false, community: false, admins: false };
+  adminNewEmailDraft   = '';
+  resetAdminNewAdminScopeState();
+}
+
+/* Called on every "Add New Admin" permission checkbox's onchange. Persists
+   the checkbox's checked state (see adminNewPermsChecked above) and, for
+   'curriculum' specifically, shows/hides the scope-picker section — via a
+   direct style update rather than a full re-render, so toggling a
+   permission never disturbs anything else the admin has mid-way filled in. */
+function adminOnPermCheckboxChange(perm) {
+  const box = document.getElementById('adminNewPerm_' + perm);
+  const checked = !!(box && box.checked);
+  adminNewPermsChecked[perm] = checked;
+  if (perm === 'curriculum') {
+    const section = document.getElementById('adminCurrScopeSection');
+    if (section) section.style.display = checked ? '' : 'none';
+  }
 }
 
 function adminScopeSetMode(mode) {
@@ -360,14 +393,15 @@ function adminScopeTreeHtml() {
 
 /* Full "📍 Curriculum Access" section rendered inside the Add New Admin
    form — hidden by default; shown when the 'curriculum' checkbox is
-   checked (adminOnCurrPermToggle). */
+   checked (adminNewPermsChecked.curriculum, kept in sync by
+   adminOnPermCheckboxChange). */
 function adminCurrScopePickerSectionHtml() {
   const actingScope = getCurriculumScope(window._currentUser);
   const actingIsAll = actingScope.type === 'all';
   const mode = adminNewAdminScope.type;
 
   return `
-    <div class="curr-section" id="adminCurrScopeSection" style="display:none;margin-top:4px;">
+    <div class="curr-section" id="adminCurrScopeSection" style="display:${adminNewPermsChecked.curriculum ? '' : 'none'};margin-top:4px;">
       <div class="curr-section-title">📍 Curriculum Access</div>
       <div class="scope-mode-row">
         <label class="scope-mode-opt">
