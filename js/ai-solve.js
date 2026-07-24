@@ -334,7 +334,7 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
     (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
   report(0, `Reading "${escapeHtml(file.name)}"…`);
-  const filePart = await buildGeminiFilePart(file, apiKey, mimeType);
+  let filePart = await buildGeminiFilePart(file, apiKey, mimeType);
 
   const url = geminiEndpoint();
 
@@ -357,7 +357,15 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
       // gemini-uploads.js), so it never survives onto a model that rejects it.
       temperature: 0
     }
-  }, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey });
+  }, {
+    pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey,
+    fileForReupload: { file, mimeType }
+  });
+  // If a rate limit forced an automatic key rotation mid-call, pick up
+  // whichever key/file-reference actually ended up succeeding, so the
+  // image-cropping pass below (and anything else reusing these) keeps working.
+  if (data.__rotatedApiKey)   apiKey   = data.__rotatedApiKey;
+  if (data.__rotatedFilePart) filePart = data.__rotatedFilePart;
 
   const candidate = data && data.candidates && data.candidates[0];
   if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or blocked — try a clearer image or PDF.`);
@@ -690,6 +698,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
   const url = geminiEndpoint();
 
   let requestBody;
+  let reuploadInfo = null; // only set for the Files-API branch below (large/binary files)
 
   report(0, `Reading "${escapeHtml(file.name)}"…`);
   if (isTxt && file.size <= GEMINI_INLINE_THRESHOLD_BYTES) {
@@ -721,6 +730,7 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
       (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' :
        isTxt ? 'text/plain' : 'image/jpeg');
     const filePart = await buildGeminiFilePart(file, apiKey, mimeType);
+    reuploadInfo = { file, mimeType };
     requestBody = {
       contents: [{
         parts: [
@@ -741,7 +751,10 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
   }
 
   report(0.15, `Generating questions from "${escapeHtml(file.name)}"…`);
-  const data = await callGeminiWithRetry(url, requestBody, { pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey });
+  const data = await callGeminiWithRetry(url, requestBody, {
+    pauseCheck: () => cqPauseRequested, cancelToken: cqCancelToken, apiKey,
+    fileForReupload: reuploadInfo
+  });
 
   const candidate = data && data.candidates && data.candidates[0];
   if (!candidate) throw new Error(`Gemini returned no result for "${file.name}". The file may be unsupported or too large — try splitting it into smaller sections.`);

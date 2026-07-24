@@ -2238,6 +2238,27 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   background: var(--amber-pale); border-left: 3px solid var(--amber-mid); border-radius: 8px;
   padding: 10px 14px; font-size: .85rem; color: var(--unanswered-fg); font-weight: 600;
 }
+.apikey-allrl-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── Smart rotation status chips — shown on a key's row (Invalid /
+   Rate-limited) and inline in the "currently using" badge when every key
+   is temporarily exhausted. Sits alongside .apikey-active-chip, same
+   pill shape, its own colour so the two read as clearly different states
+   at a glance. ── */
+.apikey-status-chip {
+  font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .3px;
+  padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.apikey-status-limited { background: var(--amber-pale); color: var(--unanswered-fg); }
+.apikey-status-invalid { background: var(--wrong-bg); color: var(--wrong-fg); }
+
+/* Banner shown inside an active AI run's progress box while every
+   configured key is rate-limited — same visual language as the existing
+   cq-status warning banners (e.g. the pausing banner) so it reads as part
+   of the same family instead of a one-off alert style. */
+.api-rotation-banner { display: flex; align-items: flex-start; gap: 8px; }
+
 @media (max-width: 480px) {
   .comm-filter-row { flex-direction: column; }
   .comm-filter-select { min-width: unset; width: 100%; }
@@ -2245,6 +2266,8 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .apikey-item { padding: 12px; }
   .apikey-info { flex-basis: 100%; min-width: 0; }
   .apikey-item-actions { flex-basis: 100%; margin-left: 0; justify-content: flex-end; }
+  .apikey-status-chip { font-size: .64rem; padding: 2px 7px; }
+  .apikey-allrl-note { flex-wrap: wrap; }
 
   /* Admin panel + curriculum manager + custom quiz editor: keep everything
      inside the card on narrow screens instead of overlapping/spilling out */

@@ -203,6 +203,14 @@ function closeCustomQuizzes() {
   });
 }
 
+/* Renders the inline "currently using API N" badge. This is called both
+   directly (for the initial render of each modal section) AND by the
+   rotation engine (js/api-rotation.js → _broadcastRotationUI) any time
+   auto-rotation switches the active key mid-run, so every caller wraps
+   its output in a `.cq-api-badge-slot` div — that's the hook the rotation
+   engine uses to refresh just this badge in place, live, without having
+   to re-render the whole modal around it (which would lose scroll
+   position, open editors, etc). */
 function renderCqApiKeyBadge() {
   const entry = getActiveApiKeyEntry();
   const keys  = loadApiKeys();
@@ -213,10 +221,12 @@ function renderCqApiKeyBadge() {
     </div>`;
   }
   const idx = Math.max(0, keys.findIndex(k => k.id === entry.id));
+  const allRL = (typeof allKeysRateLimited === 'function') && allKeysRateLimited();
   return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
     <div class="apikey-badge">
       <span class="apikey-dot" style="background:${entry.color || 'var(--accent)'};"></span>
       Using API ${idx + 1}: ${escapeHtml(entry.label)}
+      ${allRL ? `<span class="apikey-status-chip apikey-status-limited" style="margin-left:4px;" title="Rotating automatically until a key frees up">⏳ All rate-limited</span>` : ''}
     </div>
     <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Manage API Keys</button>
   </div>`;
@@ -233,7 +243,7 @@ function renderCustomQuizModal() {
     <div class="cq-section-title">📚 Your Custom Quizzes</div>
 
     <!-- API Key -->
-    ${renderCqApiKeyBadge()}
+    <div class="cq-api-badge-slot">${renderCqApiKeyBadge()}</div>
     `;
   if (!quizzes.length) {
     html += `<div class="empty-state" style="padding:12px;">
@@ -300,7 +310,7 @@ function renderCustomQuizModal() {
     <div class="cq-section-title">✍️ Create Your Own Quiz</div>
 
     <!-- API Key -->
-    ${renderCqApiKeyBadge()}
+    <div class="cq-api-badge-slot">${renderCqApiKeyBadge()}</div>
     `;
   if (cqCreatingNew) {
     html += `<div class="cq-field-hint">Write your quiz from scratch — same editor as editing an existing quiz, you just start from a blank question.</div>
@@ -320,7 +330,7 @@ function renderCustomQuizModal() {
     <div class="cq-section-title">✨ Create a New Quiz with AI (Gemini)</div>
 
     <!-- API Key -->
-    ${renderCqApiKeyBadge()}
+    <div class="cq-api-badge-slot">${renderCqApiKeyBadge()}</div>
 
     <!-- Mode tabs -->
     <div class="cq-tabs">

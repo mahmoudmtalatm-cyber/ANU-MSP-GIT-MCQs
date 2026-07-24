@@ -711,11 +711,18 @@ function _cqProgressStatusHTML(message, percent) {
   const pausingNote = (typeof cqPauseRequested !== 'undefined' && cqPauseRequested)
     ? _cqPausingBannerHTML()
     : '';
+  // If every configured API key is currently rate-limited, let anyone
+  // watching this run know it's still working — just cycling through keys
+  // automatically and retrying — rather than looking stalled. See
+  // js/api-rotation.js for the actual rotation logic.
+  const rotationNote = (typeof allKeysRateLimited === 'function' && allKeysRateLimited())
+    ? _apiAllRateLimitedBannerHTML()
+    : '';
   return `<div class="cq-status info with-progress">
     <div class="cq-status-row"><div class="cq-spinner"></div> ${message}</div>
     <div class="cq-progress-track"><div class="cq-progress-fill" style="width:${pct}%;"></div></div>
     <div class="cq-progress-label">${pct}%</div>
-  </div>${pausingNote}`;
+  </div>${pausingNote}${rotationNote}`;
 }
 
 /* ── Pause / resume for the extraction & generation loops ──

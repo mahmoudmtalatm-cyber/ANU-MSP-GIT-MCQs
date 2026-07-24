@@ -69,6 +69,16 @@ function _stripGeminiSamplingParams(bodyObj) {
 // the same bad request on every call.
 let _geminiResolvedModel = null;
 
+/* Called whenever the active API key actually changes — both on an
+   auto-rotation (see _tryRotate below) and on a manual switch from the API
+   Key Manager (see useApiKey in ai-features.js). A model that 404s/400s on
+   one Google account/project isn't guaranteed to do the same on another,
+   so a key change should behave exactly like opening the site fresh: try
+   GEMINI_PRIMARY_MODEL again first, and only re-discover the fallback if
+   this key actually needs it too — rather than silently carrying over
+   whatever model the *previous* key happened to settle on. */
+function resetGeminiModelResolution() { _geminiResolvedModel = null; }
+
 function geminiActiveModel() { return _geminiResolvedModel || GEMINI_PRIMARY_MODEL; }
 
 function geminiEndpoint(model) {
@@ -356,9 +366,25 @@ async function _geminiRateGate(cancelToken) {
   _geminiLastRequestAt = Date.now();
 }
 
+/* Finds the single file_data part (a reference into Google's Files API)
+   inside a request body, if any — inline_data (base64) parts don't need
+   this since those bytes are valid under any key. Returns a mutable
+   { parts, idx } handle so a rotation can patch it in place, or null if
+   this request doesn't reference an uploaded file at all. */
+function _findFileDataPartRef(bodyObj) {
+  if (!bodyObj || !Array.isArray(bodyObj.contents)) return null;
+  for (const content of bodyObj.contents) {
+    if (!Array.isArray(content.parts)) continue;
+    const idx = content.parts.findIndex(p => p && p.file_data);
+    if (idx !== -1) return { parts: content.parts, idx };
+  }
+  return null;
+}
+
 /* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
    Only surfaces an error immediately if it's API-key-related
-   (HTTP 400 with API_KEY_INVALID / 401 / 403).
+   (HTTP 400 with API_KEY_INVALID / 401 / 403) AND no other configured
+   API key can be rotated to instead (see SMART API ROTATION below).
 
    A bad-request response — HTTP 404 ("model not found") or HTTP 400
    ("bad request", e.g. an invalid model name/parameter) — does NOT
@@ -383,8 +409,49 @@ async function _geminiRateGate(cancelToken) {
    parameter (inconsistent 401/403/404 responses depending on the account),
    but work correctly via this header regardless of which key format the
    user has. Every caller must pass `apiKey` in the options object instead
-   of appending it to `url` itself. ──────── */
-async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCheck, apiKey } = {}) {
+   of appending it to `url` itself.
+
+   ── SMART API ROTATION ──
+   This function is the single place rotation actually happens, so every
+   feature that calls it (extraction, generation, explanations, chat, bulk
+   tools…) gets it for free with no per-feature plumbing:
+     - Each key's consecutive-429 streak is tracked centrally (js/api-rotation.js),
+       not just for this one call — so the "3 strikes" rule holds even
+       across separate calls/questions using the same key back to back.
+     - The moment a key crosses that threshold, the ACTIVE key is switched
+       (setActiveApiKeyId) and every "currently using…" badge/button in the
+       UI is refreshed immediately (see _broadcastRotationUI), then this
+       same retry loop just continues with the new key — the caller's own
+       state (loop position, accumulated results, etc.) is completely
+       untouched, since none of that ever left this one function call.
+     - A rotation also resets the resolved model back to
+       GEMINI_PRIMARY_MODEL (see resetGeminiModelResolution) — exactly the
+       same as opening the site fresh — since a model that needed the
+       fallback on one key/project isn't guaranteed to need it on another.
+     - If the request carried an uploaded (Files-API) document, that
+       reference belongs to the OLD key/project and won't resolve under the
+       new one — so when `fileForReupload` is given, the file is silently
+       re-uploaded under the new key and the request body patched in place
+       before the retry fires.
+     - If literally every configured key is currently excluded (all rate-
+       limited / invalid), rotation keeps cycling between them anyway
+       (a key's cooldown can lapse at any moment) instead of getting stuck
+       on one — see pickNextApiKey()'s doc comment. `onAllRateLimited`, if
+       given, fires once per attempt so callers can surface a persistent
+       "add another key" note while this is happening.
+     - A brand-new key pasted in mid-run is picked up on the very next
+       rotation decision with no extra wiring — pickNextApiKey() always
+       reads the live key list fresh. While a call is asleep between
+       retries with nothing left to rotate to, that sleep also wakes early
+       the instant the key list changes, instead of finishing its full
+       backoff first.
+     - On success, the returned object gets two extra (non-API) fields
+       attached — `__rotatedApiKey` and `__rotatedFilePart` — set only if
+       a rotation actually happened during this call, so callers that keep
+       their own local `apiKey`/`filePart` variables for later requests
+       (e.g. the extraction pipeline's follow-up image-cropping pass) can
+       pick up the values that actually ended up succeeding. ──────── */
+async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCheck, apiKey, fileForReupload, onAllRateLimited } = {}) {
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
 
@@ -401,7 +468,14 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   // and falling back to pausing right here instead of retrying forever.
   // While no pause is requested, 429s are retried exactly as before —
   // this only changes behavior when the user is actively trying to pause.
+  // (In practice, automatic key rotation below now resolves most 429
+  // streaks long before this even has a chance to matter — this remains
+  // as a last-resort safety net for the single-key case.)
   const RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD = 20;
+
+  const initialKeyId = _findKeyIdByValue(apiKey);
+  let currentKeyId    = initialKeyId;
+  let rotatedFilePart = null; // set if a Files-API re-upload happened mid-call
 
   // Wait for a shared slot before this call's very first attempt — retries
   // after a failure already back off exponentially below, so they don't
@@ -409,6 +483,49 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   await _geminiRateGate(cancelToken);
   if (cancelToken && cancelToken.cancelled) {
     const e = new Error('cancelled'); e._cancelled = true; throw e;
+  }
+
+  /* Attempts to rotate away from `fromKeyId` to another configured key.
+     Returns true if a rotation actually happened (and updates `apiKey` /
+     `currentKeyId` / the request body / the global active key / the UI
+     as a side effect); false if there's nowhere else to rotate to. */
+  async function _tryRotate(fromKeyId) {
+    const next = (typeof pickNextApiKey === 'function') ? pickNextApiKey(fromKeyId) : null;
+    if (!next) return false;
+
+    const fromId = fromKeyId;
+    apiKey       = next.key;
+    currentKeyId = next.id;
+    try { setActiveApiKeyId(next.id); } catch (e) {}
+    // Same reset a manual key switch gets (see useApiKey in ai-features.js)
+    // — try the primary model again on the new key rather than carrying
+    // over a fallback the OLD key needed. If this particular request had
+    // already been switched to the fallback URL, point it back at the
+    // primary model too so the very next attempt actually tries it.
+    if (typeof resetGeminiModelResolution === 'function') resetGeminiModelResolution();
+    if (url.includes(`/models/${GEMINI_FALLBACK_MODEL}:`)) {
+      url = _geminiSwapModelInUrl(url, GEMINI_PRIMARY_MODEL);
+    }
+
+    // Files-API uploads are scoped to the key/project that made them — a
+    // key rotation invalidates any file_data reference already in this
+    // request, so re-upload under the new key before retrying.
+    const fileRef = _findFileDataPartRef(bodyObj);
+    if (fileRef && fileForReupload && fileForReupload.file) {
+      try {
+        const newPart = await buildGeminiFilePart(fileForReupload.file, apiKey, fileForReupload.mimeType);
+        fileRef.parts[fileRef.idx] = newPart;
+        rotatedFilePart = newPart;
+      } catch (e) {
+        // Re-upload failed — fall through and let the next attempt surface
+        // whatever real error Google returns for the now-stale reference,
+        // rather than silently pretending the rotation fully succeeded.
+        console.warn('callGeminiWithRetry: file re-upload after key rotation failed:', e && e.message);
+      }
+    }
+
+    try { _broadcastRotationUI({ fromId, toId: next.id, toLabel: next.label, reason: 'rotation' }); } catch (e) {}
+    return true;
   }
 
   let attempt = 0;
@@ -444,8 +561,18 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         const err = new Error(msg);
         err._httpStatus = resp.status;
         err._apiData    = data;
-        // Always surface key errors immediately — no point retrying
-        if (isKeyError(resp.status, data)) throw Object.assign(err, { _keyError: true });
+        if (isKeyError(resp.status, data)) {
+          // The key itself is broken (revoked/invalid) — no amount of
+          // retrying fixes that, but another configured key might still
+          // work fine, so try rotating once before giving up entirely.
+          if (currentKeyId && typeof markKeyInvalid === 'function') markKeyInvalid(currentKeyId);
+          if (await _tryRotate(currentKeyId)) {
+            consecutive429 = 0; attempt = 0;
+            if (onRetry) onRetry(attempt, { rotated: true });
+            continue;
+          }
+          throw Object.assign(err, { _keyError: true });
+        }
 
         // A bad-request response (404 "model not found", or 400 "bad
         // request") usually means the model this app is requesting isn't
@@ -458,6 +585,23 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
 
         if (resp.status === 429) {
           consecutive429++;
+          const justRateLimited = currentKeyId && typeof recordApiFailure === 'function'
+            ? recordApiFailure(currentKeyId, 429) : false;
+
+          if (justRateLimited || (currentKeyId && typeof isKeyExcluded === 'function' && isKeyExcluded(currentKeyId))) {
+            if (await _tryRotate(currentKeyId)) {
+              // Fresh key, fresh streak — retry right away instead of
+              // sleeping out a backoff that belonged to the old, exhausted key.
+              consecutive429 = 0; attempt = 0;
+              if (onRetry) onRetry(attempt, { rotated: true });
+              continue;
+            }
+          }
+
+          if (typeof allKeysRateLimited === 'function' && allKeysRateLimited() && onAllRateLimited) {
+            try { onAllRateLimited(); } catch (e) {}
+          }
+
           if (pauseCheck && pauseCheck() && consecutive429 >= RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD) {
             throw Object.assign(err, { _rateLimitPauseFallback: true });
           }
@@ -466,8 +610,11 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         }
 
         if (onRetry) onRetry(attempt);
-        // Cancellable sleep between retries
-        await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken);
+        // Cancellable sleep between retries — also wakes early if the key
+        // list changes (e.g. the user just pasted in a new key), so a
+        // freshly-added key gets used on the very next attempt instead of
+        // waiting out the rest of this backoff first.
+        await cancellableSleep(Math.min(2000 * Math.pow(2, attempt - 1), 30000), cancelToken, true);
         continue;
       }
 
@@ -476,6 +623,9 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         const e = new Error('cancelled'); e._cancelled = true; throw e;
       }
 
+      if (currentKeyId && typeof recordApiSuccess === 'function') recordApiSuccess(currentKeyId);
+      if (currentKeyId && currentKeyId !== initialKeyId) data.__rotatedApiKey = apiKey;
+      if (rotatedFilePart) data.__rotatedFilePart = rotatedFilePart;
       return data; // success
     } catch (err) {
       if (cancelToken) cancelToken.controller = null;
@@ -491,15 +641,21 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   }
 }
 
-/* Resolves after `ms` OR immediately if cancelToken.cancelled becomes true */
-function cancellableSleep(ms, cancelToken) {
+/* Resolves after `ms` OR immediately if cancelToken.cancelled becomes true
+   OR — when `wakeOnKeysChange` is true — the instant the configured API
+   key list changes (add/remove/edit), so a retry loop that's waiting out
+   a backoff with no key left to rotate to notices a freshly-added key
+   right away instead of finishing its full sleep first. */
+function cancellableSleep(ms, cancelToken, wakeOnKeysChange) {
   return new Promise(resolve => {
     if (cancelToken && cancelToken.cancelled) { resolve(); return; }
+    const startGen = (wakeOnKeysChange && typeof getApiKeysGeneration === 'function') ? getApiKeysGeneration() : null;
     const t = setTimeout(resolve, ms);
-    if (cancelToken) {
-      // Poll every 100 ms so cancellation is near-instant even mid-sleep
+    if (cancelToken || startGen !== null) {
+      // Poll every 100 ms so cancellation/key changes are near-instant even mid-sleep
       const poll = setInterval(() => {
-        if (cancelToken.cancelled) { clearTimeout(t); clearInterval(poll); resolve(); }
+        if (cancelToken && cancelToken.cancelled) { clearTimeout(t); clearInterval(poll); resolve(); return; }
+        if (startGen !== null && getApiKeysGeneration() !== startGen) { clearTimeout(t); clearInterval(poll); resolve(); }
       }, 100);
       // Also clear the poll when the timer fires naturally
       setTimeout(() => clearInterval(poll), ms + 50);

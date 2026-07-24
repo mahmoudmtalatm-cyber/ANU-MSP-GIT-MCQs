@@ -66,6 +66,15 @@ function getActiveApiKeyEntry() {
   const activeId = getActiveApiKeyId();
   return keys.find(k => k.id === activeId) || keys[0] || null;
 }
+/* Reverse lookup used by the rotation engine (js/api-rotation.js) — given
+   the raw key string a request was actually sent with, find which stored
+   entry it belongs to, so 429/success outcomes get recorded against the
+   right id even though callGeminiWithRetry only ever sees the raw string. */
+function _findKeyIdByValue(key) {
+  if (!key) return null;
+  const found = loadApiKeys().find(k => k.key === key);
+  return found ? found.id : null;
+}
 function addApiKey(key, label, color) {
   key = (key || '').trim();
   if (!key) return null;
@@ -82,6 +91,12 @@ function addApiKey(key, label, color) {
   keys.push({ id, label: (label || '').trim() || `API ${nextNum}`, key, color });
   saveApiKeys(keys);
   if (keys.length === 1) setActiveApiKeyId(id); // first key added becomes active automatically
+  // A new key is immediately visible to the rotation engine (it always
+  // reads the live key list), but this also wakes any request that's
+  // currently sleeping between retries with nothing to rotate to — so a
+  // key pasted in mid-run gets picked up right away instead of waiting
+  // out the rest of that backoff first. See js/api-rotation.js.
+  if (typeof bumpApiKeysGeneration === 'function') bumpApiKeysGeneration();
   return id;
 }
 function removeApiKeyById(id) {
@@ -91,6 +106,7 @@ function removeApiKeyById(id) {
   if (getActiveApiKeyId() === id) {
     setActiveApiKeyId(keys.length ? keys[0].id : '');
   }
+  if (typeof clearKeyRotationState === 'function') clearKeyRotationState(id);
 }
 function renameApiKey(id, label) {
   const keys = loadApiKeys();
@@ -101,6 +117,10 @@ function updateApiKeyValue(id, newKey) {
   const keys = loadApiKeys();
   const k = keys.find(x => x.id === id);
   if (k) { k.key = newKey; saveApiKeys(keys); }
+  // The key's value changed, so any rate-limited/invalid history recorded
+  // against this id no longer applies — give it a clean slate, and let any
+  // sleeping retry loop know something changed.
+  if (typeof clearKeyRotationState === 'function') clearKeyRotationState(id);
 }
 function maskApiKey(key) {
   if (!key) return '';
@@ -148,9 +168,10 @@ function closeApiKeyManager() {
   }
 }
 function useApiKey(id) {
+  const keyIsChanging = id !== getActiveApiKeyId();
   // Switching keys is always safe if it's already the active one, or if
   // nothing AI-related is actually running right now.
-  if (id !== getActiveApiKeyId()) {
+  if (keyIsChanging) {
     const activeLabel = _activeAiProcessLabel();
     if (activeLabel) {
       const confirmed = confirm(
@@ -162,6 +183,13 @@ function useApiKey(id) {
   }
 
   setActiveApiKeyId(id);
+  // A manual switch should behave exactly like opening the site fresh: try
+  // the primary model first, and only fall back if that key actually needs
+  // it. Without this, a key that never had trouble would still inherit
+  // whatever model an earlier key had fallen back to. Auto-rotation resets
+  // this the same way — see resetGeminiModelResolution() in
+  // js/gemini-uploads.js.
+  if (keyIsChanging && typeof resetGeminiModelResolution === 'function') resetGeminiModelResolution();
   renderApiKeyManager();
   // Refresh any inline "manage keys" widgets that might be open behind the modal
   if (typeof renderCustomQuizModal === 'function' && document.getElementById('customQuizBody')) {
@@ -246,6 +274,10 @@ function renderApiKeyManager() {
     html += `<div class="apikey-pending-note">⏳ Pick or add an API key below, then close this window to continue.</div>`;
   }
 
+  if (typeof allKeysRateLimited === 'function' && allKeysRateLimited()) {
+    html += `<div class="apikey-pending-note apikey-allrl-note">⚠️ All your keys are currently rate-limited by Google. The app keeps rotating between them and retrying automatically — adding one more key below will get things moving at full speed again.</div>`;
+  }
+
   html += `<div class="cq-help-box">
     <strong>How to get a free Gemini API key:</strong>
     <ol>
@@ -265,12 +297,18 @@ function renderApiKeyManager() {
       const isActive = k.id === activeId;
       const isEditing = _apiKeyEditingId === k.id;
       const color = k.color || API_KEY_COLORS[idx % API_KEY_COLORS.length];
+      const rotStatus = (typeof getApiKeyStatusInfo === 'function') ? getApiKeyStatusInfo(k.id) : { excluded: false };
+      const statusChip = !rotStatus.excluded ? '' :
+        rotStatus.reason === 'invalid'
+          ? `<span class="apikey-status-chip apikey-status-invalid" title="This key was rejected by Google — check the value or replace it.">✕ Invalid</span>`
+          : `<span class="apikey-status-chip apikey-status-limited" title="Temporarily skipped by auto-rotation — will be retried automatically.">⏳ Rate-limited</span>`;
       html += `<div class="apikey-item ${isActive ? 'active' : ''}" style="--apikey-color:${color};">
         <div class="apikey-num">${idx + 1}</div>
         <div class="apikey-info">
           <div class="apikey-label-row">
             <div class="apikey-label-display">${escapeHtml(k.label)}</div>
             ${isActive ? `<span class="apikey-active-chip">Active</span>` : ''}
+            ${statusChip}
           </div>
           ${isEditing ? `
           <div class="apikey-edit-row">

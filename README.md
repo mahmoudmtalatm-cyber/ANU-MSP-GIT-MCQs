@@ -27,6 +27,11 @@ else is plain HTML/CSS/JavaScript.
   slides/PDFs, generate new questions, auto-answer, refine question
   wording, fill in missing choices, and produce step-by-step explanations
   or a per-question AI chat.
+  - **Smart multi-key rotation** — add more than one Gemini API key and
+    the app automatically rotates between them whenever one gets rate
+    limited, with no interruption to whatever's currently running. See
+    [Smart API key rotation](#smart-api-key-rotation) below for the full
+    behavior.
   - Extraction/generation runs (⏸️ Pause / ▶️ Resume / ⏹ Stop) cover the
     whole pipeline — extraction, AI answering, Fill Choices, and Refine
     Questions all share one cancel token, so ⏹ Stop aborts whichever of
@@ -219,6 +224,9 @@ anu-msp-question-bank/
 │   │                              #   subject selection, persistent stats
 │   ├── ai-features.js            # Gemini API key manager, AI explanations,
 │   │                              #   AI chat, AI-generated custom quizzes
+│   ├── api-rotation.js           # Smart multi-key rotation engine — tracks
+│   │                              #   per-key rate-limit state and decides
+│   │                              #   when/where to auto-rotate (see below)
 │   ├── ai-question-tools.js      # Refine question / fill choices / add choice
 │   ├── ai-solve.js               # Per-question "AI solve" source picker
 │   ├── gemini-uploads.js         # Gemini file-upload helpers (images/PDFs)
@@ -372,6 +380,77 @@ AI-related is required for the core quiz/browsing experience to work.
 > Both call sites that can trigger a fallback switch (the main retry loop in
 > `callGeminiWithRetry`, and the bounding-box helper's own retry loop) pass
 > their request body through so this applies uniformly everywhere.
+>
+> **Note on key changes and the fallback model:** whether a given model
+> works can depend on the account/project behind a particular key — so
+> resolving to the fallback on one key doesn't mean the next key needs it
+> too. Every time the *active* key actually changes — whether that's you
+> picking a different one from **🔑 Manage APIs**, or the rotation engine
+> below switching automatically — the app resets back to
+> `GEMINI_PRIMARY_MODEL` and tries it fresh on the new key, exactly as if
+> the site had just been opened, only falling back again if that key
+> genuinely needs it too (`resetGeminiModelResolution()` in
+> `js/gemini-uploads.js`, called from `useApiKey()` in `js/ai-features.js`
+> for a manual switch, and from `_tryRotate()` inside
+> `callGeminiWithRetry` for an automatic one).
+
+### Smart API key rotation
+
+Every Gemini request in the app goes through one shared function,
+`callGeminiWithRetry` (`js/gemini-uploads.js`), which delegates all
+rotation *decisions* to `js/api-rotation.js`. Add more than one key in
+**🔑 Manage APIs** and this kicks in automatically — there's nothing else
+to configure.
+
+- **Rate-limit detection** — a key is marked rate-limited after **3
+  consecutive HTTP 429 responses**. A single 429, or a 429 followed by a
+  success, doesn't count — only an unbroken streak of three.
+- **Automatic rotation** — the instant a key crosses that threshold, the
+  app switches the active key to the next configured one and retries
+  immediately (no extra backoff wait — a fresh key doesn't need one).
+  This happens *inside* the same network call that hit the rate limit, so
+  whatever was running (an extraction, a bulk Fill Choices pass, an AI
+  chat reply) simply continues from exactly where it was — no lost
+  progress, no restarted loop, no user action needed.
+- **Every rotation starts the new key on the primary model again** — see
+  the note above. A key that needed the fallback model doesn't force that
+  choice onto the key rotated in next.
+- **If every key is rate-limited**, rotation doesn't stop — it keeps
+  cycling between all of them (a key's limit can lift again at any
+  moment, especially per-minute caps), while showing a note asking you to
+  add another key for full speed. That note shows up in three places: the
+  API Key Manager, the "currently using…" badges in the Custom Quizzes
+  modal, and the progress box of whatever AI run is active.
+- **New keys are picked up instantly** — pasting in a new key while an AI
+  process is already running doesn't require restarting it. Rotation
+  always reads the live key list, and if a process happens to be waiting
+  out a retry delay with nowhere left to rotate to, adding a key wakes it
+  early instead of waiting out that delay first.
+- **Live UI everywhere** — the API Key Manager's "✓ In use" button, the
+  small 🔑 quick-access buttons under each question, and the "Using API
+  N: …" badges all update the moment a rotation happens, not just when
+  you manually switch keys yourself.
+- **Large-file uploads survive a rotation.** Files under Gemini's inline
+  size threshold are sent as base64 and work under any key unchanged, but
+  larger files (PDFs/videos routed through Google's Files API) are
+  scoped to the key/project that uploaded them — so if a rotation happens
+  mid-extraction on one of those, the app silently re-uploads the file
+  under the new key before retrying, rather than failing with a stale
+  reference.
+- **A single misbehaving key never blocks the others.** If a key comes
+  back invalid/revoked (401/403), the app rotates away from it once
+  immediately (no need to wait for 3 strikes, since that failure mode
+  isn't rate-limit-related) rather than halting the whole run — it only
+  surfaces an error if no other key is available either.
+- **Manually switching keys works the same way, on purpose.** Picking a
+  different key yourself from **🔑 Manage APIs** while something is
+  running asks for confirmation first (switching aborts that run — see
+  below), and whatever you start next on the new key begins on the
+  primary model, same as any other key change (see the note above).
+- **A single-key setup behaves exactly as before** — rotation only ever
+  activates when 2+ keys are configured; with one key, a rate limit is
+  still retried with the existing exponential backoff (2s, 4s, 8s… capped
+  at 30s), unchanged from prior versions.
 
 ## Admin permission boundaries: `curriculum` vs `community`
 
