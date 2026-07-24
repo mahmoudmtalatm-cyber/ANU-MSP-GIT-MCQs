@@ -555,8 +555,21 @@ async function getBoundingBoxes(questions, filePart, apiKey, customInstructions,
   const imageQs = questions.map((q, i) => ({ idx: i, q })).filter(({ q }) => q.has_image);
   if (!imageQs.length) return;
 
+  // The label sent to Gemini for each question ("Q<n>") uses its permanent
+  // _extractedQuestionNumber when the question has one — the number
+  // assigned once, at extraction time, from its actual position in
+  // Gemini's original response (see _extractQuestionsFromFile in
+  // ai-solve.js) — rather than `idx`, its position in the *live* `questions`
+  // array passed in here. That live position can freely change afterwards
+  // (the preview lets questions be reordered, deleted, or merged in
+  // alongside another quiz's questions), but the extracted number never
+  // does, so a single-question Re-extract Image always identifies the
+  // right question by this fixed number no matter where it now sits.
+  // Falls back to live position only for questions that predate this field
+  // (already-saved quizzes) or were never extracted (hand-typed) — for
+  // those, live position is all there ever was.
   const descriptions = imageQs.map(({ idx, q }) =>
-    `Q${idx + 1}: "${q.question.substring(0, 200)}"`
+    `Q${q._extractedQuestionNumber || (idx + 1)}: "${q.question.substring(0, 200)}"`
   ).join('\n');
 
   // customInstructions is optional and only ever set by a manual re-extract
@@ -731,11 +744,24 @@ async function extractImagesForQuestions(questions, file, apiKey, filePart, cust
     const e = new Error('cancelled'); e._cancelled = true; throw e;
   }
 
+  // Map each question's Gemini-facing label (its permanent
+  // _extractedQuestionNumber, or live position as a fallback — see the
+  // matching comment in getBoundingBoxes above) to its CURRENT index in
+  // this array. Gemini's response is keyed by that same label, so looking
+  // results up through this map — instead of assuming q_index-1 IS the
+  // array index — means a returned box always lands on the right question
+  // even if the array has been reordered, had entries deleted, or had
+  // other quizzes' questions merged in since the label was decided.
+  const numberToIdx = {};
+  questions.forEach((q, i) => {
+    numberToIdx[q._extractedQuestionNumber || (i + 1)] = i;
+  });
+
   // Build a map: question index (0-based) → box info
   const boxMap = {};
   boxes.forEach(b => {
-    if (typeof b.q_index === 'number') {
-      boxMap[b.q_index - 1] = b; // convert to 0-based
+    if (typeof b.q_index === 'number' && numberToIdx.hasOwnProperty(b.q_index)) {
+      boxMap[numberToIdx[b.q_index]] = b;
     }
   });
 

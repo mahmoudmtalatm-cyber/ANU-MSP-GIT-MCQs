@@ -153,6 +153,20 @@ else is plain HTML/CSS/JavaScript.
     lock it already uses) — closing or navigating away from the tab while a
     re-extract is in flight prompts the browser's native "leave site?"
     confirmation, same as every other in-flight AI action.
+  - **Reorder-proof question identity** — every extracted question is
+    tagged once, at extraction time, with `_extractedQuestionNumber`: its
+    actual position in Gemini's original response for that file (set in
+    `_extractQuestionsFromFile`, `ai-solve.js`). The preview lets questions
+    be freely reordered, deleted, or merged in alongside another quiz's
+    questions afterwards — all of which change where a question sits in
+    the live array — but `getBoundingBoxes` and `extractImagesForQuestions`
+    (`gemini-uploads.js`) label and look up each question by this fixed
+    number instead of its current array position, so Re-extract Image
+    always asks about (and correctly places the result back onto) the
+    right question no matter how the list has been reshuffled since
+    extraction. (Questions without the field — already-saved quizzes from
+    before this, or hand-typed ones — fall back to live position, same as
+    before.)
   - Freshly extracted/generated questions are validated (question text
     present, 2+ filled options, a valid answer selected) before the initial
     save — the same rule the quiz editor already enforced on every later

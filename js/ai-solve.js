@@ -385,7 +385,7 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   // only unique *within this file's own response* — prefix with a per-file
   // token so multiple uploaded files never collide with each other's groups.
   const groupPrefix = `f${_cqNextGroupPrefixId()}`;
-  const cleaned = parsed.map(q => {
+  const cleaned = parsed.map((q, parsedIdx) => {
     if (!q || typeof q.question !== 'string' || !q.options || typeof q.options !== 'object') return null;
     const opts = {};
     Object.entries(q.options)
@@ -403,7 +403,21 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
       question: q.question, options: opts, optionsOrder, answer,
       has_image: !!q.has_image, no_answer_key: noKey, _sourceFile: file,
       case_group: rawGroup ? `${groupPrefix}:${rawGroup}` : null,
-      case_is_core: !!q.case_is_core
+      case_is_core: !!q.case_is_core,
+      // Permanent identity tag, assigned once, right here, from this
+      // question's actual position in Gemini's extraction response for
+      // THIS file (1-based) — never recomputed later from wherever the
+      // question happens to sit in the live editor array. The preview lets
+      // questions be freely reordered, deleted, or merged in alongside
+      // questions from another quiz entirely, all of which shift array
+      // position — but a single-question Re-extract Image still needs to
+      // tell Gemini which question this is. Using this fixed number
+      // instead of "wherever it currently sits in the array" means
+      // reordering (or anything else that changes array position) simply
+      // can't affect which question gets matched — see getBoundingBoxes /
+      // extractImagesForQuestions in gemini-uploads.js, which key off this
+      // field instead of live array index whenever it's present.
+      _extractedQuestionNumber: parsedIdx + 1
     };
   }).filter(Boolean);
 
