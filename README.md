@@ -399,8 +399,21 @@ AI-related is required for the core quiz/browsing experience to work.
 Every Gemini request in the app goes through one shared function,
 `callGeminiWithRetry` (`js/gemini-uploads.js`), which delegates all
 rotation *decisions* to `js/api-rotation.js`. Add more than one key in
-**🔑 Manage APIs** and this kicks in automatically — there's nothing else
-to configure.
+**🔑 Manage APIs** and this kicks in automatically — no extra setup
+required.
+
+- **Smart Rotation toggle** — a switch at the top of **🔑 Manage APIs**
+  lets you turn the whole engine off without deleting your other keys.
+  On (default): rate-limited/invalid keys are skipped automatically, as
+  described below. Off: the app stays on whichever key is active and
+  retries/backs off on that key alone, even if healthier keys are
+  configured — useful if you want to test one key in isolation or keep
+  usage pinned to a specific account. The setting is saved per browser
+  (`localStorage`, key `anu_msp_smart_rotation_enabled_v1`) and takes
+  effect immediately, including on a run that's already in progress.
+  Every rotation decision in the app funnels through a single function,
+  `pickNextApiKey()` in `js/api-rotation.js`, so this one flag is the only
+  thing that needed to change to gate the entire feature.
 
 - **Rate-limit detection** — a key is marked rate-limited after **3
   consecutive HTTP 429 responses**. A single 429, or a 429 followed by a

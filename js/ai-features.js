@@ -275,7 +275,10 @@ function renderApiKeyManager() {
   }
 
   if (typeof allKeysRateLimited === 'function' && allKeysRateLimited()) {
-    html += `<div class="apikey-pending-note apikey-allrl-note">⚠️ All your keys are currently rate-limited by Google. The app keeps rotating between them and retrying automatically — adding one more key below will get things moving at full speed again.</div>`;
+    const rotationOn = (typeof isSmartRotationEnabled !== 'function') || isSmartRotationEnabled();
+    html += rotationOn
+      ? `<div class="apikey-pending-note apikey-allrl-note">⚠️ All your keys are currently rate-limited by Google. The app keeps rotating between them and retrying automatically — adding one more key below will get things moving at full speed again.</div>`
+      : `<div class="apikey-pending-note apikey-allrl-note">⚠️ All your keys are currently rate-limited by Google, and Smart Rotation is off below, so requests keep retrying on the same key. Turn it back on, or add another key, to get moving again.</div>`;
   }
 
   html += `<div class="cq-help-box">
@@ -287,6 +290,20 @@ function renderApiKeyManager() {
       <li>Copy the generated key and paste it below</li>
     </ol>
     You can add several keys — e.g. one per Google account — and switch between them any time. Your keys are saved only in this browser and are sent directly to Google's API, never through any other server. Only Gemini API keys are supported.
+  </div>`;
+
+  const rotationOn = (typeof isSmartRotationEnabled !== 'function') || isSmartRotationEnabled();
+  html += `<div class="rotation-toggle-card ${rotationOn ? 'rotation-on' : ''}">
+    <div class="rotation-toggle-info">
+      <div class="rotation-toggle-title"><span class="rotation-toggle-icon">🔄</span> Smart Rotation</div>
+      <div class="rotation-toggle-desc">${rotationOn
+        ? 'On — when a key gets rate-limited or fails, the app automatically switches to your next key.'
+        : 'Off — the app stays on your active key and retries it, even if others are available.'}</div>
+    </div>
+    <label class="rotation-switch" title="${rotationOn ? 'Turn off Smart Rotation' : 'Turn on Smart Rotation'}">
+      <input type="checkbox" ${rotationOn ? 'checked' : ''} onchange="setSmartRotationEnabled(this.checked); renderApiKeyManager();" />
+      <span class="rotation-switch-track"><span class="rotation-switch-thumb"></span></span>
+    </label>
   </div>`;
 
   html += `<div class="apikey-list">`;

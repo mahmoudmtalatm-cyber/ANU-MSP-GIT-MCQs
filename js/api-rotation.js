@@ -22,6 +22,30 @@
      no extra wiring needed for "pick up new keys instantly".
 ══════════════════════════════════════════════════════════ */
 
+// Persisted on/off switch for the whole rotation engine. Defaults to ON
+// (matches every previous version's always-on behavior) so upgrading
+// existing users never silently changes anything. Turning it off doesn't
+// touch key health tracking or the status chips — it only stops
+// pickNextApiKey() from ever handing back a key to switch to, which is
+// the single choke point every rotation decision in the app goes through
+// (see callGeminiWithRetry -> _tryRotate in js/gemini-uploads.js). With
+// it off, a rate-limited/invalid key just fails and retries/backs off on
+// itself, exactly like a single-key setup always has.
+const SMART_ROTATION_ENABLED_STORE = 'anu_msp_smart_rotation_enabled_v1';
+
+function isSmartRotationEnabled() {
+  try {
+    const raw = localStorage.getItem(SMART_ROTATION_ENABLED_STORE);
+    return raw === null ? true : raw === '1';
+  } catch (e) { return true; }
+}
+
+function setSmartRotationEnabled(enabled) {
+  try { localStorage.setItem(SMART_ROTATION_ENABLED_STORE, enabled ? '1' : '0'); } catch (e) {}
+  bumpApiKeysGeneration(); // wake any sleeping retry loop so it re-checks immediately
+  _broadcastRotationUI({ rotationToggled: true, enabled: !!enabled });
+}
+
 // How many *consecutive* 429s on one key before it's treated as rate-limited
 // and rotation kicks in.
 const API_ROTATION_429_THRESHOLD = 3;
@@ -148,6 +172,7 @@ function getApiKeyStatusInfo(id) {
      through its cooldown and start working again at any moment, so it's
      worth continuing to cycle instead of freezing on one. */
 function pickNextApiKey(currentId) {
+  if (!isSmartRotationEnabled()) return null;
   const keys = loadApiKeys();
   if (keys.length < 2) return null;
   const idx = Math.max(0, keys.findIndex(k => k.id === currentId));
@@ -184,7 +209,8 @@ function _broadcastRotationUI(detail) {
    needing to open the API Key Manager. Purely informational — the run
    itself keeps going, cycling through keys automatically. */
 function _apiAllRateLimitedBannerHTML() {
-  return `<div class="cq-status warning api-rotation-banner" style="margin-top:6px;">
-    ⚠️ All your API keys are currently rate-limited by Google. This will keep automatically rotating between them and retrying — it may just be a little slower right now. Adding another API key (🔑 Manage APIs) will speed things back up as soon as you paste it in.
-  </div>`;
+  const msg = isSmartRotationEnabled()
+    ? `⚠️ All your API keys are currently rate-limited by Google. This will keep automatically rotating between them and retrying — it may just be a little slower right now. Adding another API key (🔑 Manage APIs) will speed things back up as soon as you paste it in.`
+    : `⚠️ All your API keys are currently rate-limited by Google, and Smart Rotation is off, so the app is retrying on the same key instead of switching. Turn Smart Rotation back on in 🔑 Manage APIs, or add another key, to speed things back up.`;
+  return `<div class="cq-status warning api-rotation-banner" style="margin-top:6px;">${msg}</div>`;
 }
