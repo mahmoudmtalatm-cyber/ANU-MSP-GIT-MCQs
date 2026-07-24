@@ -985,15 +985,20 @@ function renderCQPreview() {
             🔄 Change Image
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
-          ${_canReextract ? `<div style="display:flex;">
-            <button class="cq-img-action-btn" type="button" id="aiReextractImageBtn_cq_${i}" ${_reBusy ? 'disabled' : ''}
-              title="Ask AI to re-locate and re-crop this image from the original source file"
-              onclick="cqReextractImage(${i})"
-              style="border-top-right-radius:0;border-bottom-right-radius:0;">🔁 Re-extract Image</button>
-            <button class="cq-img-action-btn" type="button" id="aiReextractInstrCaret_cq_${i}" ${_reBusy ? 'disabled' : ''}
-              title="Optional correction used only when re-extracting this image (e.g. widen the frame, fix the position)"
-              onclick="_toggleReextractInstrPicker(${i})"
-              style="border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_reextractInstrCaretLabel(i)} ▾</button>
+          ${_canReextract ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <div style="display:flex;">
+              <button class="cq-img-action-btn" type="button" id="aiReextractImageBtn_cq_${i}" ${_reBusy ? 'disabled' : ''}
+                title="Ask AI to re-locate and re-crop this image from the original source file"
+                onclick="cqReextractImage(${i})"
+                style="border-top-right-radius:0;border-bottom-right-radius:0;">🔁 Re-extract Image</button>
+              <button class="cq-img-action-btn" type="button" id="aiReextractInstrCaret_cq_${i}" ${_reBusy ? 'disabled' : ''}
+                title="Optional correction used only when re-extracting this image (e.g. widen the frame, fix the position)"
+                onclick="_toggleReextractInstrPicker(${i})"
+                style="border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_reextractInstrCaretLabel(i)} ▾</button>
+            </div>
+            <button class="ai-tool-stop-btn" type="button" id="aiReextractStopBtn_cq_${i}"
+              style="${_reBusy && _aiToolsActiveAction[_aiToolsKey('cq', i)] === 'reextractImage' ? 'display:inline-block;' : ''}"
+              title="Stop re-extracting" onclick="_aiToolsStopAction('cq', ${i})">⏹ Stop</button>
           </div>` : ''}
           <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
           ${_canReextract ? `<div id="aiReextractInstrPicker_cq_${i}" class="ai-source-picker" style="display:none;"></div>
@@ -1211,6 +1216,14 @@ async function cqReextractImage(i) {
   const instructions = (_cqReextractInstrText[i] || '').trim();
   const prevImage = q.image;
 
+  // Same cancel-token shape/registry used by Solve/Refine/Add Choice/Fill
+  // Choices (_aiToolsCancelToken, keyed by _aiToolsKey) — this is what lets
+  // the generic ⏹ Stop handler (_aiToolsStopAction) find and abort THIS
+  // question's in-flight request specifically.
+  const key = _aiToolsKey('cq', i);
+  const token = { cancelled: false };
+  _aiToolsCancelToken[key] = token;
+
   _aiToolsSetBusy('cq', i, true, 'reextractImage');
   if (statusEl()) statusEl().innerHTML = _aiToolsLoadingHTML('🔁 Re-extracting image from source…');
 
@@ -1218,7 +1231,7 @@ async function cqReextractImage(i) {
     // Passing just this one question keeps the request scoped to it —
     // getBoundingBoxes only asks about (and only returns) entries for the
     // questions it's given.
-    await extractImagesForQuestions([q], q._sourceFile, apiKey, undefined, instructions || undefined);
+    await extractImagesForQuestions([q], q._sourceFile, apiKey, undefined, instructions || undefined, token);
     _markQuestionEditDirty();
     _aiToolsSetBusy('cq', i, false, 'reextractImage');
     if (q.image && q.image !== prevImage) {
@@ -1230,7 +1243,13 @@ async function cqReextractImage(i) {
     }
   } catch (e) {
     _aiToolsSetBusy('cq', i, false, 'reextractImage');
-    if (statusEl()) statusEl().innerHTML = _aiToolsErrorHTML(e.message || 'Re-extraction failed.');
+    if (!(e && e._cancelled)) {
+      if (statusEl()) statusEl().innerHTML = _aiToolsErrorHTML(e.message || 'Re-extraction failed.');
+    } else if (statusEl()) {
+      statusEl().innerHTML = '';
+    }
+  } finally {
+    if (_aiToolsCancelToken[key] === token) delete _aiToolsCancelToken[key];
   }
 }
 

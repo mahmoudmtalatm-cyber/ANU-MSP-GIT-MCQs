@@ -140,7 +140,19 @@ else is plain HTML/CSS/JavaScript.
     `temperature: 0` and shared fallback-model handling — a miss (image
     still not found) is treated as best-effort, same as the first pass,
     and just leaves a message suggesting a correction or a manual upload
-    instead of failing loudly.
+    instead of failing loudly. Like every other single-question AI tool on
+    this card, it shows a spinner on its own button while running and gets
+    a real ⏹ Stop button — unlike the read-only bounding-box lookup this
+    reuses for the initial bulk pass, this one call site was given actual
+    cancellation support (an `AbortController` wired into `getBoundingBoxes`
+    via an optional `cancelToken`, mirroring the pattern `callGeminiWithRetry`
+    already used elsewhere), so Stop immediately aborts the in-flight
+    request rather than just hiding the busy state while it keeps running
+    unseen. It also counts toward the app's unsaved-progress guard
+    (`_hasUnsavedProgress` in `app-core.js`, via the shared `_aiToolsBusy`
+    lock it already uses) — closing or navigating away from the tab while a
+    re-extract is in flight prompts the browser's native "leave site?"
+    confirmation, same as every other in-flight AI action.
   - Freshly extracted/generated questions are validated (question text
     present, 2+ filled options, a valid answer selected) before the initial
     save — the same rule the quiz editor already enforced on every later

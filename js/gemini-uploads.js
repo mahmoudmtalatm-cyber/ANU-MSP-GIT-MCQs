@@ -551,7 +551,7 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
    { inline_data: {...} } for small files or { file_data: {...} } for large
    ones uploaded via the Files API. Callers build this via buildGeminiFilePart
    so this function works the same regardless of source file size. */
-async function getBoundingBoxes(questions, filePart, apiKey, customInstructions) {
+async function getBoundingBoxes(questions, filePart, apiKey, customInstructions, cancelToken) {
   const imageQs = questions.map((q, i) => ({ idx: i, q })).filter(({ q }) => q.has_image);
   if (!imageQs.length) return;
 
@@ -614,13 +614,24 @@ Output nothing besides the JSON array.`;
   let url = geminiEndpoint();
   const MAX_ATTEMPTS = 3; // primary model, the fallback model, and one more try against the fallback in case its own first response is a transient 400/404
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (cancelToken && cancelToken.cancelled) {
+      const e = new Error('cancelled'); e._cancelled = true; throw e;
+    }
+    let controller = null;
     try {
-      await _geminiRateGate();
+      await _geminiRateGate(cancelToken);
+      if (cancelToken && cancelToken.cancelled) {
+        const e = new Error('cancelled'); e._cancelled = true; throw e;
+      }
+      controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      if (cancelToken && controller) cancelToken.controller = controller;
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller ? controller.signal : undefined
       });
+      if (cancelToken) cancelToken.controller = null;
       if (!resp.ok) {
         const data = await resp.json().catch(() => null);
         if (attempt < MAX_ATTEMPTS - 1 && isGeminiModelFallbackTrigger(resp.status)) {
@@ -637,6 +648,11 @@ Output nothing besides the JSON array.`;
       const clean = textOut.replace(/```json|```/g, '').trim();
       return JSON.parse(clean);
     } catch (e) {
+      if (cancelToken) cancelToken.controller = null;
+      if (e && e._cancelled) throw e;
+      if ((e && e.name === 'AbortError') || (cancelToken && cancelToken.cancelled)) {
+        const ce = new Error('cancelled'); ce._cancelled = true; throw ce;
+      }
       console.warn('getBoundingBoxes failed:', e);
       return null;
     }
@@ -693,8 +709,13 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
    — used only by a manual single-question re-extract (cqReextractImage in
    ai-solve.js) to let the user correct a mistake they've actually seen
    (e.g. "widen the frame", "wrong position, it's the graph on page 2").
-   Left undefined on the normal bulk pass, so nothing changes there. ── */
-async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions) {
+   Left undefined on the normal bulk pass, so nothing changes there.
+
+   `cancelToken` is likewise optional and forwarded to getBoundingBoxes —
+   lets a manual re-extract's ⏹ Stop button actually abort the in-flight
+   request (see cqReextractImage), rather than just hiding the busy state
+   while the request keeps running unseen. ── */
+async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions, cancelToken) {
   const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
   const isPdf = mimeType === 'application/pdf';
 
@@ -703,8 +724,12 @@ async function extractImagesForQuestions(questions, file, apiKey, filePart, cust
   // small files, Files API upload for large ones — same size ceiling as
   // question extraction, so this never hits Gemini's ~20MB inline cap).
   const part = filePart || await buildGeminiFilePart(file, apiKey, mimeType);
-  const boxes = await getBoundingBoxes(questions, part, apiKey, customInstructions);
+  const boxes = await getBoundingBoxes(questions, part, apiKey, customInstructions, cancelToken);
   if (!boxes || !Array.isArray(boxes) || !boxes.length) return;
+
+  if (cancelToken && cancelToken.cancelled) {
+    const e = new Error('cancelled'); e._cancelled = true; throw e;
+  }
 
   // Build a map: question index (0-based) → box info
   const boxMap = {};

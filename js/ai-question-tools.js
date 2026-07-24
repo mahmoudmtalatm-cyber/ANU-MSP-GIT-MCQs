@@ -179,7 +179,8 @@ function _aiToolsSyncButtons(editorKey, i, busy, action) {
     refine:      `aiRefineStopBtn_${editorKey}_${i}`,
     addChoice:   `aiAddChoiceStopBtn_${editorKey}_${i}`,
     fillChoices: `aiFillChoicesStopBtn_${editorKey}_${i}`,
-    solve:       `cqAiSolveStopBtn_${editorKey}_${i}`
+    solve:       `cqAiSolveStopBtn_${editorKey}_${i}`,
+    reextractImage: `aiReextractStopBtn_${editorKey}_${i}`
   };
   Object.values(stopIdMap).forEach(id => {
     const el = document.getElementById(id);
