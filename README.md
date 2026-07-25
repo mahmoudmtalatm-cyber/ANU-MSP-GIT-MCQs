@@ -142,7 +142,15 @@ else is plain HTML/CSS/JavaScript.
     It's only shown for questions that still have a traceable source file
     (`q._sourceFile`) and aren't `_notExtractable` (hand-typed questions,
     or ones merged in from another quiz — see `_mergeCloneQuestions` in
-    `community-quizzes.js` — have nothing to re-extract against). It shares
+    `community-quizzes.js` — have nothing to re-extract against). It
+    appears in **both** image states a question can be in: once an image
+    has already been cropped (to try a better one), and — just as
+    importantly — while the question is still showing "⚠️ AI detected an
+    image for this question but couldn't extract it" (previously the only
+    way to resolve that state was a manual upload; the button and its
+    `_reextractControlsHTML`/`_reextractExtrasHTML` markup are now shared
+    between both branches in `renderCQPreview`, `ai-solve.js`, rather than
+    only being built inside the has-image branch). It shares
     the same per-question busy lock as Refine/Solve/Fill Choices/Add Choice
     (`_aiToolsSetBusy('cq', i, …)` in `ai-question-tools.js`), so it can't
     run at the same time as another AI tool mutating that question, and

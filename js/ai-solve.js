@@ -1018,34 +1018,32 @@ function renderCQPreview() {
 
     /* ── Image area ── */
     html += `<div class="cq-img-edit-row" style="margin-bottom:8px;">`;
-    if (q.image) {
-      // Re-extract is only meaningful when this question can still be traced
-      // back to the file it came from (_sourceFile) — hand-typed questions
-      // and ones merged in from another quiz (_notExtractable, see
-      // _mergeCloneQuestions in community-quizzes.js) have no source to
-      // re-run extraction against, so the control is hidden for them.
-      const _canReextract = !!q._sourceFile && !q._notExtractable;
-      const _reBusy = _aiToolsIsBusy('cq', i);
-      // Same restore-from-cache pattern _renderAiRefineTools/_renderAiChoiceTools
-      // use for their status boxes — without it, this box comes back empty on
-      // any mid-run rebuild (e.g. closing 🔑 Manage APIs) until the request
-      // finishes, even though the ⏹ Stop button above still shows correctly
-      // (it's driven by live busy state, not by this cached HTML).
-      const _reextractStatusId = `aiReextractStatus_cq_${i}`;
-      const _reextractCachedStatus = _reBusy ? getCachedStatusHTML(_reextractStatusId) : '';
-      html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
-        background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
-        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
-          <img src="${q.image}" alt="Question image"
-            style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">
-          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">📷 Question Image</div>
-          <label class="cq-img-action-btn" title="Upload a different image">
-            🔄 Change Image
-            <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
-          </label>
-          ${_canReextract ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    // Re-extract is only meaningful when this question can still be traced
+    // back to the file it came from (_sourceFile) — hand-typed questions
+    // and ones merged in from another quiz (_notExtractable, see
+    // _mergeCloneQuestions in community-quizzes.js) have no source to
+    // re-run extraction against, so the control is hidden for them. Hoisted
+    // above the q.image check (rather than declared inside it) so it's
+    // also available to the "AI detected an image but couldn't extract it"
+    // branch below — that's exactly the case Re-extract Image exists to
+    // fix, so it needs to appear there too, not just once an image exists.
+    const _canReextract = !!q._sourceFile && !q._notExtractable;
+    const _reBusy = _aiToolsIsBusy('cq', i);
+    // Own DOM id (not the shared aiToolsStatus_cq_<i> box the textarea
+    // tools use) — shared by both the has-image and missing-image
+    // branches below, since it's the same tool being invoked from either
+    // spot.
+    const _reextractStatusId = `aiReextractStatus_cq_${i}`;
+    // Same restore-from-cache pattern _renderAiRefineTools/_renderAiChoiceTools
+    // use for their status boxes — without it, this box comes back empty on
+    // any mid-run rebuild (e.g. closing 🔑 Manage APIs) until the request
+    // finishes, even though the ⏹ Stop button above still shows correctly
+    // (it's driven by live busy state, not by this cached HTML).
+    const _reextractCachedStatus = _reBusy ? getCachedStatusHTML(_reextractStatusId) : '';
+    // Shared markup for the 🔁 Re-extract Image button + ⚙️ instructions
+    // caret + ⏹ Stop button, used identically whether the question already
+    // has an image (to try a better crop) or doesn't yet (to try again).
+    const _reextractControlsHTML = _canReextract ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <div style="display:flex;">
               <button class="cq-img-action-btn" type="button" id="aiReextractImageBtn_cq_${i}" ${_reBusy ? 'disabled' : ''}
                 title="Ask AI to re-locate and re-crop this image from the original source file"
@@ -1059,10 +1057,25 @@ function renderCQPreview() {
             <button class="ai-tool-stop-btn" type="button" id="aiReextractStopBtn_cq_${i}"
               style="${_reBusy && _aiToolsActiveAction[_aiToolsKey('cq', i)] === 'reextractImage' ? 'display:inline-block;' : ''}"
               title="Stop re-extracting" onclick="_aiToolsStopAction('cq', ${i})">⏹ Stop</button>
-          </div>` : ''}
+          </div>` : '';
+    const _reextractExtrasHTML = _canReextract ? `<div id="aiReextractInstrPicker_cq_${i}" class="ai-source-picker" style="display:none;"></div>
+          <div id="${_reextractStatusId}" style="max-width:220px;">${_reextractCachedStatus}</div>` : '';
+    if (q.image) {
+      html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
+        background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
+        <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
+          <img src="${q.image}" alt="Question image"
+            style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">
+          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">📷 Question Image</div>
+          <label class="cq-img-action-btn" title="Upload a different image">
+            🔄 Change Image
+            <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
+          </label>
+          ${_reextractControlsHTML}
           <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
-          ${_canReextract ? `<div id="aiReextractInstrPicker_cq_${i}" class="ai-source-picker" style="display:none;"></div>
-          <div id="${_reextractStatusId}" style="max-width:220px;">${_reextractCachedStatus}</div>` : ''}
+          ${_reextractExtrasHTML}
         </div>
       </div>`;
     } else if (q.has_image) {
@@ -1071,12 +1084,14 @@ function renderCQPreview() {
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
           ⚠️ AI detected an image for this question but couldn't extract it
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <label class="cq-img-action-btn" style="color:var(--accent);border-color:var(--accent);" title="Upload image manually">
             📎 Upload Image Manually
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
+          ${_reextractControlsHTML}
         </div>
+        ${_reextractExtrasHTML}
       </div>`;
     } else {
       html += `<label class="cq-img-upload-label" title="Attach an image to this question">
