@@ -445,7 +445,13 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   const imageQuestions = cleaned.filter(q => q.has_image);
   if (imageQuestions.length > 0) {
     report(0.65, `Extracting images from "${escapeHtml(file.name)}" for ${imageQuestions.length} question${imageQuestions.length !== 1 ? 's' : ''}…`);
-    await extractImagesForQuestions(cleaned, file, apiKey, filePart);
+    // cancelToken/pauseCheck match the extraction call above — lets ⏹ Stop
+    // abort an in-flight image-extraction request too, and lets a run of
+    // consecutive 429s fall back into the same pause/resume UI instead of
+    // retrying silently in the background (see getBoundingBoxes's doc
+    // comment in gemini-uploads.js).
+    await extractImagesForQuestions(cleaned, file, apiKey, filePart, undefined, cqCancelToken,
+      () => cqPauseRequested);
   }
 
   report(1, `Finished "${escapeHtml(file.name)}"`);

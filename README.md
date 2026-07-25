@@ -152,13 +152,11 @@ else is plain HTML/CSS/JavaScript.
     and just leaves a message suggesting a correction or a manual upload
     instead of failing loudly. Like every other single-question AI tool on
     this card, it shows a spinner on its own button while running and gets
-    a real ⏹ Stop button — unlike the read-only bounding-box lookup this
-    reuses for the initial bulk pass, this one call site was given actual
-    cancellation support (an `AbortController` wired into `getBoundingBoxes`
-    via an optional `cancelToken`, mirroring the pattern `callGeminiWithRetry`
-    already used elsewhere), so Stop immediately aborts the in-flight
-    request rather than just hiding the busy state while it keeps running
-    unseen. It also counts toward the app's unsaved-progress guard
+    a real ⏹ Stop button, backed by the same `cancelToken`/`AbortController`
+    plumbing `callGeminiWithRetry` already used elsewhere, so Stop
+    immediately aborts the in-flight request rather than just hiding the
+    busy state while it keeps running unseen. It also counts toward the
+    app's unsaved-progress guard
     (`_hasUnsavedProgress` in `app-core.js`, via the shared `_aiToolsBusy`
     lock it already uses) — closing or navigating away from the tab while a
     re-extract is in flight prompts the browser's native "leave site?"
@@ -466,6 +464,56 @@ AI-related is required for the core quiz/browsing experience to work.
 > `js/gemini-uploads.js`, called from `useApiKey()` in `js/ai-features.js`
 > for a manual switch, and from `_tryRotate()` inside
 > `callGeminiWithRetry` for an automatic one).
+>
+> **Note on the bounding-box helper's retry loop:** everything above
+> describes a period where `getBoundingBoxes` (`js/gemini-uploads.js`) had
+> its *own* small hand-rolled fetch loop, separate from
+> `callGeminiWithRetry`, that only knew how to self-heal a 400/404
+> model-routing error — any other failure, most importantly a plain 429
+> rate limit, gave up immediately and silently. Because bounding-box
+> lookup is one batched request covering every image-bearing question in
+> a file, a single 429 wiped out *every* image in that file at once — the
+> more image-heavy questions a document had, the more likely this was to
+> happen. `getBoundingBoxes` has since been rewritten to call
+> `callGeminiWithRetry` directly instead of maintaining its own loop, so
+> it now gets the exact same backoff/rotation/pause-fallback handling as
+> every other Gemini call in the app, and a 429 storm during image
+> extraction behaves the same way one would during question extraction
+> (retry → rotate → pause-and-ask, instead of a silent partial result).
+> This also meant threading two new parameters — `pauseCheck` (lets a
+> 429 streak fall back into the ⏸️/▶️ pause UI) and `fileForReupload`
+> (lets a stale Files API reference from an old key get silently
+> refreshed mid-retry) — from `extractImagesForQuestions` down into
+> `getBoundingBoxes`. `extractImagesForQuestions` builds `fileForReupload`
+> itself from the file it's already given, so no call site needs to pass
+> it; `pauseCheck` is threaded in from the bulk pass
+> (`_extractQuestionsFromFile` in `js/ai-solve.js`, which already has the
+> pause UI to fall back into) and intentionally left unset by the
+> single-question 🔁 Re-extract Image path (`cqReextractImage`), matching
+> every other per-question AI tool, which just retries in place until it
+> succeeds or the user hits its own ⏹ Stop.
+>
+> **Note on batching:** the fix above still asked about *every*
+> image-bearing question in a file in one request — retry/rotate/pause now
+> covered a rate limit on that request, but the request itself stayed one
+> big all-or-nothing unit, with two lingering problems. First,
+> `maxOutputTokens` on it is a fixed 4096 — a file with enough image
+> questions could produce a response that gets cut off mid-array, which
+> fails `JSON.parse` and (since this feature has no partial-salvage logic
+> like question extraction's `parseGeminiJsonArray`) silently lost every
+> image in the file, not just the ones past the cutoff. Second, a batch
+> that genuinely can't be recovered even after all of `callGeminiWithRetry`'s
+> retries/rotation still meant the whole file came back with zero images,
+> instead of just the unlucky subset. `extractImagesForQuestions` now
+> splits image-bearing questions into batches of
+> `GEMINI_BOUNDING_BOX_BATCH_SIZE` (15) and calls `getBoundingBoxes` once
+> per batch, merging the results — each batch's response stays comfortably
+> under the token limit, and a batch that can't be recovered only costs
+> its own questions their image, while every other batch in the file is
+> still requested and resolved independently. Cancellation and the
+> pause-fallback signal still propagate immediately out of the whole loop,
+> same as before — those are real state the caller needs to react to, not
+> a per-batch miss.
 
 ### Smart API key rotation
 

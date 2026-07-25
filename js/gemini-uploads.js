@@ -12,6 +12,33 @@
 const GEMINI_MAX_FILE_BYTES         = 2 * 1024 * 1024 * 1024; // Gemini Files API hard limit, per file (free tier included)
 const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024;       // stay safely under Gemini's ~20MB inline request cap once base64 (~33%) overhead is added
 
+/* Bounding-box lookup (getBoundingBoxes, used by extractImagesForQuestions)
+   asks about at most this many image-bearing questions per request instead
+   of every one of them in a single call. Two independent problems this
+   fixes:
+     1. maxOutputTokens on that request is a fixed 4096 — a file with many
+        image questions could produce a response that gets cut off
+        mid-array, which fails JSON.parse and previously lost EVERY image
+        in the file, not just the ones past the cutoff. A bounded batch
+        keeps the expected response comfortably under that limit.
+     2. A single 429 used to wipe out every image in the file at once
+        (see callGeminiWithRetry's doc comment above getBoundingBoxes).
+        Batching doesn't prevent a 429 — callGeminiWithRetry still retries/
+        rotates/pauses on one same as before — but if a batch is the one
+        that can't ultimately be recovered, only THAT batch's questions
+        miss their image; every other batch in the file still succeeds
+        independently, instead of an all-or-nothing result for the whole
+        file. See extractImagesForQuestions below for the batching loop
+        itself.
+   Sized from the response shape, not guessed: each returned entry is
+   `{ "q_index": 25, "page": 4, "x": 0.12, "y": 0.34, "w": 0.56, "h": 0.22 }`
+   — roughly 20–25 tokens even accounting for formatting/whitespace — so 15
+   entries lands around 300–375 tokens, well under the 4096 cap with a wide
+   safety margin for a verbose or oddly-formatted response, while cutting
+   the number of requests (and therefore rate-limit exposure) noticeably
+   versus a smaller batch. */
+const GEMINI_BOUNDING_BOX_BATCH_SIZE = 15;
+
 /* ══════════════════════════════════════════════════════════
    MODEL CONFIG — single source of truth.
    Every feature (extraction, AI Solve, chat, explain, bulk tools,
@@ -772,9 +799,17 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
    { inline_data: {...} } for small files or { file_data: {...} } for large
    ones uploaded via the Files API. Callers build this via buildGeminiFilePart
    so this function works the same regardless of source file size. */
-async function getBoundingBoxes(questions, filePart, apiKey, customInstructions, cancelToken) {
+/* `pauseCheck` and `fileForReupload` are forwarded straight through to
+   callGeminiWithRetry — see its doc comment above for what they do.
+   `pauseCheck` is only meaningfully set by the main bulk-extraction pass
+   (extractImagesForQuestions → _extractQuestionsFromFile), which already
+   has a pause/resume UI to fall back into; the single-question 🔁
+   Re-extract Image path leaves it undefined, matching every other
+   per-question AI tool (aiRefineQuestion, aiFillChoices, …), which just
+   retries with backoff/rotation until it succeeds or the user hits Stop. */
+async function getBoundingBoxes(questions, filePart, apiKey, customInstructions, cancelToken, pauseCheck, fileForReupload) {
   const imageQs = questions.map((q, i) => ({ idx: i, q })).filter(({ q }) => q.has_image);
-  if (!imageQs.length) return;
+  if (!imageQs.length) return null;
 
   // The label sent to Gemini for each question ("Q<n>") uses its permanent
   // _extractedQuestionNumber when the question has one — the number
@@ -829,7 +864,7 @@ Be fully deterministic: given the same document and questions, always locate the
     contents: [{ parts: [filePart, { text: prompt }] }],
     // temperature: 0 — this is coordinate detection, not creative
     // generation, so deterministic is what we want. Safe to always set:
-    // resolveGeminiFallbackUrl() strips it automatically the moment a
+    // callGeminiWithRetry strips it automatically the moment a
     // fallback-model switch happens (see GEMINI_SAMPLING_PARAM_KEYS above),
     // so it never reaches a model that rejects it.
     //
@@ -843,71 +878,39 @@ Be fully deterministic: given the same document and questions, always locate the
     generationConfig: { maxOutputTokens: 4096, temperature: 0 }
   };
 
-  // This feature is best-effort (missing bounding boxes just means a
-  // question's image doesn't get auto-cropped, nothing breaks), so it
-  // still fails silently to the caller on any error — but it now logs the
-  // real reason to the console instead of a bare unexplained no-op, and
-  // self-heals a bad-request response (400 or 404) exactly like
-  // callGeminiWithRetry does, via the same shared resolveGeminiFallbackUrl()
-  // helper, so it doesn't stay permanently broken after Google renames or
-  // retires the primary model. The switch itself only happens once (see
-  // resolveGeminiFallbackUrl) — the extra attempt below beyond that is
-  // just one more plain retry against the fallback model, not another
-  // model switch, matching how callGeminiWithRetry treats a repeat
-  // bad request that happens after already being on the fallback.
-  let url = geminiEndpoint();
-  // See _stripGeminiFallbackIncompatibleParamsIfNeeded above callGeminiWithRetry:
-  // covers the case where this call's very first attempt is already pointed
-  // at GEMINI_FALLBACK_MODEL because an earlier, unrelated call this session
-  // already resolved to it — the reactive strip inside the loop below would
-  // never reach that case.
-  _stripGeminiFallbackIncompatibleParamsIfNeeded(url, requestBody);
-  const MAX_ATTEMPTS = 3; // primary model, the fallback model, and one more try against the fallback in case its own first response is a transient 400/404
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    if (cancelToken && cancelToken.cancelled) {
-      const e = new Error('cancelled'); e._cancelled = true; throw e;
-    }
-    let controller = null;
-    try {
-      await _geminiRateGate(cancelToken);
-      if (cancelToken && cancelToken.cancelled) {
-        const e = new Error('cancelled'); e._cancelled = true; throw e;
-      }
-      controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-      if (cancelToken && controller) cancelToken.controller = controller;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify(requestBody),
-        signal: controller ? controller.signal : undefined
-      });
-      if (cancelToken) cancelToken.controller = null;
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        if (attempt < MAX_ATTEMPTS - 1 && isGeminiModelFallbackTrigger(resp.status)) {
-          url = resolveGeminiFallbackUrl(resp.status, url, 'getBoundingBoxes', requestBody);
-          continue;
-        }
-        console.warn('getBoundingBoxes failed:', resp.status, data && data.error ? data.error.message : '');
-        return null;
-      }
-      const data = await resp.json();
-      const textOut = ((data.candidates || [])[0]?.content?.parts || [])
-        .map(p => p.text || '').join('').trim();
-      if (!textOut) return null;
-      const clean = textOut.replace(/```json|```/g, '').trim();
-      return JSON.parse(clean);
-    } catch (e) {
-      if (cancelToken) cancelToken.controller = null;
-      if (e && e._cancelled) throw e;
-      if ((e && e.name === 'AbortError') || (cancelToken && cancelToken.cancelled)) {
-        const ce = new Error('cancelled'); ce._cancelled = true; throw ce;
-      }
-      console.warn('getBoundingBoxes failed:', e);
-      return null;
-    }
+  // This feature stays best-effort in the sense that a genuinely bad
+  // response (blocked content, empty output, unparsable JSON) still fails
+  // silently — a question just doesn't get its image auto-cropped, nothing
+  // else breaks. But a 429 (rate limit) is no longer an instant, silent
+  // give-up: it now goes through the exact same retry-with-backoff +
+  // automatic multi-key rotation + pause-fallback machinery every other
+  // Gemini call in the app already gets via callGeminiWithRetry (see its
+  // doc comment above this file). Previously this used its own minimal
+  // hand-rolled fetch loop that only retried a 400/404 model-routing error
+  // and gave up immediately on anything else, including 429 — and because
+  // this is ONE batched request covering every image-bearing question in
+  // the file, a single rate-limit hit silently skipped ALL of that file's
+  // images at once. That's exactly what a document with many
+  // image-heavy questions tends to trigger (a bigger request, and more of
+  // them in a row), which is what was being reported.
+  const url = geminiEndpoint();
+  try {
+    const data = await callGeminiWithRetry(url, requestBody,
+      { cancelToken, apiKey, pauseCheck, fileForReupload });
+    const textOut = ((data.candidates || [])[0]?.content?.parts || [])
+      .map(p => p.text || '').join('').trim();
+    if (!textOut) return null;
+    const clean = textOut.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch (e) {
+    // Cancellation and the pause-fallback signal are real state the caller
+    // needs to react to (stop the whole run / enter the pause UI) — let
+    // those propagate exactly like every other step of extraction does,
+    // instead of swallowing them here.
+    if (e && (e._cancelled || e._rateLimitPauseFallback)) throw e;
+    console.warn('getBoundingBoxes failed:', e && e.message ? e.message : e);
+    return null;
   }
-  return null;
 }
 
 /* ── Crop a region from a rendered image using Canvas ── */
@@ -964,18 +967,65 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
    `cancelToken` is likewise optional and forwarded to getBoundingBoxes —
    lets a manual re-extract's ⏹ Stop button actually abort the in-flight
    request (see cqReextractImage), rather than just hiding the busy state
-   while the request keeps running unseen. ── */
-async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions, cancelToken) {
+   while the request keeps running unseen.
+
+   `pauseCheck` is optional and forwarded to getBoundingBoxes, which in turn
+   hands it straight to callGeminiWithRetry (see its doc comment above) —
+   this is what lets a run of consecutive 429s pause into the same "all
+   keys rate-limited" UI as every other step of extraction, instead of
+   retrying silently in the background. Passed by the main bulk pass
+   (_extractQuestionsFromFile in ai-solve.js), which already has that
+   pause/resume UI to fall back into. Left undefined by the single-question
+   🔁 Re-extract Image path (cqReextractImage), matching every other
+   per-question AI tool (aiRefineQuestion, aiFillChoices, …), which just
+   retries with backoff/rotation until it succeeds or the user hits Stop.
+
+   `fileForReupload` is NOT a parameter — it's built here, from `file` and
+   the `mimeType` already computed below, and forwarded to getBoundingBoxes
+   for every caller automatically. This is what lets callGeminiWithRetry
+   silently re-upload the file and get a fresh Files API reference if the
+   one in `filePart`/`part` has gone stale (e.g. rotated onto a different
+   API key mid-request — see its doc comment), rather than every caller
+   having to remember to build and pass this itself.
+
+   Bounding-box lookup itself happens in batches of
+   GEMINI_BOUNDING_BOX_BATCH_SIZE image-bearing questions per request, not
+   all of them in one call — see that constant's doc comment near the top
+   of this file. A batch that can't ultimately be recovered just leaves its
+   own questions without an image; every other batch in the file is
+   requested and resolved independently, so one bad or rate-limited batch
+   no longer costs the whole file its images. ── */
+async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions, cancelToken, pauseCheck) {
   const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
   const isPdf = mimeType === 'application/pdf';
 
-  // Step 1: ask Gemini for bounding boxes of all image-bearing questions at once.
-  // Reuse a pre-built part when given one; otherwise build it now (inline for
+  // Step 1: ask Gemini for bounding boxes of image-bearing questions, in
+  // batches of GEMINI_BOUNDING_BOX_BATCH_SIZE rather than all of them in
+  // one request — see that constant's doc comment above for why. Reuse a
+  // pre-built part when given one; otherwise build it now (inline for
   // small files, Files API upload for large ones — same size ceiling as
   // question extraction, so this never hits Gemini's ~20MB inline cap).
+  // Built once and reused across every batch below, exactly as it would
+  // have been reused across retries of the old single request.
   const part = filePart || await buildGeminiFilePart(file, apiKey, mimeType);
-  const boxes = await getBoundingBoxes(questions, part, apiKey, customInstructions, cancelToken);
-  if (!boxes || !Array.isArray(boxes) || !boxes.length) return;
+
+  const imageQuestions = questions.filter(q => q.has_image);
+  let boxes = [];
+  for (let start = 0; start < imageQuestions.length; start += GEMINI_BOUNDING_BOX_BATCH_SIZE) {
+    const batch = imageQuestions.slice(start, start + GEMINI_BOUNDING_BOX_BATCH_SIZE);
+    // getBoundingBoxes itself is best-effort per call — a batch that can't
+    // ultimately be recovered (bad JSON, blocked content, etc.) resolves
+    // to null rather than throwing, so it's simply skipped here and the
+    // NEXT batch still gets its own independent shot, instead of one bad
+    // batch losing every image in the file. Cancellation and the
+    // pause-fallback signal are real state, not a per-batch miss, so
+    // those still propagate straight out of this loop (getBoundingBoxes
+    // throws them rather than returning null — see its doc comment).
+    const batchBoxes = await getBoundingBoxes(batch, part, apiKey, customInstructions, cancelToken,
+      pauseCheck, { file, mimeType });
+    if (Array.isArray(batchBoxes) && batchBoxes.length) boxes = boxes.concat(batchBoxes);
+  }
+  if (!boxes.length) return;
 
   if (cancelToken && cancelToken.cancelled) {
     const e = new Error('cancelled'); e._cancelled = true; throw e;
@@ -1408,4 +1458,3 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
   }
   return { done, errors };
 }
-
