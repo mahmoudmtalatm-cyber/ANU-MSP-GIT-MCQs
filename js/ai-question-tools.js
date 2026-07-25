@@ -746,7 +746,47 @@ async function aiAddChoice(editorKey, i) {
   }
 }
 
-function _cqGroupAwareShuffle(arr) {
+/* Lays out one case-group's members (already filtered to just that group,
+   in whatever order they arrived) into the fixed, deterministic order the
+   quiz-taking screen and every shuffle must always present them in: the
+   root case first, then — immediately after it — each of its direct
+   dependents, each IMMEDIATELY followed by that dependent's own whole
+   subtree (if it's a sub-case with further questions nested under it),
+   recursively, to any depth. Sibling order within each level is preserved
+   exactly as given (which callers arrange to be the original quiz order),
+   so nothing here ever reorders siblings on its own — only shuffle (below)
+   does that, and only at the top level between whole blocks/trees, never
+   within one. Falls back to appending anything unreachable (e.g. from a
+   corrupted/cyclic parent chain that somehow slipped past
+   _cqNormalizeCaseParents) rather than silently dropping a question. */
+function _cqCaseTreeOrder(members) {
+  if (members.length < 2) return members;
+  const root = members.find(q => q.case_is_core) || members[0];
+  const childrenOf = new Map();
+  members.forEach(m => childrenOf.set(m, []));
+  members.forEach(m => {
+    if (m === root) return;
+    const parent = _cqFindCaseParent(members, m) || root;
+    (childrenOf.get(parent) || childrenOf.get(root)).push(m);
+  });
+  const ordered = [];
+  const visit = (node) => { ordered.push(node); (childrenOf.get(node) || []).forEach(visit); };
+  visit(root);
+  members.forEach(m => { if (!ordered.includes(m)) ordered.push(m); }); // safety net, see comment above
+  return ordered;
+}
+
+/* Splits `arr` into top-level "blocks" — each standalone question is its
+   own one-item block, and each case group (root + its ENTIRE nested tree,
+   at any depth) becomes one block laid out via _cqCaseTreeOrder above —
+   then either shuffles the blocks (shuffle=true) or leaves them in their
+   original relative order (shuffle=false), and flattens back into one
+   array. Either way, a case tree's internal order/contiguity is never
+   touched: shuffle only ever reshuffles WHICH BLOCK comes where, so a
+   student always sees a whole case (and everything nested inside it, in
+   the order described above) together and in the right relative order,
+   whether or not shuffle is on. */
+function _cqGroupAwareOrder(arr, shuffle) {
   const blocks = [];
   const blockByGroup = {};
   arr.forEach(q => {
@@ -758,24 +798,22 @@ function _cqGroupAwareShuffle(arr) {
       blocks.push([q]);
     }
   });
-  // Within each case-group block, the core question (the one holding the
-  // shared case/vignette/image) must always lead, with its dependents kept
-  // in their existing relative order behind it — regardless of how the
-  // group's members were ordered going in.
-  blocks.forEach(block => {
-    if (block.length < 2) return;
-    const coreIdx = block.findIndex(q => q.case_is_core);
-    if (coreIdx > 0) {
-      const [core] = block.splice(coreIdx, 1);
-      block.unshift(core);
+  const laidOut = blocks.map(_cqCaseTreeOrder);
+  if (shuffle) {
+    for (let i = laidOut.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [laidOut[i], laidOut[j]] = [laidOut[j], laidOut[i]];
     }
-  });
-  for (let i = blocks.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
   }
-  return blocks.flat();
+  return laidOut.flat();
 }
+// Back-compat name for existing call sites — shuffled order.
+function _cqGroupAwareShuffle(arr) { return _cqGroupAwareOrder(arr, true); }
+// Same block layout, but WITHOUT reshuffling block order — used for
+// "normal" (non-shuffled) mode, so even there a case tree that somehow
+// arrived out of order/non-contiguous (e.g. after manual editing) always
+// renders correctly grouped and in the right nested order.
+function _cqGroupAwareCanonicalOrder(arr) { return _cqGroupAwareOrder(arr, false); }
 
 /* Shared markup for the "waiting for the nearest checkpoint" banner shown
    while cqPauseRequested is true but the loop hasn't actually reached a

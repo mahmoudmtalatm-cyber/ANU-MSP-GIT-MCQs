@@ -207,7 +207,8 @@ function adminEditSetAnswer(idx, key) {
 function adminEditDeleteQuestion(idx) {
   if (!adminEditQuestions) return;
   if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
-  adminEditQuestions.splice(idx, 1);
+  const [deleted] = adminEditQuestions.splice(idx, 1);
+  _caseGroupOnQuestionDeleted(adminEditQuestions, deleted);
   _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
 }

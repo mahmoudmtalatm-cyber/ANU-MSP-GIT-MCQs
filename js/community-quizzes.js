@@ -391,14 +391,18 @@ function mergeToggleCurriculum(key, checked) {
 
 /* ── Perform the merge ── */
 /* Deep-clones a source question list for merging into an editor, namespacing
-   any case_group ids with a source-specific prefix so a case cluster from
-   one merged-in quiz can never collide with one from another, and stripping
-   image sentinels that only resolve against their original source collection
-   (the actual image data, already hydrated into q.image, is kept). */
+   any case_group ids (and, within a group, its case_link_id/case_parent_id
+   sub-case ids) with a source-specific prefix so a case cluster — and any
+   sub-cases nested inside it — from one merged-in quiz can never collide
+   with one from another, and stripping image sentinels that only resolve
+   against their original source collection (the actual image data, already
+   hydrated into q.image, is kept). */
 function _mergeCloneQuestions(rawQuestions, namespace, sourceLabel) {
   const qs = JSON.parse(JSON.stringify(rawQuestions || []));
   qs.forEach(q => {
     if (q.case_group) q.case_group = namespace + '::' + q.case_group;
+    if (q.case_link_id) q.case_link_id = namespace + '::' + q.case_link_id;
+    if (q.case_parent_id) q.case_parent_id = namespace + '::' + q.case_parent_id;
     delete q.sharedImageIdx;
     delete q.pubImageIdx;
     // Merged-in questions came from a different quiz/source entirely, so

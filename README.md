@@ -755,6 +755,72 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **47 — Case/vignette context now includes right AND wrong answers, can
+  nest sub-cases to any depth, and shuffle/normal mode both keep a case
+  and its whole nested tree together in the right order.**
+  - **Answers in context, always live.** The shared-case text sent to the
+    AI (Explain / Chat / the per-question AI tools / bulk Solve) now
+    includes that case question's own answer choices, each explicitly
+    labeled CORRECT or WRONG. This is read directly off the live question
+    object every time, so editing the case's correct answer (or any of its
+    wrong choices) is reflected immediately, everywhere, with no separate
+    copy to fall out of sync.
+  - **Nested sub-cases, any depth.** A question that depends on a case can
+    now itself become a "sub-case" for further questions nested under IT
+    — and that can repeat to any depth the user sets up (a sub-case within
+    a sub-case, etc). New optional fields `case_link_id` / `case_parent_id`
+    express this alongside the existing `case_group` / `case_is_core` —
+    old data with neither field is unaffected and needs no migration
+    (a question with no `case_parent_id` is simply a direct child of the
+    group's root, exactly as before). The "🔗 Case Link" editor (in the
+    extraction preview, the admin editor, and the custom-quiz editor) got
+    a "Depends on" picker so any member can be re-nested under any other
+    non-descendant member, plus a preview stack showing every ancestor
+    level (not just the one root) so it's obvious what context the AI will
+    actually receive.
+  - **AI context is now explicit about levels.** The context block sent to
+    the model walks the whole ancestor chain, root first, each level
+    clearly labeled "BACKGROUND CONTEXT ONLY — not a separate question
+    you're being asked here", with an explicit "end of context" line
+    before the real question — so the model can't confuse a context
+    question (or its answer) with the actual question being solved,
+    explained, or chatted about, no matter how many levels deep the real
+    question is nested.
+  - **Extraction is nesting-aware.** The Gemini extraction prompt and
+    response schema now describe `case_link_id`/`case_parent_id` with a
+    worked example, so the AI can represent a nested sub-case it detects
+    in a source document (e.g. a follow-up lab result inside a larger
+    vignette that only some questions depend on) instead of flattening
+    everything into one level.
+  - **Shuffle (and normal mode) keep the whole tree together, correctly
+    ordered.** `_cqGroupAwareShuffle` is now tree-aware: a case block lays
+    out as root, then each direct dependent immediately followed by that
+    dependent's own entire nested subtree (recursively) — e.g. root 1,
+    dependents 3 and 5, where 5 is itself a sub-case with dependents 6
+    and 7, lays out as 1-3-5-6-7. Shuffle only ever reorders WHICH block
+    comes where, never anything inside one. This layout is no longer
+    shuffle-only: "normal" (non-shuffled) mode now runs through the same
+    layout pass too, so a case and its nested tree render correctly
+    grouped and ordered there as well, even if the underlying array
+    happened to store them out of order. Touches `js/app-core.js`,
+    `js/sharing.js`, and `js/split-quiz.js` (all three question-order
+    entry points), plus the multi-quiz-merge and community-quiz-merge
+    namespacing helpers in `js/split-quiz.js`/`js/community-quizzes.js`,
+    which now also namespace `case_link_id`/`case_parent_id` alongside
+    `case_group`.
+  - **Fixed along the way:** deleting a question from the extraction
+    preview or the admin quiz editor never ran the case-group cleanup
+    pass that the custom-quiz editor's delete already ran — meaning a
+    deleted core (or, now, a deleted sub-case) could leave the group
+    without a core, or with dangling references, in those two editors.
+    Both now run the same cleanup as the custom-quiz editor.
+  - Touches `js/ai-features.js` (the core data model and the "🔗 Case
+    Link" editor UI), `js/ai-question-tools.js` (shuffle/order), `js/ai-
+    solve.js` (reading the new fields out of Gemini's raw response, and
+    the extraction-preview delete fix), `js/gemini-uploads.js` (prompt +
+    schema), `js/quiz-editor.js` (the admin-editor delete fix), `js/app-
+    core.js`, `js/sharing.js`, `js/split-quiz.js`, and `js/community-
+    quizzes.js`.
 - **46 — Per-question "🧠 Thinking" toggles are now independent per
   question.** The Refine Question / Fill Choices / Add Choice toggles
   used to share ONE on/off value per tool across every question card —

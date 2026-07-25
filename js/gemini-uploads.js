@@ -392,10 +392,11 @@ STRICT RULES — follow exactly, no exceptions:
    - Give every question in the cluster — the core question AND every question that depends on it — the SAME "case_group" string (e.g. "case_1", "case_2", ...). Leave "case_group" empty/omitted for standalone questions that don't share context with any other question.
    - Output the core question immediately followed by its dependent questions, in the same order they appear in the source document.
    - Do not invent a cluster — only use "case_group"/"case_is_core" when the source document actually presents shared context that multiple questions depend on. A cluster always needs exactly one core question — never zero, never more than one.
+   - NESTED SUB-CASES (use this whenever the source itself nests context, not by default): sometimes ONE question inside a cluster introduces its OWN additional shared information — e.g. a follow-up lab result, imaging finding, or scenario update — that only SOME of the cluster's remaining questions depend on, while the rest still depend only on the outer case. When you see this, that in-between question becomes a "sub-case": give it a "case_link_id" string that's unique within this cluster (e.g. "sub_1"), still keep it in the same "case_group" as everything else, and leave its own "case_parent_id" pointing at whatever it itself depends on (empty/omitted if it depends directly on the outer case_group's core). Then, on each question that depends specifically on that sub-case rather than on the outer case directly, set "case_parent_id" to that same "case_link_id" string instead of leaving it empty. This can nest to any depth — a sub-case can itself have a further sub-case inside it — always by chaining "case_parent_id" to the immediate parent's own "case_link_id", never by inventing a second "case_group" for the nested part. A question with no "case_parent_id" set is understood to depend directly on the cluster's root core — this is the common case; only set "case_parent_id" when a question genuinely depends on a MORE SPECIFIC nested sub-case, not the outer one. Example: Q1 is the root core (case_group "case_1"). Q2 depends directly on Q1 (case_group "case_1", no case_parent_id). Q3 also depends directly on Q1, AND itself introduces a follow-up lab result some later questions depend on — so Q3 gets case_group "case_1", case_link_id "sub_1" (no case_parent_id of its own, since Q3 depends directly on Q1). Q4 and Q5 depend on that lab result specifically — both get case_group "case_1" and case_parent_id "sub_1".
 9. CROSS-PAGE CONTINUATIONS: treat the ENTIRE document as one continuous stream of content — page boundaries are just where the scan/print was cut and carry NO semantic meaning. Never let a page break cause you to drop, truncate, or duplicate anything. In particular:
    - A question's stem, its answer choices, and its indicated correct answer may be split across two (or more) pages — e.g. the stem and choices A–C end at the bottom of one page and choice D plus the answer marking appear at the top of the next, or a question appears on one page with its answer key only in an answer-key section on a different/later page. Always look across the WHOLE document and merge these into a single complete question object. Do not treat "no answer choices found on this page" or "question looks cut off at the page edge" as a reason to drop the question — first search the rest of the document (including the next page and any answer-key section) for the missing pieces before falling back to the "no options" or "__NO_KEY__" handling.
    - Likewise, if an answer-key section (e.g. a list like "12-C, 13-A, 14-B...") appears anywhere in the document — even on a page far from the questions themselves, such as at the very end — match each entry to its corresponding question by number and use it to set "answer", even though the key is physically separated from the question text.
-   - A case/vignette cluster (rule 8) can itself span a page break — the shared case text may end one page and the dependent questions continue on the next; keep them in the same cluster and never cut the case text short just because the page changed.
+   - A case/vignette cluster (rule 8), including any nested sub-cases inside it, can itself span a page break — the shared case text may end one page and the dependent questions continue on the next; keep them in the same cluster (and the same sub-case nesting) and never cut the case text short just because the page changed.
    - Never emit a partial or truncated question just because its remaining text, options, or answer live on a different page. If, after checking the entire document, some piece genuinely cannot be found anywhere, apply rule 5 ("__NO_KEY__") for a missing answer, but still include every option and word of stem text that does exist anywhere in the document — do not drop the question outright.
 
 Return ONLY a JSON array, one object per question, in exactly this format:
@@ -406,7 +407,9 @@ Return ONLY a JSON array, one object per question, in exactly this format:
     "answer": "A",
     "has_image": false,
     "case_group": "",
-    "case_is_core": false
+    "case_is_core": false,
+    "case_link_id": "",
+    "case_parent_id": ""
   }
 ]
 
@@ -431,7 +434,9 @@ const CQ_RESPONSE_SCHEMA = {
       answer: { type: 'STRING' },
       has_image: { type: 'BOOLEAN' },
       case_group: { type: 'STRING' },
-      case_is_core: { type: 'BOOLEAN' }
+      case_is_core: { type: 'BOOLEAN' },
+      case_link_id: { type: 'STRING' },
+      case_parent_id: { type: 'STRING' }
     },
     required: ['question', 'options', 'answer']
   }

@@ -415,9 +415,9 @@ async function startCommunityQuizByIdx(idx) {
   // legacy quizzes may have inline base64 or Storage URLs.
   await hydrateSharedQuizImages(quiz.id, combined);
   await hydrateQuizImages(combined); // handles any legacy Storage URLs still present
-  if (shuffle) {
-    combined = _cqGroupAwareShuffle(combined);
-  }
+  // Always pass through the group-aware layout — see the matching comment
+  // in app-core.js's startQuiz() for why this runs even when shuffle is off.
+  combined = _cqGroupAwareOrder(combined, shuffle);
 
   selectedSubject  = 'Community Quizzes';
   currentLecture   = quiz.title + ' (by ' + quiz.authorName + ')';

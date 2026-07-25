@@ -409,11 +409,20 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
     if (!noKey && !opts[answer]) answer = Object.keys(opts)[0];
     const optionsOrder = Object.entries(opts).map(([key, value]) => ({ key, value }));
     const rawGroup = (typeof q.case_group === 'string') ? q.case_group.trim() : '';
+    const rawLinkId = (typeof q.case_link_id === 'string') ? q.case_link_id.trim() : '';
+    const rawParentId = (typeof q.case_parent_id === 'string') ? q.case_parent_id.trim() : '';
     return {
       question: q.question, options: opts, optionsOrder, answer,
       has_image: !!q.has_image, no_answer_key: noKey, _sourceFile: file,
       case_group: rawGroup ? `${groupPrefix}:${rawGroup}` : null,
       case_is_core: !!q.case_is_core,
+      // Nested sub-case linking — see the header comment above
+      // _cqCaseAncestorChain() in js/ai-features.js for the full data
+      // model. Namespaced the same way and for the same reason as
+      // case_group just above: Gemini's own ids for these are only unique
+      // within this one file's response.
+      case_link_id: rawLinkId ? `${groupPrefix}:${rawLinkId}` : null,
+      case_parent_id: rawParentId ? `${groupPrefix}:${rawParentId}` : null,
       // Permanent identity tag, assigned once, right here, from this
       // question's actual position in Gemini's extraction response for
       // THIS file (1-based) — never recomputed later from wherever the
@@ -1362,7 +1371,8 @@ function cqReplaceImage(idx, event) {
 function cqDeleteQuestion(idx) {
   if (!cqGeneratedQuestions) return;
   if (!confirm(`Remove Q${idx + 1} from the quiz?`)) return;
-  cqGeneratedQuestions.splice(idx, 1);
+  const [deleted] = cqGeneratedQuestions.splice(idx, 1);
+  _caseGroupOnQuestionDeleted(cqGeneratedQuestions, deleted);
   _markQuestionEditDirty();
   renderCQPreview();
 }

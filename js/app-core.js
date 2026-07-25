@@ -645,9 +645,11 @@ function startQuiz() {
   if (!combined.length)   return alert('Please select at least one lecture.');
   if (!mins || mins <= 0) return alert('Please enter a valid duration in minutes.');
 
-  if (shuffle) {
-    combined = _cqGroupAwareShuffle(combined);
-  }
+  // Always pass through the group-aware layout, shuffled or not — this
+  // guarantees a case (and any sub-cases nested inside it, to any depth)
+  // always renders as one contiguous, correctly-ordered block even in
+  // "normal" mode, not just when Shuffle is on. See _cqGroupAwareOrder.
+  combined = _cqGroupAwareOrder(combined, shuffle);
 
   selectedSubject  = involvedSubjects.length === 1 ? involvedSubjects[0] : involvedSubjects.join(' + ');
   currentLecture   = totalLecCount === 1

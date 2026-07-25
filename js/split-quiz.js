@@ -633,9 +633,9 @@ function startCustomQuiz(id) {
   const shuffle = shuffleInput ? shuffleInput.checked : false;
 
   let combined = JSON.parse(JSON.stringify(quiz.questions));
-  if (shuffle) {
-    combined = _cqGroupAwareShuffle(combined);
-  }
+  // Always pass through the group-aware layout — see the matching comment
+  // in app-core.js's startQuiz() for why this runs even when shuffle is off.
+  combined = _cqGroupAwareOrder(combined, shuffle);
 
   selectedSubject  = 'Custom Quizzes';
   currentLecture   = quiz.title;
@@ -680,16 +680,27 @@ function startCustomQuizzesMulti() {
   // every group id by its source quiz here, on this ephemeral combined
   // copy only, so a case cluster from one quiz can never accidentally
   // merge with an unrelated one from another quiz.
+  // Each saved quiz's case-group ids (and, within a group, its sub-case
+  // case_link_id/case_parent_id ids) are only guaranteed unique *within
+  // that quiz* — two different quizzes could coincidentally reuse the same
+  // ids (e.g. both had it as their first extracted file). Namespace all
+  // three by their source quiz here, on this ephemeral combined copy only,
+  // so a case cluster — and any sub-cases nested inside it — from one quiz
+  // can never accidentally merge with an unrelated one from another quiz.
   let combined = [];
   selected.forEach(quiz => {
     const qs = JSON.parse(JSON.stringify(quiz.questions));
-    qs.forEach(q => { if (q.case_group) q.case_group = quiz.id + '::' + q.case_group; });
+    qs.forEach(q => {
+      if (q.case_group) q.case_group = quiz.id + '::' + q.case_group;
+      if (q.case_link_id) q.case_link_id = quiz.id + '::' + q.case_link_id;
+      if (q.case_parent_id) q.case_parent_id = quiz.id + '::' + q.case_parent_id;
+    });
     combined = combined.concat(qs);
   });
 
-  if (shuffle) {
-    combined = _cqGroupAwareShuffle(combined);
-  }
+  // Always pass through the group-aware layout — see the matching comment
+  // in app-core.js's startQuiz() for why this runs even when shuffle is off.
+  combined = _cqGroupAwareOrder(combined, shuffle);
 
   selectedSubject  = 'Custom Quizzes';
   currentLecture   = selected.length === 1

@@ -1495,48 +1495,173 @@ function escapeHtml(str) {
   }[c]));
 }
 
-/* -- Case / vignette clusters --
+/* -- Case / vignette clusters, with optional nested "sub-cases" --
    Some source documents present one shared stem/case/image and then several
    questions that all refer back to it without repeating that context. The
    question whose own text/image actually presents that case is the "core"
-   question of the group; every other member is a "dependent" that just
+   (root) question of the group; every other member is a "dependent" that
    points at it via case_group. There is deliberately no separate/duplicated
    case-text field to keep in sync — the core question's own "question" and
-   "image" fields ARE the case, so editing the case just means editing the
-   core question itself, and there's only ever one place that can drift. */
+   "image" fields ARE the case, so editing the core question (including its
+   correct answer) just means editing that question itself, and every place
+   that reads it below reads it live off that same object — there's only
+   ever one place that can drift, and nothing here ever caches a stale copy.
+
+   NESTING: a dependent question can ALSO itself be a shared sub-context for
+   further questions — e.g. the main vignette leads to one question, one of
+   whose own follow-up lab results is itself shared by two more questions
+   underneath it. To express that, a member that has others nested under it
+   gets a `case_link_id` (a stable id, scoped to this one case_group,
+   lazily assigned the first moment something is linked under it), and
+   each of ITS dependents records that id in its own `case_parent_id`. A
+   member with no `case_parent_id` is a direct child of the group's root
+   core — exactly today's (pre-nesting) behavior, so old data with neither
+   field needs no migration at all. There's no depth limit: a `case_link_id`
+   holder can itself have `case_parent_id` pointing further up, and so on —
+   see _cqCaseAncestorChain() for walking that all the way to the root. */
 
 let _cqGroupPrefixCounter = 0;
 function _cqNextGroupPrefixId() { return ++_cqGroupPrefixCounter; }
 
-/* Returns the core question object for whichever group `q` belongs to
-   (could be `q` itself if it IS the core), or null if `q` isn't grouped or
-   its group currently has no core assigned. */
+/* Returns the ROOT (top-level) core question for whichever group `q`
+   belongs to — could be `q` itself. null if `q` isn't grouped or its group
+   currently has no root core assigned. */
 function _cqFindCoreQuestion(questions, q) {
   if (!q || !q.case_group) return null;
   if (q.case_is_core) return q;
   return questions.find(o => o.case_group === q.case_group && o.case_is_core) || null;
 }
 
-/* The shared image for a case cluster is simply the core question's own
-   image — nothing is duplicated onto siblings (which would bypass the
-   Firestore image-subcollection pipeline used for saved/shared/published
-   quizzes and could bloat those documents). */
-function _cqFindCaseGroupImage(questions, q) {
-  const core = _cqFindCoreQuestion(questions, q);
-  return (core && core.image) ? core.image : null;
+/* Resolves `q`'s DIRECT parent in its case tree: the specific sub-case it's
+   explicitly nested under (case_parent_id → another member's case_link_id),
+   or — if it has no case_parent_id, or that id doesn't currently resolve to
+   an actual member of the SAME group (e.g. a dangling reference left over
+   after deleting the sub-case it pointed at) — the group's root core.
+   Returns null for the root itself, or for a standalone/ungrouped question. */
+function _cqFindCaseParent(questions, q) {
+  if (!q || !q.case_group || q.case_is_core) return null;
+  if (q.case_parent_id) {
+    const p = questions.find(o => o.case_group === q.case_group && o.case_link_id === q.case_parent_id);
+    if (p && p !== q) return p;
+  }
+  return _cqFindCoreQuestion(questions, q);
 }
 
-/* Shared helper for every AI feature (solve, explain, chat) that needs to
-   give the model the case/vignette a dependent question belongs to. Returns
-   '' for standalone questions and for the core question itself (its own
-   "question" text already IS the case, so it needs no prefix). For a
-   dependent, returns the core's live question text wrapped with a label,
-   ready to prepend to that dependent's own prompt text. */
+/* Full ancestor chain for `q`, ROOT FIRST down to (but excluding) `q`
+   itself — e.g. for a question nested two levels deep this is
+   [rootCore, immediateParentSubCase]. Empty for the root itself or a
+   standalone question. Cycle-safe (see _cqNormalizeCaseParents — the editor
+   UI never lets a cycle form, but this still won't hang if data is somehow
+   corrupted, e.g. hand-edited JSON). */
+function _cqCaseAncestorChain(questions, q) {
+  const chain = [];
+  const seen = new Set();
+  let cur = _cqFindCaseParent(questions, q);
+  while (cur && !seen.has(cur)) {
+    chain.unshift(cur);
+    seen.add(cur);
+    if (cur.case_is_core) break;
+    cur = _cqFindCaseParent(questions, cur);
+  }
+  return chain;
+}
+
+/* True if `q` is itself a shared sub-context for at least one other member
+   of its group — i.e. a "sub-case", not just a plain dependent. The
+   top-level root is never reported as a sub-case even if it has children;
+   it's just "the case". Purely informational (used for editor-UI labels);
+   nothing below needs to distinguish "sub-case" from "plain leaf" to build
+   correct context, since the ancestor chain walk covers either shape. */
+function _cqIsSubCase(questions, q) {
+  if (!q || !q.case_group || !q.case_link_id) return false;
+  return questions.some(o => o !== q && o.case_group === q.case_group && o.case_parent_id === q.case_link_id);
+}
+
+/* Every question directly or transitively nested under `q` (its whole
+   subtree, excluding `q` itself) — used only to stop the editor UI from
+   letting the user pick a target that would create a cycle (nesting a
+   question under its own descendant). */
+function _cqCaseDescendants(questions, q) {
+  if (!q || !q.case_group) return [];
+  const gid = q.case_group;
+  const out = [];
+  const visit = (node) => {
+    questions.forEach(o => {
+      if (o.case_group !== gid || o === node) return;
+      if (_cqFindCaseParent(questions, o) === node) { out.push(o); visit(o); }
+    });
+  };
+  visit(q);
+  return out;
+}
+
+/* Assigns `q` a stable case_link_id if it doesn't have one yet (needed the
+   first moment something else gets nested under it), and returns it. */
+function _caseGroupEnsureLinkId(q) {
+  if (!q.case_link_id) q.case_link_id = 'node_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+  return q.case_link_id;
+}
+
+/* The shared image for a case cluster: the NEAREST ancestor (immediate
+   parent first, walking outward to the root) that actually has an image —
+   so a question nested under a sub-case with its own distinct image (say,
+   a specific lab panel) gets THAT image rather than always the outermost
+   case's, while still falling back outward if the immediate context has
+   none of its own. Nothing is duplicated onto siblings (which would bypass
+   the Firestore image-subcollection pipeline used for saved/shared/
+   published quizzes and could bloat those documents) — this only ever
+   reads whichever ancestor's own "image" field is currently set. */
+function _cqFindCaseGroupImage(questions, q) {
+  if (!q || !q.case_group || q.case_is_core) return null;
+  const chain = _cqCaseAncestorChain(questions, q); // root .. immediate parent
+  for (let i = chain.length - 1; i >= 0; i--) {
+    if (chain[i].image) return chain[i].image;
+  }
+  return null;
+}
+
+/* One case-context level's own answer choices, each explicitly labeled
+   CORRECT or WRONG — reads q.options/q.answer live, so an edit to the
+   correct answer (on any ancestor level, at any depth) is reflected the
+   very next time this runs; nothing here is ever cached or snapshotted. */
+function _cqCaseLevelAnswerBlock(q) {
+  const entries = getOptionEntries(q);
+  if (!entries.length) return '';
+  return entries.map(([k, v]) => `  ${k}. ${v}  — ${k === q.answer ? 'CORRECT' : 'WRONG'}`).join('\n');
+}
+
+/* Shared helper for every AI feature (solve, explain, chat, and the
+   lightweight per-question AI tools) that needs to give the model the case
+   context a dependent question belongs to — now walking the FULL ancestor
+   chain, so a question nested several sub-cases deep gets every level, not
+   just the immediate one. Returns '' for standalone questions and for the
+   root core itself (its own "question" text already IS the case, so it
+   needs no prefix).
+
+   Each level is clearly labeled as background CONTEXT ONLY — including its
+   own correct/wrong answers, so the model can use that reasoning without
+   ever mistaking a context question's answer for the actual question's
+   answer, or restating/re-asking a context question as if it were the real
+   one — and the block ends with an explicit "end of context" line right
+   before the caller appends the real question. This is also what keeps a
+   multi-level nested case from confusing the model: it sees the whole
+   chain top-down, each one explicitly numbered by level, so "the shared
+   case" (level 1) and "the specific sub-case this question depends on"
+   (the deepest level) are never conflated with each other or with the
+   actual question. */
 function _cqCaseContextBlock(questions, q) {
   if (!q || !q.case_group || q.case_is_core) return '';
-  const core = _cqFindCoreQuestion(questions, q);
-  if (!core || !core.question || !core.question.trim()) return '';
-  return 'Shared case/vignette this question belongs to:\n' + core.question.trim() + '\n\n';
+  const chain = _cqCaseAncestorChain(questions, q).filter(lvl => lvl.question && lvl.question.trim());
+  if (!chain.length) return '';
+  const parts = chain.map((lvl, idx) => {
+    const label = idx === 0
+      ? 'Shared case/vignette this question belongs to'
+      : `Nested sub-case within the above (level ${idx + 1}) that this question specifically depends on`;
+    const ansBlock = _cqCaseLevelAnswerBlock(lvl);
+    return `${label} — BACKGROUND CONTEXT ONLY, this is NOT a separate question you are being asked here:\n"""${lvl.question.trim()}"""\n`
+      + (ansBlock ? `Its own answer choices (for context/reasoning only — do not restate, re-ask, or grade these; they belong to this context question, not to the actual question below):\n${ansBlock}\n` : '');
+  });
+  return parts.join('\n') + '\n— End of shared case context. The ACTUAL question you must act on now follows below, entirely separately from everything above. —\n\n';
 }
 
 function _cqNormalizeCaseGroups(questions) {
@@ -1546,7 +1671,7 @@ function _cqNormalizeCaseGroups(questions) {
   });
   Object.entries(byGroup).forEach(([gid, members]) => {
     if (members.length < 2) {
-      members.forEach(q => { q.case_group = null; q.case_is_core = false; });
+      members.forEach(q => { q.case_group = null; q.case_is_core = false; q.case_link_id = null; q.case_parent_id = null; });
       delete byGroup[gid];
     }
   });
@@ -1554,7 +1679,39 @@ function _cqNormalizeCaseGroups(questions) {
   // holds the case/image the others depend on) — never zero, never more
   // than one, so shuffling and display always know which question to lead
   // the group with and which question's text/image to pull as context.
-  Object.keys(byGroup).forEach(gid => _caseGroupEnsureSingleCore(questions, gid));
+  Object.keys(byGroup).forEach(gid => {
+    _caseGroupEnsureSingleCore(questions, gid);
+    _cqNormalizeCaseParents(questions, byGroup[gid]);
+  });
+}
+
+/* Repairs case_parent_id references within one group: drops any that point
+   at a case_link_id which doesn't belong to THIS group, or at the question
+   itself (a 1-node cycle) — falling back to "direct child of the root",
+   exactly like a never-set case_parent_id. Also breaks any longer circular
+   parent chain (A under B under A) the same way. The editor UI (see
+   _caseGroupSetParent/_caseGroupSetCore below) never lets either situation
+   arise in the first place, but this keeps the tree well-formed regardless
+   — e.g. after a hand-edited JSON import, or a deleted sub-case leaving its
+   former children's case_parent_id pointing at nothing. */
+function _cqNormalizeCaseParents(questions, members) {
+  const byLinkId = {};
+  members.forEach(q => { if (q.case_link_id) byLinkId[q.case_link_id] = q; });
+  members.forEach(q => {
+    if (q.case_is_core || !q.case_parent_id) return;
+    const target = byLinkId[q.case_parent_id];
+    if (!target || target === q) q.case_parent_id = null;
+  });
+  members.forEach(q => {
+    if (q.case_is_core || !q.case_parent_id) return;
+    const seen = new Set([q]);
+    let cur = byLinkId[q.case_parent_id];
+    while (cur && !cur.case_is_core) {
+      if (seen.has(cur)) { q.case_parent_id = null; return; } // cycle — cut here, falls back to root
+      seen.add(cur);
+      cur = cur.case_parent_id ? byLinkId[cur.case_parent_id] : null;
+    }
+  });
 }
 
 /* Ensures the case group `gid` has exactly one member with case_is_core
@@ -1580,11 +1737,14 @@ function _caseGroupEnsureSingleCore(questions, gid) {
    later). These helpers add a small "🔗 Case Link" control to every
    question card in BOTH inline editors (the extraction review screen and
    the generic admin quiz editor) so the user can see which question is the
-   core case-holder, which questions depend on it, and freely create/join/
-   leave a group before saving — using the same case_group / case_is_core
-   fields the automatic detection uses, so both paths stay fully
-   compatible. There's nothing else to edit here: the case IS the core
-   question, so changing it just means editing that question directly. */
+   root case-holder, which questions depend on it (directly, or nested
+   under one of ITS dependents, to any depth), and freely create/join/
+   leave/re-nest a group before saving — using the same case_group /
+   case_is_core / case_link_id / case_parent_id fields the automatic
+   detection uses, so both paths stay fully compatible. There's nothing
+   else to edit here: the case IS the core question (or, for a nested
+   level, the sub-case question), so changing it just means editing that
+   question directly. */
 
 // Registry so the shared functions below can operate on whichever
 // editor invoked them, without duplicating this logic per editor.
@@ -2160,37 +2320,60 @@ function _renderCaseGroupBlock(editorKey, questions, i) {
 
   if (gid) {
     const memberIdxs = membersOf[gid] || [];
-    const coreIdx = memberIdxs.find(idx => questions[idx].case_is_core);
     const isCore = !!q.case_is_core;
     const others = memberIdxs.filter(idx => idx !== i);
+    const childCount = questions.filter(o => o.case_group === gid && _cqFindCaseParent(questions, o) === q).length;
+    const hasChildren = childCount > 0;
 
     html += `<div style="font-size:.72rem;color:${color};font-weight:700;margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">`;
     if (isCore) {
-      html += `<span>🧩 Core question — its own text${q.image ? ' &amp; image' : ''} above is the case every linked question depends on</span>`;
-    } else if (coreIdx !== undefined) {
-      html += `<span>↳ Depends on Q${coreIdx + 1}</span>
-        <button type="button" class="cq-img-action-btn" style="padding:2px 8px;font-size:.68rem;"
-          onclick="_caseGroupSetCore('${editorKey}', ${i})">★ Make this the core question instead</button>`;
+      html += `<span>🧩 Root case question — its own text${q.image ? ' &amp; image' : ''} above is the case every linked question depends on${hasChildren ? ' (directly, or via a nested sub-case)' : ''}</span>`;
     } else {
-      html += `<span>⚠️ No core question set for this case yet</span>
+      const parent = _cqFindCaseParent(questions, q);
+      const parentIdx = questions.indexOf(parent);
+      // "Depends on" — every OTHER member EXCEPT q's own descendants (nesting
+      // a question under its own descendant would create a cycle in the tree).
+      const descendants = _cqCaseDescendants(questions, q);
+      const candidateIdxs = memberIdxs.filter(idx => idx !== i && !descendants.includes(questions[idx]));
+      const parentOptsHtml = candidateIdxs.map(idx => {
+        const cand = questions[idx];
+        const tag = cand.case_is_core ? ' ★ root case' : (_cqIsSubCase(questions, cand) ? ' 🧩 sub-case' : '');
+        return `<option value="${idx}" ${idx === parentIdx ? 'selected' : ''}>Q${idx + 1}${tag}</option>`;
+      }).join('');
+      html += `<span>↳ Depends on:</span>
+        <select style="font-family:var(--font);font-size:.72rem;padding:2px 6px;border-radius:6px;border:1.5px solid ${color};background:#fff;color:var(--text-main);"
+          onchange="_caseGroupSetParent('${editorKey}', ${i}, this.value)">
+          ${parentOptsHtml}
+        </select>
         <button type="button" class="cq-img-action-btn" style="padding:2px 8px;font-size:.68rem;"
-          onclick="_caseGroupSetCore('${editorKey}', ${i})">★ Make this the core question</button>`;
+          onclick="_caseGroupSetCore('${editorKey}', ${i})">★ Make this the root case instead</button>`;
+    }
+    if (hasChildren) {
+      html += `<span>🧩 ${childCount} question${childCount !== 1 ? 's' : ''} nested directly under this one${!isCore ? " — it's a sub-case within the case above" : ''}</span>`;
     }
     html += `</div>`;
 
     html += `<div style="font-size:.7rem;color:${color};margin-top:2px;">
-      🔗 Linked with ${others.length ? others.map(idx => 'Q' + (idx + 1) + (idx === coreIdx ? ' ★' : '')).join(', ') : '(no other questions yet — link another question to this case)'}
+      🔗 Linked with ${others.length ? others.map(idx => 'Q' + (idx + 1) + (questions[idx].case_is_core ? ' ★' : '')).join(', ') : '(no other questions yet — link another question to this case)'}
     </div>`;
 
-    if (!isCore && coreIdx !== undefined) {
-      const core = questions[coreIdx];
-      html += `<div style="margin-top:8px;padding:8px 10px;background:#fff;border:1px solid ${color}55;border-radius:6px;">
-        <div style="font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
-          Context used for solving (Q${coreIdx + 1}'s own text${core.image ? ' + image' : ''}) — edit Q${coreIdx + 1} directly to change it
-        </div>
-        <div style="font-size:.78rem;color:var(--text-main);font-style:italic;">${escapeHtml(_caseGroupCorePreviewText(core, 220))}</div>
-        ${core.image ? `<img src="${core.image}" alt="Core question image" style="max-width:140px;max-height:90px;object-fit:contain;display:block;margin-top:6px;border-radius:4px;border:1px solid var(--border-soft-2);" />` : ''}
-      </div>`;
+    if (!isCore) {
+      // Preview EVERY ancestor level (root down to the immediate parent),
+      // exactly matching what the AI actually receives for this question —
+      // see _cqCaseContextBlock. For a plain (non-nested) dependent this is
+      // just one box (the root case); for a question nested several
+      // sub-cases deep, one box per level, in order.
+      const chain = _cqCaseAncestorChain(questions, q);
+      html += chain.map(lvl => {
+        const lvlIdx = questions.indexOf(lvl);
+        return `<div style="margin-top:8px;padding:8px 10px;background:#fff;border:1px solid ${color}55;border-radius:6px;">
+          <div style="font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
+            Context used for solving — Q${lvlIdx + 1}'s own text${lvl.image ? ' + image' : ''}${lvl.case_is_core ? ' (root case)' : ' (nested sub-case)'} — edit Q${lvlIdx + 1} directly to change it
+          </div>
+          <div style="font-size:.78rem;color:var(--text-main);font-style:italic;">${escapeHtml(_caseGroupCorePreviewText(lvl, 220))}</div>
+          ${lvl.image ? `<img src="${lvl.image}" alt="Case context image" style="max-width:140px;max-height:90px;object-fit:contain;display:block;margin-top:6px;border-radius:4px;border:1px solid var(--border-soft-2);" />` : ''}
+        </div>`;
+      }).join('');
     }
   }
   html += `</div>`;
@@ -2204,18 +2387,30 @@ function _caseGroupOnSelect(editorKey, i, val) {
   const q = questions[i];
   const prevGid = q.case_group;
   if (val === '') {
-    q.case_group = null; q.case_is_core = false;
+    q.case_group = null; q.case_is_core = false; q.case_link_id = null; q.case_parent_id = null;
   } else if (val === '__new__') {
     q.case_group = _caseGroupNewId();
     q.case_is_core = true; // the question that starts a group is its core by default
+    q.case_link_id = null; q.case_parent_id = null;
   } else {
     q.case_group = val;
     q.case_is_core = false; // joining an existing group — it already has a core
+    q.case_parent_id = null; // defaults to a direct child of that group's root case; use "Depends on" to nest it deeper
   }
-  // The group this question just left (if any) may now have no core left;
-  // the group it just joined/started must end up with exactly one.
-  if (prevGid && prevGid !== q.case_group) _caseGroupEnsureSingleCore(questions, prevGid);
-  if (q.case_group) _caseGroupEnsureSingleCore(questions, q.case_group);
+  // The group this question just left (if any) may now have no core left,
+  // and anything that was nested under `q` there is now dangling. The group
+  // it just joined/started must end up with exactly one core too. Both
+  // cases are handled by the same normalization extraction/loading uses.
+  if (prevGid && prevGid !== q.case_group) {
+    const remaining = questions.filter(o => o.case_group === prevGid);
+    _caseGroupEnsureSingleCore(questions, prevGid);
+    _cqNormalizeCaseParents(questions, remaining);
+  }
+  if (q.case_group) {
+    const members = questions.filter(o => o.case_group === q.case_group);
+    _caseGroupEnsureSingleCore(questions, q.case_group);
+    _cqNormalizeCaseParents(questions, members);
+  }
   _markQuestionEditDirty();
   ed.rerender();
 }
@@ -2227,12 +2422,42 @@ function _caseGroupUnlink(editorKey, i) {
   const gid = questions[i].case_group;
   questions[i].case_group = null;
   questions[i].case_is_core = false;
-  if (gid) _caseGroupEnsureSingleCore(questions, gid); // promote a remaining member if the core just left
+  questions[i].case_link_id = null;
+  questions[i].case_parent_id = null;
+  if (gid) {
+    const remaining = questions.filter(o => o.case_group === gid);
+    _caseGroupEnsureSingleCore(questions, gid); // promote a remaining member if the core just left
+    _cqNormalizeCaseParents(questions, remaining); // re-parent anything that was nested under the question that just left
+  }
   _markQuestionEditDirty();
   ed.rerender();
 }
 
-/* Manually promotes question `i` to be the core of its own case group,
+/* Re-nests question `i` directly under `targetIdx` — any other member of
+   the SAME group, chosen from the "Depends on" dropdown (which already
+   excludes q's own descendants, so a cycle can't be requested through the
+   UI; this double-checks anyway). Picking the group's root core is the
+   same as leaving it unset (a plain, non-nested dependent). Picking any
+   other member turns THAT member into a sub-case (lazily assigning it a
+   case_link_id the first time something is nested under it) and nests `i`
+   under it — this is what lets a case tree grow to any depth the user
+   chooses, one link at a time. */
+function _caseGroupSetParent(editorKey, i, targetIdxStr) {
+  const ed = _caseGroupEditors[editorKey];
+  const questions = ed && ed.getQuestions();
+  if (!questions || !questions[i]) return;
+  const q = questions[i];
+  const gid = q.case_group;
+  if (!gid || q.case_is_core) return;
+  const target = questions[parseInt(targetIdxStr, 10)];
+  if (!target || target.case_group !== gid || target === q) return;
+  if (_cqCaseDescendants(questions, q).includes(target)) return; // would create a cycle — ignore
+  q.case_parent_id = target.case_is_core ? null : _caseGroupEnsureLinkId(target);
+  _markQuestionEditDirty();
+  ed.rerender();
+}
+
+/* Manually promotes question `i` to be the ROOT of its own case group,
    demoting whichever question held that role before. */
 function _caseGroupSetCore(editorKey, i) {
   const ed = _caseGroupEditors[editorKey];
@@ -2240,18 +2465,29 @@ function _caseGroupSetCore(editorKey, i) {
   if (!questions || !questions[i]) return;
   const gid = questions[i].case_group;
   if (!gid) return;
-  questions.forEach(o => { if (o.case_group === gid) o.case_is_core = false; });
+  const members = questions.filter(o => o.case_group === gid);
+  members.forEach(o => { o.case_is_core = false; });
   questions[i].case_is_core = true;
+  questions[i].case_parent_id = null; // the root never has a parent of its own
+  // Promoting a different member to root can turn a previously-valid chain
+  // into a cycle (e.g. the OLD root ends up nested somewhere under a
+  // question that used to be nested under IT) — repair exactly like any
+  // other corrupted chain, falling anything affected back to the new root.
+  _cqNormalizeCaseParents(questions, members);
   _markQuestionEditDirty();
   ed.rerender();
 }
 
-/* If the question being deleted was the core of a case group, promote a
-   remaining member so the group doesn't lose its shared context entirely.
-   Called by both editors right after splicing a question out. */
+/* If the question being deleted was the core of a case group — or itself a
+   sub-case with its own children — promote/re-parent so the group doesn't
+   lose its shared context, or leave a dangling reference, entirely. Called
+   by both editors right after splicing a question out. */
 function _caseGroupOnQuestionDeleted(questions, deletedQuestion) {
   if (deletedQuestion && deletedQuestion.case_group) {
-    _caseGroupEnsureSingleCore(questions, deletedQuestion.case_group);
+    const gid = deletedQuestion.case_group;
+    const remaining = questions.filter(o => o.case_group === gid);
+    _caseGroupEnsureSingleCore(questions, gid);
+    _cqNormalizeCaseParents(questions, remaining);
   }
 }
 
