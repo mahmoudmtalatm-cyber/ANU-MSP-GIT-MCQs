@@ -755,6 +755,24 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **46 — Per-question "🧠 Thinking" toggles are now independent per
+  question.** The Refine Question / Fill Choices / Add Choice toggles
+  used to share ONE on/off value per tool across every question card —
+  switching it on for one question silently switched it on for every
+  other question showing that same button too. Each of those three is
+  now tracked separately per question (keyed by editor + question index),
+  so turning it on for one question has no effect on any other. This
+  per-question state lives only in memory for the current session (not
+  persisted across reloads), since a question's index can point at a
+  different question next time the editor opens. The two BULK toggles
+  ("Fill Choices (bulk)" / "Refine Questions (bulk)") are unaffected —
+  there's genuinely only one of each on the page, so they keep their
+  original shared, persisted-in-localStorage behavior. Touches only
+  `js/ai-question-tools.js`.
+- **45 — planned, then dropped:** a "🛠️ Full mgmt" per-Year admin
+  scope was explored and partly built in an earlier internal drop, but
+  was abandoned before release at the requester's direction — every
+  change from here on builds on #44, not on that unreleased work.
 - **44 — Fix "🧠 Thinking" toggle scrolling the page away from the
   question being edited.** Clicking any per-question "🧠 Thinking"
   checkbox (Refine Question / Fill Choices / Add Choice, and their bulk

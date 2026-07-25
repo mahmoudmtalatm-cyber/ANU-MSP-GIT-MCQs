@@ -16,48 +16,85 @@
    small, deterministic tasks that don't need it — see the comments at each
    call site for why that was added in the first place.
 
-   This block lets the user opt back INTO thinking, per tool, if they'd
-   rather trade speed/cost for a chance at higher quality. Each of the five
-   tools below is a COMPLETELY INDEPENDENT switch: turning bulk Fill Choices
-   on has no effect on the per-question Fill Choices button, or on Add
-   Choice, or on Refine, and vice versa. There is exactly one on/off state
-   per tool — not per question — so every checkbox for the same tool
-   (a per-question tool's checkbox appears on every question card; a bulk
-   tool's checkbox appears in more than one panel) always shows and stays
-   in sync with that one shared value. Persisted in localStorage so the
-   choice survives a reload. */
+   This block lets the user opt back INTO thinking, if they'd rather trade
+   speed/cost for a chance at higher quality. The two BULK tools
+   (fillBulk/refineBulk act on every question in one pass, so there's
+   exactly one instance of each button anywhere on the page) share ONE
+   persisted value each, same as before: flip it once and it stays flipped
+   next time you open the app, and every rendered copy of that same bulk
+   checkbox (it can appear in more than one panel) stays in sync.
+
+   The three PER-QUESTION tools (Refine Question / Fill Choices / Add
+   Choice) are different: every question card renders its own copy, and
+   each one now remembers its OWN on/off state, independently of every
+   other question — turning it on for question 3 has no effect on
+   question 7, even though both show the same "🧩 Fill Choices" button.
+   That state is keyed by `${editorKey}_${i}_${toolKey}` and lives only in
+   memory for the current session (not persisted): a question's index can
+   point at a completely different question next time the editor opens
+   (after adding/removing/reordering questions), so remembering "index 3
+   was ON" across a reload wouldn't reliably mean the question the user
+   actually turned it on for. */
 const AI_TOOLS_THINKING_STORE = 'aiToolsThinkingSettings';
-const _AI_TOOLS_THINKING_DEFAULTS = {
-  refineSingle: false, // 🪄 Refine Question (per-question button)
-  fillSingle:   false, // 🧩 Fill Choices (per-question button)
-  addChoice:    false, // ➕ Add Choice (AI) (per-question button)
+const _AI_TOOLS_BULK_THINKING_DEFAULTS = {
   fillBulk:     false, // 🧩 Fill Choices — bulk (post-extraction pass / "Fill Choices (All)")
   refineBulk:   false  // 🪄 Refine Questions — bulk (post-extraction pass / "Refine Questions (All)")
+};
+// Which tool keys are per-question (vs. the shared/persisted bulk ones
+// above) — checked by every function below to decide which store to use.
+const _AI_TOOLS_PER_QUESTION_KEYS = {
+  refineSingle: 1, // 🪄 Refine Question (per-question button)
+  fillSingle:   1, // 🧩 Fill Choices (per-question button)
+  addChoice:    1  // ➕ Add Choice (AI) (per-question button)
 };
 function _aiToolsLoadThinkingSettings() {
   try {
     const raw = JSON.parse(localStorage.getItem(AI_TOOLS_THINKING_STORE) || '{}');
     const out = {};
-    Object.keys(_AI_TOOLS_THINKING_DEFAULTS).forEach(k => { out[k] = !!raw[k]; });
+    Object.keys(_AI_TOOLS_BULK_THINKING_DEFAULTS).forEach(k => { out[k] = !!raw[k]; });
     return out;
   } catch (e) {
-    return Object.assign({}, _AI_TOOLS_THINKING_DEFAULTS);
+    return Object.assign({}, _AI_TOOLS_BULK_THINKING_DEFAULTS);
   }
 }
-let _aiToolsThinking = _aiToolsLoadThinkingSettings();
-function _aiToolsThinkingOn(toolKey) { return !!_aiToolsThinking[toolKey]; }
-/* generationConfig fragment for a given tool: omit thinkingConfig entirely
-   when the user has switched thinking ON (Gemini's own dynamic default then
-   applies, exactly like AI Solve already runs today), or force it to 0 when
-   OFF — the original, still-default, behaviour. */
-function _aiToolsGenConfigExtra(toolKey) {
-  return _aiToolsThinkingOn(toolKey) ? {} : { thinkingConfig: { thinkingBudget: 0 } };
+let _aiToolsThinkingBulk = _aiToolsLoadThinkingSettings();     // { fillBulk, refineBulk } — persisted
+let _aiToolsThinkingByQuestion = {};                           // { "<editorKey>_<i>_<toolKey>": true|false } — in-memory only
+function _aiToolsThinkingByQuestionKey(toolKey, editorKey, i) { return `${editorKey}_${i}_${toolKey}`; }
+function _aiToolsThinkingOn(toolKey, editorKey, i) {
+  if (_AI_TOOLS_PER_QUESTION_KEYS[toolKey]) return !!_aiToolsThinkingByQuestion[_aiToolsThinkingByQuestionKey(toolKey, editorKey, i)];
+  return !!_aiToolsThinkingBulk[toolKey];
 }
-function _aiToolsSetThinking(toolKey, on) {
-  _aiToolsThinking[toolKey] = !!on;
-  try { localStorage.setItem(AI_TOOLS_THINKING_STORE, JSON.stringify(_aiToolsThinking)); } catch (e) {}
-  // Sync every rendered checkbox for THIS tool only, wherever it appears —
-  // never touches a checkbox belonging to a different tool.
+/* generationConfig fragment for a given tool (and, for a per-question
+   tool, which question) — omit thinkingConfig entirely when the user has
+   switched thinking ON (Gemini's own dynamic default then applies, exactly
+   like AI Solve already runs today), or force it to 0 when OFF — the
+   original, still-default, behaviour. editorKey/i are only meaningful (and
+   only need to be passed) for a per-question toolKey. */
+function _aiToolsGenConfigExtra(toolKey, editorKey, i) {
+  return _aiToolsThinkingOn(toolKey, editorKey, i) ? {} : { thinkingConfig: { thinkingBudget: 0 } };
+}
+function _aiThinkingCbId(toolKey, editorKey, i) {
+  return `aiThinkingCb_${editorKey}_${i}_${toolKey}`;
+}
+function _aiToolsSetThinking(toolKey, on, editorKey, i) {
+  if (_AI_TOOLS_PER_QUESTION_KEYS[toolKey]) {
+    // Per-question: update only THIS question's stored state and THIS
+    // question's checkbox, found by its own unique id — never touches any
+    // other question's checkbox for the same tool.
+    _aiToolsThinkingByQuestion[_aiToolsThinkingByQuestionKey(toolKey, editorKey, i)] = !!on;
+    const cb = document.getElementById(_aiThinkingCbId(toolKey, editorKey, i));
+    if (cb) {
+      cb.checked = on;
+      const wrap = cb.closest('.ai-thinking-toggle');
+      if (wrap) wrap.classList.toggle('ai-thinking-on', on);
+    }
+    return;
+  }
+  // Bulk tool: one shared, persisted value — sync every rendered checkbox
+  // for THIS tool, wherever it appears (there's normally just one, but a
+  // bulk panel can in principle be rendered in more than one place).
+  _aiToolsThinkingBulk[toolKey] = !!on;
+  try { localStorage.setItem(AI_TOOLS_THINKING_STORE, JSON.stringify(_aiToolsThinkingBulk)); } catch (e) {}
   document.querySelectorAll(`.ai-thinking-cb[data-tool="${toolKey}"]`).forEach(cb => {
     cb.checked = on;
     const wrap = cb.closest('.ai-thinking-toggle');
@@ -71,9 +108,11 @@ const _AI_THINKING_LABELS = {
   fillBulk:     'Fill Choices (bulk)',
   refineBulk:   'Refine Questions (bulk)'
 };
-/* Compact pill-checkbox, safe to render many times for the same toolKey
-   (every per-question card renders its own copy) — all copies stay in sync
-   via the querySelectorAll sync in _aiToolsSetThinking above.
+/* Pill-checkbox for one tool. For a BULK toolKey, safe to render many
+   times (all copies stay in sync via the querySelectorAll sync above) —
+   just call with (toolKey, variant). For a PER-QUESTION toolKey, pass
+   editorKey/i too so its state and its checkbox id are scoped to that one
+   question only (see the header comment above for why).
    `variant` colors the pill to match the button it belongs to, so it reads
    as part of that specific tool rather than a generic setting floating
    nearby: 'violet' (default, Refine), 'amber' (Fill Choices), 'green'
@@ -81,14 +120,19 @@ const _AI_THINKING_LABELS = {
    button (see _renderAiRefineTools / _renderAiChoiceTools) — color plus
    placement together make the pairing unambiguous even when a Stop button
    sits close by too. */
-function _renderAiThinkingToggle(toolKey, variant, extraStyle) {
-  const on = _aiToolsThinkingOn(toolKey);
+function _renderAiThinkingToggle(toolKey, variant, extraStyle, editorKey, i) {
+  const on = _aiToolsThinkingOn(toolKey, editorKey, i);
   const label = _AI_THINKING_LABELS[toolKey] || toolKey;
   const variantClass = variant && variant !== 'violet' ? ` ai-thinking-${variant}` : '';
+  const isPerQuestion = !!_AI_TOOLS_PER_QUESTION_KEYS[toolKey];
+  const idAttr = isPerQuestion ? ` id="${_aiThinkingCbId(toolKey, editorKey, i)}"` : '';
+  const onchangeArgs = isPerQuestion
+    ? `'${toolKey}', this.checked, '${editorKey}', ${i}`
+    : `'${toolKey}', this.checked`;
   return `<label class="ai-thinking-toggle${variantClass}${on ? ' ai-thinking-on' : ''}" style="${extraStyle || ''}"
-      title="When ON, lets Gemini think before answering for ${escapeHtml(label)} — can improve quality but is slower and uses more tokens. OFF by default, since this task is small and quick enough not to need it.">
-    <input type="checkbox" class="ai-thinking-cb" data-tool="${toolKey}" ${on ? 'checked' : ''}
-      onchange="_aiToolsSetThinking('${toolKey}', this.checked)">
+      title="When ON, lets Gemini think before answering for ${escapeHtml(label)}${isPerQuestion ? ' on this question only' : ''} — can improve quality but is slower and uses more tokens. OFF by default, since this task is small and quick enough not to need it.">
+    <input type="checkbox" class="ai-thinking-cb" data-tool="${toolKey}"${idAttr} ${on ? 'checked' : ''}
+      onchange="_aiToolsSetThinking(${onchangeArgs})">
     <span class="ai-thinking-cb-box"></span>
     <span class="ai-thinking-cb-label">🧠 Thinking</span>
   </label>`;
@@ -343,7 +387,7 @@ function _renderAiRefineTools(editorKey, i) {
             onclick="_toggleAiRefineInstrPicker('${editorKey}', ${i})"
             style="background:#F3EEFC;color:var(--violet-dark);border-color:var(--violet-border);border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;">${_aiRefineInstrCaretLabel(editorKey, i)} ▾</button>
         </div>
-        ${_renderAiThinkingToggle('refineSingle', 'violet')}
+        ${_renderAiThinkingToggle('refineSingle', 'violet', undefined, editorKey, i)}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiRefineStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'refine' ? 'display:inline-block;' : ''}"
@@ -367,7 +411,7 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
         title="Let AI write one more plausible answer choice for this question"
         onclick="aiAddChoice('${editorKey}', ${i})"
         style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'addChoice')}🤖 Add Choice (AI)</button>
-      ${_renderAiThinkingToggle('addChoice', 'green')}
+      ${_renderAiThinkingToggle('addChoice', 'green', undefined, editorKey, i)}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiAddChoiceStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'addChoice' ? 'display:inline-block;' : ''}"
@@ -379,7 +423,7 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
         title="Let AI fill in the remaining choices (up to 4 total)"
         onclick="aiFillChoices('${editorKey}', ${i})"
         style="background:var(--unanswered-bg);color:var(--unanswered-fg);border-color:var(--amber-strong);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'fillChoices')}🧩 Fill Choices (AI)</button>
-      ${_renderAiThinkingToggle('fillSingle', 'amber')}
+      ${_renderAiThinkingToggle('fillSingle', 'amber', undefined, editorKey, i)}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiFillChoicesStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'fillChoices' ? 'display:inline-block;' : ''}"
@@ -401,7 +445,7 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
    the bulk post-extraction pass (cqBulkRefineQuestions) can reuse it without
    needing an editor/card in the DOM. Returns the refined question string,
    or throws on failure. */
-async function _aiRefineQuestionCall(apiKey, questions, q, custom, token, toolKey) {
+async function _aiRefineQuestionCall(apiKey, questions, q, custom, token, toolKey, editorKey, i) {
   const optEntries = getOptionEntries(q);
   const optsText = optEntries.map(([k, v]) => `${k}. ${v}`).join('\n') || '(none yet)';
   const { textBlock: caseBlock, imagePart } = _aiToolsCaseContext(questions, q);
@@ -450,7 +494,7 @@ Respond ONLY with a JSON object: {"question": "the refined question text"}. No m
       // can opt back into thinking per-tool via the 🧠 Thinking checkbox
       // (see _aiToolsGenConfigExtra) if they'd rather trade that for a
       // chance at higher quality.
-      ..._aiToolsGenConfigExtra(toolKey || 'refineSingle')
+      ..._aiToolsGenConfigExtra(toolKey || 'refineSingle', editorKey, i)
     }
   }, { cancelToken: token, apiKey });
   const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
@@ -484,7 +528,7 @@ async function aiRefineQuestion(editorKey, i) {
   _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🪄 Refining question…'));
 
   try {
-    q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, token, 'refineSingle');
+    q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, token, 'refineSingle', editorKey, i);
     _markQuestionEditDirty();
     // Clear the busy lock (and its cached status) BEFORE rerendering — the
     // freshly-rebuilt card restores its status box from cache only while
@@ -510,7 +554,7 @@ async function aiRefineQuestion(editorKey, i) {
    Asks for exactly `count` new, plausible-but-incorrect answer choices that
    fit the question's subject, style, and difficulty — distinct from every
    existing choice and from each other, and not generic filler. */
-async function _aiGenerateDistractors(apiKey, questions, q, optEntries, count, token, toolKey) {
+async function _aiGenerateDistractors(apiKey, questions, q, optEntries, count, token, toolKey, editorKey, i) {
   const existingText = optEntries.map(([k, v]) => `${k}. ${v}`).join('\n') || '(none)';
   const correctVal = (optEntries.find(([k]) => k === q.answer) || [])[1] || '';
   const { textBlock: caseBlock, imagePart } = _aiToolsCaseContext(questions, q);
@@ -559,7 +603,7 @@ Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(
       // out and truncated. Each caller (Fill Choices single/bulk, Add
       // Choice) passes its own toolKey, so the user's 🧠 Thinking choice
       // for one of those never affects the others.
-      ..._aiToolsGenConfigExtra(toolKey || 'fillSingle')
+      ..._aiToolsGenConfigExtra(toolKey || 'fillSingle', editorKey, i)
     }
   }, { cancelToken: token, apiKey });
   const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
@@ -622,7 +666,7 @@ async function aiFillChoices(editorKey, i) {
   _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML(`🧩 Filling ${missing.length} more choice${missing.length !== 1 ? 's' : ''}…`));
 
   try {
-    const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, token, 'fillSingle');
+    const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, token, 'fillSingle', editorKey, i);
     if (!q.optionsOrder) q.optionsOrder = optEntries.map(([k, v]) => ({ key: k, value: v }));
     missing.forEach((optKey, idx) => {
       const val = newVals[idx] || '';
@@ -682,7 +726,7 @@ async function aiAddChoice(editorKey, i) {
   _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🤖 AI is writing a new choice…'));
 
   try {
-    const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, 1, token, 'addChoice');
+    const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, 1, token, 'addChoice', editorKey, i);
     const val = newVals[0] || '';
     if (!q.optionsOrder) q.optionsOrder = optEntries.map(([k, v]) => ({ key: k, value: v }));
     q.options[nextKey] = val;
