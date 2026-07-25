@@ -755,6 +755,21 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **42 — Fix AI-tool status bar not clearing on Stop/finish.** The blue
+  "🪄 Refining question…" (and Fill Choices / Add Choice) status bar under a
+  question could stay stuck on screen forever after the run finished or was
+  cancelled with ⏹ Stop, because the card was rebuilt (or left alone, on
+  Stop) while the busy lock backing its cached status was still set —
+  see the ordering comments in `aiRefineQuestion()` / `aiFillChoices()` /
+  `aiAddChoice()` in `js/ai-question-tools.js`. Fixed by clearing the busy
+  lock before rebuilding on success, and explicitly clearing the status box
+  on a Stop cancellation. The bulk toolbar versions ("Refine Questions
+  (All)", "AI Solve", "Fill Choices", "Re-extract Missing Images" in
+  `js/ai-features.js`) had the mirror-image bug — their "✅ finished" /
+  "⏹ stopped" summary was being overwritten to blank by the panel rerender
+  that immediately followed it, in the same synchronous tick, so the
+  summary never actually became visible. Fixed by applying that summary
+  after the rerender instead of before it.
 - **41 — Loading indicators for Save (extraction preview) and Split into
   Multiple Quizzes.** Both actions write to Firestore/Storage and could
   previously sit for a few seconds with no feedback and no protection

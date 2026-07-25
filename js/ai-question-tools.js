@@ -486,14 +486,23 @@ async function aiRefineQuestion(editorKey, i) {
   try {
     q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, token, 'refineSingle');
     _markQuestionEditDirty();
-    ed.rerender(); // rebuilds this card fresh, which also naturally re-enables its buttons
-  } catch (e) {
-    if (!(e && e._cancelled)) {
-      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not refine this question.'));
-    }
-  } finally {
+    // Clear the busy lock (and its cached status) BEFORE rerendering — the
+    // freshly-rebuilt card restores its status box from cache only while
+    // still "busy" (see cachedStatus in _renderAiRefineTools), so clearing
+    // busy first guarantees the rebuilt card starts with an empty status
+    // box instead of resurrecting the now-stale "Refining question…" bar.
     if (_aiToolsCancelToken[key] === token) delete _aiToolsCancelToken[key];
     _aiToolsSetBusy(editorKey, i, false, 'refine');
+    ed.rerender(); // rebuilds this card fresh, which also naturally re-enables its buttons
+  } catch (e) {
+    if (_aiToolsCancelToken[key] === token) delete _aiToolsCancelToken[key];
+    _aiToolsSetBusy(editorKey, i, false, 'refine');
+    // On a genuine error, leave the message up for the user to read. On a
+    // Stop-button cancellation there's nothing to report — explicitly clear
+    // the status box so the "Refining question…" bar doesn't stay stuck on
+    // screen forever (nothing else was going to rerender this card to
+    // clear it for us, unlike the success path above).
+    _aiToolsSetStatus(editorKey, i, (e && e._cancelled) ? '' : _aiToolsErrorHTML(e.message || 'Could not refine this question.'));
   }
 }
 
@@ -624,14 +633,15 @@ async function aiFillChoices(editorKey, i) {
     // this action only ever adds new wrong choices, never picks or changes one.
     q.answer = answerBefore;
     _markQuestionEditDirty();
-    ed.rerender();
-  } catch (e) {
-    if (!(e && e._cancelled)) {
-      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not generate choices.'));
-    }
-  } finally {
+    // Clear busy (and its cached status) before rerendering — see the
+    // matching comment in aiRefineQuestion for why the order matters.
     if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
     _aiToolsSetBusy(editorKey, i, false, 'fillChoices');
+    ed.rerender();
+  } catch (e) {
+    if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
+    _aiToolsSetBusy(editorKey, i, false, 'fillChoices');
+    _aiToolsSetStatus(editorKey, i, (e && e._cancelled) ? '' : _aiToolsErrorHTML(e.message || 'Could not generate choices.'));
   }
 }
 
@@ -680,14 +690,15 @@ async function aiAddChoice(editorKey, i) {
     // Defensive guarantee: the correct answer is exactly what it was before.
     q.answer = answerBefore;
     _markQuestionEditDirty();
-    ed.rerender();
-  } catch (e) {
-    if (!(e && e._cancelled)) {
-      _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML(e.message || 'Could not generate a new choice.'));
-    }
-  } finally {
+    // Clear busy (and its cached status) before rerendering — see the
+    // matching comment in aiRefineQuestion for why the order matters.
     if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
     _aiToolsSetBusy(editorKey, i, false, 'addChoice');
+    ed.rerender();
+  } catch (e) {
+    if (_aiToolsCancelToken[_key] === token) delete _aiToolsCancelToken[_key];
+    _aiToolsSetBusy(editorKey, i, false, 'addChoice');
+    _aiToolsSetStatus(editorKey, i, (e && e._cancelled) ? '' : _aiToolsErrorHTML(e.message || 'Could not generate a new choice.'));
   }
 }
 

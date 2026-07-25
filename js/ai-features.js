@@ -1895,20 +1895,28 @@ async function _editorBulkAiSolve(editorKey) {
   // progress across many `await`s, and the panel can be rebuilt mid-run.
   const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
   statusEl.innerHTML = _cqProgressStatusHTML('🤖 AI is solving all questions…', 0);
+  let finalHtml;
   try {
     const sourceFiles = _editorBulkAiSourceFiles[editorKey] || [];
     const allIdxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
     await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, statusEl, token);
-    if (statusEl) statusEl.innerHTML = token.cancelled
+    finalHtml = token.cancelled
       ? `<div class="cq-status warning">⏹ AI Solve stopped.</div>`
       : `<div class="cq-status success">✅ AI Solve finished — ${allIdxs.length} question${allIdxs.length !== 1 ? 's' : ''} checked.</div>`;
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'AI Solve failed.');
+    finalHtml = _aiToolsErrorHTML(e.message || 'AI Solve failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
     _editorBulkSetBusy(editorKey, false, 'Solve');
     _markQuestionEditDirty();
     ed.rerender();
+    // ed.rerender() just rebuilt this panel from scratch, and — since it's no
+    // longer "busy" — with a blank status box (see cachedStatus in
+    // _renderBulkAiToolsPanel: it only restores from cache while busy).
+    // Setting finalHtml straight onto statusEl above would've been wiped out
+    // by that same rerender a moment later, so it's applied here instead,
+    // after the rebuild, onto the fresh element that now actually exists.
+    _aiToolsSetStatusById(`${editorKey}BulkAiStatus`, finalHtml);
   }
 }
 
@@ -1923,20 +1931,23 @@ async function _editorBulkFillChoices(editorKey) {
   // progress across many `await`s, and the panel can be rebuilt mid-run.
   const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
   statusEl.innerHTML = _cqProgressStatusHTML('🧩 Filling choices…', 0);
+  let finalHtml;
   try {
     const { done, errors } = await cqBulkFillChoices(questions, statusEl, token);
-    let html = token.cancelled
+    finalHtml = token.cancelled
       ? `<div class="cq-status warning">⏹ Fill Choices stopped — topped up ${done} question${done !== 1 ? 's' : ''} so far.</div>`
       : `<div class="cq-status success">✅ Fill Choices finished — topped up ${done} question${done !== 1 ? 's' : ''}.</div>`;
-    if (errors.length) html += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
-    if (statusEl) statusEl.innerHTML = html;
+    if (errors.length) finalHtml += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Fill Choices failed.');
+    finalHtml = _aiToolsErrorHTML(e.message || 'Fill Choices failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
     _editorBulkSetBusy(editorKey, false, 'Fill');
     _markQuestionEditDirty();
     ed.rerender();
+    // See matching comment in _editorBulkAiSolve — applied post-rerender so
+    // it isn't instantly wiped by the panel rebuild that just happened.
+    _aiToolsSetStatusById(`${editorKey}BulkAiStatus`, finalHtml);
   }
 }
 
@@ -1951,21 +1962,24 @@ async function _editorBulkRefineQuestions(editorKey) {
   // progress across many `await`s, and the panel can be rebuilt mid-run.
   const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
   statusEl.innerHTML = _cqProgressStatusHTML('🪄 Refining question wording…', 0);
+  let finalHtml;
   try {
     const custom = (_editorBulkRefineInstructions[editorKey] || '').trim();
     const { done, errors } = await cqBulkRefineQuestions(questions, custom, statusEl, token);
-    let html = token.cancelled
+    finalHtml = token.cancelled
       ? `<div class="cq-status warning">⏹ Refine stopped — rewrote ${done} question${done !== 1 ? 's' : ''} so far.</div>`
       : `<div class="cq-status success">✅ Refine finished — rewrote ${done} question${done !== 1 ? 's' : ''}.</div>`;
-    if (errors.length) html += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
-    if (statusEl) statusEl.innerHTML = html;
+    if (errors.length) finalHtml += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Refine failed.');
+    finalHtml = _aiToolsErrorHTML(e.message || 'Refine failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
     _editorBulkSetBusy(editorKey, false, 'Refine');
     _markQuestionEditDirty();
     ed.rerender();
+    // See matching comment in _editorBulkAiSolve — applied post-rerender so
+    // it isn't instantly wiped by the panel rebuild that just happened.
+    _aiToolsSetStatusById(`${editorKey}BulkAiStatus`, finalHtml);
   }
 }
 
@@ -1985,21 +1999,24 @@ async function _editorBulkReextractImages(editorKey) {
   // progress across many `await`s, and the panel can be rebuilt mid-run.
   const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
   statusEl.innerHTML = _cqProgressStatusHTML('🖼️ Re-extracting missing images…', 0);
+  let finalHtml;
   try {
     const { done, errors, skipped } = await cqBulkReextractMissingImages(questions, statusEl, token);
-    let html = token.cancelled
+    finalHtml = token.cancelled
       ? `<div class="cq-status warning">⏹ Re-extract Missing Images stopped — recovered ${done} image${done !== 1 ? 's' : ''} so far.</div>`
       : `<div class="cq-status success">✅ Re-extract Missing Images finished — recovered ${done} image${done !== 1 ? 's' : ''}.</div>`;
-    if (skipped) html += `<div class="cq-status warning" style="margin-top:4px;">⚠️ Skipped ${skipped} question${skipped !== 1 ? 's' : ''} with no traceable source file (hand-typed or merged in from another quiz) — upload an image manually for those instead.</div>`;
-    if (errors.length) html += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
-    if (statusEl) statusEl.innerHTML = html;
+    if (skipped) finalHtml += `<div class="cq-status warning" style="margin-top:4px;">⚠️ Skipped ${skipped} question${skipped !== 1 ? 's' : ''} with no traceable source file (hand-typed or merged in from another quiz) — upload an image manually for those instead.</div>`;
+    if (errors.length) finalHtml += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Re-extract Missing Images failed.');
+    finalHtml = _aiToolsErrorHTML(e.message || 'Re-extract Missing Images failed.');
   } finally {
     _editorBulkCancelToken[editorKey] = null;
     _editorBulkSetBusy(editorKey, false, 'Reextract');
     _markQuestionEditDirty();
     ed.rerender();
+    // See matching comment in _editorBulkAiSolve — applied post-rerender so
+    // it isn't instantly wiped by the panel rebuild that just happened.
+    _aiToolsSetStatusById(`${editorKey}BulkAiStatus`, finalHtml);
   }
 }
 
