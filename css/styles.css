@@ -1049,7 +1049,7 @@
 .cq-dropzone.cq-dz-purple .cq-dz-file-item button { background: #FCE4EC; color: #AD1457; }
 .cq-dropzone.cq-dz-purple .cq-dz-add-more { color: #8E5A9E; }
 .cq-status {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 12px 14px; border-radius: 8px; font-size: .88rem; font-weight: 600;
   margin: 10px 0;
 }
@@ -1446,6 +1446,7 @@
   padding: 2px 10px; font-weight: 700; color: var(--violet-dark); font-size: .76rem; white-space: nowrap;
 }
 .cq-split-chip.warn { border-color: var(--unanswered-fg); color: var(--unanswered-fg); background: var(--unanswered-bg); }
+.cq-split-status:empty { display: none; }
 .cq-split-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
 /* Visual scissors mode */
@@ -2354,6 +2355,10 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .cq-opt-edit-row { padding: 6px; }
   .cq-opt-text-input { min-width: 70px; }
   .cq-quiz-item { padding: 10px; }
+  .cq-split-panel { padding: 12px; }
+  .cq-split-actions { flex-direction: column; align-items: stretch; }
+  .cq-split-actions button { width: 100%; justify-content: center; }
+  .cq-split-range-row input[type="text"] { min-width: 0; }
 
   /* 🧠 Thinking toggles: same shrink treatment as the other small AI-tool
      controls above, plus its button+toggle group (see ai-question-tools.js

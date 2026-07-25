@@ -1155,14 +1155,14 @@ function renderCQPreview() {
 
   /* ── Add question + save/discard ── */
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <button class="cq-btn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
-    <button class="cq-btn cq-btn-secondary" onclick="cqAddBlankQuestion()"
+    <button class="cq-btn" id="cqPreviewSaveBtn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
+    <button class="cq-btn cq-btn-secondary" id="cqPreviewAddBtn" onclick="cqAddBlankQuestion()"
       style="background:var(--green-mid);">＋ Add Question</button>
-    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('cq')"
+    <button class="cq-btn cq-btn-secondary" id="cqPreviewMergeBtn" onclick="openMergePicker('cq')"
       style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
-    <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('preview', null)"
+    <button class="cq-btn cq-btn-secondary" id="cqPreviewSplitBtn" onclick="openSplitPanel('preview', null)"
       style="background:var(--violet);color:#fff;">✂️ Split into Multiple</button>
-    <button class="cq-btn cq-btn-secondary" onclick="discardGeneratedQuiz()">✖ Discard</button>
+    <button class="cq-btn cq-btn-secondary" id="cqPreviewDiscardBtn" onclick="discardGeneratedQuiz()">✖ Discard</button>
   </div>`;
 
   html += renderSplitPanel('preview', null, cqGeneratedQuestions.length);
@@ -1475,7 +1475,28 @@ async function saveGeneratedCustomQuiz() {
     questions: cqGeneratedQuestions,
     createdAt: Date.now()
   });
-  await saveCustomQuizzesList(quizzes);
+
+  // Self-healing references (see js/dom-utils.js) — saveCustomQuizzesList
+  // uploads any base64 images to Firebase Storage before it resolves, so
+  // this can take a few seconds. Lock the whole action row and show a
+  // spinner for the duration, same treatment as extraction's Generate
+  // button, instead of leaving Save (and its siblings) clickable with no
+  // feedback while the write is still in flight.
+  const statusEl  = liveStatusRef('cqStatus', 'cqStatus');
+  const saveBtn   = liveRef('cqPreviewSaveBtn');
+  const rowBtnIds = ['cqPreviewSaveBtn', 'cqPreviewAddBtn', 'cqPreviewMergeBtn', 'cqPreviewSplitBtn', 'cqPreviewDiscardBtn'];
+  rowBtnIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+  if (saveBtn) saveBtn.innerHTML = '<span class="ai-btn-spinner"></span> Saving…';
+  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 💾 Saving quiz…</div>`;
+
+  try {
+    await saveCustomQuizzesList(quizzes);
+  } catch (e) {
+    rowBtnIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+    if (saveBtn) saveBtn.innerHTML = '💾 Save Quiz';
+    statusEl.innerHTML = `<div class="cq-status error">❌ Failed to save: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
 
   cqGeneratedQuestions = null;
   cqSelectedFiles = [];
@@ -1484,7 +1505,7 @@ async function saveGeneratedCustomQuiz() {
   _questionEditDirty = false;
 
   renderCustomQuizModal();
-  const statusEl = document.getElementById('cqStatus');
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Quiz "${escapeHtml(title)}" saved! Start it from the list above.</div>`;
+  const freshStatusEl = document.getElementById('cqStatus');
+  if (freshStatusEl) freshStatusEl.innerHTML = `<div class="cq-status success">✅ Quiz "${escapeHtml(title)}" saved! Start it from the list above.</div>`;
 }
 

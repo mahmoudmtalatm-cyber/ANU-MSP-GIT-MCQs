@@ -295,8 +295,10 @@ function _buildSplitSummaryHTML(total) {
 function renderSplitPanel(context, quizId, totalQuestions) {
   if (!cqSplitState) return '';
   if (cqSplitState.context !== context || cqSplitState.quizId !== (quizId || null)) return '';
-  const panelId = 'cqSplitPanel_' + (quizId || 'preview');
-  const summaryId = 'cqSplitSummary_' + (quizId || 'preview');
+  const panelKey = quizId || 'preview';
+  const panelId = 'cqSplitPanel_' + panelKey;
+  const summaryId = 'cqSplitSummary_' + panelKey;
+  const statusId = 'cqSplitStatus_' + panelKey;
   const mode = cqSplitState.mode || 'equal';
   const isEqual = mode === 'equal';
   const isCustom = mode === 'custom';
@@ -347,21 +349,43 @@ function renderSplitPanel(context, quizId, totalQuestions) {
   }
 
   html += `<div class="cq-split-summary" id="${summaryId}">${_buildSplitSummaryHTML(total)}</div>`;
+  html += `<div class="cq-split-status" id="${statusId}"></div>`;
   html += `<div class="cq-split-actions">`;
   if (context === 'adminPublished') {
-    html += `<button class="cq-btn" onclick="executeSplitQuiz('publish')"
+    html += `<button class="cq-btn" id="cqSplitExecPublishBtn_${panelKey}" onclick="executeSplitQuiz('publish')"
         title="Publish the split parts as new curriculum lectures and remove the original lecture">
         🚀 Split &amp; Publish to Curriculum</button>
-      <button class="cq-btn cq-btn-secondary" onclick="executeSplitQuiz('custom')"
+      <button class="cq-btn cq-btn-secondary" id="cqSplitExecCustomBtn_${panelKey}" onclick="executeSplitQuiz('custom')"
         style="background:var(--violet);color:#fff;" title="Save the split parts as custom quizzes — the curriculum lecture stays untouched">
         📄 Split to Custom Quizzes</button>`;
   } else {
-    html += `<button class="cq-btn" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>`;
+    html += `<button class="cq-btn" id="cqSplitExecBtn_${panelKey}" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>`;
   }
-  html += `<button class="cq-btn cq-btn-secondary" onclick="closeSplitPanel()">Cancel</button>
+  html += `<button class="cq-btn cq-btn-secondary" id="cqSplitCancelBtn_${panelKey}" onclick="closeSplitPanel()">Cancel</button>
   </div>`;
   html += `</div>`;
   return html;
+}
+
+/* Locks (or unlocks) an open split panel while executeSplitQuiz's async
+   write is in flight: every button inside — mode tabs, range add/remove,
+   both execute pathways, Cancel — becomes inert (reusing .cq-bulk-lock,
+   the same dim/disable treatment the AI bulk tools use elsewhere), and a
+   spinner status line appears under the summary. Looked up fresh by id
+   each call rather than cached, since the panel can be several seconds
+   into this call before it resolves. */
+function _setSplitPanelBusy(panelKey, busy, label) {
+  const panel = document.getElementById('cqSplitPanel_' + panelKey);
+  if (panel) {
+    panel.classList.toggle('cq-bulk-lock', busy);
+    panel.querySelectorAll('button').forEach(btn => { btn.disabled = busy; });
+  }
+  const statusEl = document.getElementById('cqSplitStatus_' + panelKey);
+  if (statusEl) {
+    statusEl.innerHTML = busy
+      ? `<div class="cq-status info"><div class="cq-spinner"></div> ${escapeHtml(label || 'Working…')}</div>`
+      : '';
+  }
 }
 
 async function executeSplitQuiz(targetMode) {
@@ -413,6 +437,13 @@ async function executeSplitQuiz(targetMode) {
     ? `This will replace the curriculum lecture "${baseTitle}" with ${chunks.length} new lecture${chunks.length !== 1 ? 's' : ''} in its place. The original lecture will be removed. Continue?`
     : `This will create ${chunks.length} new quiz${chunks.length !== 1 ? 'zes' : ''} from "${baseTitle}". Continue?`;
   if (!confirm(confirmMsg)) return;
+
+  // Everything from here on writes to Storage/Firestore and can take a
+  // few seconds (especially the curriculum-publish pathway, which uploads
+  // images per new lecture) — lock the panel and show a spinner for the
+  // duration so the split can't be double-submitted with no feedback.
+  const panelKey = cqSplitState.quizId || 'preview';
+  _setSplitPanelBusy(panelKey, true, isCurriculumPublish ? 'Splitting & publishing…' : 'Splitting…');
 
   // ── Admin-published curriculum lectures: the admin chooses between two
   //    pathways —
@@ -487,6 +518,7 @@ async function executeSplitQuiz(targetMode) {
       if (selectedSubject === subject) selectSubject(subject);
       alert(`✅ Published ${newLectures.length} new lecture${newLectures.length !== 1 ? 's' : ''} from "${baseTitle}" to ${subjects[subject].label || subject}, replacing the original lecture.`);
     } catch (e) {
+      _setSplitPanelBusy(panelKey, false);
       alert('Failed to split & publish: ' + (e.message || e));
     }
     return;
@@ -514,6 +546,7 @@ async function executeSplitQuiz(targetMode) {
       newCustomQuizzes.reverse().forEach(q => customQuizzes.unshift(q));
       await saveCustomQuizzesList(customQuizzes);
     } catch (e) {
+      _setSplitPanelBusy(panelKey, false);
       alert('Failed to create split quizzes: ' + (e.message || e));
       return;
     }
@@ -536,7 +569,13 @@ async function executeSplitQuiz(targetMode) {
 
   // Insert new quizzes at top
   newQuizzes.reverse().forEach(q => quizzes.unshift(q));
-  await saveCustomQuizzesList(quizzes);
+  try {
+    await saveCustomQuizzesList(quizzes);
+  } catch (e) {
+    _setSplitPanelBusy(panelKey, false);
+    alert('Failed to create split quizzes: ' + (e.message || e));
+    return;
+  }
 
   // If preview context, also clear preview state
   if (cqSplitState.context === 'preview') {

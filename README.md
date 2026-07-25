@@ -750,6 +750,23 @@ Every question follows this shape:
 }
 ```
 
+## Changelog
+
+Newer entries first. Each numbered project drop corresponds to one focused
+change (see the filename of whichever zip you're reading this from).
+
+- **41 — Loading indicators for Save (extraction preview) and Split into
+  Multiple Quizzes.** Both actions write to Firestore/Storage and could
+  previously sit for a few seconds with no feedback and no protection
+  against a double click. Save now locks the whole preview action row and
+  shows a spinner while `saveCustomQuizzesList()` is in flight (with a
+  proper error state if the save fails); the split panel — across all
+  three contexts it's used in (extraction preview, a saved custom quiz,
+  an admin-published lecture) — now locks and shows a spinner the same
+  way, and its default (preview/saved) pathway gained error handling it
+  didn't have before. See `saveGeneratedCustomQuiz()` in `js/ai-solve.js`
+  and `executeSplitQuiz()` / `_setSplitPanelBusy()` in `js/split-quiz.js`.
+
 ## Contributing
 
 Issues and pull requests are welcome — whether that's bug fixes, UI
