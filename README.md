@@ -755,6 +755,23 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **44 — Fix "🧠 Thinking" toggle scrolling the page away from the
+  question being edited.** Clicking any per-question "🧠 Thinking"
+  checkbox (Refine Question / Fill Choices / Add Choice, and their bulk
+  toolbar counterparts) could suddenly jump the whole page down, away
+  from the question card the admin was working on. Cause: `.ai-thinking-
+  toggle input` hides the native checkbox with `position: absolute`, but
+  its wrapping `.ai-thinking-toggle` label had no `position: relative` of
+  its own — so the hidden, zero-size checkbox was actually positioned
+  relative to a distant ancestor further up the page instead of its own
+  pill. Every toggle click focuses that checkbox, and the browser's
+  built-in "scroll the focused element into view" behavior used that
+  wrong, faraway position — landing the viewport below where the admin
+  actually was. Fixed by adding `position: relative` to `.ai-thinking-
+  toggle` in `css/styles.css`, so the hidden checkbox is now correctly
+  contained within its own visible pill and focusing it causes no scroll
+  at all. (`.rotation-switch` elsewhere in the same file already used
+  this pattern correctly — the thinking toggle just hadn't picked it up.)
 - **43 — Subject icon editing, and quiz rename for saved custom quizzes
   & the admin panel.** Subjects now get their own "🎨 Icon" and "✏️ Rename"
   buttons in Manage Curriculum, matching the split Years and Modules

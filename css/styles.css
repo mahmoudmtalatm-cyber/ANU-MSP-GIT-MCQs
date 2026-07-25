@@ -1150,14 +1150,24 @@
    copy of the same tool's checkbox is kept in sync via _aiToolsSetThinking
    (see js/ai-question-tools.js) — toggling one never affects another tool. */
 .ai-thinking-toggle {
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   font-size: .68rem; font-weight: 700; color: var(--text-muted);
   padding: 4px 10px 4px 7px; border-radius: 20px; border: 1.5px solid var(--border-soft);
   background: var(--surface-2); transition: background .15s, border-color .15s, color .15s;
   user-select: none; white-space: nowrap; flex-shrink: 0;
 }
 .ai-thinking-toggle:hover { border-color: var(--violet-mid-border); }
-.ai-thinking-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+/* `position: relative` above is required, not decorative: without a local
+   positioning context, this absolutely-positioned 0×0 input is placed
+   relative to a distant ancestor instead of this label, and focusing it
+   (which happens on every click/change) made the browser's native
+   "scroll focused element into view" behavior jump the page to wherever
+   that distant ancestor placed it — away from the question card the user
+   was editing, landing further down the page. Scoping it to this label
+   keeps the focus target exactly where the visible pill is, so focusing
+   it causes no scroll at all. Same pattern already used correctly by
+   .rotation-switch elsewhere in this file. */
+.ai-thinking-toggle input { position: absolute; top: 0; left: 0; opacity: 0; width: 0; height: 0; }
 .ai-thinking-cb-box {
   position: relative; width: 26px; height: 15px; border-radius: 10px; background: #ccc;
   flex-shrink: 0; transition: background .2s;
