@@ -1496,3 +1496,97 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
   }
   return { done, errors };
 }
+
+/* ── Post-extraction bulk pass: Re-extract Missing Images (cq preview only) ──
+   Finds every question Gemini flagged as having an image (has_image) that
+   never actually got one cropped — the same "⚠️ AI detected an image…
+   couldn't extract it" case handled per-question by 🔁 Re-extract Image in
+   renderCQPreview (js/ai-solve.js) — and retries extraction for all of
+   them in one pass.
+
+   Grouped and requested per SOURCE FILE, one file at a time, reusing
+   extractImagesForQuestions exactly as the original extraction pass does
+   (js/ai-solve.js, _extractQuestionsFromFile) — which itself batches
+   GEMINI_BOUNDING_BOX_BATCH_SIZE image-bearing questions per request. This
+   is deliberately NOT an additive per-question loop making one Gemini
+   request per image; it's the same file-scoped batching used when the
+   quiz was first extracted, just re-run only for the questions still
+   missing an image.
+
+   Only questions with a traceable source file are eligible — same rule as
+   the single-question control (_canReextract: `q._sourceFile &&
+   !q._notExtractable`). Hand-typed questions, or ones merged in from
+   another quiz (see _mergeCloneQuestions in community-quizzes.js), have no
+   source to re-run extraction against and are counted in `skipped` rather
+   than silently ignored. */
+async function cqBulkReextractMissingImages(questions, statusEl, cancelToken) {
+  const idxs = questions.map((q, i) => i).filter(i => {
+    const q = questions[i];
+    return q && q.has_image && !q.image && q._sourceFile && !q._notExtractable;
+  });
+  const skipped = questions.filter(q =>
+    q && q.has_image && !q.image && (!q._sourceFile || q._notExtractable)).length;
+  if (!idxs.length) return { done: 0, errors: [], skipped };
+
+  let apiKey = getActiveApiKey();
+  if (!apiKey) return { done: 0, errors: ['No active API key.'], skipped };
+
+  // Group eligible questions by their originating source file — one
+  // extractImagesForQuestions call per file (which internally re-batches
+  // by GEMINI_BOUNDING_BOX_BATCH_SIZE), not one call per question.
+  const groups = []; // [{ file, questions: [...] }]
+  idxs.forEach(i => {
+    const q = questions[i];
+    let group = groups.find(g => g.file === q._sourceFile);
+    if (!group) { group = { file: q._sourceFile, questions: [] }; groups.push(group); }
+    group.questions.push(q);
+  });
+
+  let done = 0;
+  const errors = [];
+  for (let gi = 0; gi < groups.length; gi++) {
+    if (cancelToken && cancelToken.cancelled) break;
+    // Safe checkpoint between files — lets the user pause and switch keys
+    // without losing any file already finished.
+    apiKey = (await cqCheckPause(statusEl)) || apiKey;
+    if (cancelToken && cancelToken.cancelled) break;
+
+    const group = groups[gi];
+    const label = groups.length > 1
+      ? `🖼️ Re-extracting missing images… (file ${gi + 1} of ${groups.length}: "${escapeHtml(group.file.name)}")`
+      : `🖼️ Re-extracting ${group.questions.length} missing image${group.questions.length !== 1 ? 's' : ''} from "${escapeHtml(group.file.name)}"…`;
+    if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML(label, (gi / groups.length) * 100);
+
+    const beforeCount = group.questions.filter(q => q.image).length;
+    try {
+      await extractImagesForQuestions(group.questions, group.file, apiKey, undefined, undefined,
+        cancelToken, () => cqPauseRequested);
+      const afterCount = group.questions.filter(q => q.image).length;
+      done += Math.max(0, afterCount - beforeCount);
+    } catch (e) {
+      if (e._cancelled) {
+        // User clicked "pause now" instead of waiting for this file to
+        // finish — step back to the last completed checkpoint instead of
+        // losing the whole run. A plain Stop leaves cqPauseSkipRequested
+        // false, so it still just breaks as before.
+        if (typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested) {
+          cqPauseSkipRequested = false;
+          cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
+          cancelToken = cqCancelToken;
+          apiKey = (await _cqEnterPause(statusEl,
+            `⏸️ Paused — stepped back to before file ${gi + 1} of ${groups.length} ("${escapeHtml(group.file.name)}") so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+          gi--; // retry this same file once resumed
+          continue;
+        }
+        break; // user stopped — not an error, just stop here
+      }
+      if (e._rateLimitPauseFallback) {
+        apiKey = await cqFallbackPauseForRateLimit(statusEl, `file "${group.file.name}"`);
+        gi--; // retry this same file (not counted as an error) once resumed
+        continue;
+      }
+      errors.push(`"${group.file.name}": ${e.message || String(e)}`);
+    }
+  }
+  return { done, errors, skipped };
+}

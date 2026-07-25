@@ -971,6 +971,14 @@ function renderCQPreview() {
       Click any field to edit &nbsp;·&nbsp; 🔘 = correct answer &nbsp;·&nbsp; 🤖 = re-ask AI &nbsp;·&nbsp; 🔗 = linked case questions
     </div>
   </div>`;
+  // Same whole-quiz AI Tools panel the Admin and Custom-Quiz editors get
+  // (AI Solve All / Fill Choices / Refine Questions), plus a fourth,
+  // preview-only tool — 🖼️ Re-extract Missing Images — for anyone who
+  // forgot to hit the per-question AI buttons during extraction, or whose
+  // extraction left some images un-cropped. See _renderBulkAiToolsPanel
+  // and _editorBulkReextractImages in js/ai-features.js.
+  html += _renderBulkAiToolsPanel('cq', cqGeneratedQuestions);
+  html += `<div id="cqBulkLockWrap"${_editorBulkBusy.cq ? ' class="cq-bulk-lock"' : ''}>`;
   html += `<div class="cq-preview-list" id="cqPreviewList">`;
 
   cqGeneratedQuestions.forEach((q, i) => {
@@ -1143,8 +1151,10 @@ function renderCQPreview() {
   </div>`;
 
   html += renderSplitPanel('preview', null, cqGeneratedQuestions.length);
+  html += `</div>`; // end #cqBulkLockWrap
 
   area.innerHTML = html;
+  _editorBulkSourceSetupDropzone('cq');
 
   // Restore scroll position (unless this is the very first render)
   if (_prevScrollTop !== null) {

@@ -363,7 +363,7 @@ function _hasUnsavedProgress() {
   if (typeof cqBusy !== 'undefined' && cqBusy) return true;
   if (typeof adminBusy !== 'undefined' && adminBusy) return true;
   if (typeof _explainAllBusy !== 'undefined' && _explainAllBusy) return true;
-  if (typeof _editorBulkBusy !== 'undefined' && (_editorBulkBusy.admin || _editorBulkBusy.customQuiz)) return true;
+  if (typeof _editorBulkBusy !== 'undefined' && (_editorBulkBusy.admin || _editorBulkBusy.customQuiz || _editorBulkBusy.cq)) return true;
   if (typeof _aiToolsBusy !== 'undefined' && Object.keys(_aiToolsBusy).length) return true;
 
   // A Firestore sync/loading operation is in flight

@@ -438,6 +438,9 @@ function _activeAiProcessLabel() {
   if (typeof _editorBulkBusy !== 'undefined' && _editorBulkBusy.customQuiz) {
     return 'running a bulk AI tool on your custom quiz';
   }
+  if (typeof _editorBulkBusy !== 'undefined' && _editorBulkBusy.cq) {
+    return 'running a bulk AI tool on your extracted quiz preview';
+  }
   if (typeof _aiToolsBusy !== 'undefined' && Object.keys(_aiToolsBusy).length) {
     return 'running an AI tool (Refine / Fill Choices / Add Choice / Solve) on a question';
   }
@@ -1610,17 +1613,23 @@ const _caseGroupEditors = {
    (every per-question AI button, plus reordering/add/delete/save) for the
    duration, since these functions mutate the same question objects the
    per-question tools do — running them concurrently would race. */
-const _editorBulkBusy = { admin: false, customQuiz: false };
-// Which bulk tool ('Solve' | 'Fill' | 'Refine') is currently running, per
-// editor — lets the Stop button next to just that tool's button show up,
-// while its two sibling tools stay merely disabled (they can't run at the
-// same time anyway; _editorBulkGuard enforces that).
-const _editorBulkActiveTool = { admin: null, customQuiz: null };
+// 'cq' (the extraction preview) is included alongside 'admin' and
+// 'customQuiz' so the whole-quiz AI Tools panel — and the preview-only
+// 🖼️ Re-extract Missing Images tool below — can run there too, in case
+// the user forgot to hit the per-question AI buttons during extraction.
+const _editorBulkBusy = { admin: false, customQuiz: false, cq: false };
+// Which bulk tool ('Solve' | 'Fill' | 'Refine' | 'Reextract') is currently
+// running, per editor — lets the Stop button next to just that tool's
+// button show up, while its sibling tools stay merely disabled (they
+// can't run at the same time anyway; _editorBulkGuard enforces that).
+// 'Reextract' only ever applies to the 'cq' editor (see
+// _editorBulkReextractImages) — the other editors simply never set it.
+const _editorBulkActiveTool = { admin: null, customQuiz: null, cq: null };
 // One cancel token per editor, live only while a bulk pass is running —
 // see _stopAllAiProcesses() and the menu-close guard (_guardedClose).
-const _editorBulkCancelToken = { admin: null, customQuiz: null };
-const _editorBulkAiSourceFiles = { admin: [], customQuiz: [] };
-const _editorBulkRefineInstructions = { admin: '', customQuiz: '' };
+const _editorBulkCancelToken = { admin: null, customQuiz: null, cq: null };
+const _editorBulkAiSourceFiles = { admin: [], customQuiz: [], cq: [] };
+const _editorBulkRefineInstructions = { admin: '', customQuiz: '', cq: '' };
 
 function _editorBulkStatusEl(editorKey) {
   return document.getElementById(`${editorKey}BulkAiStatus`);
@@ -1648,7 +1657,10 @@ function _aiToolsSetAllDisabledForEditor(editorKey, disabled) {
 function _editorBulkSetBusy(editorKey, busy, tool) {
   _editorBulkBusy[editorKey] = busy;
   _editorBulkActiveTool[editorKey] = busy ? tool : null;
-  ['Solve', 'Fill', 'Refine'].forEach(name => {
+  // 'Reextract' only ever exists for the 'cq' editor — looking up its
+  // button/stop-button ids on 'admin'/'customQuiz' just finds nothing and
+  // no-ops, same as any other editor-specific id would.
+  ['Solve', 'Fill', 'Refine', 'Reextract'].forEach(name => {
     const btn = document.getElementById(`${editorKey}Bulk${name}Btn`);
     if (btn) btn.disabled = busy;
     const stopBtn = document.getElementById(`${editorKey}Bulk${name}StopBtn`);
@@ -1757,9 +1769,36 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
         </div>
       </details>
     </div>
+    ${editorKey === 'cq' ? _renderBulkReextractToolHTML(editorKey, questions, busy, activeTool) : ''}
 
     <div id="${statusId}" style="margin-top:8px;">${cachedStatus}</div>
   </div>`;
+}
+
+// Fourth bulk tool, preview-only (cq): retries image extraction for every
+// question Gemini flagged as has_image but never successfully cropped —
+// the same "⚠️ AI detected an image… couldn't extract it" case shown per-
+// question below (see _canReextract in renderCQPreview). Grouped and
+// requested per SOURCE FILE via extractImagesForQuestions, exactly like
+// the initial extraction pass (which itself batches
+// GEMINI_BOUNDING_BOX_BATCH_SIZE image-bearing questions per request) —
+// deliberately NOT a per-question loop making one request per image. See
+// cqBulkReextractMissingImages in js/gemini-uploads.js for the batching.
+function _renderBulkReextractToolHTML(editorKey, questions, busy, activeTool) {
+  const missing = questions.filter(q => q.has_image && !q.image && q._sourceFile && !q._notExtractable).length;
+  return `
+    <div class="cq-bulk-ai-tool">
+      <div class="cq-bulk-ai-tool-row">
+        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkReextractBtn" type="button"
+          ${busy || !missing ? 'disabled' : ''} onclick="_editorBulkReextractImages('${editorKey}')"
+          title="${missing ? `Re-run image extraction for ${missing} question${missing !== 1 ? 's' : ''} still missing an image` : 'No questions are currently missing an extractable image'}"
+          style="background:var(--accent);color:#fff;">🖼️ Re-extract Missing Images${missing ? ` (${missing})` : ''}</button>
+        <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkReextractStopBtn"
+          style="${busy && activeTool === 'Reextract' ? 'display:inline-block;' : ''}"
+          title="Stop Re-extract Missing Images" onclick="_editorBulkStopTool('${editorKey}')">⏹ Stop</button>
+        <span class="cq-bulk-ai-no-opts">Retries only questions flagged with an image that never got extracted — grouped and requested per source file, same batching as extraction itself.</span>
+      </div>
+    </div>`;
 }
 
 // Shared guard for all three bulk actions below: refuses to start if a bulk
@@ -1925,6 +1964,40 @@ async function _editorBulkRefineQuestions(editorKey) {
   } finally {
     _editorBulkCancelToken[editorKey] = null;
     _editorBulkSetBusy(editorKey, false, 'Refine');
+    _markQuestionEditDirty();
+    ed.rerender();
+  }
+}
+
+// Preview-only (cq) — see _renderBulkReextractToolHTML above and
+// cqBulkReextractMissingImages in js/gemini-uploads.js. Shares the exact
+// same guard/busy-lock/cancel-token/rerender machinery as
+// _editorBulkFillChoices and _editorBulkRefineQuestions above; the only
+// difference is which underlying bulk function it calls.
+async function _editorBulkReextractImages(editorKey) {
+  const ctx = _editorBulkGuard(editorKey);
+  if (!ctx) return;
+  const { ed, questions } = ctx;
+  _editorBulkSetBusy(editorKey, true, 'Reextract');
+  const token = { cancelled: false };
+  _editorBulkCancelToken[editorKey] = token;
+  // Self-healing + auto-caching (see js/dom-utils.js) — this loop writes
+  // progress across many `await`s, and the panel can be rebuilt mid-run.
+  const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
+  statusEl.innerHTML = _cqProgressStatusHTML('🖼️ Re-extracting missing images…', 0);
+  try {
+    const { done, errors, skipped } = await cqBulkReextractMissingImages(questions, statusEl, token);
+    let html = token.cancelled
+      ? `<div class="cq-status warning">⏹ Re-extract Missing Images stopped — recovered ${done} image${done !== 1 ? 's' : ''} so far.</div>`
+      : `<div class="cq-status success">✅ Re-extract Missing Images finished — recovered ${done} image${done !== 1 ? 's' : ''}.</div>`;
+    if (skipped) html += `<div class="cq-status warning" style="margin-top:4px;">⚠️ Skipped ${skipped} question${skipped !== 1 ? 's' : ''} with no traceable source file (hand-typed or merged in from another quiz) — upload an image manually for those instead.</div>`;
+    if (errors.length) html += errors.map(e => `<div class="cq-status warning" style="margin-top:4px;">⚠️ ${escapeHtml(e)}</div>`).join('');
+    if (statusEl) statusEl.innerHTML = html;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML(e.message || 'Re-extract Missing Images failed.');
+  } finally {
+    _editorBulkCancelToken[editorKey] = null;
+    _editorBulkSetBusy(editorKey, false, 'Reextract');
     _markQuestionEditDirty();
     ed.rerender();
   }

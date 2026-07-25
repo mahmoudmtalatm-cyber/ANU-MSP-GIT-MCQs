@@ -103,7 +103,8 @@ else is plain HTML/CSS/JavaScript.
     beside 🪄 Refine Question, 🧩 Fill Choices, and ➕ Add Choice on every
     question card, and beside their bulk counterparts (🧩 Fill Choices
     (All) / 🪄 Refine Questions (All), in both the post-extraction settings
-    panel and each editor's "Whole Quiz" AI tools panel). These are **five
+    panel and every editor's "Whole Quiz" AI tools panel — Admin, Custom
+    Quiz, and the extraction preview itself. These are **five
     completely independent switches** — `refineSingle`, `fillSingle`,
     `addChoice`, `fillBulk`, `refineBulk` — persisted in `localStorage`
     (`aiToolsThinkingSettings`). Turning bulk Fill Choices on has no effect
@@ -161,6 +162,42 @@ else is plain HTML/CSS/JavaScript.
     lock it already uses) — closing or navigating away from the tab while a
     re-extract is in flight prompts the browser's native "leave site?"
     confirmation, same as every other in-flight AI action.
+  - **"Whole Quiz" AI Tools panel on the extraction preview** — the same
+    🤖 AI Solve All / 🧩 Fill Choices (All) / 🪄 Refine Questions (All) panel
+    already available on the Admin and Custom Quiz editors (`admin` and
+    `customQuiz` in the shared `_caseGroupEditors` registry,
+    `ai-features.js`) now also renders above the post-extraction preview
+    (`cq`) — in case some questions never got a per-question AI button
+    pressed during extraction itself. It's the exact same
+    `_renderBulkAiToolsPanel`/`_editorBulkGuard`/`_editorBulkSetBusy`
+    machinery, locking the whole preview (every per-question AI button,
+    reordering, add/delete/save, merge, split) for the duration of a
+    bulk pass, exactly as it already does for the other two editors —
+    running any bulk tool here can't race with a per-question tool
+    editing the same question, or with another bulk tool in the same
+    preview.
+  - **🖼️ Re-extract Missing Images (All)** — a fourth bulk tool, shown only
+    on the extraction preview's panel, for the "⚠️ AI detected an image for
+    this question but couldn't extract it" case (shown per-question when
+    `has_image` is true but `image` never got filled in). Rather than
+    reopening each such question and clicking 🔁 Re-extract Image one at a
+    time, this retries every eligible question in one pass — grouped and
+    requested **per source file**, reusing `extractImagesForQuestions`
+    exactly as the original extraction pass does (which itself batches
+    `GEMINI_BOUNDING_BOX_BATCH_SIZE` image-bearing questions per Gemini
+    request). This is deliberately **not** an additive per-question loop
+    making one request per image; it's the same file-scoped batching used
+    when the quiz was first extracted, just re-run only for whatever's
+    still missing. Eligibility matches the single-question control exactly
+    (`q._sourceFile` set and not `_notExtractable`) — hand-typed questions
+    or ones merged in from another quiz have no source to re-extract
+    against, and are called out separately in the result summary rather
+    than silently skipped. Shares the same ⏸️ Pause/▶️ Resume/⏹ Stop
+    checkpoint machinery as every other bulk pass (`cqCheckPause` /
+    `_cqEnterPause` / `cqFallbackPauseForRateLimit`), stepping back one
+    file at a time rather than losing the whole run. See
+    `cqBulkReextractMissingImages` (`gemini-uploads.js`) and
+    `_editorBulkReextractImages` (`ai-features.js`).
   - **Reorder-proof question identity** — every extracted question is
     tagged once, at extraction time, with `_extractedQuestionNumber`: its
     actual position in Gemini's original response for that file (set in
