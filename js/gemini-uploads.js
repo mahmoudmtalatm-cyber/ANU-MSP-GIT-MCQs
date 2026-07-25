@@ -208,11 +208,21 @@ function resolveGeminiFallbackUrl(status, url, logPrefix, bodyObj) {
                    `finishReason` was missing/wrong.
 
    Repair strategy: walk the raw text tracking string/escape state and
-   bracket depth so we only ever cut at a genuine top-level array-element
-   boundary — either a '}' that closes an object element back to depth 1,
-   or the closing quote of a bare top-level string element (for arrays of
-   strings, e.g. {"choices": [...]}'s inner array) — never inside an
-   element's own text, which may itself contain literal '}",' sequences. */
+   bracket depth to find the exact character range of every top-level
+   array element — an object ({...}), or a bare value (string/number/
+   true/false/null, for arrays of strings like {"choices": [...]}'s inner
+   array) — then JSON.parse each range ON ITS OWN, independently.
+
+   This matters because a malformed response isn't always cut off at the
+   very end — Gemini occasionally drops a comma or otherwise breaks the
+   syntax of ONE element in the middle of an otherwise-complete array (this
+   is what produced the "Expected ',' or '}' after property value" error
+   reported against this function: a defect partway through the response,
+   not a truncation at the tail). Re-parsing one giant prefix up to the
+   last-recognized element boundary — the previous approach — still
+   contains that bad element and fails identically. Parsing each element
+   separately means a defect anywhere only drops the one entry it's in;
+   every other element, before or after it, is still recovered. */
 function parseGeminiJsonArray(text) {
   const clean = (text || '').replace(/```json|```/g, '').trim();
   try {
@@ -222,33 +232,49 @@ function parseGeminiJsonArray(text) {
 
   if (!clean.startsWith('[')) return { data: null, truncated: false };
 
-  let depth = 0, inString = false, escaped = false, lastElementEnd = -1;
+  let depth = 0, inString = false, escaped = false, elStart = -1;
+  let closedProperly = false, sawBadElement = false;
+  const data = [];
+  const flushElement = (end) => {
+    const raw = clean.slice(elStart, end).trim();
+    elStart = -1;
+    if (!raw) return; // trailing comma, or nothing between separators
+    try { data.push(JSON.parse(raw)); }
+    catch (_) { sawBadElement = true; } // this one entry is malformed — skip just it
+  };
+
   for (let i = 0; i < clean.length; i++) {
     const ch = clean[i];
     if (inString) {
       if (escaped) escaped = false;
       else if (ch === '\\') escaped = true;
-      else if (ch === '"') {
-        inString = false;
-        if (depth === 1) lastElementEnd = i; // closed a bare top-level string element
-      }
+      else if (ch === '"') inString = false;
       continue;
     }
-    if (ch === '"') { inString = true; continue; }
-    if (ch === '{' || ch === '[') depth++;
-    else if (ch === '}' || ch === ']') {
-      depth--;
-      if (depth === 1 && ch === '}') lastElementEnd = i; // closed a top-level object element
+    // First non-whitespace character of a not-yet-started element, at the
+    // top level of the array (depth 1) — marks where it begins, whatever
+    // kind of value it turns out to be.
+    if (depth === 1 && elStart === -1 && ch !== ',' && ch !== ']' && !/\s/.test(ch)) {
+      elStart = i;
     }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') { depth++; continue; }
+    if (ch === '}') { depth--; continue; }
+    if (ch === ']') {
+      depth--;
+      if (depth === 0) { flushElement(i); closedProperly = true; break; }
+      continue;
+    }
+    if (depth === 1 && ch === ',') { flushElement(i); continue; }
   }
-  if (lastElementEnd === -1) return { data: null, truncated: true };
+  // Ran out of text mid-element (a genuine truncation) — try parsing
+  // whatever's left anyway; it usually fails (incomplete), which is fine,
+  // it just means that last dangling entry gets skipped like any other bad
+  // one, while everything recovered before it is kept.
+  if (!closedProperly && elStart !== -1) flushElement(clean.length);
 
-  try {
-    const data = JSON.parse(clean.slice(0, lastElementEnd + 1) + ']');
-    return { data, truncated: true };
-  } catch (_) {
-    return { data: null, truncated: true };
-  }
+  const truncated = !closedProperly || sawBadElement;
+  return { data: data.length ? data : null, truncated };
 }
 
 /* Same salvage idea as parseGeminiJsonArray, but for a small JSON OBJECT
