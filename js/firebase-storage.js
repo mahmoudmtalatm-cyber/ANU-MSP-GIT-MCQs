@@ -295,6 +295,7 @@ function renderCustomQuizModal() {
             <input type="checkbox" id="cqShuffle_${q.id}" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
           </label>
           <button class="cq-btn" onclick="startCustomQuiz('${q.id}')">&#9654; Start</button>
+          <button class="cq-btn cq-btn-secondary" onclick="renameCustomQuiz('${q.id}')" style="background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);" title="Rename this quiz">&#127991;&#65039; Rename</button>
           <button class="cq-btn cq-btn-secondary" onclick="${isEditing ? 'closeCustomQuizEditor()' : `openCustomQuizEditor('${q.id}')`}" style="background:var(--accent);color:#fff;">${isEditing ? '✖ Close Editor' : '✏️ Edit'}</button>
           <button class="cq-share-btn" onclick="shareCustomQuiz('${q.id}')" title="Share with community">&#128279; Share</button>
           <button class="cq-btn cq-btn-danger" onclick="deleteCustomQuiz('${q.id}')">&#128465;</button>

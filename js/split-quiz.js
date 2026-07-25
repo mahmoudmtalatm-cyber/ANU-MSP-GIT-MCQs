@@ -600,6 +600,27 @@ async function deleteCustomQuiz(id) {
   renderCustomQuizModal();
 }
 
+/* Quick standalone rename for a saved custom quiz — just its title, no
+   need to open the full question editor for that. Reuses the same
+   saveCustomQuizzesList() round-trip deleteCustomQuiz above already uses;
+   that's safe/cheap here too since every question's image is already
+   hydrated to an `imageUrl` pointer by this point (uploadQuizImagesToStorage
+   only re-uploads when raw base64 `image` data is present — see
+   js/firebase-storage.js), so re-saving the list doesn't re-upload anything. */
+async function renameCustomQuiz(id) {
+  const quizzes = loadCustomQuizzes();
+  const quiz = quizzes.find(q => q.id === id);
+  if (!quiz) return;
+  const current = quiz.title || 'Untitled Quiz';
+  const newTitle = prompt(`Rename quiz "${current}" to:`, current);
+  if (newTitle === null) return; // cancelled
+  const trimmed = newTitle.trim();
+  if (!trimmed || trimmed === current) return;
+  quiz.title = trimmed;
+  await saveCustomQuizzesList(quizzes);
+  renderCustomQuizModal();
+}
+
 function startCustomQuiz(id) {
   const quizzes = loadCustomQuizzes();
   const quiz = quizzes.find(q => q.id === id);

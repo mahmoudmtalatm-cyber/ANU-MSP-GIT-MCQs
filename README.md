@@ -755,6 +755,23 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **43 — Subject icon editing, and quiz rename for saved custom quizzes
+  & the admin panel.** Subjects now get their own "🎨 Icon" and "✏️ Rename"
+  buttons in Manage Curriculum, matching the split Years and Modules
+  already had — previously a subject's icon and label could only be
+  changed together via one combined "✏️ Edit" prompt flow (see
+  `adminEditSubjectIcon()` / `adminRenameSubject()` in
+  `js/curriculum-admin.js`). Saved custom quizzes (in the Custom Quizzes
+  modal) gained a "🏷️ Rename" button to change a quiz's title without
+  opening its full question editor (`renameCustomQuiz()` in
+  `js/split-quiz.js`). Published quizzes in the admin panel's Manage
+  Curriculum tab gained the same "🏷️ Rename" — the backing field
+  (`lectureName`) already existed and round-tripped correctly on save,
+  but nothing in the UI had ever actually exposed a way to change it
+  (`adminRenamePublished()` in `js/quiz-editor.js`); it now updates
+  Firestore, the in-memory `subjects[...].lectures` map (re-keyed to the
+  new name), and bumps that one quiz's entry in `appConfig/publishedManifest`
+  so the new name shows up for every other user too.
 - **42 — Fix AI-tool status bar not clearing on Stop/finish.** The blue
   "🪄 Refining question…" (and Fill Choices / Add Choice) status bar under a
   question could stay stuck on screen forever after the run finished or was

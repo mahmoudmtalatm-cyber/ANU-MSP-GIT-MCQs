@@ -871,6 +871,8 @@ function _renderAdminAssignedListHTML() {
         </div>
         <button class="admin-remove-btn" style="background:var(--violet-pale);color:var(--violet-dark);border:1.5px solid var(--violet-mid-border);"
           onclick="adminEditPublished('${e.id}')">✏️ Edit</button>
+        <button class="admin-remove-btn" style="background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);"
+          onclick="adminRenamePublished('${e.id}')">🏷️ Rename</button>
         <button class="admin-remove-btn" style="background:var(--chip-blue-bg);color:var(--nav-current);border:1.5px solid var(--nav-default);"
           onclick="adminOpenMoveQuiz('${e.id}', '${(e.lectureName||e.id).replace(/'/g,"\'")}')">📋 Copy/Move</button>
         <button class="admin-remove-btn" onclick="adminRemovePublished('${e.id}')">🗑 Delete</button>
@@ -949,6 +951,54 @@ async function adminEditPublished(lectureId) {
     }, 60);
   } catch (e) {
     alert('Failed to load lecture: ' + (e.message || e));
+  }
+}
+
+/* Quick standalone rename for an already-published quiz — updates just its
+   display name (Firestore's `lectureName` field) without opening the full
+   question editor or touching any question/image data. Mirrors the
+   "🎨 Icon" / "✏️ Rename" split used for Years/Modules/Subjects in
+   js/curriculum-admin.js: changing what something is called shouldn't
+   require going through its full edit flow. `subjects[subj].lectures` is
+   keyed by lecture NAME (see adminSavePublishedEdits/adminRemovePublished
+   above), so the in-memory entry has to move to the new key too, not just
+   have its value patched. */
+async function adminRenamePublished(lectureId) {
+  const entry = adminAssignedEntries.find(x => x.id === lectureId);
+  const current = (entry && entry.lectureName) || lectureId;
+  const newName = prompt(`Rename quiz "${current}" to:`, current);
+  if (newName === null) return; // cancelled
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed === current) return;
+
+  try {
+    const ref  = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', lectureId);
+    const snap = await window._getDoc(ref);
+    if (!snap.exists()) { alert('Could not find this lecture.'); return; }
+    const data = snap.data();
+    const updatedAt = Date.now();
+    await window._setDoc(ref, cleanForFirestore({ ...data, lectureName: trimmed, updatedAt }));
+
+    // Move the in-memory entry over to its new name key.
+    const lectures = subjects[adminTargetSubject] && subjects[adminTargetSubject].lectures;
+    if (lectures && lectures[current]) {
+      lectures[trimmed] = lectures[current];
+      delete lectures[current];
+    }
+    if (entry) entry.lectureName = trimmed;
+    // If this same lecture is (or was just) open in the full editor, keep
+    // its editor title in sync too, so ✏️ Edit → 💾 Save Changes below
+    // doesn't silently revert the rename.
+    if (adminEditingPublishedId === lectureId) adminEditingPublishedName = trimmed;
+
+    // Only THIS quiz's cache entry is invalidated for every other user —
+    // same as any other edit to a published lecture (see adminSavePublishedEdits).
+    await _updatePublishedManifest(adminTargetSubject, lectureId, updatedAt);
+
+    _renderAdminAssignedListHTML();
+    if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
+  } catch (e) {
+    alert('Failed to rename: ' + (e.message || e));
   }
 }
 

@@ -221,7 +221,8 @@ function renderAdminCurrSubjectsLevel(body) {
               <div class="curr-item-sub">key: ${escapeHtml(k)}</div>
             </div>
             ${isFull ? `
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditSubject('${escapeHtml(k)}')">✏️ Edit</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditSubjectIcon('${escapeHtml(k)}')">🎨 Icon</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameSubject('${escapeHtml(k)}')">✏️ Rename</button>
             <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteSubject('${escapeHtml(k)}')">🗑 Delete</button>
             ` : ''}
             <span class="curr-item-arrow">▶</span>
@@ -862,16 +863,12 @@ async function adminDeleteModule(year, mod) {
 }
 
 /* ── SUBJECT ── */
-async function adminEditSubject(key) {
-  const s = subjects[key];
-  if (!s) return;
-  const newLabel = prompt(`Edit label for subject "${s.label || key}":`, s.label || key);
-  if (!newLabel || newLabel.trim() === (s.label || key)) return;
-  const newIcon  = prompt('Edit icon (emoji):', s.icon || '📘') || s.icon || '📘';
-  subjects[key].label = newLabel.trim();
-  subjects[key].icon  = newIcon.trim();
-  addCustomIcon(subjects[key].icon);
-  // Persist
+/* Shared persist step for a label/icon change to an EXISTING subject —
+   used by both adminEditSubjectIcon and adminRenameSubject below so each
+   only has to touch the one field it actually changed, the same way
+   adminEditYearIcon/adminRenameYear and adminEditModuleIcon/adminRenameModule
+   split "which emoji" from "what it's called" into two separate actions. */
+async function _persistSubjectMeta(key) {
   const extRef  = window._doc(window._db, 'appConfig', 'curriculumExtensions');
   const extSnap = await window._getDoc(extRef);
   const ext = extSnap.exists() ? extSnap.data() : {};
@@ -884,6 +881,28 @@ async function adminEditSubject(key) {
   _clearCache(); await bumpCacheVersion();
   buildYearGrid();
   renderAdminCurriculumPanel();
+}
+
+async function adminEditSubjectIcon(key) {
+  const s = subjects[key];
+  if (!s) return;
+  const current = s.icon || '📘';
+  const newIcon = prompt(`Set icon for subject "${s.label || key}" (paste any emoji):`, current);
+  if (newIcon === null) return;
+  const icon = newIcon.trim() || current;
+  subjects[key].icon = icon;
+  addCustomIcon(icon);
+  await _persistSubjectMeta(key);
+}
+
+async function adminRenameSubject(key) {
+  const s = subjects[key];
+  if (!s) return;
+  const current = s.label || key;
+  const newLabel = prompt(`Rename subject "${current}" to:`, current);
+  if (!newLabel || newLabel.trim() === current) return;
+  subjects[key].label = newLabel.trim();
+  await _persistSubjectMeta(key);
 }
 
 async function adminDeleteSubject(key) {
