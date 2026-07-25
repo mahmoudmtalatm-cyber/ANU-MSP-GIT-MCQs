@@ -1018,6 +1018,13 @@ function renderCQPreview() {
       // re-run extraction against, so the control is hidden for them.
       const _canReextract = !!q._sourceFile && !q._notExtractable;
       const _reBusy = _aiToolsIsBusy('cq', i);
+      // Same restore-from-cache pattern _renderAiRefineTools/_renderAiChoiceTools
+      // use for their status boxes — without it, this box comes back empty on
+      // any mid-run rebuild (e.g. closing 🔑 Manage APIs) until the request
+      // finishes, even though the ⏹ Stop button above still shows correctly
+      // (it's driven by live busy state, not by this cached HTML).
+      const _reextractStatusId = `aiReextractStatus_cq_${i}`;
+      const _reextractCachedStatus = _reBusy ? getCachedStatusHTML(_reextractStatusId) : '';
       html += `<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
         background:var(--surface-2);border:1.5px solid var(--border-soft);border-radius:8px;padding:8px 10px;">
         <div style="flex-shrink:0;border-radius:5px;overflow:hidden;border:1px solid var(--border-soft-2);background:#fff;">
@@ -1035,7 +1042,7 @@ function renderCQPreview() {
               <button class="cq-img-action-btn" type="button" id="aiReextractImageBtn_cq_${i}" ${_reBusy ? 'disabled' : ''}
                 title="Ask AI to re-locate and re-crop this image from the original source file"
                 onclick="cqReextractImage(${i})"
-                style="border-top-right-radius:0;border-bottom-right-radius:0;">🔁 Re-extract Image</button>
+                style="border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML('cq', i, 'reextractImage')}🔁 Re-extract Image</button>
               <button class="cq-img-action-btn" type="button" id="aiReextractInstrCaret_cq_${i}" ${_reBusy ? 'disabled' : ''}
                 title="Optional correction used only when re-extracting this image (e.g. widen the frame, fix the position)"
                 onclick="_toggleReextractInstrPicker(${i})"
@@ -1047,7 +1054,7 @@ function renderCQPreview() {
           </div>` : ''}
           <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
           ${_canReextract ? `<div id="aiReextractInstrPicker_cq_${i}" class="ai-source-picker" style="display:none;"></div>
-          <div id="aiReextractStatus_cq_${i}" style="max-width:220px;"></div>` : ''}
+          <div id="${_reextractStatusId}" style="max-width:220px;">${_reextractCachedStatus}</div>` : ''}
         </div>
       </div>`;
     } else if (q.has_image) {
@@ -1249,10 +1256,15 @@ async function cqReextractImage(i) {
   const q = cqGeneratedQuestions[i];
   if (!q._sourceFile || q._notExtractable) return; // nothing to re-extract against
 
-  const statusEl = () => document.getElementById(`aiReextractStatus_cq_${i}`);
+  // Own DOM id (not the shared aiToolsStatus_cq_<i> box the textarea tools
+  // use) — see the render block in renderCQPreview(). Every write below
+  // goes through _aiToolsSetStatusById so this box survives a mid-run
+  // rebuild (e.g. closing 🔑 Manage APIs) the same way Refine/Solve/Fill
+  // Choices already do — see that helper in js/ai-question-tools.js for why.
+  const reextractStatusId = `aiReextractStatus_cq_${i}`;
 
   if (_aiToolsIsBusy('cq', i)) {
-    if (statusEl()) statusEl().innerHTML = _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.');
+    _aiToolsSetStatusById(reextractStatusId, _aiToolsErrorHTML('Another AI action is already running on this question — please wait for it to finish.'));
     return;
   }
   const apiKey = _aiToolsRequireKey('cq', i);
@@ -1270,7 +1282,7 @@ async function cqReextractImage(i) {
   _aiToolsCancelToken[key] = token;
 
   _aiToolsSetBusy('cq', i, true, 'reextractImage');
-  if (statusEl()) statusEl().innerHTML = _aiToolsLoadingHTML('🔁 Re-extracting image from source…');
+  _aiToolsSetStatusById(reextractStatusId, _aiToolsLoadingHTML('🔁 Re-extracting image from source…'));
 
   try {
     // Passing just this one question keeps the request scoped to it —
@@ -1280,18 +1292,21 @@ async function cqReextractImage(i) {
     _markQuestionEditDirty();
     _aiToolsSetBusy('cq', i, false, 'reextractImage');
     if (q.image && q.image !== prevImage) {
-      // Found a (possibly new) crop — rebuild the card to show it.
+      // Found a (possibly new) crop — rebuild the card to show it. The
+      // rebuilt card's status box starts blank (not busy anymore, so
+      // renderCQPreview intentionally skips the cache restore), which is
+      // correct here since the image itself is the success signal.
       renderCQPreview();
-    } else if (statusEl()) {
+    } else {
       // Best-effort feature: a miss just means nothing changed, not an error.
-      statusEl().innerHTML = _aiToolsErrorHTML('Couldn\u2019t locate the image again — try adding a correction above, or use Change Image to upload it manually.');
+      _aiToolsSetStatusById(reextractStatusId, _aiToolsErrorHTML('Couldn\u2019t locate the image again — try adding a correction above, or use Change Image to upload it manually.'));
     }
   } catch (e) {
     _aiToolsSetBusy('cq', i, false, 'reextractImage');
     if (!(e && e._cancelled)) {
-      if (statusEl()) statusEl().innerHTML = _aiToolsErrorHTML(e.message || 'Re-extraction failed.');
-    } else if (statusEl()) {
-      statusEl().innerHTML = '';
+      _aiToolsSetStatusById(reextractStatusId, _aiToolsErrorHTML(e.message || 'Re-extraction failed.'));
+    } else {
+      _aiToolsSetStatusById(reextractStatusId, '');
     }
   } finally {
     if (_aiToolsCancelToken[key] === token) delete _aiToolsCancelToken[key];

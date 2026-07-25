@@ -879,18 +879,18 @@ Be fully deterministic: given the same document and questions, always locate the
   };
 
   // This feature stays best-effort in the sense that a genuinely bad
-  // response (blocked content, empty output, unparsable JSON) still fails
-  // silently — a question just doesn't get its image auto-cropped, nothing
-  // else breaks. But a 429 (rate limit) is no longer an instant, silent
-  // give-up: it now goes through the exact same retry-with-backoff +
-  // automatic multi-key rotation + pause-fallback machinery every other
-  // Gemini call in the app already gets via callGeminiWithRetry (see its
-  // doc comment above this file). Previously this used its own minimal
-  // hand-rolled fetch loop that only retried a 400/404 model-routing error
-  // and gave up immediately on anything else, including 429 — and because
-  // this is ONE batched request covering every image-bearing question in
-  // the file, a single rate-limit hit silently skipped ALL of that file's
-  // images at once. That's exactly what a document with many
+  // response (blocked content, empty output, no usable entries at all)
+  // still fails silently — a question just doesn't get its image
+  // auto-cropped, nothing else breaks. But a 429 (rate limit) is no
+  // longer an instant, silent give-up: it now goes through the exact same
+  // retry-with-backoff + automatic multi-key rotation + pause-fallback
+  // machinery every other Gemini call in the app already gets via
+  // callGeminiWithRetry (see its doc comment above this file). Previously
+  // this used its own minimal hand-rolled fetch loop that only retried a
+  // 400/404 model-routing error and gave up immediately on anything else,
+  // including 429 — and because this covers every image-bearing question
+  // in the batch, a single rate-limit hit silently skipped all of that
+  // batch's images at once. That's exactly what a document with many
   // image-heavy questions tends to trigger (a bigger request, and more of
   // them in a row), which is what was being reported.
   const url = geminiEndpoint();
@@ -900,8 +900,20 @@ Be fully deterministic: given the same document and questions, always locate the
     const textOut = ((data.candidates || [])[0]?.content?.parts || [])
       .map(p => p.text || '').join('').trim();
     if (!textOut) return null;
-    const clean = textOut.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
+    // parseGeminiJsonArray (see its doc comment above) salvages every
+    // fully-formed { q_index, page, x, y, w, h } entry already generated
+    // even if the response was cut off mid-array — GEMINI_BOUNDING_BOX_
+    // BATCH_SIZE keeps this rare (see its own doc comment above), but a
+    // batch containing unusually verbose/long question text could still
+    // push a response past maxOutputTokens. Without this, a truncated
+    // response used to throw away every entry in the batch, not just the
+    // one that got cut off mid-object. `truncated` is intentionally not
+    // surfaced to the caller — this is a best-effort lookup either way,
+    // and a partially-salvaged batch is strictly better than the same
+    // batch returning nothing.
+    const { data: parsed } = parseGeminiJsonArray(textOut);
+    if (!parsed) console.warn('getBoundingBoxes: response had no usable entries:', textOut.slice(0, 200));
+    return parsed;
   } catch (e) {
     // Cancellation and the pause-fallback signal are real state the caller
     // needs to react to (stop the whole run / enter the pause UI) — let

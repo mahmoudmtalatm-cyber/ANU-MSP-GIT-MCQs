@@ -499,21 +499,36 @@ AI-related is required for the core quiz/browsing experience to work.
 > big all-or-nothing unit, with two lingering problems. First,
 > `maxOutputTokens` on it is a fixed 4096 — a file with enough image
 > questions could produce a response that gets cut off mid-array, which
-> fails `JSON.parse` and (since this feature has no partial-salvage logic
-> like question extraction's `parseGeminiJsonArray`) silently lost every
-> image in the file, not just the ones past the cutoff. Second, a batch
-> that genuinely can't be recovered even after all of `callGeminiWithRetry`'s
-> retries/rotation still meant the whole file came back with zero images,
-> instead of just the unlucky subset. `extractImagesForQuestions` now
-> splits image-bearing questions into batches of
-> `GEMINI_BOUNDING_BOX_BATCH_SIZE` (15) and calls `getBoundingBoxes` once
-> per batch, merging the results — each batch's response stays comfortably
-> under the token limit, and a batch that can't be recovered only costs
-> its own questions their image, while every other batch in the file is
-> still requested and resolved independently. Cancellation and the
-> pause-fallback signal still propagate immediately out of the whole loop,
-> same as before — those are real state the caller needs to react to, not
-> a per-batch miss.
+> (at the time) failed `JSON.parse` outright and silently lost every image
+> in the file, not just the ones past the cutoff (see the next note — this
+> specific half of the problem has since been fixed a second, more direct
+> way too). Second, a batch that genuinely can't be recovered even after
+> all of `callGeminiWithRetry`'s retries/rotation still meant the whole
+> file came back with zero images, instead of just the unlucky subset.
+> `extractImagesForQuestions` now splits image-bearing questions into
+> batches of `GEMINI_BOUNDING_BOX_BATCH_SIZE` (15) and calls
+> `getBoundingBoxes` once per batch, merging the results — each batch's
+> response stays comfortably under the token limit, and a batch that can't
+> be recovered only costs its own questions their image, while every other
+> batch in the file is still requested and resolved independently.
+> Cancellation and the pause-fallback signal still propagate immediately
+> out of the whole loop, same as before — those are real state the caller
+> needs to react to, not a per-batch miss.
+>
+> **Note on salvaging a truncated batch:** batching (previous note) makes a
+> genuinely truncated bounding-box response rare, but doesn't make it
+> impossible — a batch of unusually long question text can still, in
+> principle, push a response past `maxOutputTokens`. `getBoundingBoxes`
+> used to hand its raw response straight to `JSON.parse`, which throws on
+> the very first syntactically incomplete character — meaning a response
+> cut off mid-way through, say, the 12th of 15 entries lost all 11
+> complete ones that came before it too, not just the unfinished 12th. It
+> now runs the response through `parseGeminiJsonArray()` (the same
+> bracket/string-aware repair question extraction has used since the
+> `_extractQuestionsFromFile` truncation fix), which walks the text and
+> cuts cleanly at the last fully-formed `{ q_index, page, x, y, w, h }`
+> entry, so a truncated batch salvages every entry that finished
+> generating instead of losing the entire batch over the one that didn't.
 
 ### Smart API key rotation
 

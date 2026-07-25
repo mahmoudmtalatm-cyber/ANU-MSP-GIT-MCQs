@@ -145,6 +145,25 @@ function _aiToolsButtonIds(editorKey, i) {
     `aiReextractInstrCaret_${editorKey}_${i}` // its ▾ custom-instructions caret
   ];
 }
+/* Whether `action` is the specific one currently running on this question
+   (as opposed to just "something is busy") — used both by _aiToolsSyncButtons
+   below (imperative update at the moment a run starts/ends) and by the
+   button templates themselves (_aiToolsBtnActiveClass/_aiToolsBtnSpinnerHTML,
+   used in _renderAiRefineTools/_renderAiChoiceTools/renderCQPreview) so the
+   correct button still shows its highlight + spinner after a mid-run
+   rebuild — e.g. the editor re-renders because the user opened and closed
+   🔑 Manage APIs while this action was still running. Without baking this
+   into the template too, only the imperative DOM insert would show it, and
+   that's wiped out the moment the button's HTML gets replaced wholesale. */
+function _aiToolsActionIsActive(editorKey, i, action) {
+  return _aiToolsIsBusy(editorKey, i) && _aiToolsActiveAction[_aiToolsKey(editorKey, i)] === action;
+}
+function _aiToolsBtnActiveClass(editorKey, i, action) {
+  return _aiToolsActionIsActive(editorKey, i, action) ? ' cq-edit-reask-btn-active' : '';
+}
+function _aiToolsBtnSpinnerHTML(editorKey, i, action) {
+  return _aiToolsActionIsActive(editorKey, i, action) ? '<span class="ai-btn-spinner"></span>' : '';
+}
 function _aiToolsSyncButtons(editorKey, i, busy, action) {
   const ids = _aiToolsButtonIds(editorKey, i);
   ids.forEach(id => {
@@ -203,17 +222,23 @@ function _aiToolsStatusId(editorKey, i) {
 function _aiToolsStatusEl(editorKey, i) {
   return document.getElementById(_aiToolsStatusId(editorKey, i));
 }
-function _aiToolsSetStatus(editorKey, i, html) {
-  // Cached (see js/dom-utils.js) so _renderAiRefineTools/_renderAiChoiceTools
-  // can restore this box's content immediately if this question's card gets
-  // rebuilt mid-run (e.g. the editor re-renders because the user switched
-  // API keys via 🔑 Manage APIs while this tool was still working) — without
-  // this, the freshly-rendered card would show a blank status box (just the
-  // Stop button, since that part is already driven by live busy state) until
-  // the in-flight request happens to finish.
-  setCachedStatusHTML(_aiToolsStatusId(editorKey, i), html);
-  const el = _aiToolsStatusEl(editorKey, i);
+/* Cached (see js/dom-utils.js) so any status box driven by a per-question
+   AI tool can restore its content immediately if the question's card gets
+   rebuilt mid-run (e.g. the editor re-renders because the user switched
+   API keys via 🔑 Manage APIs while the tool was still working) — without
+   this, the freshly-rendered card would show a blank status box (just the
+   Stop button, since that part is already driven by live busy state) until
+   the in-flight request happens to finish. Takes the DOM id directly so it
+   also covers status boxes that don't share the standard
+   `aiToolsStatus_<editorKey>_<i>` id — e.g. Re-extract Image's own
+   `aiReextractStatus_cq_<i>` box (see cqReextractImage in ai-solve.js). */
+function _aiToolsSetStatusById(id, html) {
+  setCachedStatusHTML(id, html);
+  const el = document.getElementById(id);
   if (el) el.innerHTML = html;
+}
+function _aiToolsSetStatus(editorKey, i, html) {
+  _aiToolsSetStatusById(_aiToolsStatusId(editorKey, i), html);
 }
 function _aiToolsLoadingHTML(label) {
   return `<div class="cq-status info" style="font-size:.75rem;padding:5px 10px;">
@@ -295,10 +320,10 @@ function _renderAiRefineTools(editorKey, i) {
   return `
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-2px 0 8px;">
       <div style="display:flex;">
-        <button class="cq-edit-reask-btn" type="button" id="cqAiSolveBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+        <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'solve')}" type="button" id="cqAiSolveBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Ask AI to solve this question using the source chosen below"
           onclick="aiSolveQuestion('${editorKey}', ${i})"
-          style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);border-top-right-radius:0;border-bottom-right-radius:0;">🤖 AI Solve</button>
+          style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML(editorKey, i, 'solve')}🤖 AI Solve</button>
         <button class="cq-edit-reask-btn" type="button" id="aiSolveSrcCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Choose what AI Solve should rely on: general AI knowledge, or a specific source"
           onclick="_toggleAiSourcePicker('${editorKey}', ${i})"
@@ -309,10 +334,10 @@ function _renderAiRefineTools(editorKey, i) {
         title="Stop AI Solve" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <div style="display:flex;">
-          <button class="cq-edit-reask-btn" type="button" id="aiRefineBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+          <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'refine')}" type="button" id="aiRefineBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
             title="Use AI to rewrite this question with clear, exam-style phrasing and no grammar mistakes or typos"
             onclick="aiRefineQuestion('${editorKey}', ${i})"
-            style="background:var(--violet-pale);color:var(--violet-dark);border-color:var(--violet-border);border-top-right-radius:0;border-bottom-right-radius:0;">🪄 Refine Question</button>
+            style="background:var(--violet-pale);color:var(--violet-dark);border-color:var(--violet-border);border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML(editorKey, i, 'refine')}🪄 Refine Question</button>
           <button class="cq-edit-reask-btn" type="button" id="aiRefineInstrCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
             title="Optional custom instructions used only when refining this question"
             onclick="_toggleAiRefineInstrPicker('${editorKey}', ${i})"
@@ -338,10 +363,10 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
   let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:5px;align-items:center;">`;
   if (nextKey) {
     html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <button class="cq-edit-reask-btn" type="button" id="aiAddChoiceBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+      <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'addChoice')}" type="button" id="aiAddChoiceBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
         title="Let AI write one more plausible answer choice for this question"
         onclick="aiAddChoice('${editorKey}', ${i})"
-        style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);">🤖 Add Choice (AI)</button>
+        style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'addChoice')}🤖 Add Choice (AI)</button>
       ${_renderAiThinkingToggle('addChoice', 'green')}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiAddChoiceStopBtn_${editorKey}_${i}"
@@ -350,10 +375,10 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
   }
   if (optCount < 4 && nextKey) {
     html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <button class="cq-edit-reask-btn" type="button" id="aiFillChoicesBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
+      <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'fillChoices')}" type="button" id="aiFillChoicesBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
         title="Let AI fill in the remaining choices (up to 4 total)"
         onclick="aiFillChoices('${editorKey}', ${i})"
-        style="background:var(--unanswered-bg);color:var(--unanswered-fg);border-color:var(--amber-strong);">🧩 Fill Choices (AI)</button>
+        style="background:var(--unanswered-bg);color:var(--unanswered-fg);border-color:var(--amber-strong);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'fillChoices')}🧩 Fill Choices (AI)</button>
       ${_renderAiThinkingToggle('fillSingle', 'amber')}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiFillChoicesStopBtn_${editorKey}_${i}"
