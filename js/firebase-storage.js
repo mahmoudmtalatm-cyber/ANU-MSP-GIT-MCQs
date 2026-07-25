@@ -535,15 +535,32 @@ function renderCustomQuizModal() {
       </div>
     </div>
 
-    <div id="cqPauseRow" style="display:none;gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap;">
-      <button class="cq-btn" id="cqPauseBtn" type="button" onclick="cqRequestPause()"
-        style="background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);">⏸️ Pause</button>
+<!-- Pause/resume/stop and status reflect the LIVE generation state
+         (cqBusy/cqIsPaused/cqPauseRequested/cqStopRequested), and the
+         status box is pre-filled from the cached status HTML — this is
+         what makes returning to this modal mid-run (e.g. after switching
+         API keys via 🔑 Manage APIs, which re-renders this modal while
+         a background extraction/generation is still going) show the run
+         exactly as it was, instead of a frozen, blank-looking modal. See
+         js/dom-utils.js for the cache these values come from. -->
+    ${(() => {
+      const showRow      = cqBusy;
+      const pausingNow    = cqBusy && cqPauseRequested && !cqIsPaused;
+      const showPauseBtn  = cqBusy && !cqIsPaused;
+      const showResumeBtn = cqBusy && cqIsPaused;
+      const stoppingNow   = cqBusy && cqStopRequested;
+      const cachedStatus  = cqBusy ? getCachedStatusHTML('cqStatus') : '';
+      return `
+    <div id="cqPauseRow" style="display:${showRow ? 'flex' : 'none'};gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap;">
+      <button class="cq-btn" id="cqPauseBtn" type="button" onclick="cqRequestPause()" ${pausingNow ? 'disabled' : ''}
+        style="display:${showPauseBtn ? 'inline-flex' : 'none'};background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);">${pausingNow ? '⏳ Pausing…' : '⏸️ Pause'}</button>
       <button class="cq-btn" id="cqResumeBtn" type="button" onclick="cqResumeGeneration()"
-        style="display:none;background:var(--correct-bg);color:var(--correct-fg);border:1.5px solid #66BB6A;">▶️ Resume</button>
-      <button class="ai-tool-stop-btn" id="cqStopBtn" type="button" onclick="cqRequestStop()"
-        style="display:inline-block;padding:7px 12px;font-size:.82rem;" title="Stop extraction/generation immediately">⏹ Stop</button>
+        style="display:${showResumeBtn ? 'inline-flex' : 'none'};background:var(--correct-bg);color:var(--correct-fg);border:1.5px solid #66BB6A;">▶️ Resume</button>
+      <button class="ai-tool-stop-btn" id="cqStopBtn" type="button" onclick="cqRequestStop()" ${stoppingNow ? 'disabled' : ''}
+        style="display:${showRow ? 'inline-block' : 'none'};padding:7px 12px;font-size:.82rem;" title="Stop extraction/generation immediately">${stoppingNow ? '⏳ Stopping…' : '⏹ Stop'}</button>
     </div>
-    <div id="cqStatus"></div>
+    <div id="cqStatus">${cachedStatus}</div>`;
+    })()}
     <div id="cqPreviewArea"></div>
   </div>`;
 

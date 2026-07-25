@@ -1677,6 +1677,13 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
   const busy = _editorBulkBusy[editorKey];
   const activeTool = _editorBulkActiveTool[editorKey];
   const n = questions.length;
+  const statusId = `${editorKey}BulkAiStatus`;
+  // Restores the spinner/progress box immediately if this panel gets
+  // rebuilt mid-run (e.g. switching API keys via 🔑 Manage APIs while a
+  // bulk Solve/Fill/Refine pass is still going) — otherwise only the Stop
+  // button (driven by live busy state) would show, with a blank box below
+  // it until the in-flight request happens to finish. See js/dom-utils.js.
+  const cachedStatus = busy ? getCachedStatusHTML(statusId) : '';
   return `
   <div class="cq-bulk-ai-panel">
     <div class="cq-bulk-ai-title">🤖 AI Tools — Whole Quiz
@@ -1751,7 +1758,7 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
       </details>
     </div>
 
-    <div id="${editorKey}BulkAiStatus" style="margin-top:8px;"></div>
+    <div id="${statusId}" style="margin-top:8px;">${cachedStatus}</div>
   </div>`;
 }
 
@@ -1845,8 +1852,10 @@ async function _editorBulkAiSolve(editorKey) {
   // real in the background even after the user confirmed "stop it".
   const token = { cancelled: false };
   _editorBulkCancelToken[editorKey] = token;
-  const statusEl = _editorBulkStatusEl(editorKey);
-  if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML('🤖 AI is solving all questions…', 0);
+  // Self-healing + auto-caching (see js/dom-utils.js) — this loop writes
+  // progress across many `await`s, and the panel can be rebuilt mid-run.
+  const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
+  statusEl.innerHTML = _cqProgressStatusHTML('🤖 AI is solving all questions…', 0);
   try {
     const sourceFiles = _editorBulkAiSourceFiles[editorKey] || [];
     const allIdxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
@@ -1871,8 +1880,10 @@ async function _editorBulkFillChoices(editorKey) {
   _editorBulkSetBusy(editorKey, true, 'Fill');
   const token = { cancelled: false };
   _editorBulkCancelToken[editorKey] = token;
-  const statusEl = _editorBulkStatusEl(editorKey);
-  if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML('🧩 Filling choices…', 0);
+  // Self-healing + auto-caching (see js/dom-utils.js) — this loop writes
+  // progress across many `await`s, and the panel can be rebuilt mid-run.
+  const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
+  statusEl.innerHTML = _cqProgressStatusHTML('🧩 Filling choices…', 0);
   try {
     const { done, errors } = await cqBulkFillChoices(questions, statusEl, token);
     let html = token.cancelled
@@ -1897,8 +1908,10 @@ async function _editorBulkRefineQuestions(editorKey) {
   _editorBulkSetBusy(editorKey, true, 'Refine');
   const token = { cancelled: false };
   _editorBulkCancelToken[editorKey] = token;
-  const statusEl = _editorBulkStatusEl(editorKey);
-  if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML('🪄 Refining question wording…', 0);
+  // Self-healing + auto-caching (see js/dom-utils.js) — this loop writes
+  // progress across many `await`s, and the panel can be rebuilt mid-run.
+  const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
+  statusEl.innerHTML = _cqProgressStatusHTML('🪄 Refining question wording…', 0);
   try {
     const custom = (_editorBulkRefineInstructions[editorKey] || '').trim();
     const { done, errors } = await cqBulkRefineQuestions(questions, custom, statusEl, token);

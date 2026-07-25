@@ -453,12 +453,17 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
 }
 
 async function generateQuizFromAI() {
-  const titleInput  = document.getElementById('cqTitleInput');
-  const statusEl    = document.getElementById('cqStatus');
-  const genBtn      = document.getElementById('cqGenerateBtn');
-  const pauseRow    = document.getElementById('cqPauseRow');
-  const pauseBtn    = document.getElementById('cqPauseBtn');
-  const resumeBtn   = document.getElementById('cqResumeBtn');
+  const titleInput  = document.getElementById('cqTitleInput'); // read synchronously below only — safe as a one-time lookup
+  // Self-healing references (see js/dom-utils.js) — this flow runs across
+  // many `await`s, and the surrounding modal can be rebuilt mid-run (e.g.
+  // switching keys via 🔑 Manage APIs while paused), which would otherwise
+  // leave these pointing at detached, invisible DOM nodes for the rest of
+  // the run.
+  const statusEl    = liveStatusRef('cqStatus', 'cqStatus');
+  const genBtn      = liveRef('cqGenerateBtn');
+  const pauseRow    = liveRef('cqPauseRow');
+  const pauseBtn    = liveRef('cqPauseBtn');
+  const resumeBtn   = liveRef('cqResumeBtn');
 
   let apiKey  = getActiveApiKey();
   const title = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
@@ -803,14 +808,16 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
 }
 
 async function generateQuizFromLecture() {
-  const titleInput    = document.getElementById('cqLectureTitleInput');
+  const titleInput    = document.getElementById('cqLectureTitleInput'); // read synchronously below only
   const qCountInput   = document.getElementById('cqQCountInput');
   const promptInput   = document.getElementById('cqCustomPromptInput');
-  const statusEl      = document.getElementById('cqStatus');
-  const genBtn        = document.getElementById('cqLectureGenBtn');
-  const pauseRow      = document.getElementById('cqPauseRow');
-  const pauseBtn      = document.getElementById('cqPauseBtn');
-  const resumeBtn     = document.getElementById('cqResumeBtn');
+  // Self-healing references (see js/dom-utils.js) — same reasoning as
+  // generateQuizFromAI() above.
+  const statusEl      = liveStatusRef('cqStatus', 'cqStatus');
+  const genBtn        = liveRef('cqLectureGenBtn');
+  const pauseRow      = liveRef('cqPauseRow');
+  const pauseBtn      = liveRef('cqPauseBtn');
+  const resumeBtn     = liveRef('cqResumeBtn');
 
   let apiKey   = getActiveApiKey();
   const title  = (titleInput  ? titleInput.value  : cqGeneratedTitle).trim();

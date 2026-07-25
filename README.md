@@ -41,6 +41,11 @@ else is plain HTML/CSS/JavaScript.
     skip that wait and step back to the last completed checkpoint instead
     — the in-progress file/batch/question is simply retried once you
     press ▶️ Resume, nothing already done is lost.
+  - ⏸️ Pause / ▶️ Resume / ⏹ Stop, live progress, and per-question/bulk
+    AI-tool status all keep displaying correctly even if the surrounding
+    modal or editor gets re-rendered while they're mid-run — e.g. opening
+    🔑 Manage APIs and switching keys without stopping the run first. See
+    `js/dom-utils.js` for how.
   - Every Gemini request the app makes — extraction, AI Solve, Fill
     Choices, Refine Questions, explanations, chat — shares one global
     pacing clock (`GEMINI_MIN_REQUEST_SPACING_MS` in `gemini-uploads.js`),
@@ -219,6 +224,11 @@ anu-msp-question-bank/
 │   │   └── firebase-config.js           # Your real keys (git-ignored)
 │   ├── firebase-init.js          # Firebase SDK bootstrap, auth-state listener
 │   ├── intro-animation.js        # One-off splash/intro animation
+│   ├── dom-utils.js               # Self-healing live DOM references + status-
+│   │                              #   HTML cache, used by any long-running
+│   │                              #   background flow (extraction, generation,
+│   │                              #   AI tools) so its UI survives the host
+│   │                              #   modal/editor being re-rendered mid-run
 │   ├── app-core.js               # State, screen navigation, quiz engine
 │   │                              #   (timer, render/navigate/mark/submit),
 │   │                              #   subject selection, persistent stats

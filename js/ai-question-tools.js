@@ -197,10 +197,21 @@ function _aiToolsStopAction(editorKey, i) {
   const key = _aiToolsKey(editorKey, i);
   _cancelAiToken(_aiToolsCancelToken[key]);
 }
+function _aiToolsStatusId(editorKey, i) {
+  return `aiToolsStatus_${editorKey}_${i}`;
+}
 function _aiToolsStatusEl(editorKey, i) {
-  return document.getElementById(`aiToolsStatus_${editorKey}_${i}`);
+  return document.getElementById(_aiToolsStatusId(editorKey, i));
 }
 function _aiToolsSetStatus(editorKey, i, html) {
+  // Cached (see js/dom-utils.js) so _renderAiRefineTools/_renderAiChoiceTools
+  // can restore this box's content immediately if this question's card gets
+  // rebuilt mid-run (e.g. the editor re-renders because the user switched
+  // API keys via 🔑 Manage APIs while this tool was still working) — without
+  // this, the freshly-rendered card would show a blank status box (just the
+  // Stop button, since that part is already driven by live busy state) until
+  // the in-flight request happens to finish.
+  setCachedStatusHTML(_aiToolsStatusId(editorKey, i), html);
   const el = _aiToolsStatusEl(editorKey, i);
   if (el) el.innerHTML = html;
 }
@@ -279,6 +290,8 @@ function _aiToolsCaseContext(questions, q) {
 function _renderAiRefineTools(editorKey, i) {
   const busy = _aiToolsIsBusy(editorKey, i);
   const activeAction = _aiToolsActiveAction[_aiToolsKey(editorKey, i)];
+  const statusId = _aiToolsStatusId(editorKey, i);
+  const cachedStatus = busy ? getCachedStatusHTML(statusId) : '';
   return `
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-2px 0 8px;">
       <div style="display:flex;">
@@ -313,7 +326,7 @@ function _renderAiRefineTools(editorKey, i) {
     </div>
     <div id="aiSourcePicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
     <div id="aiRefineInstrPicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
-    <div id="aiToolsStatus_${editorKey}_${i}" style="margin:-3px 0 8px;"></div>`;
+    <div id="${statusId}" style="margin:-3px 0 8px;">${cachedStatus}</div>`;
 }
 
 /* Renders the choice-related AI buttons (Add Choice AI, and Fill Choices
