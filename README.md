@@ -755,6 +755,51 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **53 — Close the one remaining unversioned-asset gap: `js/config/
+  firebase-config.js`.** #52 added `?v=N` cache-busting to every
+  `<script>`/`<link>` in `index.html`, but `config/firebase-config.js`
+  is loaded indirectly — via a relative `import` inside the one
+  `type="module"` script (`firebase-init.js`) — so it slipped past that
+  sweep and stayed exposed to the same stale-cache risk #52 fixed
+  everywhere else. Fixed by adding the matching `?v=53` to that one
+  import specifier: `import { firebaseConfig } from
+  './config/firebase-config.js?v=53'`. Confirmed this has zero
+  interaction with Firestore itself or with the app's own quiz-data
+  cache: `firebaseConfig` is consumed exactly once, synchronously, as a
+  plain in-memory object passed to `initializeApp()` — nothing in the
+  Firestore SDK (loaded separately from `gstatic.com`) or in the
+  IndexedDB/`localStorage` quiz-data cache (`js/data-sync.js`,
+  completely separate file, never references `firebase-config.js` at
+  all) looks at this file's URL again after that. Also bumped every
+  other `?v=N` in `index.html` from 52 → 53 to keep a single shared
+  version number across the whole site, per the convention documented
+  in #52 (avoids some assets sitting on v52 while others are on v53).
+  Verified: module syntax is valid, relative import resolution with a
+  query string on both sides resolves to the correct URL
+  (`js/config/firebase-config.js?v=53`), and all `.js` files still pass
+  a clean syntax check. Touches `js/firebase-init.js` and `index.html`.
+- **52 — Fix deployed fixes appearing to "not work" because of stale
+  browser/CDN caching of `js`/`css` files.** After #51 shipped, the
+  checkbox-toggle fix tested correctly in isolation (scripted click test,
+  clean patched code confirmed live on GitHub) yet still failed for real
+  visitors, behaving exactly like the pre-#51 bug — a click in
+  multi-select mode immediately acted like a single-quiz pick instead of
+  toggling a checkbox. Root cause: every local `<script src="js/...">`
+  and the one `<link rel="stylesheet">` in `index.html` referenced its
+  file with no cache-busting query string, so a browser (or GitHub
+  Pages' CDN) that already had `js/admin-panel.js` cached from before the
+  fix was deployed had no reason to ever re-fetch it — the *new* code was
+  live on the server the whole time, but returning visitors kept running
+  the *old* code from cache with nothing in the URL to tell them
+  otherwise. Fixed by appending `?v=52` to all 19 local `<script>` tags
+  and the stylesheet `<link>` in `index.html`, with a comment documenting
+  the convention: bump every `?v=N` to the new drop number whenever any
+  local `.js`/`.css` file changes, so the URL itself changes and a cache
+  hit becomes structurally impossible. Re-verified the underlying #51
+  fix is correct against these final files with the same scripted
+  click-simulation harness (toggle multi-select on → click a row → id is
+  added to the selection set, `adminSelectedQuiz` stays untouched).
+  Touches only `index.html`.
 - **51 — Fix bulk-publish checkboxes silently failing to toggle for some
   quizzes.** Each row in the "Select Multiple to Publish Together" list
   (#50) built its click behavior as an inline

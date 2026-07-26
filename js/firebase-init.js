@@ -1,4 +1,12 @@
-import { firebaseConfig } from './config/firebase-config.js';
+// '?v=53' matches the current drop number (see README Changelog #53) —
+// same cache-busting convention as every <script>/<link> tag in
+// index.html. This has no effect on Firestore itself: firebaseConfig is
+// consumed once, synchronously, as a plain in-memory object passed to
+// initializeApp() below — nothing in the Firestore SDK, nor the
+// IndexedDB/localStorage quiz-data cache in data-sync.js, ever looks at
+// this file's URL again after that. It only controls whether the
+// browser re-fetches this one small credentials file when it changes.
+import { firebaseConfig } from './config/firebase-config.js?v=53';
 
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
