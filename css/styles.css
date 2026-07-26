@@ -1508,7 +1508,11 @@
 }
 .cq-split-part-header {
   display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 8px 0 4px;
-  border-radius: 7px; font-size: .76rem; font-weight: 800;
+  border-radius: 7px; font-size: .76rem; font-weight: 800; flex-wrap: wrap;
+}
+.cq-split-part-title-input {
+  flex: 1 1 120px; min-width: 0; padding: 3px 8px; border: 1.5px solid; border-radius: 6px;
+  font-family: var(--font); font-size: .78rem; background: #fff; outline: none;
 }
 
 /* ── COMMUNITY QUIZZES ── */
@@ -2369,6 +2373,10 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .cq-split-actions { flex-direction: column; align-items: stretch; }
   .cq-split-actions button { width: 100%; justify-content: center; }
   .cq-split-range-row input[type="text"] { min-width: 0; }
+  .cq-split-part-header { gap: 6px; padding: 6px 8px; }
+  .cq-split-part-title-input { flex-basis: 90px; font-size: .76rem; }
+  .cq-split-q-row { padding: 8px 10px; gap: 8px; }
+  .cq-scissors-btn { width: 26px; height: 26px; font-size: .95rem; }
 
   /* 🧠 Thinking toggles: same shrink treatment as the other small AI-tool
      controls above, plus its button+toggle group (see ai-question-tools.js

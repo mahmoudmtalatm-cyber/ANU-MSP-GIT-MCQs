@@ -11,7 +11,10 @@ function openSplitPanel(context, quizId) {
     chunkSize: 20,
     ranges: [{ start: '1', end: '', label: '' }],
     visualCuts: new Set(),
-    visualLabels: {}
+    // Keyed by the stable 0-based question index each part STARTS at (not by
+    // the part's on-screen position — see the comment above
+    // updateVisualPartLabel() for why that distinction matters).
+    visualPartLabels: {}
   };
   if (context === 'preview') {
     renderCQPreview();
@@ -38,9 +41,9 @@ function closeSplitPanel() {
 function setSplitMode(mode) {
   if (!cqSplitState) return;
   cqSplitState.mode = mode;
-  if (mode === 'visual' && !cqSplitState.visualCuts) {
-    cqSplitState.visualCuts = new Set();
-    cqSplitState.visualLabels = {};
+  if (mode === 'visual') {
+    if (!cqSplitState.visualCuts) cqSplitState.visualCuts = new Set();
+    if (!cqSplitState.visualPartLabels) cqSplitState.visualPartLabels = {};
   }
   _rerenderSplitOwner();
 }
@@ -48,9 +51,14 @@ function setSplitMode(mode) {
 function toggleVisualCut(afterIndex) {
   if (!cqSplitState) return;
   if (!cqSplitState.visualCuts) cqSplitState.visualCuts = new Set();
+  if (!cqSplitState.visualPartLabels) cqSplitState.visualPartLabels = {};
   if (cqSplitState.visualCuts.has(afterIndex)) {
     cqSplitState.visualCuts.delete(afterIndex);
-    if (cqSplitState.visualLabels) delete cqSplitState.visualLabels[afterIndex];
+    // The part that used to START right after this cut (0-based index
+    // afterIndex + 1) merges back into the part before it. Drop its
+    // now-stale title so a future cut placed at this same spot doesn't
+    // resurrect an old, unrelated label.
+    delete cqSplitState.visualPartLabels[afterIndex + 1];
   } else {
     cqSplitState.visualCuts.add(afterIndex);
   }
@@ -65,13 +73,6 @@ function toggleVisualCut(afterIndex) {
   } else {
     _rerenderSplitOwner();
   }
-  _updateSplitSummary();
-}
-
-function updateVisualLabel(afterIndex, val) {
-  if (!cqSplitState) return;
-  if (!cqSplitState.visualLabels) cqSplitState.visualLabels = {};
-  cqSplitState.visualLabels[afterIndex] = val;
   _updateSplitSummary();
 }
 
@@ -115,7 +116,8 @@ function _buildVisualSplitHTML(questions) {
   if (!cqSplitState) return '';
   const total = questions.length;
   const cuts = cqSplitState.visualCuts || new Set();
-  const labels = cqSplitState.visualLabels || {};
+  if (!cqSplitState.visualPartLabels) cqSplitState.visualPartLabels = {};
+  const labels = cqSplitState.visualPartLabels;
 
   // Compute which group each question belongs to for color coding
   const chunks = _getVisualChunksFromCuts(total);
@@ -141,20 +143,22 @@ function _buildVisualSplitHTML(questions) {
     // Show part header at group starts
     if (i === 0 || isNewGroup) {
       const partIdx = groupIdx;
-      const labelKey = i === 0 ? -1 : (i - 1); // the cut index before this group
-      // For part 0, no cut before it; for others, the cut is at i-1
-      const actualCutKey = i === 0 ? null : i - 1;
-      const labelVal = actualCutKey !== null ? (labels[actualCutKey + '_after'] || '') : (labels['start'] || '');
+      // Stable key: the 0-based question index this part starts at. Unlike
+      // partIdx (its position among today's parts), this doesn't shift when
+      // a cut is added/removed somewhere else in the list, so a title typed
+      // in for "Quiz 3" stays attached to the SAME questions even after the
+      // parts get renumbered around it.
+      const labelKey = chunks[groupIdx] ? chunks[groupIdx].start : i;
+      const labelVal = labels[labelKey] || '';
       const partColor = SPLIT_PART_COLORS[partIdx % SPLIT_PART_COLORS.length];
       html += `<div class="cq-split-part-header" style="background:${partColor.bg};border:1.5px solid ${partColor.border};">
         <span style="font-size:.72rem;font-weight:800;color:${partColor.text};">
           📋 Quiz ${partIdx + 1}
         </span>
-        <input type="text" placeholder="Optional title for Quiz ${partIdx + 1}…"
+        <input type="text" class="cq-split-part-title-input" placeholder="Optional title for Quiz ${partIdx + 1}…"
           value="${escapeHtml(labelVal)}"
-          oninput="updateVisualPartLabel(${partIdx}, this.value)"
-          style="flex:1;min-width:120px;padding:3px 8px;border:1.5px solid ${partColor.border};border-radius:6px;
-            font-family:var(--font);font-size:.78rem;background:#fff;outline:none;" />
+          oninput="updateVisualPartLabel(${labelKey}, this.value)"
+          style="border-color:${partColor.border};" />
       </div>`;
     }
 
@@ -182,10 +186,18 @@ function _buildVisualSplitHTML(questions) {
   return html;
 }
 
-function updateVisualPartLabel(partIdx, val) {
+// `key` is the stable 0-based question index the part starts at (see the
+// comment in _buildVisualSplitHTML), NOT its position among today's parts —
+// that position can shift whenever a cut is added or removed anywhere else
+// in the list, which previously caused a typed-in title to appear to
+// "disappear" (it was still saved, just under a position that no longer
+// pointed at the same part). Every reader of visualPartLabels — this
+// function, _buildVisualSplitHTML, _buildSplitSummaryHTML, and
+// executeSplitQuiz — must stay keyed the same way.
+function updateVisualPartLabel(key, val) {
   if (!cqSplitState) return;
   if (!cqSplitState.visualPartLabels) cqSplitState.visualPartLabels = {};
-  cqSplitState.visualPartLabels[partIdx] = val;
+  cqSplitState.visualPartLabels[key] = val;
   _updateSplitSummary();
 }
 
@@ -267,10 +279,10 @@ function _buildSplitSummaryHTML(total) {
     // Build 1-based chunks from visualCuts
     const rawChunks = _getVisualChunksFromCuts(total); // 0-based inclusive
     const labels = cqSplitState.visualPartLabels || {};
-    chunks = rawChunks.map((c, i) => ({
+    chunks = rawChunks.map(c => ({
       start: c.start + 1,
       end: c.end + 1,
-      label: labels[i] || ''
+      label: (labels[c.start] || '').trim()
     }));
   } else {
     chunks = _computeCustomChunks();
@@ -401,10 +413,10 @@ async function executeSplitQuiz(targetMode) {
     const rawChunks = _getVisualChunksFromCuts(total); // 0-based inclusive
     if (!rawChunks.length) { alert('No cuts defined yet. Click the ✂️ scissors between questions to split.'); return; }
     const labels = cqSplitState.visualPartLabels || {};
-    chunks = rawChunks.map((c, i) => ({
+    chunks = rawChunks.map(c => ({
       start: c.start + 1,
       end: c.end + 1,
-      label: labels[i] || ''
+      label: (labels[c.start] || '').trim()
     }));
   } else {
     chunks = _computeCustomChunks();

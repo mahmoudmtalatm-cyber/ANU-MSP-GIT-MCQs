@@ -755,6 +755,32 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **48 — Fix Visual Split part titles disappearing when a new section is
+  cut.** In "✂️ Visual Split" mode, typing a title into a part's "Optional
+  title for Quiz N…" box saved the text to `cqSplitState.visualPartLabels`,
+  but the box's displayed value was read back from a different, never-
+  written property (`cqSplitState.visualLabels`) — so the title always
+  rendered as empty the moment the visual area re-rendered, which happens
+  on every ✂️ click (adding or removing a split point elsewhere in the
+  list). It looked like previously-named sections lost their names each
+  time a new one was cut. Titles are now read from and written to the same
+  property. Also hardened the underlying key: labels were keyed by a
+  part's on-screen position ("Quiz 1", "Quiz 2", …), which shifts whenever
+  a cut is added or removed earlier in the list — so even a "successfully"
+  saved title could end up silently attached to the wrong part after
+  further edits. Labels are now keyed by the stable question index each
+  part starts at, so a title stays attached to the same questions
+  regardless of how later edits renumber the parts around it; removing a
+  cut also now correctly drops the now-stale title of the part that merges
+  away, instead of touching the (wrong) property it used to. Touches
+  `js/split-quiz.js` (`openSplitPanel`, `setSplitMode`, `toggleVisualCut`,
+  `_buildVisualSplitHTML`, `updateVisualPartLabel`, `_buildSplitSummaryHTML`,
+  `executeSplitQuiz`; removed the now-fully-dead `updateVisualLabel`).
+  Also moved the part-title input's styling out of an inline `style=`
+  string into a proper `.cq-split-part-title-input` CSS class in
+  `css/styles.css`, with narrow-screen rules (alongside the existing
+  `.cq-split-*` responsive rules) so the title box and "📋 Quiz N" badge
+  wrap cleanly instead of overflowing on small screens.
 - **47 — Case/vignette context now includes right AND wrong answers, can
   nest sub-cases to any depth, and shuffle/normal mode both keep a case
   and its whole nested tree together in the right order.**
