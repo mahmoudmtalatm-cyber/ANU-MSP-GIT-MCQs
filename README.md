@@ -755,6 +755,24 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **50 — Fix missing ⏹ Stop button during question extraction/generation.**
+  The Custom Quiz modal's pause/resume/stop row (`#cqPauseRow`) is only
+  rendered once, on modal open, when the run isn't busy yet — so at that
+  point `#cqStopBtn` is drawn with its own inline `display:none` (mirroring
+  `cqBusy` being `false`). When `generateQuizFromAI()` (✨ Extract
+  Questions) or `generateQuizFromLecture()` (🧠 Generate Questions) then
+  starts a run, they update the existing DOM in place rather than
+  re-rendering the modal — and that update explicitly flipped
+  `pauseRow.style.display` and `pauseBtn.style.display` back to visible,
+  but only touched the Stop button's `disabled`/`textContent`, never its
+  own `style.display`. The button's original inline `none` therefore stuck
+  around underneath a now-visible row, making Stop appear absent for the
+  entire extraction/generation — Pause worked, Stop didn't. Both functions
+  now also set `stopBtn.style.display = 'inline-block'` when a run starts,
+  matching how `pauseBtn` is already handled. No change was needed on the
+  cleanup side: the `finally` blocks already hide the whole `pauseRow`
+  container (which hides Stop along with it) once a run ends. Touches
+  `js/ai-solve.js` (`generateQuizFromAI`, `generateQuizFromLecture`) only.
 - **49 — Fix long Visual Split titles stretching the split card instead of
   wrapping.** The "Will create N quizzes: …" summary line under the split
   panel renders each part as a `.cq-split-chip` pill — including any

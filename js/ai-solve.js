@@ -499,7 +499,7 @@ async function generateQuizFromAI() {
   if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
   if (resumeBtn) resumeBtn.style.display = 'none';
   const stopBtn = document.getElementById('cqStopBtn');
-  if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+  if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
   statusEl.innerHTML = _cqProgressStatusHTML(`Reading your file${cqSelectedFiles.length > 1 ? 's' : ''} and extracting all questions…`, 0);
 
   try {
@@ -858,7 +858,7 @@ async function generateQuizFromLecture() {
   if (resumeBtn) resumeBtn.style.display = 'none';
   {
     const stopBtn = document.getElementById('cqStopBtn');
-    if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+    if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
   }
   statusEl.innerHTML = _cqProgressStatusHTML(`Reading your lecture${cqLectureFiles.length > 1 ? 's' : ''} and generating questions…`, 0);
 
