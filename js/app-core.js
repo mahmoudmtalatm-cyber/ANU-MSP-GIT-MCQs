@@ -821,7 +821,7 @@ function confirmSubmit() {
   submitQuiz();
 }
 
-function submitQuiz() {
+async function submitQuiz() {
   const spent = Math.round((Date.now() - questionStart) / 1000);
   questionTimes[currentIndex] = (questionTimes[currentIndex] || 0) + spent;
   stopTimer();
@@ -850,7 +850,7 @@ function submitQuiz() {
   const _timedQs    = Object.keys(questionTimes).length;
   const _unanswered = currentQuestions.length - Object.keys(userAnswers).length;
   const _wrong      = currentQuestions.length - score - _unanswered;
-  saveQuizStats(score, currentQuestions.length, _wrong, _unanswered, _totalSecs, _timedQs, correctToWrong, wrongToCorrect, selectedSubject, currentLecture);
+  await saveQuizStats(score, currentQuestions.length, _wrong, _unanswered, _totalSecs, _timedQs, correctToWrong, wrongToCorrect, selectedSubject, currentLecture);
 
   buildResults();
   showScreen('results');
@@ -1135,13 +1135,27 @@ function loadStats() {
   }
 }
 
-function persistStats(st) {
+// Called after every stats change. For signed-in users this is awaited by
+// its callers (see saveQuizStats/submitQuiz) — previously this fired the
+// Firestore write and returned immediately, so navigating away (or the
+// user hitting refresh) right after finishing a quiz could beat the
+// network write to Firestore. Since there's no offline persistence layer
+// configured for Firestore in this app (see js/firebase-init.js), a write
+// that hasn't reached the server yet is simply lost on reload — the quiz
+// you just finished would show up in Statistics until refreshed, then
+// vanish, because the page reloads last-saved-to-server data, not this
+// run's in-memory cache. Awaiting the write here closes that window.
+async function persistStats(st) {
   window._cachedStats = st; // always update the in-memory cache
 
   if (window._currentUser) {
     // Signed in — save to Firestore
     const ref = window._doc(window._db, 'stats', window._currentUser.uid);
-    window._setDoc(ref, st).catch(e => console.error('Failed to save stats:', e));
+    try {
+      await window._setDoc(ref, st);
+    } catch (e) {
+      console.error('Failed to save stats:', e);
+    }
   } else {
     // Not signed in — save to localStorage as fallback
     try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch(e) {}
@@ -1162,7 +1176,7 @@ function subjectDisplayName(raw) {
   return (subjects[raw] && subjects[raw].label) || raw;
 }
 
-function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
+async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
   const st  = loadStats();
   const pct = Math.round(score / total * 100);
 
@@ -1194,7 +1208,7 @@ function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, 
 });
   if (st.history.length > 20) st.history.pop();
 
-  persistStats(st);
+  await persistStats(st);
 }
 
 function openStats() {

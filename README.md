@@ -755,6 +755,24 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **51 — Fix a just-finished quiz's stats vanishing from Statistics after a
+  page refresh.** `submitQuiz()` called `saveQuizStats()` →
+  `persistStats()`, which — for a signed-in user — fired the Firestore
+  `setDoc()` write and returned immediately without waiting for it
+  (`.catch()` only, no `await`). The results screen (and Statistics, if you
+  opened it right after) showed the new quiz instantly either way, because
+  both read from the in-memory `window._cachedStats` cache that had
+  already been updated synchronously. But this app has no Firestore
+  offline-persistence layer configured (see `js/firebase-init.js`), so
+  that write is a plain in-flight network request — if the page reloads
+  before it lands, it's simply lost. On reload, `loadStatsFromFirestore()`
+  replaces the in-memory cache with whatever Firestore last actually
+  received, silently dropping the quiz that hadn't finished saving yet.
+  `persistStats()`, `saveQuizStats()`, and `submitQuiz()` are now `async`
+  and the save is `await`ed end-to-end, so the results screen only
+  appears once this quiz's stats are confirmed saved — closing the window
+  where a fast refresh could outrun the write. Touches `js/app-core.js`
+  only (`persistStats`, `saveQuizStats`, `submitQuiz`).
 - **50 — Fix missing ⏹ Stop button during question extraction/generation.**
   The Custom Quiz modal's pause/resume/stop row (`#cqPauseRow`) is only
   rendered once, on modal open, when the run isn't busy yet — so at that
