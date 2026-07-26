@@ -163,8 +163,8 @@ async function hydrateHistoryImages(wrongQuestions) {
 }
 
 /* Delete all Firestore image subcollection docs for a history entry
-   (called when it's dropped for being past the 20-entry cap, or on
-   Reset All Statistics), so orphaned images don't pile up forever. */
+   (called on Reset All Statistics, or wherever else a history entry is
+   removed outright), so orphaned images don't pile up forever. */
 async function deleteHistoryImagesFromStorage(historyId) {
   if (!window._db || !window._currentUser || !historyId) return;
   try {
@@ -178,6 +178,337 @@ async function deleteHistoryImagesFromStorage(historyId) {
     await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
   } catch (e) {
     console.warn('History image cleanup failed for', historyId, e);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATS HISTORY — full quiz snapshot (archival, right + wrong)
+
+   `history[].wrongQuestions` (above) is what's actually displayed and
+   what Retake uses. This is a separate, permanent archival copy of
+   EVERY question in the quiz as the user answered it — right and
+   wrong — kept "just in case" for a future feature (e.g. reviewing a
+   full past quiz), without bloating anything currently in use:
+
+     • Never inlined in the `stats` document at all — text-only data
+       lives in one small doc per attempt:
+         users/{uid}/statsHistory/{historyId}/full/data
+     • Any images go to their own subcollection (same pattern as
+       everything else here), separate from the wrong-question-only
+       `images` subcollection so the two never collide:
+         users/{uid}/statsHistory/{historyId}/fullImages/{idx}
+
+   This is intentionally independent of the live quiz: it's a frozen
+   copy taken at submit time, so it's completely unaffected if an
+   admin later edits or deletes the quiz it came from. Best-effort —
+   if it fails to save, the quiz's actual score/history entry (already
+   saved) is never affected.
+══════════════════════════════════════════════════════════ */
+
+/* Saves a full snapshot of every question in a finished quiz — each
+   with the question's own fields plus `userAnswer` and `isCorrect` —
+   to Firestore. Mutates a clone, same caution as uploadHistoryImagesToStorage
+   (never pass the live currentQuestions/userAnswers objects in). */
+async function uploadHistoryFullSnapshotToStorage(historyId, allQuestions) {
+  if (!window._db || !window._currentUser || !historyId) return false;
+  try {
+    for (let idx = 0; idx < allQuestions.length; idx++) {
+      const q = allQuestions[idx];
+      if (!q || !q.image) continue; // nothing to save
+      try {
+        const compressed = await compressImageDataUrl(q.image);
+        const imgRef = window._doc(
+          window._db,
+          'users', window._currentUser.uid,
+          'statsHistory', historyId,
+          'fullImages', String(idx)
+        );
+        await window._setDoc(imgRef, { imageData: compressed });
+        q.imageUrl = `firestore-full://${historyId}/${idx}`;
+        delete q.image; // don't inline base64 in the snapshot doc
+      } catch (e) {
+        console.warn('Full-snapshot image save failed for question', idx, e);
+        // Leave q.image as-is; the snapshot doc write below still proceeds.
+      }
+    }
+    const ref = window._doc(
+      window._db,
+      'users', window._currentUser.uid,
+      'statsHistory', historyId,
+      'full', 'data'
+    );
+    await window._setDoc(ref, { questions: allQuestions, savedAt: Date.now() });
+    return true;
+  } catch (e) {
+    // Archival-only feature — never let a failure here affect the quiz
+    // save that already succeeded.
+    console.warn('Full quiz snapshot save failed for', historyId, e);
+    return false;
+  }
+}
+
+/* Fetches a full quiz snapshot back (text + hydrated images), for a
+   future "review the full quiz as taken" feature. Returns null if none
+   was ever saved (e.g. the user wasn't signed in at the time, or the
+   save failed). Not affected by later edits/deletion of the live quiz —
+   it reads only from this account's own archival copy. */
+async function hydrateHistoryFullSnapshot(historyId) {
+  if (!window._db || !window._currentUser || !historyId) return null;
+  try {
+    const ref  = window._doc(
+      window._db,
+      'users', window._currentUser.uid,
+      'statsHistory', historyId,
+      'full', 'data'
+    );
+    const snap = await window._getDoc(ref);
+    if (!snap.exists()) return null;
+    const questions = snap.data().questions || [];
+    await Promise.all(questions.map(async (q) => {
+      if (!q || q.image || !q.imageUrl || !q.imageUrl.startsWith('firestore-full://')) return;
+      try {
+        const parts  = q.imageUrl.replace('firestore-full://', '').split('/');
+        const imgRef = window._doc(
+          window._db,
+          'users', window._currentUser.uid,
+          'statsHistory', parts[0],
+          'fullImages', parts[1]
+        );
+        const imgSnap = await window._getDoc(imgRef);
+        if (imgSnap.exists()) q.image = imgSnap.data().imageData;
+      } catch (e) {
+        console.warn('Full-snapshot image fetch failed', q.imageUrl, e);
+      }
+    }));
+    return questions;
+  } catch (e) {
+    console.warn('Full quiz snapshot fetch failed for', historyId, e);
+    return null;
+  }
+}
+
+/* Delete the full-snapshot doc and its image subcollection for a
+   history entry (called wherever a history entry is removed outright,
+   e.g. Reset All Statistics), so nothing orphaned is left behind. */
+async function deleteHistoryFullSnapshotFromStorage(historyId) {
+  if (!window._db || !window._currentUser || !historyId) return;
+  try {
+    await window._deleteDoc(window._doc(
+      window._db,
+      'users', window._currentUser.uid,
+      'statsHistory', historyId,
+      'full', 'data'
+    ));
+    const col = window._collection(
+      window._db,
+      'users', window._currentUser.uid,
+      'statsHistory', historyId,
+      'fullImages'
+    );
+    const snap = await window._getDocs(col);
+    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
+  } catch (e) {
+    console.warn('Full quiz snapshot cleanup failed for', historyId, e);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATS HISTORY — per-quiz documents + manifest (incremental cache)
+
+   Each finished quiz is its own Firestore document:
+     users/{uid}/statsHistory/{historyId}
+   (holding subject/lecture/score/wrongQuestions/etc — see saveQuizStats
+   in js/app-core.js) instead of an ever-growing array field inside the
+   `stats/{uid}` aggregate document.
+
+   A tiny manifest — { [historyId]: ts } — travels inside the aggregate
+   doc itself (cheap: it's just IDs and numbers, not question content)
+   and tells the client EXACTLY which quizzes are new or changed since
+   last time, mirroring the published-quiz manifest system in
+   js/data-sync.js:
+     • unchanged entry → read straight from the local IndexedDB cache, 0 reads
+     • new entry       → fetch just that one document
+     • removed entry   → dropped from memory + local cache
+   This means taking one more quiz never re-downloads any of the
+   others, no matter how large history grows — and vice versa, an
+   already-cached quiz never gets re-fetched just because a new one
+   was added elsewhere.
+
+   Uses the generic IndexedDB key/value helpers from js/data-sync.js
+   (_idbGet/_idbSet/_idbDelete/_idbKeys) rather than localStorage, same
+   reasoning as the published-quiz cache: history entries can carry
+   substantial text over years of use, well past localStorage's
+   ~5-10MB per-origin quota.
+══════════════════════════════════════════════════════════ */
+function _historyIdbKey(uid, historyId) { return 'history:' + uid + ':' + historyId; }
+
+/* Save one finished quiz as its own document, and warm the local
+   per-entry cache immediately so it's available without a re-fetch. */
+async function saveHistoryEntryToStorage(uid, historyId, entry) {
+  const ref = window._doc(window._db, 'users', uid, 'statsHistory', historyId);
+  await window._setDoc(ref, entry);
+  await _idbSet(_historyIdbKey(uid, historyId), entry);
+}
+
+/* Load every history entry listed in the manifest — using the local
+   per-entry cache wherever its timestamp still matches, and fetching
+   only new/changed ones — then prune any cached entries no longer
+   listed in the manifest (e.g. deleted via Reset All Statistics). */
+async function loadHistoryEntries(uid, manifest) {
+  const ids = Object.keys(manifest || {});
+  const entries = [];
+
+  await Promise.all(ids.map(async (historyId) => {
+    const ts     = manifest[historyId];
+    const idbKey = _historyIdbKey(uid, historyId);
+    const cached = await _idbGet(idbKey);
+
+    if (cached && cached.ts === ts) {
+      entries.push(cached); // cache hit — zero Firestore reads for this entry
+      return;
+    }
+
+    try {
+      const ref  = window._doc(window._db, 'users', uid, 'statsHistory', historyId);
+      const snap = await window._getDoc(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      entries.push(data);
+      await _idbSet(idbKey, data); // persist this one entry immediately
+    } catch (e) {
+      console.warn('Failed to fetch history entry', historyId, e);
+      if (cached) entries.push(cached); // fall back to a stale local copy rather than dropping it
+    }
+  }));
+
+  try {
+    const prefix   = 'history:' + uid + ':';
+    const knownIds = new Set(ids);
+    const allKeys  = await _idbKeys();
+    await Promise.all(allKeys
+      .filter(k => typeof k === 'string' && k.startsWith(prefix) && !knownIds.has(k.slice(prefix.length)))
+      .map(k => _idbDelete(k)));
+  } catch (e) { /* best-effort cleanup, never blocks loading */ }
+
+  entries.sort((a, b) => (b.ts || 0) - (a.ts || 0)); // newest first
+  return entries;
+}
+
+/* Delete one history entry completely: its own document, its images
+   and full-snapshot subcollections, and its local cache entry. Used by
+   Reset All Statistics (and anywhere else a single entry is dropped). */
+async function deleteHistoryEntryCompletely(uid, historyId) {
+  if (!uid || !historyId) return;
+  await Promise.all([
+    window._deleteDoc(window._doc(window._db, 'users', uid, 'statsHistory', historyId)).catch(e =>
+      console.warn('History entry doc delete failed for', historyId, e)),
+    deleteHistoryImagesFromStorage(historyId),
+    deleteHistoryFullSnapshotFromStorage(historyId),
+    _idbDelete(_historyIdbKey(uid, historyId))
+  ]);
+}
+
+/* ONE-TIME MIGRATION — accounts saved before per-quiz documents existed
+   still have their whole `history` array inlined in the aggregate
+   `stats/{uid}` document. Splits it out into individual
+   users/{uid}/statsHistory/{historyId} documents + builds the manifest,
+   so this account gets the same incremental-cache benefits as every
+   quiz taken from now on. Also compacts any lingering inline images
+   from before the #51 fix while it's at it. Runs at most once per
+   account — after this, `aggregate.history` is gone for good and the
+   manifest takes over. Best-effort: if the final aggregate write fails,
+   the next load simply retries (harmless — already-migrated entries
+   just get re-saved under new ids). */
+async function _migrateInlineHistoryToDocs(uid, aggregate) {
+  const legacyHistory = aggregate.history || [];
+  const manifest = {};
+  await Promise.all(legacyHistory.map(async (h, i) => {
+    if (!h) return;
+    const historyId = h.id || `${Date.now()}_legacy${i}`;
+    const ts = h.ts || Date.parse(h.date) || (Date.now() - i);
+    const entry = { ...h, id: historyId, ts };
+    try {
+      if (entry.wrongQuestions && entry.wrongQuestions.some(q => q && q.image)) {
+        await uploadHistoryImagesToStorage(historyId, entry.wrongQuestions);
+      }
+      await saveHistoryEntryToStorage(uid, historyId, entry);
+      manifest[historyId] = ts;
+    } catch (e) {
+      console.warn('Legacy history migration failed for entry', historyId, e);
+    }
+  }));
+
+  const { history, ...rest } = aggregate;
+  const migrated = { ...rest, historyManifest: manifest };
+  try {
+    await window._setDoc(window._doc(window._db, 'stats', uid), migrated);
+  } catch (e) {
+    console.warn('Failed to save migrated aggregate stats doc:', e);
+  }
+  return migrated;
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATS — per-user local cache + version check (aggregate document)
+
+   Mirrors the PER-USER CACHE pattern used for custom quizzes (see
+   ai-features.js): a tiny per-user version field tells us whether the
+   `stats` aggregate document — totals, subjectStats, historyManifest —
+   has changed since last time, so a normal page load/login can skip
+   re-downloading it entirely when it hasn't. The `history` array itself
+   is never part of this: it's cached per-quiz instead (see above).
+
+     Server doc : users/{uid}/meta/cacheVersion  { ..., stats: <ms> }
+                  (same doc custom quizzes already use, just a
+                  different field, so login still costs one small
+                  read for both instead of two)
+     Local keys : anu_msp_stats_cache_<uid>
+                  anu_msp_stats_cache_ver_<uid>
+
+   persistStats() (js/app-core.js) writes through the local cache and
+   bumps the version on every save, so the very next load — this
+   device or a fresh session — is already warm.
+══════════════════════════════════════════════════════════ */
+function _statsCacheKey(uid)    { return 'anu_msp_stats_cache_' + uid; }
+function _statsCacheVerKey(uid) { return 'anu_msp_stats_cache_ver_' + uid; }
+
+function _readStatsCache(uid) {
+  try {
+    const raw = localStorage.getItem(_statsCacheKey(uid));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function _writeStatsCache(uid, st) {
+  try { localStorage.setItem(_statsCacheKey(uid), JSON.stringify(st)); } catch (e) {}
+}
+function _readStatsCacheVer(uid) {
+  return localStorage.getItem(_statsCacheVerKey(uid)) || null;
+}
+function _writeStatsCacheVer(uid, v) {
+  try { localStorage.setItem(_statsCacheVerKey(uid), String(v)); } catch (e) {}
+}
+
+/* Fetch this user's stats version field (shares a doc with the
+   custom-quizzes version — see comment above). */
+async function _fetchStatsServerVersion(uid) {
+  try {
+    const snap = await window._getDoc(window._doc(window._db, 'users', uid, 'meta', 'cacheVersion'));
+    return snap.exists() && snap.data().stats != null ? String(snap.data().stats) : null;
+  } catch (e) { return null; }
+}
+
+/* Bump this user's stats version field (call after any stats write).
+   Uses merge so it never clobbers the custom-quizzes `v` field living
+   in the same doc. */
+async function _bumpStatsVersion(uid) {
+  if (!window._db) return null;
+  try {
+    const v = Date.now();
+    await window._setDoc(window._doc(window._db, 'users', uid, 'meta', 'cacheVersion'), { stats: v }, { merge: true });
+    return String(v);
+  } catch (e) {
+    console.warn('_bumpStatsVersion failed:', e);
+    return null;
   }
 }
 

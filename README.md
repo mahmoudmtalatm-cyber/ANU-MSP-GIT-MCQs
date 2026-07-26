@@ -756,6 +756,81 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **55 — Real incremental caching for Statistics: one document per
+  quiz instead of one growing array.** #54's version check could only
+  ever tell you "something changed" — because `history` was still one
+  array field inside the `stats/{uid}` document, *any* change (even one
+  new quiz) meant re-downloading every quiz ever taken. Fixed by
+  splitting history the same way published quizzes already work:
+  - Every finished quiz is now its own document —
+    `users/{uid}/statsHistory/{historyId}` — instead of an entry in an
+    array field.
+  - The aggregate `stats/{uid}` document keeps only totals/subjectStats
+    plus a tiny manifest, `historyManifest: { historyId: timestamp }` —
+    IDs and numbers only, no question content, so it stays small
+    forever regardless of how many quizzes accumulate.
+  - Loading compares that manifest against a local IndexedDB-backed
+    cache (mirrors the published-quiz manifest system in
+    `js/data-sync.js`): entries whose timestamp matches are read
+    straight from the local cache — 0 reads — and only new/changed ones
+    are actually fetched. Taking one more quiz now costs exactly one
+    new document read, never a re-download of the rest of history —
+    and the reverse holds too, an already-cached quiz is never
+    re-fetched just because a different one changed.
+  - Entries removed from the manifest (e.g. after Reset All Statistics)
+    are pruned from the local cache too, and Reset now cleans up each
+    entry's own document (previously it only cleaned up the
+    image/full-snapshot subcollections, since the entry itself lived
+    inline in the array).
+  - One-time migration handles existing accounts: the first load after
+    this update detects a legacy inlined `history` array, splits it
+    into individual documents + builds the manifest automatically
+    (also compacting any lingering pre-#51 inline images while it's at
+    it), then never needs to run again for that account.
+
+  In-memory `st.history` is unchanged in shape — `renderStatsModal()`,
+  `retakeSingleQuiz()`, and the multi-select retake selector needed no
+  changes at all, since they just read the assembled array like before.
+  Touches `js/app-core.js` (`loadStatsFromFirestore`, `persistStats`,
+  `saveQuizStats`, `resetStats`), `js/firebase-storage.js` (five new
+  helpers), `firestore.rules` (owner-only rule for the per-quiz
+  document itself).
+- **54 — Per-account stats cache/version check, plus a permanent full
+  quiz snapshot archived per attempt.** Two related additions:
+
+  1. **Local cache + version check for Statistics.** `loadStatsFromFirestore()`
+     previously did a full Firestore read of the `stats/{uid}` document on
+     every login, no matter how big it had grown (see #52/#53 — history is
+     now unbounded). It now mirrors the same per-user cache pattern custom
+     quizzes already use: a tiny `stats` field on the existing
+     `users/{uid}/meta/cacheVersion` doc tells the client whether anything
+     changed since last time, and if not, it loads straight from
+     `anu_msp_stats_cache_<uid>` in localStorage instead of re-downloading
+     the whole document. `persistStats()` writes through that local cache
+     and bumps the version on every save, so the next load (this device or
+     a new session) is already warm. Falls back to the full Firestore read
+     automatically if the version doc is missing or stale.
+  2. **Full quiz snapshot, archived independently of the live quiz.**
+     `history[].wrongQuestions` (added in #51) is what Statistics/Retake
+     actually use, and only covers wrong answers. `saveQuizStats()` now
+     *also* archives every question in the quiz — right and wrong — to
+     `users/{uid}/statsHistory/{historyId}/full/data` (images in their own
+     `fullImages/{idx}` subcollection, keeping the same pattern as
+     everything else here). This isn't surfaced in the UI yet — it's a
+     forward-looking archival copy for a future "review the whole quiz you
+     took" feature — but the key property is: **it's frozen at the moment
+     the quiz was submitted.** If an admin later edits a question's wording,
+     changes its correct answer, or deletes the quiz entirely, this
+     snapshot (and the existing wrong-question one) are completely
+     unaffected — retake and any future full-quiz review always work from
+     what the user actually saw, never from a live lookup. Best-effort: if
+     the archival save fails, the user's actual score/history entry (saved
+     separately, moments earlier) is never affected either way.
+
+  Touches `js/app-core.js` (`loadStatsFromFirestore`, `persistStats`,
+  `saveQuizStats`, `resetStats`), `js/firebase-storage.js` (six new
+  helpers), `firestore.rules` (owner-only rules for the two new
+  subcollections).
 - **53 — Show all quizzes in Statistics, not just the 10 most recent.**
   The "Recent Quizzes" section in the Statistics modal only ever rendered
   `st.history.slice(0, 10)` — a display-only cap, separate from the

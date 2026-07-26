@@ -80,10 +80,24 @@ service cloud.firestore {
     match /stats/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    // One document per finished quiz (see saveHistoryEntryToStorage in
+    // js/firebase-storage.js) — owner-only, same as their other data.
+    match /users/{userId}/statsHistory/{historyId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
     // Wrong-question images for a stats history entry (see
     // uploadHistoryImagesToStorage in js/firebase-storage.js) — owner-only,
     // same as their other data.
     match /users/{userId}/statsHistory/{historyId}/images/{imgIdx} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Full quiz snapshot (every question as taken, right + wrong) — a
+    // permanent archival copy kept in case it's needed later, independent
+    // of the live quiz (see uploadHistoryFullSnapshotToStorage). Owner-only.
+    match /users/{userId}/statsHistory/{historyId}/full/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/statsHistory/{historyId}/fullImages/{imgIdx} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     // Personal custom quizzes — only the owner can read/write
