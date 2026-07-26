@@ -1934,6 +1934,26 @@
 .admin-quiz-item.selected .admin-quiz-item-check {
   border-color: var(--accent-dark); background: var(--accent-dark); color: #fff;
 }
+.admin-quiz-item-checkbox {
+  font-size: 1.15rem; line-height: 1; flex-shrink: 0; width: 22px; text-align: center;
+}
+
+/* "Select Multiple" toolbar, sits between the source tabs and the list */
+.admin-multi-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 2px;
+}
+.admin-multi-toggle-btn {
+  padding: 7px 14px; border-radius: 20px; border: 1.5px solid var(--border-soft);
+  background: var(--surface-2); font-family: var(--font); font-size: .78rem; font-weight: 700;
+  color: var(--text-muted); cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.admin-multi-toggle-btn.active { border-color: var(--accent-dark); background: var(--accent-dark); color: #fff; }
+.admin-multi-count { font-size: .78rem; font-weight: 700; color: var(--accent-dark); white-space: nowrap; }
+.admin-multi-link-btn {
+  background: none; border: none; padding: 2px 4px; font-family: var(--font);
+  font-size: .78rem; font-weight: 700; color: var(--accent-dark); text-decoration: underline;
+  cursor: pointer;
+}
 
 .admin-assign-form { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 16px; }
 .admin-assign-title { font-size: .82rem; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px; }
@@ -2370,6 +2390,8 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .cq-opt-edit-row { padding: 6px; }
   .cq-opt-text-input { min-width: 70px; }
   .cq-quiz-item { padding: 10px; }
+  .admin-multi-toolbar { gap: 6px; }
+  .admin-multi-toggle-btn { font-size: .74rem; padding: 6px 11px; flex: 1 1 auto; text-align: center; }
   .cq-split-panel { padding: 12px; }
   .cq-split-actions { flex-direction: column; align-items: stretch; }
   .cq-split-actions button { width: 100%; justify-content: center; }

@@ -755,6 +755,34 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **50 — Publish Quizzes: select multiple quizzes and publish them all at
+  once.** The "📤 Publish Quizzes" admin tab could previously only publish
+  one quiz at a time — pick a quiz, pick a destination, publish, repeat.
+  A new "☑️ Select Multiple to Publish Together" toggle switches the quiz
+  list into checkbox mode: tick any number of quizzes (from "🤖 My Custom
+  Quizzes", "🌐 Community Quizzes", or a mix of both — switching between
+  those two tabs doesn't clear what's already ticked in the other one) and
+  publish them all with one destination pick and one "📤 Publish N Quizzes"
+  click. Each selected quiz becomes its own new lecture in the chosen
+  subject, named after that quiz's own title (rename any of them
+  afterward from 📚 Manage Curriculum same as always). Publishing runs
+  sequentially per quiz — with a "Publishing 2 of 5…" progress line — so
+  one bad quiz's failure doesn't take down the rest of the batch; a
+  summary at the end reports how many succeeded and lists any failures by
+  name. "Select all" is available as a shortcut for the custom-quiz list;
+  community quizzes (a live-filtered search list) stay individually
+  checked. Single-quiz publish, and its "✏️ Edit Before Publishing" /
+  before-after insert-position picker, are completely unchanged and still
+  the default — multi-select is purely additive and off until toggled on.
+  Touches `js/admin-panel.js` (new `adminMultiSelectMode`,
+  `adminSelectedCustomIds`/`adminSelectedCommunityIds` state; new
+  `_adminQuizItemHtml()` shared row renderer used by both the custom and
+  community lists; `adminToggleMultiSelectMode()`,
+  `adminToggleQuizMultiSelect()`, `adminSelectAllCustom()`,
+  `adminClearAllMultiSelect()`, `_resolveSelectedQuizItems()`,
+  `renderAdminBulkAssignForm()`, `adminPublishSelectedQuizzes()`) and
+  `css/styles.css` (`.admin-multi-toolbar` and checkbox-row styles,
+  responsive at the existing narrow-screen breakpoint).
 - **49 — Fix long Visual Split titles stretching the split card instead of
   wrapping.** The "Will create N quizzes: …" summary line under the split
   panel renders each part as a `.cq-split-chip` pill — including any

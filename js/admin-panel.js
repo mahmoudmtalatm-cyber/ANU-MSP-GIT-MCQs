@@ -4,6 +4,20 @@
 ══════════════════════════════════════════════════════════ */
 let adminSourceTab   = 'custom';   // 'custom' | 'community'
 let adminSelectedQuiz = null;      // { title, questions, sourceType, sourceId }
+
+// Bulk-publish ("select multiple") state. Off by default — single-select
+// (adminSelectedQuiz above) stays the normal, unchanged flow. Turning multi-
+// select on picks up a SET of quiz ids per source tab instead of one quiz;
+// the two sets are kept separate (not a single mixed set) so switching
+// between "My Custom Quizzes" and "Community Quizzes" while multi-select is
+// on can build a combined batch from both sources without the ids
+// colliding. adminSetSourceTab() intentionally does NOT clear these when
+// switching tabs, so a selection made in one tab survives browsing the
+// other — only turning multi-select off, or a completed/cancelled publish,
+// clears them.
+let adminMultiSelectMode     = false;
+let adminSelectedCustomIds   = new Set();
+let adminSelectedCommunityIds = new Set();
 // NOTE: adminTargetYear/Module/Subject below are used EXCLUSIVELY by the
 // "📚 Manage Curriculum" tab's own drill-down navigation (adminCurrNavLevel
 // etc.) — they track where the admin is browsing *in that tab*.
@@ -128,6 +142,9 @@ function openAdminPanel() {
   }
   adminSourceTab    = 'custom'; // Publish tab is curriculum-only now, so this is always the sensible start
   adminSelectedQuiz = null;
+  adminMultiSelectMode = false;
+  adminSelectedCustomIds = new Set();
+  adminSelectedCommunityIds = new Set();
   if (cqEditorContext === 'admin') { cqEditorContext = 'quiz'; cqEditingQuizId = null; cqEditQuestions = null; _questionEditDirty = false; }
   adminTargetYear   = '';
   adminTargetModule = '';
@@ -367,17 +384,10 @@ async function renderAdminPanel() {
     if (!quizzes.length) {
       listHtml = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">No custom quizzes found for your account.</div>`;
     } else {
-      listHtml = quizzes.map(q => {
-        const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'custom' && adminSelectedQuiz.sourceId === q.id;
-        return `
-          <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('custom','${q.id}')">
-            <div class="admin-quiz-item-info">
-              <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
-              <div class="admin-quiz-item-meta">${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
-            </div>
-            <div class="admin-quiz-item-check">✓</div>
-          </div>`;
-      }).join('');
+      listHtml = quizzes.map(q => _adminQuizItemHtml(
+        'custom', q.id, q.title || 'Untitled Quiz',
+        `${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}`
+      )).join('');
     }
   } else {
     listHtml = `<div style="text-align:center;padding:20px;color:var(--text-muted);">⏳ Loading community quizzes…</div>`;
@@ -389,8 +399,26 @@ async function renderAdminPanel() {
       ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
     </div>`;
 
+  // "Select Multiple" toggle + running total + per-tab shortcuts. Kept
+  // separate from sourceTabsHtml so it reads as its own row rather than a
+  // third source tab. Selections made while browsing either tab both count
+  // toward the total shown here (see adminSelectedCustomIds/CommunityIds).
+  const totalSelected = adminSelectedCustomIds.size + adminSelectedCommunityIds.size;
+  const multiToolbarHtml = canCurriculum ? `
+    <div class="admin-multi-toolbar">
+      <button class="admin-multi-toggle-btn ${adminMultiSelectMode ? 'active' : ''}" onclick="adminToggleMultiSelectMode()">
+        ${adminMultiSelectMode ? '✖ Cancel Multi-Select' : '☑️ Select Multiple to Publish Together'}
+      </button>
+      ${adminMultiSelectMode ? `
+        <span class="admin-multi-count">${totalSelected} selected</span>
+        ${adminSourceTab === 'custom' ? `<button class="admin-multi-link-btn" onclick="adminSelectAllCustom()">Select all</button>` : ''}
+        ${totalSelected ? `<button class="admin-multi-link-btn" onclick="adminClearAllMultiSelect()">Clear</button>` : ''}
+      ` : ''}
+    </div>` : '';
+
   body.innerHTML = `
     ${sourceTabsHtml}
+    ${multiToolbarHtml}
     <div id="adminCommSectionTabs"></div>
     <div id="adminCommFilterBar"></div>
     <div class="admin-quiz-list" id="adminQuizList">${listHtml}</div>
@@ -399,7 +427,10 @@ async function renderAdminPanel() {
 
   // Only curriculum-permitted admins get the "assign to curriculum" workflow;
   // a community-only admin just browses/moderates the list above.
-  if (canCurriculum) renderAdminAssignForm();
+  if (canCurriculum) {
+    if (adminMultiSelectMode) renderAdminBulkAssignForm();
+    else renderAdminAssignForm();
+  }
 
   // If a custom quiz is currently being edited inline from this panel, fill
   // in its editor now that the container div above exists in the DOM.
@@ -556,18 +587,106 @@ async function renderAdminPanel() {
       list.innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">${emptyMsg}</div>`;
       return;
     }
-    list.innerHTML = shared.map(q => {
-      const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'community' && adminSelectedQuiz.sourceId === q.id;
-      return `
-        <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('community','${q.id}')">
-          <div class="admin-quiz-item-info">
-            <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
-            <div class="admin-quiz-item-meta">by ${escapeHtml(q.authorName || 'Unknown')} · ${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
-          </div>
-          <div class="admin-quiz-item-check">✓</div>
-        </div>`;
-    }).join('');
+    list.innerHTML = shared.map(q => _adminQuizItemHtml(
+      'community', q.id, q.title || 'Untitled Quiz',
+      `by ${escapeHtml(q.authorName || 'Unknown')} · ${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}`
+    )).join('');
   }
+}
+
+/* Renders one row in the "My Custom Quizzes" / "Community Quizzes" list.
+   In multi-select mode it's a checkbox row toggling membership in the id
+   set for `sourceType` (adminSelectedCustomIds / adminSelectedCommunityIds);
+   otherwise it's the original single-select row that sets adminSelectedQuiz.
+   `metaHtml` is inserted as-is (already escaped/built by the caller), same
+   as the original inline markup this replaces. */
+function _adminQuizItemHtml(sourceType, id, title, metaHtml) {
+  if (adminMultiSelectMode) {
+    const set = sourceType === 'custom' ? adminSelectedCustomIds : adminSelectedCommunityIds;
+    const checked = set.has(id);
+    return `
+      <div class="admin-quiz-item ${checked ? 'selected' : ''}" onclick="adminToggleQuizMultiSelect('${sourceType}','${id}')">
+        <div class="admin-quiz-item-checkbox">${checked ? '☑️' : '⬜'}</div>
+        <div class="admin-quiz-item-info">
+          <div class="admin-quiz-item-title">${escapeHtml(title)}</div>
+          <div class="admin-quiz-item-meta">${metaHtml}</div>
+        </div>
+      </div>`;
+  }
+  const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === sourceType && adminSelectedQuiz.sourceId === id;
+  return `
+    <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('${sourceType}','${id}')">
+      <div class="admin-quiz-item-info">
+        <div class="admin-quiz-item-title">${escapeHtml(title)}</div>
+        <div class="admin-quiz-item-meta">${metaHtml}</div>
+      </div>
+      <div class="admin-quiz-item-check">✓</div>
+    </div>`;
+}
+
+/* Turning multi-select ON clears any single selection (they're mutually
+   exclusive — the assign area below the list shows one form or the other).
+   Turning it OFF drops whatever was multi-selected, so re-enabling it later
+   starts clean rather than resurrecting a stale batch. */
+function adminToggleMultiSelectMode() {
+  adminMultiSelectMode = !adminMultiSelectMode;
+  if (adminMultiSelectMode) {
+    adminSelectedQuiz = null;
+    adminEditQuestions = null;
+    adminEditMode = null;
+  } else {
+    adminSelectedCustomIds = new Set();
+    adminSelectedCommunityIds = new Set();
+  }
+  renderAdminPanel();
+}
+
+function adminToggleQuizMultiSelect(sourceType, sourceId) {
+  const set = sourceType === 'custom' ? adminSelectedCustomIds : adminSelectedCommunityIds;
+  if (set.has(sourceId)) set.delete(sourceId); else set.add(sourceId);
+  renderAdminPanel();
+}
+
+/* "Select all" only covers the custom-quiz tab, which is a plain unfiltered
+   list (loadCustomQuizzes()) — the community tab's list is the result of
+   live search/filter state computed inside renderAdminPanel(), so there's
+   no single stable "everything currently shown" array to reuse here without
+   duplicating that filtering logic. Individual checkboxes still work fine
+   for community quizzes; this is just a convenience shortcut, not a
+   required part of the flow. */
+function adminSelectAllCustom() {
+  loadCustomQuizzes().forEach(q => adminSelectedCustomIds.add(q.id));
+  renderAdminPanel();
+}
+
+function adminClearAllMultiSelect() {
+  adminSelectedCustomIds = new Set();
+  adminSelectedCommunityIds = new Set();
+  renderAdminPanel();
+}
+
+/* Resolves the current multi-select ids into full {sourceType, sourceId,
+   title, questions} items, in each source list's natural (displayed)
+   order — custom quizzes first, then community quizzes. Used by both the
+   bulk-publish summary chips and the actual publish loop, so what the
+   admin sees previewed is exactly what gets published. */
+function _resolveSelectedQuizItems() {
+  const items = [];
+  if (adminSelectedCustomIds.size) {
+    loadCustomQuizzes().forEach(q => {
+      if (adminSelectedCustomIds.has(q.id)) {
+        items.push({ sourceType: 'custom', sourceId: q.id, title: q.title || 'Untitled Quiz', questions: q.questions || [] });
+      }
+    });
+  }
+  if (adminSelectedCommunityIds.size) {
+    (adminCommunityCache || []).forEach(q => {
+      if (adminSelectedCommunityIds.has(q.id)) {
+        items.push({ sourceType: 'community', sourceId: q.id, title: q.title || 'Untitled Quiz', questions: q.questions || [] });
+      }
+    });
+  }
+  return items;
 }
 
 function adminSelectQuiz(sourceType, sourceId) {
@@ -985,6 +1104,150 @@ function renderAdminAssignForm() {
   if (adminEditMode === 'publish') renderAdminQuestionEditor('adminEditorArea');
 
   if (adminPubTargetSubject) renderAdminAssignedList();
+}
+
+/* Bulk-publish counterpart to renderAdminAssignForm() — shown instead of it
+   while adminMultiSelectMode is on. Each selected quiz becomes its own new
+   lecture, named after that quiz's own title (there's no per-quiz name
+   field here, unlike the single-publish form's "Lecture / Topic Name" box —
+   with N quizzes that would mean N inputs; renaming afterward from
+   📚 Manage Curriculum is one click per lecture if needed). */
+function renderAdminBulkAssignForm() {
+  const area = document.getElementById('adminAssignArea');
+  if (!area) return;
+
+  const items = _resolveSelectedQuizItems();
+
+  if (!items.length) {
+    area.innerHTML = `<div style="color:var(--text-muted);font-size:.85rem;padding:10px 2px;">
+      Select one or more quizzes above (☑️) to publish them together.
+    </div>`;
+    return;
+  }
+
+  const chipsHtml = items.map(it =>
+    `<span class="cq-split-chip">${escapeHtml(it.title)} (${it.questions.length} q)</span>`
+  ).join('');
+
+  area.innerHTML = `
+    <div class="admin-assign-form">
+      <div class="admin-assign-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <span>Publish ${items.length} quiz${items.length !== 1 ? 'zes' : ''} to:</span>
+        <button class="admin-remove-btn" style="background:var(--violet-pale);color:var(--violet-dark);border:1.5px solid var(--violet-mid-border);"
+          onclick="adminClearAllMultiSelect()">✖ Clear Selection</button>
+      </div>
+
+      <div class="cq-split-summary" style="margin:0 0 10px;">${chipsHtml}</div>
+      <div style="font-size:.74rem;color:var(--violet-dark);font-weight:600;margin-bottom:10px;">
+        Each quiz above is published as its own new lecture, named after that quiz's own title.
+      </div>
+
+      ${adminPublishTargetPickerHtml()}
+
+      <div class="admin-assigned-section" id="adminAssignedSection"></div>
+
+      <button class="admin-assign-btn" id="adminBulkPublishBtn" onclick="adminPublishSelectedQuizzes()" style="margin-top:14px;"
+        ${(!adminPubTargetYear || !adminPubTargetModule || !adminPubTargetSubject) ? 'disabled' : ''}>
+        📤 Publish ${items.length} Quiz${items.length !== 1 ? 'zes' : ''} to Question Bank
+      </button>
+      <div class="admin-status" id="adminBulkStatus"></div>
+    </div>
+  `;
+
+  if (adminPubTargetSubject) renderAdminAssignedList();
+}
+
+/* Publishes every selected quiz as its own new lecture in the chosen
+   subject, one at a time (sequential, not parallel — keeps Firestore load
+   predictable and lets `order` values come out strictly increasing without
+   any coordination). Mirrors executeSplitQuiz()'s 'publish' pathway in
+   js/split-quiz.js (same per-lecture steps: strip source-specific image
+   sentinels, upload images, write the lecture doc, hydrate + merge into the
+   in-memory subject, bump the published manifest) — the two intentionally
+   stay structurally parallel since they're doing the same underlying
+   "create N new published lectures" operation from different starting
+   points (one already-loaded quiz split into parts, vs several separate
+   already-published-elsewhere quizzes). A failure on one quiz doesn't stop
+   the rest; failures are collected and reported together at the end so one
+   bad quiz doesn't cost the whole batch. */
+async function adminPublishSelectedQuizzes() {
+  if (adminBusy) return;
+  const items = _resolveSelectedQuizItems();
+  if (!items.length || !adminPubTargetSubject) return;
+  const targetSubject = adminPubTargetSubject;
+  const targetLabel = subjects[targetSubject].label || targetSubject;
+
+  if (!confirm(`Publish ${items.length} quiz${items.length !== 1 ? 'zes' : ''} to ${targetLabel}? Each becomes its own new lecture there.`)) return;
+
+  adminBusy = true;
+  const btn = document.getElementById('adminBulkPublishBtn');
+  if (btn) btn.disabled = true;
+  const statusEl = document.getElementById('adminBulkStatus');
+
+  const publishedAt = Date.now();
+  const succeeded = [];
+  const failed = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> Publishing ${i + 1} of ${items.length}: "${escapeHtml(item.title)}"…</div>`;
+
+    try {
+      let questions = JSON.parse(JSON.stringify(item.questions));
+      if (item.sourceType === 'community') {
+        questions = restoreOptionsOrder(questions);
+        await hydrateSharedQuizImages(item.sourceId, questions);
+      } else {
+        await hydrateQuizImages(questions);
+      }
+      const cleanQuestions = questions.map(q => {
+        delete q.imageUrl;
+        delete q.sharedImageIdx;
+        delete q.pubImageIdx; // will be re-assigned after upload
+        return q;
+      });
+
+      const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i;
+      await uploadPublishedLectureImages(targetSubject, lectureId, cleanQuestions);
+
+      const order = publishedAt + i; // strictly increasing → publish order stays stable
+      const ref = window._doc(window._db, 'publishedQuestions', targetSubject, 'lectures', lectureId);
+      await window._setDoc(ref, cleanForFirestore({
+        id: lectureId,
+        lectureName: item.title,
+        questions: cleanQuestions,
+        sourceTitle: item.title,
+        sourceType: item.sourceType,
+        publishedBy: window._currentUser ? window._currentUser.uid : null,
+        publishedAt: order,
+        order
+      }));
+
+      const hydratedForMemory = JSON.parse(JSON.stringify(cleanQuestions));
+      await hydratePublishedLectureImages(targetSubject, lectureId, hydratedForMemory);
+      if (!subjects[targetSubject].lectures) subjects[targetSubject].lectures = {};
+      subjects[targetSubject].lectures[item.title] = hydratedForMemory;
+
+      await _updatePublishedManifest(targetSubject, lectureId, order);
+      succeeded.push(item.title);
+    } catch (e) {
+      failed.push(`${item.title}: ${e.message || e}`);
+    }
+  }
+
+  adminBusy = false;
+  adminMultiSelectMode = false;
+  adminSelectedCustomIds = new Set();
+  adminSelectedCommunityIds = new Set();
+
+  if (selectedSubject === targetSubject) selectSubject(targetSubject);
+  renderAdminPanel();
+
+  if (failed.length) {
+    alert(`✅ Published ${succeeded.length} of ${items.length} quiz${items.length !== 1 ? 'zes' : ''} to ${targetLabel}.\n\n❌ Failed:\n${failed.join('\n')}`);
+  } else {
+    alert(`✅ Published ${succeeded.length} quiz${succeeded.length !== 1 ? 'zes' : ''} to ${targetLabel}!`);
+  }
 }
 
 function adminToggleEditBeforePublish() {
