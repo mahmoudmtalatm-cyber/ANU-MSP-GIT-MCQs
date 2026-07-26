@@ -755,6 +755,29 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **51 — Fix bulk-publish checkboxes silently failing to toggle for some
+  quizzes.** Each row in the "Select Multiple to Publish Together" list
+  (#50) built its click behavior as an inline
+  `onclick="adminToggleQuizMultiSelect('custom','<id>')"` string with the
+  quiz's id spliced straight into it. Any id containing a `'` breaks out
+  of that JS string literal — the browser throws a syntax error the
+  moment the row is clicked, so nothing happens: the checkbox never
+  flips, the quiz never joins the batch, and (since the click errors out
+  before doing anything) the panel is left showing whatever it showed
+  before, which reads like the click "did nothing" or fell back to a
+  leftover single-quiz state. Confirmed with a scripted click test
+  reproducing the exact failure against the previous code. Fixed by
+  dropping inline `onclick` from quiz rows entirely: `_adminQuizItemHtml()`
+  now writes the id/source as `data-quiz-id`/`data-quiz-source`
+  attributes (HTML-escaped, so any character is safe), and a single
+  delegated click listener — bound once per admin-panel render via the
+  new `_adminBindQuizListClicks()`, onto `#adminBody` itself so it
+  survives every re-render — reads those attributes and calls
+  `adminToggleQuizMultiSelect()` or `adminSelectQuiz()` depending on the
+  current mode (new `_adminQuizListClickHandler()`). Same fix covers both
+  the multi-select checkbox rows and the original single-select rows,
+  since both went through the same vulnerable pattern. Touches only
+  `js/admin-panel.js`.
 - **50 — Publish Quizzes: select multiple quizzes and publish them all at
   once.** The "📤 Publish Quizzes" admin tab could previously only publish
   one quiz at a time — pick a quiz, pick a destination, publish, repeat.

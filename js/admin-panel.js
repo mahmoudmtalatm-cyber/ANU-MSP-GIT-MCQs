@@ -366,6 +366,7 @@ async function renderAdminPanel() {
   const user = window._currentUser;
   const canCurriculum = hasAdminPermission(user, 'curriculum');
   const body = document.getElementById('adminBody');
+  _adminBindQuizListClicks(body);
 
   // Both source tabs — "My Custom Quizzes" and "Community Quizzes" — are
   // just two ways of picking a quiz to publish into the curriculum, so
@@ -601,11 +602,22 @@ async function renderAdminPanel() {
    `metaHtml` is inserted as-is (already escaped/built by the caller), same
    as the original inline markup this replaces. */
 function _adminQuizItemHtml(sourceType, id, title, metaHtml) {
+  // IDs/titles come from live Firestore data (custom quiz titles, community
+  // author-shared quizzes) and can contain apostrophes or quotes — those
+  // used to be spliced directly into an inline onclick="fn('${id}')"
+  // string, which silently corrupts the handler (and breaks selection
+  // entirely) the moment an id/title had a `'` in it. Rows are now plain
+  // data-carrying elements with NO inline handler; a single delegated
+  // click listener (bound once in renderAdminPanel, see
+  // _adminBindQuizListClicks()) reads data-quiz-source/data-quiz-id and
+  // dispatches to the right handler, so arbitrary characters in ids are
+  // never at risk of breaking out of a JS string literal.
+  const idAttr = escapeHtml(String(id));
   if (adminMultiSelectMode) {
     const set = sourceType === 'custom' ? adminSelectedCustomIds : adminSelectedCommunityIds;
     const checked = set.has(id);
     return `
-      <div class="admin-quiz-item ${checked ? 'selected' : ''}" onclick="adminToggleQuizMultiSelect('${sourceType}','${id}')">
+      <div class="admin-quiz-item ${checked ? 'selected' : ''}" data-quiz-source="${sourceType}" data-quiz-id="${idAttr}">
         <div class="admin-quiz-item-checkbox">${checked ? '☑️' : '⬜'}</div>
         <div class="admin-quiz-item-info">
           <div class="admin-quiz-item-title">${escapeHtml(title)}</div>
@@ -615,13 +627,36 @@ function _adminQuizItemHtml(sourceType, id, title, metaHtml) {
   }
   const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === sourceType && adminSelectedQuiz.sourceId === id;
   return `
-    <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('${sourceType}','${id}')">
+    <div class="admin-quiz-item ${sel ? 'selected' : ''}" data-quiz-source="${sourceType}" data-quiz-id="${idAttr}">
       <div class="admin-quiz-item-info">
         <div class="admin-quiz-item-title">${escapeHtml(title)}</div>
         <div class="admin-quiz-item-meta">${metaHtml}</div>
       </div>
       <div class="admin-quiz-item-check">✓</div>
     </div>`;
+}
+
+/* Single delegated click handler for the quiz list — reads
+   data-quiz-source/data-quiz-id off whichever row was clicked (or a
+   descendant of it) and routes to the multi-select toggle or the
+   single-select picker depending on the current mode. Bound once onto
+   #adminBody (see _adminBindQuizListClicks — that element itself is never
+   replaced, only its innerHTML, so one binding survives every re-render;
+   this also means every quiz row gets working click behavior with zero
+   risk of an id/title value breaking a hand-built onclick string. */
+function _adminQuizListClickHandler(e) {
+  const row = e.target.closest('.admin-quiz-item[data-quiz-id]');
+  if (!row) return;
+  const sourceType = row.getAttribute('data-quiz-source');
+  const id = row.getAttribute('data-quiz-id');
+  if (adminMultiSelectMode) adminToggleQuizMultiSelect(sourceType, id);
+  else adminSelectQuiz(sourceType, id);
+}
+
+function _adminBindQuizListClicks(body) {
+  if (!body || body._adminQuizClickBound) return;
+  body.addEventListener('click', _adminQuizListClickHandler);
+  body._adminQuizClickBound = true;
 }
 
 /* Turning multi-select ON clears any single selection (they're mutually
