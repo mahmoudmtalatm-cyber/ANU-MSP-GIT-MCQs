@@ -89,6 +89,98 @@ async function hydrateQuizImages(questions) {
   }));
 }
 
+/* ══════════════════════════════════════════════════════════
+   STATS HISTORY — wrong-question image helpers
+
+   The Statistics "Retake wrong questions" feature needs the full
+   question (including any image) preserved per finished quiz, but
+   the `stats` document itself has to stay under Firestore's 1 MiB
+   per-document limit. Embedding base64 images directly in
+   `history[].wrongQuestions` (as before) meant the *next* quiz's
+   save could push the whole document over that limit — which
+   Firestore silently rejects, and since the write is fire-and-
+   forget, the newest quiz's entry would just never actually save,
+   with no error shown anywhere.
+
+   Mirrors uploadQuizImagesToStorage/hydrateQuizImages/
+   deleteQuizImagesFromStorage below, but under
+   users/{uid}/statsHistory/{historyId}/images/{idx} and a distinct
+   `firestore-history://` sentinel (so hydrateHistoryImages can't be
+   confused with a customQuizzes imageUrl, and vice versa).
+══════════════════════════════════════════════════════════ */
+
+/* Moves any base64 images in a history entry's wrongQuestions out to
+   Firestore subcollection docs, replacing q.image with a
+   firestore-history:// sentinel. Mutates the passed-in array (mutate a
+   clone, never the live currentQuestions objects — see saveQuizStats). */
+async function uploadHistoryImagesToStorage(historyId, wrongQuestions) {
+  if (!window._db || !window._currentUser) return wrongQuestions;
+  for (let idx = 0; idx < wrongQuestions.length; idx++) {
+    const q = wrongQuestions[idx];
+    if (!q || !q.image) continue; // nothing to save (or already migrated)
+    try {
+      const compressed = await compressImageDataUrl(q.image);
+      const imgRef = window._doc(
+        window._db,
+        'users', window._currentUser.uid,
+        'statsHistory', historyId,
+        'images', String(idx)
+      );
+      await window._setDoc(imgRef, { imageData: compressed });
+      q.imageUrl = `firestore-history://${historyId}/${idx}`;
+      delete q.image; // don't inline base64 in the stats document
+    } catch (e) {
+      console.warn('History image save to Firestore failed for question', idx, e);
+      // Keep image as-is so Retake still works locally this session —
+      // same fallback uploadQuizImagesToStorage uses.
+    }
+  }
+  return wrongQuestions;
+}
+
+/* Fetches wrongQuestions' images back into q.image (data URL) fields,
+   for Retake. Only touches entries with a firestore-history:// sentinel
+   and no image already loaded. */
+async function hydrateHistoryImages(wrongQuestions) {
+  await Promise.all((wrongQuestions || []).map(async (q) => {
+    if (!q || q.image || !q.imageUrl || !q.imageUrl.startsWith('firestore-history://')) return;
+    try {
+      const parts = q.imageUrl.replace('firestore-history://', '').split('/');
+      const historyId = parts[0];
+      const imgIdx     = parts[1];
+      const imgRef = window._doc(
+        window._db,
+        'users', window._currentUser.uid,
+        'statsHistory', historyId,
+        'images', imgIdx
+      );
+      const snap = await window._getDoc(imgRef);
+      if (snap.exists()) q.image = snap.data().imageData;
+    } catch (e) {
+      console.warn('History image fetch failed', q.imageUrl, e);
+    }
+  }));
+}
+
+/* Delete all Firestore image subcollection docs for a history entry
+   (called when it's dropped for being past the 20-entry cap, or on
+   Reset All Statistics), so orphaned images don't pile up forever. */
+async function deleteHistoryImagesFromStorage(historyId) {
+  if (!window._db || !window._currentUser || !historyId) return;
+  try {
+    const col = window._collection(
+      window._db,
+      'users', window._currentUser.uid,
+      'statsHistory', historyId,
+      'images'
+    );
+    const snap = await window._getDocs(col);
+    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
+  } catch (e) {
+    console.warn('History image cleanup failed for', historyId, e);
+  }
+}
+
 function loadCustomQuizzes() {
   return window._cachedCustomQuizzes || [];
 }

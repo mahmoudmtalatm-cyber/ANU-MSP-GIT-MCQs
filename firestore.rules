@@ -80,6 +80,12 @@ service cloud.firestore {
     match /stats/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    // Wrong-question images for a stats history entry (see
+    // uploadHistoryImagesToStorage in js/firebase-storage.js) — owner-only,
+    // same as their other data.
+    match /users/{userId}/statsHistory/{historyId}/images/{imgIdx} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
     // Personal custom quizzes — only the owner can read/write
     match /users/{userId}/customQuizzes/{quizId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;

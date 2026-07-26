@@ -284,6 +284,7 @@ anu-msp-question-bank/
 │   ├── ai-solve.js               # Per-question "AI solve" source picker
 │   ├── gemini-uploads.js         # Gemini file-upload helpers (images/PDFs)
 │   ├── firebase-storage.js       # Firebase Storage helpers for quiz images
+│   │                              #   and Statistics wrong-question images
 │   ├── split-quiz.js             # Split a long quiz into smaller ones
 │   ├── sharing.js                # Share-quiz links + shared quiz image helpers
 │   ├── community-quizzes.js      # Browse/merge community-submitted quizzes
@@ -755,6 +756,59 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **53 — Show all quizzes in Statistics, not just the 10 most recent.**
+  The "Recent Quizzes" section in the Statistics modal only ever rendered
+  `st.history.slice(0, 10)` — a display-only cap, separate from the
+  storage cap #52 removed. Now every entry in history renders (list
+  renamed to "🕐 Quiz History" since it's no longer just the recent ones).
+  The modal already scrolls (`.stats-overlay` is `overflow-y: auto`), so a
+  long list stays fully usable at any screen size without further layout
+  changes. The Retake selector was unaffected — it already listed every
+  history entry with no slice. Touches `js/app-core.js`
+  (`renderStatsModal`) only.
+- **52 — Remove the 20-quiz cap on stats history.** `saveQuizStats()` no
+  longer pops the oldest entry off `st.history` once it passes 20 — every
+  finished quiz is now kept indefinitely, so nothing you've taken drops out
+  of Statistics or the Retake list. (The compaction added in #51, which
+  moves wrong-question images to a Firestore subcollection instead of
+  inlining them, still keeps the stats document itself small regardless of
+  how many quizzes accumulate — so this doesn't reopen the document-size
+  problem #51 fixed.) Touches `js/app-core.js` (`saveQuizStats`) only.
+- **51 — Fix a just-finished quiz's stats silently failing to save once
+  wrong-question images pushed the stats document past Firestore's 1 MiB
+  limit.** `saveQuizStats()` stored the full question object — including
+  any embedded base64 image — for every wrong answer, inline inside
+  `history[].wrongQuestions` in the per-user `stats` document. Firestore
+  hard-caps a document at 1 MiB; once accumulated history (up to 20
+  entries, each carrying its own wrong-question images) pushed that
+  document over the limit, the next `setDoc()` write was rejected —
+  silently, since the write was fire-and-forget with only
+  `console.error()` on failure. The server-side doc stayed at whatever it
+  held *before* that attempt, i.e. everything except the quiz that had
+  just pushed it over. This is why only the newest quiz ever went missing,
+  and why it never came back no matter how long you waited: it was never
+  a timing race, the write had permanently failed.
+
+  Fixed by storing wrong-question images the same way custom-quiz images
+  already are: moved out to a Firestore subcollection
+  (`users/{uid}/statsHistory/{historyId}/images/{idx}`) instead of being
+  inlined, leaving only a small `firestore-history://` sentinel in the
+  stats document itself (mirrors the existing
+  `uploadQuizImagesToStorage`/`hydrateQuizImages` pattern for custom
+  quizzes). `saveQuizStats()` also now compacts any *older* history
+  entries still holding inline images the same way on every save, so a
+  document that's already over the limit from before this fix can shrink
+  back down instead of staying stuck. Retake ("🔄 Retake wrong questions",
+  single or multi-select) now hydrates each wrong question's image back
+  from the subcollection right before starting the retake quiz. A
+  dropped-for-being-past-the-20-entry-cap entry, and Reset All Statistics,
+  both now also clean up that entry's/entries' image subcollection docs
+  instead of leaving them orphaned. Touches `js/app-core.js`
+  (`saveQuizStats`, `retakeSingleQuiz`, the multi-select retake handler in
+  `renderRetakeSelector`, `resetStats`), `js/firebase-storage.js` (new
+  `uploadHistoryImagesToStorage`/`hydrateHistoryImages`/
+  `deleteHistoryImagesFromStorage`), and `firestore.rules` (owner-only
+  access rule for the new `statsHistory` image subcollection).
 - **50 — Fix missing ⏹ Stop button during question extraction/generation.**
   The Custom Quiz modal's pause/resume/stop row (`#cqPauseRow`) is only
   rendered once, on modal open, when the run isn't busy yet — so at that

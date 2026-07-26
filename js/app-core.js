@@ -1162,7 +1162,7 @@ function subjectDisplayName(raw) {
   return (subjects[raw] && subjects[raw].label) || raw;
 }
 
-function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
+async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
   const st  = loadStats();
   const pct = Math.round(score / total * 100);
 
@@ -1186,13 +1186,39 @@ function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, 
   st.subjectStats[subject].total   += total;
 
   const avgTime = timedQs > 0 ? Math.round(timeSecs / timedQs) : 0;
+
+  // Deep-clone before storage: uploadHistoryImagesToStorage strips q.image
+  // off whatever array it's given, and these must never be the same
+  // objects as currentQuestions — that array is still driving the results
+  // screen currently on-screen, and stripping its images would blank them
+  // out there too.
+  const historyId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const wrongQuestions = JSON.parse(JSON.stringify(
+    currentQuestions.filter((q, i) => (userAnswers[i] || '') !== q.answer)
+  ));
+
+  if (window._currentUser) {
+    // Signed in — move this entry's wrong-question images out to a
+    // Firestore subcollection (see js/firebase-storage.js) instead of
+    // inlining base64 in the stats document, which is capped at 1 MiB.
+    await uploadHistoryImagesToStorage(historyId, wrongQuestions);
+
+    // Also compact any older entries still holding inline images (from
+    // before this fix, or a save that ran before this migration existed) —
+    // otherwise an already-oversized document keeps failing to save no
+    // matter how lean this new entry is.
+    for (const h of st.history) {
+      if (!h.wrongQuestions || !h.wrongQuestions.some(q => q && q.image)) continue;
+      if (!h.id) h.id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await uploadHistoryImagesToStorage(h.id, h.wrongQuestions);
+    }
+  }
+
   st.history.unshift({
-  subject, lecture, score, total, pct, avgTime, c2w, w2c,
-  date: new Date().toLocaleDateString(),
-  wrongQuestions: currentQuestions
-    .filter((q, i) => (userAnswers[i] || '') !== q.answer)
-});
-  if (st.history.length > 20) st.history.pop();
+    id: historyId, subject, lecture, score, total, pct, avgTime, c2w, w2c,
+    date: new Date().toLocaleDateString(),
+    wrongQuestions
+  });
 
   persistStats(st);
 }
@@ -1222,12 +1248,17 @@ function closeStats() { document.getElementById('statsOverlay').classList.add('h
 function resetStats() {
   if (!confirm('Reset ALL statistics? This cannot be undone.')) return;
 
+  const previousHistory = window._cachedStats ? window._cachedStats.history : null;
   window._cachedStats = defaultStats();
 
   if (window._currentUser) {
     // Signed in — overwrite Firestore doc with empty stats
     const ref = window._doc(window._db, 'stats', window._currentUser.uid);
     window._setDoc(ref, defaultStats()).catch(e => console.error('Failed to reset stats:', e));
+    // Best-effort cleanup of each entry's image subcollection (see
+    // uploadHistoryImagesToStorage) — not awaited, since the reset itself
+    // doesn't depend on it finishing.
+    (previousHistory || []).forEach(h => { if (h.id) deleteHistoryImagesFromStorage(h.id); });
   } else {
     // Not signed in — clear localStorage
     localStorage.removeItem(STATS_KEY);
@@ -1349,10 +1380,10 @@ function renderStatsModal() {
   if (st.history.length > 0) {
     const sec4 = document.createElement('div');
     sec4.className = 'stats-section';
-    sec4.innerHTML = `<div class="stats-section-title">🕐 Recent Quizzes</div>`;
+    sec4.innerHTML = `<div class="stats-section-title">🕐 Quiz History</div>`;
     const hl = document.createElement('div');
     hl.className = 'history-list';
-    st.history.slice(0, 10).forEach(h => {
+    st.history.forEach(h => {
       const item = document.createElement('div');
       item.className = 'history-item';
       const lecShort = h.lecture.length > 38 ? h.lecture.substring(0,38)+'…' : h.lecture;
@@ -1387,9 +1418,12 @@ item.appendChild(retakeBtn);
   rb.onclick = resetStats;
   body.appendChild(rb);
 }
-function retakeSingleQuiz(h) {
+async function retakeSingleQuiz(h) {
   const wrong = (h.wrongQuestions || []).filter(Boolean);
   closeStats();
+  fsLoadingShow('Loading images…');
+  await hydrateHistoryImages(wrong);
+  fsLoadingHide();
   startRetakeQuiz(wrong);
 }
 
@@ -1469,7 +1503,7 @@ function renderRetakeSelector() {
   retakeBtn.className = 'btn btn-primary';
   retakeBtn.style.marginTop = '12px';
   retakeBtn.textContent = '🔄 Retake Selected Wrong Questions';
-  retakeBtn.onclick = () => {
+  retakeBtn.onclick = async () => {
     const checked = [...document.querySelectorAll('#retakeBody input[type=checkbox]:checked')];
     if (!checked.length) return alert('Please select at least one quiz.');
     const allWrong = [];
@@ -1484,6 +1518,9 @@ function renderRetakeSelector() {
       });
     });
     closeRetake();
+    fsLoadingShow('Loading images…');
+    await hydrateHistoryImages(allWrong);
+    fsLoadingHide();
     startRetakeQuiz(allWrong);
   };
   body.appendChild(retakeBtn);
