@@ -755,6 +755,21 @@ Every question follows this shape:
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **49 — Fix long Visual Split titles stretching the split card instead of
+  wrapping.** The "Will create N quizzes: …" summary line under the split
+  panel renders each part as a `.cq-split-chip` pill — including any
+  custom title typed in for that part. That pill was set to
+  `white-space: nowrap`, so a long title had nowhere to break: instead of
+  wrapping onto a second line inside the chip, it just kept extending the
+  chip (and the whole card) wider on one line. `.cq-split-chip` now allows
+  normal wrapping (`white-space: normal`, `overflow-wrap: anywhere`,
+  `max-width: 100%`), and `.cq-split-summary` aligns chips to
+  `flex-start` so a wrapped two-line chip doesn't throw off the row's
+  vertical alignment. Touches only `css/styles.css`. (The part-title
+  `<input>` itself was never the source of this — an `<input>`'s box
+  width is fixed by CSS regardless of how much text is typed into it;
+  only the read-only summary chip rendered the title as plain wrapped-or-
+  not text.)
 - **48 — Fix Visual Split part titles disappearing when a new section is
   cut.** In "✂️ Visual Split" mode, typing a title into a part's "Optional
   title for Quiz N…" box saved the text to `cqSplitState.visualPartLabels`,
