@@ -773,6 +773,35 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **65 — Removed the retired `appConfig/sharedQuizzesVersion` scheme
+  entirely (rule + dead client code).** This was the old global-version
+  cache-busting doc for community quizzes, superseded back in build 56
+  by the per-quiz `appConfig/sharedQuizzesManifest` system
+  (`ensureSharedQuizzesLoaded()` in `js/community-quizzes.js`) and left
+  in place afterward only as a transition safety net. Confirmed nothing
+  reads it anymore, so removed outright rather than leaving it around:
+  - `firestore.rules` — deleted the `match /appConfig/sharedQuizzesVersion`
+    rule block.
+  - `js/data-sync.js` — deleted `bumpSharedQuizzesVersion()` and
+    `_fetchSharedServerVersion()` (both were defined but never called
+    anywhere — genuinely dead code, not just unused-but-referenced),
+    the `CACHE_SHARED_VER_KEY` constant and its `_readSharedCacheVer()`/
+    `_writeSharedCacheVer()` accessors, and the `'shared'` blob branch
+    of `_readCache()`/`_writeCache()` (also never actually written to,
+    since community quizzes have used per-quiz IndexedDB keys since
+    build 56). `_clearCache()` still opportunistically deletes the
+    legacy `'shared'` IndexedDB key and `anu_msp_cache_shared_ver`
+    localStorage key for any returning user whose browser still has
+    them — pure tidy-up, not a functional dependency.
+  - Updated the file-header comment in `js/data-sync.js` and a stale
+    reference in `firestore.rules`'s `appConfig/{docId}` rule comment
+    to match.
+  - **Manual follow-up still needed:** deploy the updated rules
+    (`firebase deploy --only firestore:rules`), and optionally delete
+    the actual `appConfig/sharedQuizzesVersion` document in the
+    Firebase Console (Firestore → `appConfig` collection) — the rule
+    removal alone doesn't delete existing data, it just stops anything
+    from being able to read/write it going forward.
 - **64 — Community Quizzes: fixed `NaN` console error on repeat opens, and
   added cache visibility logging.** `renderCommunityQuizzes()` in
   `js/sharing.js` built each quiz card's duration input from

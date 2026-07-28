@@ -177,9 +177,9 @@ service cloud.firestore {
     // its own, stricter rule right below it — a scoped curriculum admin
     // must NOT be able to reach it through this more permissive generic
     // rule, since Firestore grants access if ANY matching rule allows it.
-    // adminRoster and sharedQuizzesVersion further below add their own
-    // *additional* permissive rules on top of this one (which is fine,
-    // since those are meant to grant more access, not less).
+    // adminRoster further below adds its own *additional* permissive rule
+    // on top of this one (which is fine, since that's meant to grant more
+    // access, not less).
     match /appConfig/{docId} {
       allow read: if true;
       allow write: if docId != 'curriculumExtensions' && isCurriculumAdmin();
@@ -231,15 +231,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdminsAdmin();
     }
-    // Community-quiz cache-version doc (appConfig/sharedQuizzesVersion).
-    // SUPERSEDED by appConfig/sharedQuizzesManifest below (per-quiz granular,
-    // Worker-written only) — left in place, unused, rather than removed
-    // outright, in case any not-yet-updated client code still reads it
-    // during the transition. Safe to delete once the rollout is confirmed complete.
-    match /appConfig/sharedQuizzesVersion {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
+    // Community-quiz cache-version doc (appConfig/sharedQuizzesVersion) —
+    // REMOVED in build 65. It was superseded by appConfig/sharedQuizzesManifest
+    // (per-quiz granular, Worker-written only) back in build 56; this rule
+    // (and the matching client-side read/write code in js/data-sync.js) was
+    // kept around only as a transition safety net and has now been confirmed
+    // unused and removed outright.
     // Shared AI explanation pool — any signed-in user can read,
     // any signed-in user can create or update (to save/replace an explanation)
     match /explanations/{questionHash} {

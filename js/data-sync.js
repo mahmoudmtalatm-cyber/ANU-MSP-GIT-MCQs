@@ -1,23 +1,24 @@
 /* ══════════════════════════════════════════════════════════
-   LOCAL CACHE — curriculum + published questions + community quizzes
-   Version key: 'anu_msp_cache_ver'        (curriculum + published)
-                'anu_msp_cache_shared_ver' (community quizzes)
+   LOCAL CACHE — curriculum + published questions
+   Version key: 'anu_msp_cache_ver' (curriculum + published)
 
-   TWO separate tiny server docs (kept separate on purpose so the
-   Firestore rules stay simple — see note below):
-     appConfig/cacheVersion         { v: <ms> }  — admin-only writes
-     appConfig/sharedQuizzesVersion { v: <ms> }  — any signed-in user
-                                                    can write (publishing
-                                                    or deleting their own
-                                                    community quiz bumps
-                                                    this one)
+   ONE tiny server doc, admin-only writes:
+     appConfig/cacheVersion { v: <ms> }
 
-   Any write that changes shared data calls bumpCacheVersion() (admin
-   curriculum/published writes) or bumpSharedQuizzesVersion() (any
-   user sharing/deleting a community quiz). On the next page-load /
-   panel-open every user fetches only the relevant tiny doc, compares
-   it to their stored version, and re-downloads the full data only
-   when the versions differ.
+   Any write that changes shared curriculum/published data calls
+   bumpCacheVersion(). On the next page-load / panel-open every user
+   fetches this tiny doc, compares it to their stored version, and
+   re-downloads the full data only when the versions differ.
+
+   Community quizzes are NOT covered by this global-version scheme —
+   they use their own per-quiz granular manifest
+   (appConfig/sharedQuizzesManifest, Worker-written only) instead; see
+   ensureSharedQuizzesLoaded() in js/community-quizzes.js. The old
+   global appConfig/sharedQuizzesVersion doc + bumpSharedQuizzesVersion()
+   scheme this file used to also maintain was fully retired in build 65
+   once the manifest system's rollout was confirmed complete — removed
+   here, its Firestore rule, and the now-unused 'shared' IndexedDB blob
+   key it wrote to.
 
    Custom quizzes (private, per-user) use a separate per-user version
    doc: users/{uid}/meta/cacheVersion  { v: <ms> } — see the
@@ -33,17 +34,17 @@
    correct. IndexedDB has a far larger quota (typically hundreds of MB
    or more) and comfortably holds this data.
 
-   Each piece is also stored under its OWN key ('curriculum', 'shared',
-   and one 'published:<subjectName>' key per subject) and written the
-   moment it's fetched, rather than being accumulated in memory and
-   only saved once the entire dataset has finished loading. That way
-   a subject that finished loading is durably cached even if the user
+   Each piece is also stored under its OWN key ('curriculum' and one
+   'published:<subjectName>' key per subject) and written the moment
+   it's fetched, rather than being accumulated in memory and only
+   saved once the entire dataset has finished loading. That way a
+   subject that finished loading is durably cached even if the user
    navigates away or refreshes before every other subject is done —
    no "must complete a full load before anything is stored" problem.
 ══════════════════════════════════════════════════════════ */
 
-const CACHE_VER_KEY        = 'anu_msp_cache_ver';
-const CACHE_SHARED_VER_KEY = 'anu_msp_cache_shared_ver';
+const CACHE_VER_KEY = 'anu_msp_cache_ver';
+
 
 const _IDB_NAME  = 'anu_msp_cache_db';
 const _IDB_STORE = 'kv';
@@ -121,29 +122,20 @@ async function _idbKeys() {
   } catch (e) { return []; }
 }
 
-/* Back-compat shape: returns { curriculum?, published?, shared? } so
-   existing callers that do `cached.published` / `cached.curriculum` /
-   `cached.shared` keep working unchanged (aside from adding `await`). */
+/* Back-compat shape: returns { curriculum?, published? } so existing
+   callers that do `cached.published` / `cached.curriculum` keep working
+   unchanged (aside from adding `await`). */
 async function _readCache() {
-  const [curriculum, shared] = await Promise.all([
-    _idbGet('curriculum'),
-    _idbGet('shared')
-  ]);
-  if (curriculum == null && shared == null) return null;
-  const out = {};
-  if (curriculum != null) out.curriculum = curriculum;
-  if (shared     != null) out.shared     = shared;
-  return out;
+  const curriculum = await _idbGet('curriculum');
+  if (curriculum == null) return null;
+  return { curriculum };
 }
 
-/* Writes only the top-level sections present on payload (curriculum
-   and/or shared). Published questions are handled separately, per
-   subject — see _idbSet('published:<subject>', ...) below. */
+/* Writes the curriculum section of payload, if present. Published
+   questions are handled separately, per subject — see
+   _idbSet('published:<subject>', ...) below. */
 async function _writeCache(payload) {
-  const jobs = [];
-  if (payload && payload.curriculum !== undefined) jobs.push(_idbSet('curriculum', payload.curriculum));
-  if (payload && payload.shared     !== undefined) jobs.push(_idbSet('shared',     payload.shared));
-  await Promise.all(jobs);
+  if (payload && payload.curriculum !== undefined) await _idbSet('curriculum', payload.curriculum);
 }
 
 function _readCacheVer() {
@@ -154,25 +146,24 @@ function _writeCacheVer(v) {
   try { localStorage.setItem(CACHE_VER_KEY, String(v)); } catch(e) {}
 }
 
-function _readSharedCacheVer() {
-  return localStorage.getItem(CACHE_SHARED_VER_KEY) || null;
-}
-
-function _writeSharedCacheVer(v) {
-  try { localStorage.setItem(CACHE_SHARED_VER_KEY, String(v)); } catch(e) {}
-}
-
 async function _clearCache() {
-  // Only curriculum + community-quiz caches are governed by a single global
-  // version marker, so only they need a full wipe here. Published quizzes
-  // are cached (and invalidated) individually — see the manifest system
-  // below — so clearing this doesn't touch/discard already-cached quizzes.
+  // Only the curriculum cache is governed by a single global version
+  // marker, so only it needs a full wipe here. Published quizzes are
+  // cached (and invalidated) individually — see the manifest system
+  // below — so clearing this doesn't touch/discard already-cached
+  // quizzes. Community quizzes have their own per-quiz manifest cache
+  // (js/community-quizzes.js) and aren't touched by this function either.
   try {
-    await Promise.all([_idbDelete('curriculum'), _idbDelete('shared')]);
+    await _idbDelete('curriculum');
+    // Legacy key from the retired global shared-quiz version scheme
+    // (build 65) — delete it opportunistically in case a returning
+    // user's browser still has it, but it's no longer written by
+    // anything, so this is just tidying up, not a functional dependency.
+    await _idbDelete('shared');
   } catch (e) {}
   try {
     localStorage.removeItem(CACHE_VER_KEY);
-    localStorage.removeItem(CACHE_SHARED_VER_KEY);
+    localStorage.removeItem('anu_msp_cache_shared_ver'); // legacy, retired in build 65
   } catch(e) {}
 }
 
@@ -189,31 +180,10 @@ async function bumpCacheVersion() {
   }
 }
 
-/* Call this after any SIGNED-IN USER publishes or deletes a community quiz. */
-async function bumpSharedQuizzesVersion() {
-  if (!window._db) return null;
-  try {
-    const val = Date.now();
-    await window._setDoc(window._doc(window._db, 'appConfig', 'sharedQuizzesVersion'), { v: val });
-    return String(val);
-  } catch(e) {
-    console.warn('bumpSharedQuizzesVersion failed:', e);
-    return null;
-  }
-}
-
 /* Fetch the curriculum/published version (single tiny doc read) */
 async function _fetchServerCacheVersion() {
   try {
     const snap = await window._getDoc(window._doc(window._db, 'appConfig', 'cacheVersion'));
-    return snap.exists() && snap.data().v != null ? String(snap.data().v) : null;
-  } catch(e) { return null; }
-}
-
-/* Fetch the community-quizzes version (single tiny doc read) */
-async function _fetchSharedServerVersion() {
-  try {
-    const snap = await window._getDoc(window._doc(window._db, 'appConfig', 'sharedQuizzesVersion'));
     return snap.exists() && snap.data().v != null ? String(snap.data().v) : null;
   } catch(e) { return null; }
 }
