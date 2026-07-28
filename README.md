@@ -797,6 +797,28 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **71 — Fixed P2P Backup & Transfer (incl. "📷 Scan QR") failing for
+  signed-out users with "Missing or insufficient permissions."**
+  `firestore.rules`' `p2pSignaling` collection required
+  `request.auth != null`, but Backup & Transfer is a local-first feature
+  (`js/local-store.js` / IndexedDB) meant to work without a Firebase
+  account — every signed-out user hit Firestore's raw permission error
+  the instant `startSend()`/`startReceive()` (`js/p2p-transfer.js`) touched
+  that collection, whether they typed a code or scanned a QR; signed-in
+  users never saw it, which is why it looked account-status-specific
+  rather than sign-in-specific. Fixed by opening `p2pSignaling` to
+  everyone at the rules level — the random, short-lived transfer code was
+  already the real protection (the rule's own prior comment said as
+  much), not `request.auth`, so this closes the gap without weakening
+  anything; `create`/`update` are now additionally shape-validated
+  (`_isValidSdp()`) so a signed-out client still can't use the collection
+  as an open write target. **Requires redeploying `firestore.rules` to
+  take effect** — `firebase deploy --only firestore:rules` (or the
+  equivalent in the Firebase console). `js/backup-transfer-ui.js` also
+  gained `_backupFriendlyP2PError()`, so if a permission error is ever
+  hit again (e.g. rules not yet redeployed), the message plainly says so
+  and points at Export/Import instead of surfacing Firestore's raw
+  string.
 - **70 — Backup & Transfer overhaul: merge-vs-replace import choice,
   progress/result bars, custom export name, QR send/scan.**
   - **Import confirmation step (file or P2P), `_backupConfirmImportFlow()`

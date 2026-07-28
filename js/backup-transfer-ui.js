@@ -33,9 +33,30 @@
      loaded on first use, same pattern gemini-uploads.js already uses for
      pdf.js — so this never depends on a CDN being reachable and costs
      nothing until someone actually sends/scans.
+
+   Build 71 fix:
+   - P2P send/receive (including "📷 Scan QR", which immediately calls
+     startReceive() once a code is found) failed for every signed-OUT user
+     with Firestore's raw "Missing or insufficient permissions" — the
+     p2pSignaling collection required `request.auth != null` in
+     firestore.rules, which guest use of this local-first feature never
+     satisfied. Fixed at the rules level (see firestore.rules — the
+     transfer code, not auth, was already the real protection). This file
+     additionally gained _backupFriendlyP2PError() so that if a permission
+     error is ever hit again (e.g. rules not yet redeployed), the message
+     shown says so plainly instead of surfacing the raw Firestore string.
    ============================================================================= */
 
 let _backupSelectedQuizIds = null; // null = "all" (no explicit selection made yet)
+
+/** Turns a raw P2P (startSend/startReceive) error into a clear, actionable message. Most errors already have a good, user-facing e.message (see p2p-transfer.js); this only special-cases Firestore's raw "permission-denied" string, which isn't meaningful to someone using the app. */
+function _backupFriendlyP2PError(e) {
+  const raw = (e && e.message) || String(e);
+  if (e && (e.code === 'permission-denied' || /missing or insufficient permissions/i.test(raw))) {
+    return "Couldn't reach the transfer service (permission denied). If this keeps happening, use Export/Import instead — it never needs a network connection.";
+  }
+  return `${raw} — you can always use Export/Import instead.`;
+}
 
 function openBackupTransfer() {
   document.getElementById('backupOverlay').classList.remove('hidden');
@@ -301,7 +322,7 @@ async function _backupStartP2PSend() {
     const { markBackedUp } = await import('./local-store.js');
     markBackedUp();
   } catch (e) {
-    statusEl.innerHTML = _backupResultHTML(false, `${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.`);
+    statusEl.innerHTML = _backupResultHTML(false, escapeHtml(_backupFriendlyP2PError(e)));
   }
 }
 
@@ -479,7 +500,7 @@ async function _backupRunP2PReceive(code) {
     statusEl.innerHTML = _backupResultHTML(true, `Received: ${result.quizzes.added} quiz(zes) added, ${result.attempts.added} stats entries added.`);
     setTimeout(() => renderBackupTransferModal(), 1800);
   } catch (e) {
-    statusEl.innerHTML = _backupResultHTML(false, `${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.`);
+    statusEl.innerHTML = _backupResultHTML(false, escapeHtml(_backupFriendlyP2PError(e)));
   }
 }
 

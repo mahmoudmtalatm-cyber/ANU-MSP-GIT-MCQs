@@ -273,11 +273,36 @@ service cloud.firestore {
     }
 
     // P2P transfer signaling — small, ephemeral, self-cleaning documents.
-    // Any signed-in user may create/read/update/delete one; the transfer
-    // code itself (a random string, not guessable) is the real protection,
-    // same as a one-time-use link.
+    //
+    // Build 71 fix: Backup & Transfer (export/import, P2P send/receive, QR
+    // scan) is a LOCAL-FIRST feature — it works entirely off on-device data
+    // (js/local-store.js / IndexedDB) and was always meant to be usable
+    // without a Firebase account, same as the rest of guest/signed-out use
+    // of the app. This collection previously required
+    // `request.auth != null`, so any signed-OUT user hitting "📷 Scan QR"
+    // (or typing a code) got Firestore's own "Missing or insufficient
+    // permissions" error the instant startReceive()/startSend() in
+    // js/p2p-transfer.js touched this collection — signed-in users never
+    // saw it, which is why it looked account-status-specific. Auth was
+    // never the actual protection here anyway (see below, unchanged) — the
+    // unguessable transfer code is — so requiring auth on top of it only
+    // blocked legitimate guest use without adding real security. Opened
+    // read/create/delete to everyone; `create`/`update` are additionally
+    // shape-checked below so a signed-out client still can't turn this into
+    // a general-purpose write target.
+    //
+    // The transfer code itself (a random 6-character string, not
+    // guessable, and short-lived — see SIGNALING_STALE_MS in
+    // js/p2p-transfer.js) is the real protection, same as a one-time-use
+    // link.
+    function _isValidSdp(x) {
+      return x is map && x.type is string && x.sdp is string && x.sdp.size() < 20000;
+    }
     match /p2pSignaling/{code} {
-      allow read, write: if request.auth != null;
+      allow read, delete: if true;
+      allow create: if _isValidSdp(request.resource.data.offer)
+                     && request.resource.data.createdAt is int;
+      allow update: if _isValidSdp(request.resource.data.answer);
     }
   }
 }
