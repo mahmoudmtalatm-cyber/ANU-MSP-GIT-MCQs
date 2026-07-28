@@ -8,22 +8,22 @@
 //   3. Accept content-hash-keyed uploads for writes, so identical image
 //      bytes always land at the identical key (dedup is automatic).
 //
-// NOT yet implemented here (next phases, flagged so nothing is silently
-// skipped):
-//   - Per-role authorization (only an admin may write under curriculum/,
-//     only a quiz's own author may delete their own community/ entry).
-//     Needs the caller's Firebase UID cross-referenced against Firestore
-//     admin-role data, which means this Worker also needs a Firebase Admin
-//     REST integration (service-account-signed OAuth token) to query
-//     Firestore from inside the Worker — a separate, careful piece to add
-//     before any write path here is safe to expose publicly.
-//   - The image reference-counter logic (§4 of the plan) — decrementing
-//     and conditionally deleting an old image hash when a question's image
-//     changes. This also needs the Firestore integration above.
-//   - Per-item version manifest updates.
+// Per-role authorization (only a 'curriculum' admin — whose recorded scope
+// covers the target subject — may write under curriculum/; only a quiz's
+// own author, or a 'community' admin, may write their community/ entry) is
+// implemented below, mirroring firestore.rules and
+// js/admin-curriculum-scope.js exactly: same appConfig/adminRoster doc
+// shape, same super-admin email, same curriculum-scope semantics. See
+// isCurriculumAdmin(), isCommunityAdmin(), and curriculumScopeAllowsSubject()
+// below — keep all three in sync with firestore.rules if that model ever
+// changes.
 //
-// Until per-role authorization is added, treat this Worker's write
-// endpoint as NOT SAFE to point real traffic at yet.
+// NOT yet implemented here (flagged so nothing is silently skipped):
+//   - Per-item version manifest updates (appConfig/publishedManifest,
+//     appConfig/sharedQuizzesManifest) after a write.
+//   - DELETE is routed but not yet handled (see the bottom of this file) —
+//     content-client.js's deleteContentItem() calls currently get a 405
+//     from this Worker.
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc } from './lib/firebaseAdmin.js';
@@ -40,7 +40,8 @@ import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc } from './lib/fi
    Allow '*' (any origin) since curriculum/community content is meant to be
    publicly readable anyway (see the GET handler below) — there's no
    per-origin secret being protected here. Writes are still fully gated by
-   verifyFirebaseToken()/isAdmin()/isCommunityQuizAuthor() regardless of
+   verifyFirebaseToken()/isCurriculumAdmin()/isCommunityAdmin()/
+   isCommunityQuizAuthor() regardless of
    which origin the request claims to come from; CORS is a browser-side
    convenience, not a security boundary, so widening it here doesn't weaken
    the real authorization checks already in place.
@@ -59,10 +60,72 @@ function withCors(response) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-/** True if this uid is listed as an admin (mirrors the existing admin-roster check used elsewhere in the app). */
-async function isAdmin(env, uid) {
-  const doc = await firestoreGetDoc(env, `adminRoster/${uid}`);
-  return !!doc;
+/* =============================================================================
+   ADMIN ROLE CHECKS
+   Mirror firestore.rules and js/admin-curriculum-scope.js exactly — same
+   roster doc (appConfig/adminRoster, a single doc with an `admins` map
+   keyed by *lowercased email*, not a per-user collection), same
+   super-admin email, same curriculum-scope semantics. This is the model
+   the previous isAdmin(env, uid) implementation didn't match — it looked
+   up a `adminRoster/{uid}` document, which never exists under the real
+   schema (wrong collection, wrong doc-per-user shape, and keyed by uid
+   instead of email), so every curriculum/community authorization check
+   silently failed regardless of who the caller was. Keep these three in
+   sync with firestore.rules if the roster model ever changes.
+   ============================================================================= */
+const SUPER_ADMIN_EMAIL = 'mahmoudmtalatm@gmail.com';
+
+function isSuperAdmin(email) {
+  return !!email && email.toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
+/** This user's appConfig/adminRoster.admins[emailLower] entry, or null if they're not on the roster. */
+async function getRosterEntry(env, email) {
+  if (!email) return null;
+  const roster = await firestoreGetDoc(env, 'appConfig/adminRoster');
+  return (roster && roster.admins && roster.admins[email.toLowerCase()]) || null;
+}
+
+async function hasRosterPermission(env, email, permission) {
+  const entry = await getRosterEntry(env, email);
+  return !!entry && Array.isArray(entry.permissions) && entry.permissions.includes(permission);
+}
+
+async function isCurriculumAdmin(env, email) {
+  return isSuperAdmin(email) || (await hasRosterPermission(env, email, 'curriculum'));
+}
+
+async function isCommunityAdmin(env, email) {
+  return isSuperAdmin(email) || (await hasRosterPermission(env, email, 'community'));
+}
+
+/**
+ * True if this admin's recorded curriculum scope covers `subject` — mirrors
+ * curriculumScopeAllowsSubject()/_subjectAllowedByScope() in firestore.rules.
+ * The super admin, and any admin with no recorded scope (or scope.type ===
+ * 'all'), covers every subject. A 'scoped' admin only covers the specific
+ * Year(s)/Module(s)/Subject(s) recorded in their roster entry, looked up
+ * against that subject's placement in appConfig/curriculumExtensions.
+ */
+async function curriculumScopeAllowsSubject(env, email, subject) {
+  if (isSuperAdmin(email)) return true;
+
+  const entry = await getRosterEntry(env, email);
+  const scope = entry?.curriculumScope || { type: 'all' };
+  if (scope.type === 'all') return true;
+
+  const extensions = await firestoreGetDoc(env, 'appConfig/curriculumExtensions');
+  const subjectInfo = extensions?.subjects?.[subject];
+  if (!subjectInfo) return false;
+
+  const scopeYears = scope.years || {};
+  const yearEntry = scopeYears[subjectInfo.year];
+  if (yearEntry === true) return true;
+  if (!yearEntry || typeof yearEntry !== 'object') return false;
+
+  const moduleEntry = yearEntry[subjectInfo.module];
+  if (moduleEntry === true) return true;
+  return Array.isArray(moduleEntry) && moduleEntry.includes(subject);
 }
 
 /** True if this uid is the original author of the community quiz at this key. */
@@ -173,15 +236,17 @@ async function handleRequest(request, env) {
     return withCors(new Response(object.body, { headers }));
   }
 
-  // ---- WRITES: require a verified Firebase identity ----
-  // NOT YET SAFE FOR PRODUCTION TRAFFIC — see file header. This currently
-  // only confirms "this is some real, signed-in Firebase user," not
-  // "this specific user is allowed to write to this specific key."
+  // ---- WRITES: require a verified Firebase identity, then a role check ----
+  // verifyFirebaseToken() only confirms "this is some real, signed-in
+  // Firebase user" — the isCurriculumAdmin()/isCommunityAdmin()/
+  // isCommunityQuizAuthor() checks right below decide whether *this*
+  // user is allowed to write to *this* key.
   if (request.method === 'PUT') {
-    let uid;
+    let uid, email;
     try {
       const payload = await verifyFirebaseToken(request, env.FIREBASE_PROJECT_ID);
       uid = payload.sub;
+      email = payload.email || null;
     } catch (err) {
       return withCors(new Response(`Unauthorized: ${err.message}`, { status: 401 }));
     }
@@ -189,12 +254,18 @@ async function handleRequest(request, env) {
     // Per-role authorization: check who's allowed to write to this key
     // BEFORE touching R2 at all.
     if (key.startsWith('curriculum/')) {
-      if (!(await isAdmin(env, uid))) {
+      // Key shape: curriculum/{subject}/{lectureId}.json (see r2Key() in
+      // js/content-client.js) — the subject is what curriculum SCOPE is
+      // recorded/checked against, same as publishedQuestions/{subject}/...
+      // in firestore.rules.
+      const subject = key.split('/')[1];
+      const allowed = (await isCurriculumAdmin(env, email)) && (await curriculumScopeAllowsSubject(env, email, subject));
+      if (!allowed) {
         return withCors(new Response('Forbidden: curriculum writes are admin-only', { status: 403 }));
       }
     } else if (key.startsWith('community/')) {
       const communityQuizId = key.split('/')[1];
-      const authorized = (await isAdmin(env, uid)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
+      const authorized = (await isCommunityAdmin(env, email)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
       if (!authorized) {
         return withCors(new Response('Forbidden: only the quiz author or an admin may write here', { status: 403 }));
       }

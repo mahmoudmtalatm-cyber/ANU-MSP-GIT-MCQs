@@ -773,6 +773,36 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **67 — Worker: fixed the real cause of `curriculum writes are admin-only`
+  (and the equivalent community-write 403) — `isAdmin()` was checking a
+  roster shape that doesn't exist.** Build 66 made the Worker's errors
+  visible instead of misreported as CORS, which pointed at
+  `isAdmin(env, uid)`. Once the regenerated service-account secret ruled
+  out the JSON-parsing failure, the 403 persisted — because the real bug
+  was a step further in: `isAdmin()` looked up a document at
+  `adminRoster/{uid}` (a per-user doc in a top-level `adminRoster`
+  collection, keyed by Firebase UID). That path never exists under this
+  project's actual roster model — a single document,
+  `appConfig/adminRoster`, whose `admins` field is a map keyed by
+  *lowercased email*, exactly as `firestore.rules` and
+  `js/admin-curriculum-scope.js` already implement it. So the check
+  silently returned `false` for every caller, including the real admin —
+  the Worker was never able to authorize a single curriculum or community
+  write, secret rotation or not.
+  Replaced it with `isCurriculumAdmin()` / `isCommunityAdmin()` /
+  `curriculumScopeAllowsSubject()` in `worker-index.js`, mirroring
+  `firestore.rules` exactly: the same super-admin email, the same
+  `appConfig/adminRoster.admins[emailLower].permissions` lookup, and the
+  same scoped-curriculum semantics (a scoped admin's write is now checked
+  against the target subject's Year/Module placement in
+  `appConfig/curriculumExtensions`, not just "is this person *an* admin").
+  The Worker now reads the caller's `email` claim off the verified Firebase
+  ID token (the roster is keyed by email, not UID) alongside the existing
+  `uid`. `isCommunityQuizAuthor()` was already correct and is unchanged.
+  **Follow-up still flagged, not part of this fix:** `DELETE` requests are
+  routed but not yet handled (still a 405) — `deleteContentItem()` in
+  `js/content-client.js` (quiz deletion, curriculum unpublish) will need
+  that added next.
 - **66 — Worker: uncaught exceptions were masquerading as CORS errors,
   breaking publish.** `worker/src/index.js`'s `fetch()` handler had no
   top-level `try/catch`. When anything inside it threw — most likely a
