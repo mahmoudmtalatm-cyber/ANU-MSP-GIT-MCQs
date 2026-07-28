@@ -347,7 +347,24 @@ let changeLog        = [];
 let selectedLectures = {}; // { subjectName: Set of lecture names }
 let correctToWrong   = 0;
 let wrongToCorrect   = 0;
-let currentQuizSource = 'curriculum'; // 'curriculum' | 'custom' | 'community'
+let currentQuizSource = 'curriculum'; // 'curriculum' | 'custom' | 'community' | 'retake'
+
+/* Curriculum context for the quiz currently in progress — snapshotted the
+   moment the quiz starts (see startQuiz()/startRetakeQuiz() and the custom/
+   community quiz-start functions in split-quiz.js/sharing.js) and read back
+   by submitQuiz() when it calls saveQuizStats(). This is what lets the
+   Statistics screen group history by Year → Module → Subject instead of
+   just a flat subject label, and — for a quiz built from several lectures
+   across several subjects in the same module — remember exactly which
+   lectures came from which subject (currentQuizComponents), so the
+   Statistics toggle lists can attribute each one correctly instead of only
+   showing the combined summary string. Left blank/null for quiz sources
+   that have no Year/Module (custom quizzes, community quizzes) — those are
+   grouped under their own labelled bucket instead; see subjectDisplayName()
+   and buildCurriculumStatsTree() below. */
+let currentQuizYear       = '';
+let currentQuizModule     = '';
+let currentQuizComponents = null; // [{ subject, lectures: [...] }] | null
 
 /* ══════════════════════════════════════════════════════════
    UNLOAD GUARD — warn before refresh/close if progress could
@@ -607,13 +624,22 @@ function showScreen(id) {
    HOME → START
 ══════════════════════════════════════════════════════════ */
 
-function startRetakeQuiz(questionsArray) {
+function startRetakeQuiz(questionsArray, ctx) {
   if (!questionsArray || questionsArray.length === 0) {
     return alert('No wrong questions found to retake.');
   }
   currentQuestions = questionsArray;
-  selectedSubject  = selectedSubject || 'Retake';
+  selectedSubject  = (ctx && ctx.subject) || selectedSubject || 'Retake';
   currentLecture   = 'Retake — Wrong Questions';
+  // A single-quiz retake (ctx supplied by retakeSingleQuiz) inherits that
+  // quiz's own Year/Module/components, so it still groups correctly in
+  // Statistics. A combined retake across several original quizzes has no
+  // single Year/Module to inherit, so it's explicitly left blank and lands
+  // in its own "Retake" bucket instead — see buildCurriculumStatsTree().
+  currentQuizYear       = (ctx && ctx.year)   || '';
+  currentQuizModule     = (ctx && ctx.module) || '';
+  currentQuizComponents = (ctx && ctx.components) || null;
+  currentQuizSource     = 'retake';
   currentIndex     = 0;
   userAnswers      = {};
   markedSet        = new Set();
@@ -660,6 +686,18 @@ function startQuiz() {
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
   currentQuizSource = 'curriculum';
+  // selectYear()/selectModule() clear selectedLectures whenever either
+  // changes (see below), so every subject involved here is guaranteed to
+  // belong to the SAME Year + Module — safe to snapshot once for the
+  // whole quiz. Per-subject lecture lists are kept too (currentQuizComponents)
+  // so Statistics can still show each subject's own lecture titles even
+  // inside a combined multi-subject quiz.
+  currentQuizYear   = selectedYear;
+  currentQuizModule = selectedModule;
+  currentQuizComponents = involvedSubjects.map(subj => ({
+    subject:  subj,
+    lectures: [...selectedLectures[subj]]
+  }));
 
   showScreen('quiz');
   renderQuestion();
@@ -850,7 +888,7 @@ function submitQuiz() {
   const _timedQs    = Object.keys(questionTimes).length;
   const _unanswered = currentQuestions.length - Object.keys(userAnswers).length;
   const _wrong      = currentQuestions.length - score - _unanswered;
-  saveQuizStats(score, currentQuestions.length, _wrong, _unanswered, _totalSecs, _timedQs, correctToWrong, wrongToCorrect, selectedSubject, currentLecture);
+  saveQuizStats(score, currentQuestions.length, _wrong, _unanswered, _totalSecs, _timedQs, correctToWrong, wrongToCorrect, selectedSubject, currentLecture, currentQuizYear, currentQuizModule, currentQuizComponents, currentQuizSource);
 
   buildResults();
   showScreen('results');
@@ -1172,7 +1210,7 @@ function subjectDisplayName(raw) {
   return (subjects[raw] && subjects[raw].label) || raw;
 }
 
-async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture) {
+async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture, year, module, components, source) {
   const st  = loadStats();
   const pct = Math.round(score / total * 100);
 
@@ -1211,6 +1249,13 @@ async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs,
   const entry = {
     id: historyId, ts, subject, lecture, score, total, pct, avgTime, c2w, w2c,
     date: new Date().toLocaleDateString(),
+    // Curriculum-grouping fields, added for the Year/Module/Subject stats
+    // breakdown — always present going forward but optional so that older
+    // history entries (and anything merged in from an older backup file)
+    // keep working exactly as before; buildCurriculumStatsTree() treats a
+    // missing year/module as "Unspecified" rather than failing.
+    year: year || '', module: module || '', source: source || 'curriculum',
+    components: (components && components.length) ? components : null,
     wrongQuestions
   };
 
@@ -1232,6 +1277,7 @@ async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs,
 function openStats() {
   fsAwaitIfNeeded('stats', 'Loading your stats…');
   document.getElementById('statsOverlay').classList.remove('hidden');
+  _statsFlow = { year: null, module: null, openSubject: null, openOther: null };
 
   if (window._currentUser && !window._cachedStats) {
     // Still loading from Firestore — show spinner
@@ -1274,6 +1320,290 @@ function fmtTime(secs) {
   const m = Math.floor(secs / 60);
   const s = String(secs % 60).padStart(2, '0');
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+/* Builds one "quiz history" row DOM node — the same look used by the
+   flat Quiz History list AND every per-subject/per-bucket toggle list in
+   the Curriculum Breakdown below, so retaking a quiz works identically
+   no matter where it was clicked from. */
+function _makeHistoryItem(h) {
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  const lecShort = h.lecture.length > 38 ? h.lecture.substring(0, 38) + '…' : h.lecture;
+  const changeNote = (h.c2w || 0) + (h.w2c || 0) > 0
+    ? ` · ✘${h.c2w || 0} ✔${h.w2c || 0} changes` : '';
+  item.innerHTML = `
+    <div class="h-top-row">
+      <div>
+        <div class="h-subject">${escapeHtml(subjectDisplayName(h.subject))}</div>
+        <div class="h-lecture">${escapeHtml(lecShort)}</div>
+        <div class="h-lecture">⏱ ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
+      </div>
+      <div class="h-score" style="color:${h.pct >= 70 ? 'var(--correct-fg)' : 'var(--wrong-fg)'}">${h.score}/${h.total}<br><span style="font-size:.8rem">(${h.pct}%)</span></div>
+    </div>`;
+  const wrongCount = (h.wrongQuestions || []).length;
+  const retakeBtn = document.createElement('button');
+  retakeBtn.style.cssText = 'display:block;width:100%;padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.8rem;opacity:' + (wrongCount > 0 ? '1' : '.4') + ';';
+  retakeBtn.textContent = `🔄 Retake ${wrongCount} wrong Q${wrongCount !== 1 ? 's' : ''}`;
+  retakeBtn.disabled = wrongCount === 0;
+  retakeBtn.onclick = (e) => { e.stopPropagation(); retakeSingleQuiz(h); };
+  item.appendChild(retakeBtn);
+  return item;
+}
+
+/* ══════════════════════════════════════════════════════════
+   CURRICULUM STATS BREAKDOWN
+   Year → Module → Subject, plus a dynamic drill-down flowchart
+   and per-subject/per-bucket "toggle menu" of the actual quiz
+   titles behind each number — built entirely from `history` at
+   render time (never separately persisted), so it can never
+   drift out of sync and needs no changes at all to Backup
+   Export/Import (buildExportPayload()/applyImportPayload() in
+   js/local-store.js already round-trip every field on each
+   history entry generically, including the year/module/
+   components/source fields saveQuizStats() now writes).
+══════════════════════════════════════════════════════════ */
+
+// Bucket label for anything with no Year/Module: custom quizzes, community
+// quizzes, retake sessions with no inherited context, and — for full
+// backward compatibility — any history entry recorded before this feature
+// existed (it simply has no year/module field at all).
+function _otherBucketLabel(h) {
+  if (h.source === 'custom')    return '📝 Custom Quizzes';
+  if (h.source === 'community') return '🌐 Community Quizzes';
+  if (h.source === 'retake')    return '🔄 Retake Sessions';
+  return '📦 Unspecified (older quizzes)';
+}
+
+function _pctOf(node) { return node.total > 0 ? Math.round(node.correct / node.total * 100) : 0; }
+
+function _perfColor(pct) {
+  if (pct >= 85) return 'var(--correct-fg)';
+  if (pct >= 60) return 'var(--amber-mid)';
+  return 'var(--wrong-fg)';
+}
+
+function buildCurriculumStatsTree(history) {
+  const tree  = {}; // year -> { quizzes, correct, total, modules: { module -> { quizzes, correct, total, subjects: { subj -> {quizzes,correct,total,entries[]} } } } }
+  const other = {}; // bucketLabel -> { quizzes, correct, total, entries: [] }
+  const bump  = (node, h) => { node.quizzes++; node.correct += h.score; node.total += h.total; };
+
+  history.forEach(h => {
+    if (h.year && h.module) {
+      if (!tree[h.year]) tree[h.year] = { quizzes: 0, correct: 0, total: 0, modules: {} };
+      bump(tree[h.year], h);
+      const modNode = tree[h.year].modules[h.module] ||
+        (tree[h.year].modules[h.module] = { quizzes: 0, correct: 0, total: 0, subjects: {} });
+      bump(modNode, h);
+      const subjNode = modNode.subjects[h.subject] ||
+        (modNode.subjects[h.subject] = { quizzes: 0, correct: 0, total: 0, entries: [] });
+      bump(subjNode, h);
+      subjNode.entries.push(h);
+    } else {
+      const label = _otherBucketLabel(h);
+      const node = other[label] || (other[label] = { quizzes: 0, correct: 0, total: 0, entries: [] });
+      bump(node, h);
+      node.entries.push(h);
+    }
+  });
+  return { tree, other };
+}
+
+// Drill-down selection for the dynamic flowchart — module-level state
+// (not persisted), reset fresh every time the Statistics modal opens
+// (see openStats() below) so it always starts collapsed.
+let _statsFlow = { year: null, module: null, openSubject: null, openOther: null };
+
+function _sfSelectYear(year) {
+  _statsFlow.year   = (_statsFlow.year === year) ? null : year;
+  _statsFlow.module = null; _statsFlow.openSubject = null;
+  renderStatsModal();
+}
+function _sfSelectModule(mod) {
+  _statsFlow.module = (_statsFlow.module === mod) ? null : mod;
+  _statsFlow.openSubject = null;
+  renderStatsModal();
+}
+function _sfToggleSubject(key) {
+  _statsFlow.openSubject = (_statsFlow.openSubject === key) ? null : key;
+  renderStatsModal();
+}
+function _sfToggleOther(label) {
+  _statsFlow.openOther = (_statsFlow.openOther === label) ? null : label;
+  renderStatsModal();
+}
+
+function _makeFlowNode(label, statsNode, isSelected, onClick) {
+  const pct = _pctOf(statsNode);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'flow-node' + (isSelected ? ' is-selected' : '');
+  btn.innerHTML = `
+    <div class="fn-name">${escapeHtml(label)}</div>
+    <div class="fn-meta">${statsNode.quizzes} quiz${statsNode.quizzes !== 1 ? 'zes' : ''} · <span style="color:${_perfColor(pct)}">${pct}%</span></div>
+    <div class="fn-bar-wrap"><div class="fn-bar" style="width:${pct}%;background:${_perfColor(pct)}"></div></div>`;
+  btn.onclick = onClick;
+  return btn;
+}
+
+/* Collapsible "toggle menu" card: a header (bucket/subject name, quiz
+   count, accuracy) that expands into the list of actual quiz titles/dates/
+   scores behind it — this is the "toggle menu named by subject and
+   module" from the feature request, reused for every subject inside the
+   flowchart AND every non-curriculum bucket (Custom/Community/Retake). */
+function _makeQuizToggleCard(label, node, isOpen, onToggle) {
+  const wrap = document.createElement('div');
+  wrap.className = 'quiz-toggle-group' + (isOpen ? ' is-open' : '');
+
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'quiz-toggle-header';
+  const pct = _pctOf(node);
+  header.innerHTML = `
+    <span class="qt-chevron">${isOpen ? '▾' : '▸'}</span>
+    <span class="qt-label">${escapeHtml(label)}</span>
+    <span class="qt-meta">${node.quizzes} quiz${node.quizzes !== 1 ? 'zes' : ''} · <span style="color:${_perfColor(pct)}">${pct}%</span></span>`;
+  header.onclick = onToggle;
+  wrap.appendChild(header);
+
+  if (isOpen) {
+    const listWrap = document.createElement('div');
+    listWrap.className = 'quiz-toggle-body';
+    node.entries.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(h => {
+      listWrap.appendChild(_makeHistoryItem(h));
+    });
+    wrap.appendChild(listWrap);
+  }
+  return wrap;
+}
+
+/* Renders the whole dynamic Year → Module → Subject flowchart into
+   `container`, using the current `_statsFlow` drill-down selection. */
+function _renderCurriculumFlow(container, tree) {
+  const years = Object.keys(tree);
+  if (!years.length) return;
+
+  // Keep a valid selection if the underlying data changed (e.g. a reset).
+  if (_statsFlow.year && !tree[_statsFlow.year]) { _statsFlow.year = null; _statsFlow.module = null; }
+  if (_statsFlow.year && _statsFlow.module && !tree[_statsFlow.year].modules[_statsFlow.module]) {
+    _statsFlow.module = null;
+  }
+
+  const flowWrap = document.createElement('div');
+  flowWrap.className = 'flow-wrap';
+
+  // — Breadcrumb —
+  const crumb = document.createElement('div');
+  crumb.className = 'flow-breadcrumb';
+  const allLink = document.createElement('span');
+  allLink.className = 'flow-crumb' + (!_statsFlow.year ? ' active' : '');
+  allLink.textContent = '📅 All Years';
+  allLink.onclick = () => { _statsFlow.year = null; _statsFlow.module = null; _statsFlow.openSubject = null; renderStatsModal(); };
+  crumb.appendChild(allLink);
+  if (_statsFlow.year) {
+    const sep1 = document.createElement('span'); sep1.className = 'flow-crumb-sep'; sep1.textContent = '›';
+    crumb.appendChild(sep1);
+    const yLink = document.createElement('span');
+    yLink.className = 'flow-crumb' + (!_statsFlow.module ? ' active' : '');
+    yLink.textContent = _statsFlow.year;
+    yLink.onclick = () => { _statsFlow.module = null; _statsFlow.openSubject = null; renderStatsModal(); };
+    crumb.appendChild(yLink);
+  }
+  if (_statsFlow.year && _statsFlow.module) {
+    const sep2 = document.createElement('span'); sep2.className = 'flow-crumb-sep'; sep2.textContent = '›';
+    crumb.appendChild(sep2);
+    const mLink = document.createElement('span');
+    mLink.className = 'flow-crumb active';
+    mLink.textContent = _statsFlow.module;
+    crumb.appendChild(mLink);
+  }
+  flowWrap.appendChild(crumb);
+
+  // — Years row —
+  const yearRow = document.createElement('div');
+  yearRow.className = 'flow-row';
+  years
+    .sort((a, b) => _pctOf(tree[b]) - _pctOf(tree[a]))
+    .forEach(year => {
+      yearRow.appendChild(_makeFlowNode(year, tree[year], year === _statsFlow.year, () => _sfSelectYear(year)));
+    });
+  flowWrap.appendChild(yearRow);
+
+  // — Modules row (only once a year is selected) —
+  if (_statsFlow.year) {
+    const modules = tree[_statsFlow.year].modules;
+    const modNames = Object.keys(modules);
+    if (modNames.length) {
+      flowWrap.appendChild(_flowConnector());
+      const modRow = document.createElement('div');
+      modRow.className = 'flow-row';
+      modNames
+        .sort((a, b) => _pctOf(modules[b]) - _pctOf(modules[a]))
+        .forEach(mod => {
+          modRow.appendChild(_makeFlowNode(mod, modules[mod], mod === _statsFlow.module, () => _sfSelectModule(mod)));
+        });
+      flowWrap.appendChild(modRow);
+    }
+  }
+
+  container.appendChild(flowWrap);
+
+  // — Subjects for the selected module: each its own toggle-menu card —
+  if (_statsFlow.year && _statsFlow.module) {
+    const subjects = tree[_statsFlow.year].modules[_statsFlow.module].subjects;
+    const subjKeys = Object.keys(subjects);
+    if (subjKeys.length) {
+      const note = document.createElement('p');
+      note.className = 'flow-hint';
+      note.textContent = subjKeys.length > 1 || Object.values(subjects).some(s => s.entries.length > 1)
+        ? 'Tap a subject to see every quiz taken for it in this module.'
+        : 'Tap the subject to see its quiz history.';
+      container.appendChild(note);
+
+      const subjList = document.createElement('div');
+      subjList.className = 'quiz-toggle-list';
+      subjKeys
+        .sort((a, b) => _pctOf(subjects[b]) - _pctOf(subjects[a]))
+        .forEach(subjKey => {
+          const node = subjects[subjKey];
+          const isOpen = _statsFlow.openSubject === subjKey;
+          subjList.appendChild(_makeQuizToggleCard(
+            subjectDisplayName(subjKey), node, isOpen, () => _sfToggleSubject(subjKey)
+          ));
+        });
+      container.appendChild(subjList);
+    }
+  }
+}
+
+function _flowConnector() {
+  const c = document.createElement('div');
+  c.className = 'flow-connector';
+  c.innerHTML = '<span>▾</span>';
+  return c;
+}
+
+/* Non-curriculum sources — Custom Quizzes, Community Quizzes, Retake
+   Sessions, and legacy entries with no year/module — each gets its own
+   toggle-menu card, same as a subject inside the flowchart above. */
+function _renderOtherSources(container, other) {
+  const labels = Object.keys(other);
+  if (!labels.length) return;
+
+  const sec = document.createElement('div');
+  sec.className = 'stats-section';
+  sec.innerHTML = `<div class="stats-section-title">📦 Other Quiz Sources</div>`;
+  const list = document.createElement('div');
+  list.className = 'quiz-toggle-list';
+  labels
+    .sort((a, b) => other[b].quizzes - other[a].quizzes)
+    .forEach(label => {
+      const node = other[label];
+      const isOpen = _statsFlow.openOther === label;
+      list.appendChild(_makeQuizToggleCard(label, node, isOpen, () => _sfToggleOther(label)));
+    });
+  sec.appendChild(list);
+  container.appendChild(sec);
 }
 
 function renderStatsModal() {
@@ -1352,32 +1682,16 @@ function renderStatsModal() {
   }
   body.appendChild(sec2);
 
-  /* — Subject Performance — */
-  const subjects_used = Object.keys(st.subjectStats);
-  if (subjects_used.length > 0) {
+  /* — Curriculum Breakdown: dynamic Year → Module → Subject flowchart — */
+  const { tree, other } = buildCurriculumStatsTree(st.history);
+  if (Object.keys(tree).length > 0) {
     const sec3 = document.createElement('div');
     sec3.className = 'stats-section';
-    sec3.innerHTML = `<div class="stats-section-title">📚 Subject Performance</div>`;
-    subjects_used
-      .sort((a,b) => {
-        const pa = Math.round(st.subjectStats[a].correct/st.subjectStats[a].total*100);
-        const pb = Math.round(st.subjectStats[b].correct/st.subjectStats[b].total*100);
-        return pb - pa;
-      })
-      .forEach(subj => {
-        const s   = st.subjectStats[subj];
-        const pct = s.total > 0 ? Math.round(s.correct / s.total * 100) : 0;
-        const row = document.createElement('div');
-        row.className = 'subject-stat-row';
-        row.innerHTML = `
-          <div class="subj-stat-name">${escapeHtml(subjectDisplayName(subj))}</div>
-          <div class="subj-bar-wrap"><div class="subj-bar" style="width:${pct}%"></div></div>
-          <div class="subj-stat-pct">${pct}%</div>
-          <div class="subj-quizzes">${s.quizzes} quiz${s.quizzes!==1?'zes':''}</div>`;
-        sec3.appendChild(row);
-      });
+    sec3.innerHTML = `<div class="stats-section-title">🗂 Curriculum Breakdown — Year / Module / Subject</div>`;
+    _renderCurriculumFlow(sec3, tree);
     body.appendChild(sec3);
   }
+  _renderOtherSources(body, other);
 
   /* — Recent Quizzes — */
   if (st.history.length > 0) {
@@ -1386,30 +1700,7 @@ function renderStatsModal() {
     sec4.innerHTML = `<div class="stats-section-title">🕐 Quiz History</div>`;
     const hl = document.createElement('div');
     hl.className = 'history-list';
-    st.history.forEach(h => {
-      const item = document.createElement('div');
-      item.className = 'history-item';
-      const lecShort = h.lecture.length > 38 ? h.lecture.substring(0,38)+'…' : h.lecture;
-      const changeNote = (h.c2w||0)+(h.w2c||0) > 0
-        ? ` · ✘${h.c2w||0} ✔${h.w2c||0} changes` : '';
-      item.innerHTML = `
-        <div class="h-top-row">
-          <div>
-            <div class="h-subject">${escapeHtml(subjectDisplayName(h.subject))}</div>
-            <div class="h-lecture">${lecShort}</div>
-            <div class="h-lecture">⏱ ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
-          </div>
-          <div class="h-score" style="color:${h.pct>=70?'var(--correct-fg)':'var(--wrong-fg)'}">${h.score}/${h.total}<br><span style="font-size:.8rem">(${h.pct}%)</span></div>
-        </div>`;
-      const wrongCount = (h.wrongQuestions || []).length;
-const retakeBtn = document.createElement('button');
-retakeBtn.style.cssText = 'display:block;width:100%;padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.8rem;opacity:' + (wrongCount > 0 ? '1' : '.4') + ';';
-retakeBtn.textContent = `🔄 Retake ${wrongCount} wrong Q${wrongCount !== 1 ? 's' : ''}`;
-retakeBtn.disabled = wrongCount === 0;
-retakeBtn.onclick = (e) => { e.stopPropagation(); retakeSingleQuiz(h); };
-item.appendChild(retakeBtn);
-      hl.appendChild(item);
-    });
+    st.history.forEach(h => hl.appendChild(_makeHistoryItem(h)));
     sec4.appendChild(hl);
     body.appendChild(sec4);
   }
@@ -1427,7 +1718,7 @@ async function retakeSingleQuiz(h) {
   fsLoadingShow('Loading images…');
   await hydrateHistoryImages(wrong);
   fsLoadingHide();
-  startRetakeQuiz(wrong);
+  startRetakeQuiz(wrong, { subject: h.subject, year: h.year, module: h.module, components: h.components });
 }
 
 function openRetake() {
@@ -1524,7 +1815,7 @@ function renderRetakeSelector() {
     fsLoadingShow('Loading images…');
     await hydrateHistoryImages(allWrong);
     fsLoadingHide();
-    startRetakeQuiz(allWrong);
+    startRetakeQuiz(allWrong, { subject: 'Retake', year: '', module: '' });
   };
   body.appendChild(retakeBtn);
 }

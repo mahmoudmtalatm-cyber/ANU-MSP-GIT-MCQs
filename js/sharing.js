@@ -416,6 +416,10 @@ async function startCommunityQuizByIdx(idx) {
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
   currentQuizSource = 'community';
+  // No Year/Module for a community quiz — grouped under its own bucket in
+  // Statistics instead of the curriculum tree; see buildCurriculumStatsTree()
+  // in app-core.js.
+  currentQuizYear = ''; currentQuizModule = ''; currentQuizComponents = null;
 
   closeCommunityQuizzes();
   showScreen('quiz');

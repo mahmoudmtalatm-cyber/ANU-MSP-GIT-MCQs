@@ -890,6 +890,13 @@
         overflow: hidden; margin: auto;
         border: 1px solid var(--border-soft);
       }
+      /* Statistics alone gets a wider cap so the new Curriculum Breakdown
+         flowchart's node rows have room to breathe on desktop — every
+         other overlay sharing .stats-modal (custom quizzes, community
+         quizzes, backup, API keys, merge picker) keeps the original
+         640px cap untouched. Still width:100% below that cap, so this
+         stays fully responsive on narrow screens either way. */
+      #statsOverlay .stats-modal { max-width: 760px; }
       .stats-modal-header {
         background: linear-gradient(120deg, var(--nav-current), var(--accent-dark)); color: white;
         padding: 17px 24px;
@@ -942,24 +949,6 @@
         text-align: center; font-size: .88rem; font-weight: 700; margin-top: 8px;
         padding: 7px 12px; border-radius: 8px;
       }
-      .subject-stat-row {
-        display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px;
-      }
-      .subj-stat-name {
-        font-weight: 700; font-size: .83rem; min-width: 70px; max-width: 150px; flex-shrink: 0;
-        color: var(--text-main); white-space: normal; overflow-wrap: break-word; line-height: 1.25;
-        padding-top: 1px;
-      }
-      .subj-bar-wrap {
-        flex: 1; background: var(--chip-blue-bg); border-radius: 4px; height: 12px; overflow: hidden;
-        margin-top: 3px;
-      }
-      .subj-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s; }
-      .subj-stat-pct {
-        font-weight: 800; font-size: .85rem; color: var(--accent);
-        min-width: 38px; text-align: right; margin-top: 2px;
-      }
-      .subj-quizzes { font-size: .75rem; color: var(--text-muted); min-width: 48px; text-align: right; margin-top: 3px; }
       .history-list { display: flex; flex-direction: column; gap: 7px; }
       .history-item {
         display: flex; flex-direction: column; gap: 8px;
@@ -1016,7 +1005,81 @@
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }
-        .subj-stat-name { min-width: 56px; max-width: 100px; font-size: .75rem; }
+      }
+
+      /* ── DYNAMIC CURRICULUM FLOWCHART (Year → Module → Subject) ──
+         Node "rows" wrap freely with flexbox so this scales from a
+         narrow phone up to a wide desktop modal without any fixed
+         breakpoints of its own — verified at 320px, 390px, and desktop
+         widths, same as the rest of the Statistics modal. */
+      .flow-wrap { display: flex; flex-direction: column; gap: 10px; }
+      .flow-breadcrumb {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+        font-size: .8rem; font-weight: 700; color: var(--text-muted);
+        margin-bottom: 2px;
+      }
+      .flow-crumb { cursor: pointer; padding: 2px 4px; border-radius: 5px; transition: background .15s, color .15s; }
+      .flow-crumb:hover { background: var(--surface-2-hover); }
+      .flow-crumb.active { color: var(--accent); }
+      .flow-crumb-sep { opacity: .5; }
+      .flow-row { display: flex; flex-wrap: wrap; gap: 8px; }
+      .flow-connector {
+        display: flex; justify-content: center; color: var(--text-muted);
+        font-size: 1rem; opacity: .6; margin: -4px 0;
+      }
+      .flow-node {
+        flex: 1 1 130px; min-width: 110px; max-width: 220px;
+        background: var(--surface-2); border: 1.5px solid var(--border-soft);
+        border-radius: 10px; padding: 10px 12px; text-align: left;
+        cursor: pointer; font-family: var(--font);
+        transition: border-color .15s, background .15s, transform .12s;
+      }
+      .flow-node:hover { border-color: var(--accent); transform: translateY(-1px); }
+      .flow-node.is-selected {
+        border-color: var(--accent); background: var(--accent-soft);
+        box-shadow: 0 0 0 1px var(--accent) inset;
+      }
+      .flow-node .fn-name {
+        font-weight: 700; font-size: .84rem; color: var(--text-main);
+        overflow-wrap: break-word; line-height: 1.25; margin-bottom: 4px;
+      }
+      .flow-node .fn-meta { font-size: .74rem; color: var(--text-muted); font-weight: 600; margin-bottom: 5px; }
+      .flow-node .fn-bar-wrap { background: var(--chip-blue-bg); border-radius: 4px; height: 6px; overflow: hidden; }
+      .flow-node .fn-bar { height: 100%; border-radius: 4px; transition: width .4s; }
+      .flow-hint { font-size: .8rem; color: var(--text-muted); margin: 2px 0 -2px; }
+
+      /* ── QUIZ TITLE TOGGLE MENUS ── used both for subjects inside the
+         flowchart and for Other Quiz Sources (Custom/Community/Retake) */
+      .quiz-toggle-list { display: flex; flex-direction: column; gap: 8px; }
+      .quiz-toggle-group {
+        background: var(--surface-2); border: 1px solid var(--border-soft-2);
+        border-radius: 10px; overflow: hidden;
+      }
+      .quiz-toggle-group.is-open { border-color: var(--accent); }
+      .quiz-toggle-header {
+        width: 100%; display: flex; align-items: center; gap: 8px;
+        background: transparent; border: none; cursor: pointer;
+        padding: 11px 14px; font-family: var(--font); text-align: left;
+      }
+      .quiz-toggle-header:hover { background: var(--surface-2-hover); }
+      .qt-chevron { color: var(--accent); font-size: .8rem; flex-shrink: 0; width: 12px; }
+      .qt-label { flex: 1; font-weight: 700; font-size: .85rem; color: var(--text-main); overflow-wrap: anywhere; }
+      .qt-meta { font-size: .76rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+      .quiz-toggle-body {
+        display: flex; flex-direction: column; gap: 7px;
+        padding: 0 12px 12px;
+      }
+      @media (max-width: 600px) {
+        .flow-node { flex-basis: 100px; min-width: 92px; padding: 8px 9px; }
+        .flow-node .fn-name { font-size: .78rem; }
+        .flow-node .fn-meta { font-size: .68rem; }
+        .qt-label { font-size: .8rem; }
+        .qt-meta { font-size: .7rem; }
+        .flow-breadcrumb { font-size: .74rem; }
+      }
+      @media (max-width: 380px) {
+        .qt-meta { white-space: normal; }
+        .quiz-toggle-header { flex-wrap: wrap; }
       }
 
       /* ── Backup & Transfer — in-progress / finished status bars ──

@@ -18,7 +18,10 @@ else is plain HTML/CSS/JavaScript.
 
 - **Curriculum browser** — Year → Module → Subject → Lecture, with a
   timed quiz mode, question navigator, flagging, and a results screen.
-- **Persistent statistics** — per-user history stored in Firestore.
+- **Persistent statistics** — local, per-device history (IndexedDB, see
+  [Project structure](#project-structure) → `local-store.js`), with a
+  dynamic Year → Module → Subject breakdown, a drill-down flowchart, and
+  per-subject "toggle menu" quiz-title lists — see changelog **#83**.
 - **Custom quizzes** — write your own, or generate one from pasted MCQs
   or lecture material using Gemini.
 - **Community quizzes** — browse, take, and share quizzes made by other
@@ -786,8 +789,71 @@ Firestore-side curriculum/community data.
 ## Changelog
 
 Newer entries first. Each numbered project drop corresponds to one focused
-change (see the filename of whichever zip you're reading this from).
+change (see the filename of whichever zip you're reading from).
 
+- **83 — Statistics now break down by Year → Module → Subject, with a
+  dynamic drill-down flowchart and per-subject/per-module "toggle menu" of
+  the actual quizzes behind each number.** Previously, Statistics only
+  tracked a flat `subject` label per quiz attempt — with no record of which
+  Year or Module it was taken under. Since the same subject can legitimately
+  appear in more than one Module (curriculum content is reused, not
+  duplicated, across modules — see `curriculum[year][module]` in
+  `js/app-core.js`), this meant two quizzes on, say, "Biochemistry 1" taken
+  for two different modules were silently merged into one number, with no
+  way to tell them apart.
+  - Every quiz attempt now snapshots its real curriculum context the moment
+    it starts (`currentQuizYear` / `currentQuizModule` / `currentQuizComponents`
+    in `js/app-core.js`), and `saveQuizStats()` stores it on the history
+    entry (`year`, `module`, `components`, `source`). Combined multi-subject
+    quizzes keep a per-subject lecture breakdown too
+    (`currentQuizComponents`), since the app already only ever lets you
+    combine lectures from subjects within one Year+Module at a time
+    (`selectYear()`/`selectModule()` clear the selection whenever either
+    changes) — so this was safe to snapshot once per quiz. A single-quiz
+    Retake now correctly inherits its original quiz's Year/Module instead
+    of whatever was last browsed (`retakeSingleQuiz()`); a combined Retake
+    across several different original quizzes gets its own dedicated
+    "Retake Sessions" bucket instead, since there's no single Year/Module to
+    attribute it to. Custom and Community quizzes explicitly clear the
+    curriculum context so they can't accidentally inherit stale state either.
+  - The Statistics modal replaces the old flat "Subject Performance" list
+    with a new **🗂 Curriculum Breakdown** section: a dynamic flowchart
+    (`buildCurriculumStatsTree()` + `_renderCurriculumFlow()`) whose top row
+    is every Year you've studied (sized by quiz count, colored by
+    accuracy) — click one to reveal its Modules, click a Module to reveal
+    its Subjects. Every Subject is its own collapsible **toggle menu**
+    (`_makeQuizToggleCard()`), named by subject and expandable to show every
+    individual quiz title, date, and score taken for that subject *within
+    that specific module* — directly solving the "which module was this
+    subject's quiz actually from" ambiguity. A new **📦 Other Quiz Sources**
+    section gives the same toggle-menu treatment to Custom Quizzes,
+    Community Quizzes, Retake Sessions, and (for full backward compatibility)
+    any older history entry recorded before this change, which simply has no
+    year/module and lands in an "Unspecified" bucket rather than breaking.
+  - The flat "🕐 Quiz History" list is untouched and still shows everything
+    chronologically — it and the new toggle menus now share one
+    `_makeHistoryItem()` builder (including the Retake button) instead of
+    duplicating that markup.
+  - Deliberately **not** a new incrementally-maintained aggregate: the whole
+    Year/Module/Subject tree is computed fresh from `history` every time the
+    modal renders, so it can never drift out of sync with the real data and
+    needed zero changes to Backup Export/Import — `buildExportPayload()` /
+    `applyImportPayload()` in `js/local-store.js` already serialize every
+    field on each history entry generically, so the new `year`/`module`/
+    `components`/`source` fields travel with a backup automatically, merge
+    correctly by attempt ID on import, and a restored backup renders the
+    exact same breakdown it would have shown on the original device.
+  - New responsive CSS only (`.flow-*`, `.quiz-toggle-*`, `#statsOverlay
+    .stats-modal` width bump) — the flowchart's node rows and toggle-menu
+    cards use `flex-wrap` with no fixed breakpoints of their own, so they
+    reflow smoothly from a narrow phone up through desktop widths; verified
+    at 320px, 390px, and desktop widths, same as prior UI work. No other
+    modal's width was touched (the wider cap is scoped to `#statsOverlay`
+    only). No `firestore.rules` change needed — this is entirely local
+    (IndexedDB) data, same as the rest of the stats system.
+  - Touches `js/app-core.js` (the bulk of it), `js/split-quiz.js` and
+    `js/sharing.js` (clearing curriculum context for custom/community quiz
+    starts), and `css/styles.css`.
 - **82 — Header logo and loading screen now match the tab favicon
   exactly, plus a new "assemble & focus" splash animation.** The header
   logo (next to the site name on the home screen and the quiz screen) and

@@ -655,6 +655,11 @@ function startCustomQuiz(id) {
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
   currentQuizSource = 'custom';
+  // No Year/Module for a custom quiz — grouped under its own bucket in
+  // Statistics instead of the curriculum tree (see buildCurriculumStatsTree()
+  // in app-core.js). Clearing this explicitly also prevents it from
+  // accidentally inheriting whatever Year/Module was last browsed.
+  currentQuizYear = ''; currentQuizModule = ''; currentQuizComponents = null;
 
   closeCustomQuizzes();
   showScreen('quiz');
@@ -722,6 +727,7 @@ function startCustomQuizzesMulti() {
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
   timeLeft = mins * 60;
   currentQuizSource = 'custom';
+  currentQuizYear = ''; currentQuizModule = ''; currentQuizComponents = null;
 
   cqMultiSelected = new Set();
   closeCustomQuizzes();
