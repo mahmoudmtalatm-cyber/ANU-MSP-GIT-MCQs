@@ -61,8 +61,31 @@ export async function deleteCustomQuiz(id) {
   await window._idbDelete(`customQuiz:${id}`).catch(() => {});
 }
 
-/** Imports quizzes (from a file or P2P transfer), skipping exact-duplicate content. */
-export async function importCustomQuizzes(incomingQuizzes) {
+/**
+ * Imports quizzes (from a file or P2P transfer).
+ *
+ * @param {object[]} incomingQuizzes
+ * @param {{ mode?: 'merge' | 'replace' }} [options]
+ *   'merge' (default) — keeps everything already on this device and adds
+ *   only genuinely new quizzes, skipping exact-duplicate content.
+ *   'replace' — wipes every existing custom quiz on this device first,
+ *   then loads the incoming set as the new, complete collection. Used
+ *   when the user explicitly chooses "Replace" in the load-options picker.
+ */
+export async function importCustomQuizzes(incomingQuizzes, { mode = 'merge' } = {}) {
+  if (mode === 'replace') {
+    const existingNow = await listCustomQuizzes();
+    for (const q of existingNow) await deleteCustomQuiz(q.id);
+
+    let added = 0;
+    for (const quiz of incomingQuizzes) {
+      const copy = { ...quiz, id: newId(), lastActivityAt: Date.now() };
+      await window._idbSet(`customQuiz:${copy.id}`, copy);
+      added++;
+    }
+    return { added, skipped: 0, replaced: existingNow.length };
+  }
+
   const existing = await listCustomQuizzes();
   const existingFingerprints = new Set(await Promise.all(existing.map(fingerprintQuiz)));
 
@@ -171,11 +194,28 @@ export function recomputeAggregateForMerge(attempts) {
 }
 
 /**
- * Safe merge for stats coming from import/P2P: union by attempt ID
- * (de-duplicating exact repeats), never merging pre-computed summary
- * numbers — always recomputed fresh from the combined raw list afterward.
+ * Imports stats/history coming from import/P2P.
+ *
+ * @param {object[]} incomingAttempts
+ * @param {{ mode?: 'merge' | 'replace' }} [options]
+ *   'merge' (default) — safe union by attempt ID (de-duplicating exact
+ *   repeats), never merging pre-computed summary numbers — the aggregate
+ *   is always recomputed fresh from the combined raw list afterward.
+ *   'replace' — wipes every existing attempt on this device first, then
+ *   loads the incoming set as the new, complete history.
  */
-export async function importAttempts(incomingAttempts) {
+export async function importAttempts(incomingAttempts, { mode = 'merge' } = {}) {
+  if (mode === 'replace') {
+    const existingNow = await listAttempts();
+    for (const a of existingNow) await deleteAttempt(a.id);
+
+    for (const attempt of incomingAttempts) {
+      await window._idbSet(`attempt:${attempt.id}`, attempt);
+    }
+    await saveStatsAggregate(recomputeAggregateForMerge(incomingAttempts));
+    return { added: incomingAttempts.length, skipped: 0, replaced: existingNow.length };
+  }
+
   const existing = await listAttempts();
   const existingIds = new Set(existing.map(a => a.id));
 
@@ -228,19 +268,39 @@ export function downloadExportFile(payload, filename = 'anu-msp-backup.json') {
   URL.revokeObjectURL(url);
 }
 
-/** Validates + applies an imported payload (from a file or P2P transfer). */
-export async function applyImportPayload(payload) {
+/**
+ * Validates + applies an imported payload (from a file or P2P transfer).
+ *
+ * @param {object} payload
+ * @param {{ mode?: 'merge' | 'replace', loadQuizzes?: boolean, loadStats?: boolean }} [options]
+ *   `mode` — 'merge' (default, additive/de-duplicated) or 'replace' (wipe
+ *   this device's existing data first, then load the incoming set as-is).
+ *   `loadQuizzes` / `loadStats` — when the payload contains both a
+ *   curriculum (quizzes) and a stats/history backup, lets the caller load
+ *   just one or both. Defaults to true for whichever part is present.
+ */
+export async function applyImportPayload(payload, { mode = 'merge', loadQuizzes = true, loadStats = true } = {}) {
   if (!payload || payload.__app !== 'anu-msp-question-bank') {
     throw new Error('This file doesn\u2019t look like a valid backup for this app.');
   }
   const results = { quizzes: { added: 0, skipped: 0 }, attempts: { added: 0, skipped: 0 } };
-  if (Array.isArray(payload.customQuizzes)) {
-    results.quizzes = await importCustomQuizzes(payload.customQuizzes);
+  if (loadQuizzes && Array.isArray(payload.customQuizzes)) {
+    results.quizzes = await importCustomQuizzes(payload.customQuizzes, { mode });
   }
-  if (Array.isArray(payload.attempts)) {
-    results.attempts = await importAttempts(payload.attempts);
+  if (loadStats && Array.isArray(payload.attempts)) {
+    results.attempts = await importAttempts(payload.attempts, { mode });
   }
   return results;
+}
+
+/** Inspects a backup payload to report which parts it actually contains, so the UI can offer only relevant choices (e.g. don't ask "load stats?" for a quizzes-only file). */
+export function describeImportPayload(payload) {
+  return {
+    hasQuizzes: Array.isArray(payload?.customQuizzes) && payload.customQuizzes.length > 0,
+    hasStats: Array.isArray(payload?.attempts) && payload.attempts.length > 0,
+    quizCount: Array.isArray(payload?.customQuizzes) ? payload.customQuizzes.length : 0,
+    statCount: Array.isArray(payload?.attempts) ? payload.attempts.length : 0
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -773,6 +773,53 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **70 — Backup & Transfer: merge-vs-replace choice, selective
+  quizzes/stats loading, an animated progress indicator, and a custom
+  export file name.**
+  - `js/local-store.js`: `importCustomQuizzes()` and `importAttempts()`
+    both now take a `{ mode: 'merge' | 'replace' }` option. `'merge'`
+    (still the default, unchanged behavior) adds only new/non-duplicate
+    items on top of what's already on the device. `'replace'` deletes
+    everything currently on the device first, then loads the incoming set
+    as the new, complete collection — used when the user explicitly picks
+    "Replace" in the new load-options picker. `applyImportPayload()` also
+    gained `loadQuizzes` / `loadStats` options so a backup containing both
+    a quiz set and a stats/history export can have just one part applied
+    instead of always loading both. New `describeImportPayload()` inspects
+    a payload up front (does it have quizzes? stats? how many of each?) so
+    the UI only offers choices that are actually relevant to the file in
+    hand — a quizzes-only backup doesn't ask "load stats too?".
+  - `js/backup-transfer-ui.js`: file import is now two steps — picking the
+    file just reads and validates it, then a shared load-options picker
+    (`_backupShowLoadPicker` / `_backupConfirmLoad`) shows Merge vs Replace
+    as two selectable cards (with a plain-language description of what
+    each does) plus a checkbox per part the payload actually contains.
+    The exact same picker is reused for the P2P receive path
+    (`_backupStartP2PReceive`), so both transfer methods behave
+    identically instead of P2P silently always merging.
+  - Added a reusable animated progress bar (`_backupProgressHtml()`, new
+    `.backup-progress-*` styles in `css/styles.css`) shown during file
+    read, merge/replace application, and every P2P connection stage
+    (setup → waiting → connected → sending), replacing the old plain-text
+    "⏳ …" status lines with a persistent sliding indicator so a slow step
+    doesn't look like it stalled.
+  - The Export panel gained an editable file name field, pre-filled with
+    the existing `anu-msp-backup-YYYY-MM-DD` pattern; the name is
+    sanitized (path separators and other invalid filename characters
+    stripped, `.json` appended if missing) before being handed to
+    `downloadExportFile()`.
+  - All new UI (mode-choice cards, part checkboxes, progress bar, filename
+    row) uses flex-wrap and a `max-width: 480px` media query so it
+    reflows correctly on narrow phone screens, matching the rest of the
+    Backup & Transfer modal.
+  - **Not included in this drop:** a QR-code send/scan option was explored
+    for the P2P path but pulled before shipping — a hand-rolled QR
+    encoder failed decode verification (bad timing-pattern/format-info
+    placement) and no offline, dependency-free, verified-correct
+    alternative was available in this network-restricted build
+    environment. The manual transfer-code entry (copy/paste or read
+    aloud) remains the only P2P pairing method for now; QR can be
+    revisited as its own focused drop once a verified encoder is sourced.
 - **69 — Worker: implemented the manifest bump build 68 diagnosed but
   deliberately didn't guess at.** Every successful curriculum/community
   write or delete through this Worker now also bumps (or, on delete,

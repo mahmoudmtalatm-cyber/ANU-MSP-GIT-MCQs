@@ -983,6 +983,71 @@
         .p2p-code-value { font-size: 1.25rem; text-align: center; }
         .p2p-code-copy-btn { width: 100%; }
       }
+      /* Backup: animated progress bar shown during export/import/P2P work */
+      .backup-progress-wrap {
+        display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
+      }
+      .backup-progress-track {
+        position: relative; width: 100%; height: 9px; border-radius: 6px;
+        background: var(--surface-2); border: 1px solid var(--border-soft);
+        overflow: hidden;
+      }
+      .backup-progress-fill {
+        position: absolute; inset: 0; width: 35%; border-radius: 6px;
+        background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+        animation: backupProgressSlide 1.15s ease-in-out infinite;
+      }
+      .backup-progress-fill.is-determinate {
+        animation: none; width: var(--pct, 0%);
+        transition: width .25s ease;
+      }
+      @keyframes backupProgressSlide {
+        0%   { left: -35%; }
+        100% { left: 100%; }
+      }
+      .backup-progress-label {
+        font-size: .8rem; color: var(--text-muted); font-weight: 600;
+      }
+      /* Backup: merge-vs-replace + what-to-load picker (shown before an import actually runs) */
+      .backup-load-options {
+        background: var(--surface-2); border: 1px solid var(--border-soft);
+        border-radius: 10px; padding: 14px 16px; margin-top: 10px;
+        display: flex; flex-direction: column; gap: 12px;
+      }
+      .backup-load-options .blo-title {
+        font-size: .78rem; font-weight: 700; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: .6px;
+      }
+      .blo-mode-choice { display: flex; gap: 10px; flex-wrap: wrap; }
+      .blo-mode-card {
+        flex: 1 1 160px; min-width: 140px; cursor: pointer;
+        border: 1.5px solid var(--border-soft); border-radius: 10px;
+        padding: 10px 12px; transition: border-color .15s, background .15s;
+      }
+      .blo-mode-card:hover { border-color: var(--accent); }
+      .blo-mode-card.is-selected {
+        border-color: var(--accent); background: var(--accent-soft);
+      }
+      .blo-mode-card input { margin-right: 6px; }
+      .blo-mode-card .blo-mode-name { font-weight: 700; font-size: .88rem; }
+      .blo-mode-card .blo-mode-desc { font-size: .77rem; color: var(--text-muted); margin-top: 3px; line-height: 1.35; }
+      .blo-parts { display: flex; gap: 16px; flex-wrap: wrap; }
+      .blo-parts label { font-size: .87rem; display: flex; align-items: center; gap: 6px; }
+      .blo-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .backup-filename-row {
+        display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px;
+      }
+      .backup-filename-row input[type="text"] {
+        flex: 1 1 200px; min-width: 0;
+        background: var(--surface-2); border: 1px solid var(--border-soft);
+        border-radius: 8px; padding: 8px 10px; font-family: var(--font); font-size: .85rem;
+        color: var(--text-main);
+      }
+      @media (max-width: 480px) {
+        .blo-mode-choice { flex-direction: column; }
+        .blo-parts { gap: 10px; }
+        .backup-filename-row { flex-direction: column; align-items: stretch; }
+      }
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }
