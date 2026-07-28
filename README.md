@@ -773,6 +773,36 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **66 — Worker: uncaught exceptions were masquerading as CORS errors,
+  breaking publish.** `worker/src/index.js`'s `fetch()` handler had no
+  top-level `try/catch`. When anything inside it threw — most likely a
+  Firestore Admin REST call failing inside `isAdmin()` during a curriculum
+  publish's authorization check — Cloudflare returned its own bare
+  runtime-error response, which never passes through `withCors()` since
+  the exception happens before any handler branch gets to return through
+  it. The browser then reported this as `blocked by CORS policy` (no
+  `Access-Control-Allow-Origin` header) even though build 59's CORS fix
+  was completely intact — the *response it was blocking* just never had
+  a chance to carry those headers in the first place. This is why the
+  error looked identical to the already-fixed build-59 CORS bug despite
+  nothing having changed in the CORS logic itself.
+  Fixed by extracting the handler body into a standalone
+  `handleRequest(request, env)` function and wrapping its call in
+  `export default.fetch()` with `try/catch`; any exception now still
+  returns a `withCors()`-wrapped `500` with the real error message
+  (`Internal error: <message>`) instead of a bare, CORS-header-less
+  crash. This doesn't fix whatever is actually throwing — it makes that
+  underlying error visible in the browser console/Network tab instead of
+  being misreported as CORS, so it can actually be diagnosed. **Prime
+  suspect, not yet confirmed:** the Firebase service-account key used by
+  the Worker's Firestore Admin calls (`lib/firebaseAdmin.js`, not
+  included in this project drop) — rotating that key has been an
+  outstanding item since the R2 migration session; if it's stale or was
+  never re-confirmed working after being pasted into a chat, every
+  server-side Firestore lookup (`isAdmin()`, `isCommunityQuizAuthor()`,
+  refcount reads/writes) would throw exactly like this. **Next step:**
+  redeploy this Worker change, retry a publish, and read the real error
+  message now surfaced in the console/Network response body.
 - **65 — Removed the retired `appConfig/sharedQuizzesVersion` scheme
   entirely (rule + dead client code).** This was the old global-version
   cache-busting doc for community quizzes, superseded back in build 56

@@ -136,111 +136,129 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    const url = new URL(request.url);
-    const key = decodeURIComponent(url.pathname.replace(/^\//, '')); // e.g. "curriculum/lec_123/q_1.json"
+    // Everything else runs inside a try/catch. Without this, any uncaught
+    // exception anywhere below (a Firestore Admin call failing, a bug, a
+    // malformed request) makes Cloudflare return its own bare runtime-error
+    // response — which has none of the CORS headers withCors() adds, since
+    // the exception happens before any handler branch gets a chance to
+    // return through it. The browser then reports that as "blocked by CORS
+    // policy," masking what's actually a 500. Catching here guarantees
+    // every response, success or failure, always carries CORS headers, and
+    // surfaces the real error message instead of a misleading CORS error.
+    try {
+      return await handleRequest(request, env);
+    } catch (err) {
+      console.error('Unhandled Worker error:', err);
+      return withCors(new Response(`Internal error: ${err.message || err}`, { status: 500 }));
+    }
+  }
+};
 
-    // ---- READS: public, no auth required ----
-    // Curriculum & community content is meant to be freely readable by any
-    // signed-in student using the app; the app itself already gates *access
-    // to the app* via Firebase Auth on the client side.
-    if (request.method === 'GET') {
-      const object = await env.CONTENT_BUCKET.get(key);
-      if (!object) return withCors(new Response('Not found', { status: 404 }));
+async function handleRequest(request, env) {
+  const url = new URL(request.url);
+  const key = decodeURIComponent(url.pathname.replace(/^\//, '')); // e.g. "curriculum/lec_123/q_1.json"
 
-      const headers = new Headers();
-      object.writeHttpMetadata(headers);
-      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-      headers.set('etag', object.httpEtag);
-      return withCors(new Response(object.body, { headers }));
+  // ---- READS: public, no auth required ----
+  // Curriculum & community content is meant to be freely readable by any
+  // signed-in student using the app; the app itself already gates *access
+  // to the app* via Firebase Auth on the client side.
+  if (request.method === 'GET') {
+    const object = await env.CONTENT_BUCKET.get(key);
+    if (!object) return withCors(new Response('Not found', { status: 404 }));
+
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    headers.set('etag', object.httpEtag);
+    return withCors(new Response(object.body, { headers }));
+  }
+
+  // ---- WRITES: require a verified Firebase identity ----
+  // NOT YET SAFE FOR PRODUCTION TRAFFIC — see file header. This currently
+  // only confirms "this is some real, signed-in Firebase user," not
+  // "this specific user is allowed to write to this specific key."
+  if (request.method === 'PUT') {
+    let uid;
+    try {
+      const payload = await verifyFirebaseToken(request, env.FIREBASE_PROJECT_ID);
+      uid = payload.sub;
+    } catch (err) {
+      return withCors(new Response(`Unauthorized: ${err.message}`, { status: 401 }));
     }
 
-    // ---- WRITES: require a verified Firebase identity ----
-    // NOT YET SAFE FOR PRODUCTION TRAFFIC — see file header. This currently
-    // only confirms "this is some real, signed-in Firebase user," not
-    // "this specific user is allowed to write to this specific key."
-    if (request.method === 'PUT') {
-      let uid;
-      try {
-        const payload = await verifyFirebaseToken(request, env.FIREBASE_PROJECT_ID);
-        uid = payload.sub;
-      } catch (err) {
-        return withCors(new Response(`Unauthorized: ${err.message}`, { status: 401 }));
+    // Per-role authorization: check who's allowed to write to this key
+    // BEFORE touching R2 at all.
+    if (key.startsWith('curriculum/')) {
+      if (!(await isAdmin(env, uid))) {
+        return withCors(new Response('Forbidden: curriculum writes are admin-only', { status: 403 }));
+      }
+    } else if (key.startsWith('community/')) {
+      const communityQuizId = key.split('/')[1];
+      const authorized = (await isAdmin(env, uid)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
+      if (!authorized) {
+        return withCors(new Response('Forbidden: only the quiz author or an admin may write here', { status: 403 }));
+      }
+    } else {
+      // Any key outside the two known public-content prefixes is rejected
+      // by default — nothing else should ever be written through this
+      // Worker (custom quizzes/stats are local-only, per the plan, and
+      // never touch R2 at all).
+      return withCors(new Response('Forbidden: unrecognized content path', { status: 403 }));
+    }
+
+    // If this write is replacing a previous image on the same question,
+    // the client includes the old hash so we can safely decrement/clean
+    // up its refcount — never an unconditional delete (see plan §4).
+    const previousHash = request.headers.get('X-Previous-Image-Hash');
+    const r2KeyPrefix = key.split('/images/')[0];
+
+    const bodyBuffer = await request.arrayBuffer();
+
+    // Images are content-hash-addressed: the actual storage key is derived
+    // from the bytes themselves, ignoring whatever key the client asked
+    // for in the URL, for the image sub-path specifically.
+    let finalKey = key;
+    if (key.includes('/images/')) {
+      const hash = await sha256Hex(bodyBuffer);
+      const ext = key.split('.').pop();
+      finalKey = key.replace(/images\/[^/]+$/, `images/${hash}.${ext}`);
+
+      const newHash = finalKey.split('/images/')[1].split('.')[0];
+      const existing = await env.CONTENT_BUCKET.head(finalKey);
+
+      if (!existing) {
+        await env.CONTENT_BUCKET.put(finalKey, bodyBuffer, {
+          httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
+        });
+      }
+      await incrementImageRefcount(env, newHash);
+
+      // Only now, after the new hash is safely referenced, release the
+      // old one — never delete before the replacement is confirmed in place.
+      if (previousHash && previousHash !== newHash) {
+        await decrementImageRefcountAndMaybeDelete(env, previousHash, r2KeyPrefix);
       }
 
-      // Per-role authorization: check who's allowed to write to this key
-      // BEFORE touching R2 at all.
-      if (key.startsWith('curriculum/')) {
-        if (!(await isAdmin(env, uid))) {
-          return withCors(new Response('Forbidden: curriculum writes are admin-only', { status: 403 }));
-        }
-      } else if (key.startsWith('community/')) {
-        const communityQuizId = key.split('/')[1];
-        const authorized = (await isAdmin(env, uid)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
-        if (!authorized) {
-          return withCors(new Response('Forbidden: only the quiz author or an admin may write here', { status: 403 }));
-        }
-      } else {
-        // Any key outside the two known public-content prefixes is rejected
-        // by default — nothing else should ever be written through this
-        // Worker (custom quizzes/stats are local-only, per the plan, and
-        // never touch R2 at all).
-        return withCors(new Response('Forbidden: unrecognized content path', { status: 403 }));
-      }
-
-      // If this write is replacing a previous image on the same question,
-      // the client includes the old hash so we can safely decrement/clean
-      // up its refcount — never an unconditional delete (see plan §4).
-      const previousHash = request.headers.get('X-Previous-Image-Hash');
-      const r2KeyPrefix = key.split('/images/')[0];
-
-      const bodyBuffer = await request.arrayBuffer();
-
-      // Images are content-hash-addressed: the actual storage key is derived
-      // from the bytes themselves, ignoring whatever key the client asked
-      // for in the URL, for the image sub-path specifically.
-      let finalKey = key;
-      if (key.includes('/images/')) {
-        const hash = await sha256Hex(bodyBuffer);
-        const ext = key.split('.').pop();
-        finalKey = key.replace(/images\/[^/]+$/, `images/${hash}.${ext}`);
-
-        const newHash = finalKey.split('/images/')[1].split('.')[0];
-        const existing = await env.CONTENT_BUCKET.head(finalKey);
-
-        if (!existing) {
-          await env.CONTENT_BUCKET.put(finalKey, bodyBuffer, {
-            httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
-          });
-        }
-        await incrementImageRefcount(env, newHash);
-
-        // Only now, after the new hash is safely referenced, release the
-        // old one — never delete before the replacement is confirmed in place.
-        if (previousHash && previousHash !== newHash) {
-          await decrementImageRefcountAndMaybeDelete(env, previousHash, r2KeyPrefix);
-        }
-
-        return withCors(new Response(JSON.stringify({ key: finalKey, deduped: !!existing }), {
-          headers: { 'Content-Type': 'application/json' }
-        }));
-      }
-
-      // Non-image writes (quiz/lecture text JSON) — no hashing, no refcount,
-      // just a straightforward authorized write.
-      await env.CONTENT_BUCKET.put(finalKey, bodyBuffer, {
-        httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
-      });
-
-      return withCors(new Response(JSON.stringify({ key: finalKey, deduped: false }), {
+      return withCors(new Response(JSON.stringify({ key: finalKey, deduped: !!existing }), {
         headers: { 'Content-Type': 'application/json' }
       }));
     }
 
-    // ---- DELETE ----
-    // (Not yet implemented elsewhere in this file, but routed through the
-    // same withCors() wrapper for consistency once it is, and so it returns
-    // a CORS-safe 405 instead of a silent block in the meantime.)
+    // Non-image writes (quiz/lecture text JSON) — no hashing, no refcount,
+    // just a straightforward authorized write.
+    await env.CONTENT_BUCKET.put(finalKey, bodyBuffer, {
+      httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
+    });
 
-    return withCors(new Response('Method not allowed', { status: 405 }));
+    return withCors(new Response(JSON.stringify({ key: finalKey, deduped: false }), {
+      headers: { 'Content-Type': 'application/json' }
+    }));
   }
-};
+
+  // ---- DELETE ----
+  // (Not yet implemented elsewhere in this file, but routed through the
+  // same withCors() wrapper for consistency once it is, and so it returns
+  // a CORS-safe 405 instead of a silent block in the meantime.)
+
+  return withCors(new Response('Method not allowed', { status: 405 }));
+}
