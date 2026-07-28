@@ -24,6 +24,14 @@
       --nav-marked:     #B8394A;
       --nav-current:    #0A3F52;
 
+      /* Brand badge — single source of truth for the logo, shared by the
+         browser-tab favicon (index.html <head>), the header wordmark icon,
+         and the loading-screen sigil, so all three always render as the
+         exact same mark. Keep this pair in sync with the favicon's inline
+         SVG colors if either ever changes. */
+      --brand-badge-bg: #0A3F52;
+      --brand-badge-fg: #6FE3F0;
+
       --text-main:      #16232F;
       --text:           #16232F;
       --text-muted:     #5C7285;
@@ -113,66 +121,107 @@
       .carved-surface::after { animation: none; }
     }
 
-    /* ── INTRO SIGIL SEQUENCE (fake, aesthetic-only, page-load once) ── */
+    /* ── INTRO LOADING SEQUENCE (fake, aesthetic-only, page-load once) ──
+       Choreography: a ring of loose particles drifts inward and dissolves
+       ("scattered questions" being gathered up) → the rounded badge plate
+       irises open behind them with a spring overshoot → the magnifying-
+       glass/"B" mark draws itself on top, stroke by stroke → a glow pulse
+       + the wordmark settle in → the whole screen contracts away from the
+       badge's position, handing off visually to the identical badge that's
+       already waiting in the header. The badge markup/colors here are the
+       exact same shape as the tab favicon and the header .brand-mark (see
+       --brand-badge-bg / --brand-badge-fg), so the loading screen visibly
+       "resolves into" the same logo used everywhere else in the app. */
     #introScreen {
       position: fixed; inset: 0; z-index: 100000;
       display: flex; align-items: center; justify-content: center;
       background: radial-gradient(circle at 50% 42%, #E9EEF4 0%, #D3E0EA 78%);
-      clip-path: circle(150% at 50% 50%);
+      clip-path: circle(150% at 50% 42%);
       opacity: 1;
       transition: clip-path .7s cubic-bezier(.65,0,.35,1), opacity .5s ease .2s;
     }
-    #introScreen.intro-hide { clip-path: circle(0% at 50% 50%); opacity: 0; pointer-events: none; }
-    .intro-inner { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-    #introSigilSvg { width: 156px; height: 156px; overflow: visible; }
-    .sigil-path {
-      stroke: #0E6E82;
-      fill: none;
-      stroke-linecap: round;
-      stroke-dasharray: 1;
-      stroke-dashoffset: 1;
-      animation: sigilDraw .9s cubic-bezier(.4,0,.2,1) forwards;
+    #introScreen.intro-hide { clip-path: circle(0% at 50% 42%); opacity: 0; pointer-events: none; }
+    .intro-inner {
+      display: flex; flex-direction: column; align-items: center;
+      gap: clamp(14px, 3vh, 22px);
+      transition: transform .7s cubic-bezier(.65,0,.35,1);
     }
-    .sigil-ring     { stroke-width: 1.4; opacity: .7; animation-delay: 0s; }
-    .sigil-q        { stroke-width: 3.2; opacity: 1; animation-delay: .2s; }
-    .sigil-q-tail   { stroke-width: 3.2; opacity: 1; stroke-linecap: round; animation-delay: .55s; }
-    .sigil-b-stem   { stroke-width: 3.2; opacity: 1; stroke-linecap: round; animation-delay: .3s; }
-    .sigil-b-upper  { stroke-width: 3.2; opacity: 1; animation-delay: .45s; }
-    .sigil-b-lower  { stroke-width: 3.2; opacity: 1; animation-delay: .6s; }
-    .sigil-pulse-ring {
-      fill: none; stroke: #0E6E82; stroke-width: 1.2;
-      opacity: 0; transform-origin: 50px 50px;
+    #introScreen.intro-hide .intro-inner { transform: scale(1.08); }
+
+    /* Badge stage: holds the converging particles and the badge SVG at the
+       same responsive footprint, so particles always converge exactly on
+       the badge's center regardless of viewport size. */
+    .intro-badge-wrap {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      width: clamp(96px, 26vw, 156px); height: clamp(96px, 26vw, 156px);
     }
-    .sigil-ring-spin {
-      fill: none; stroke: #0E6E82; stroke-width: 1.1;
-      stroke-dasharray: 3 7; opacity: 0; transform-origin: 50px 50px;
-      transition: opacity .5s ease;
+    #introBadgeSvg { width: 100%; height: 100%; overflow: visible; }
+
+    /* Particles — a ring of small dots scattered around the badge that
+       drift inward and fade as they're "gathered" into the mark. */
+    .intro-particles {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(9px, 2.4vw, 15px); /* scales the whole ring with viewport */
+      pointer-events: none;
     }
-    @keyframes sigilDraw { to { stroke-dashoffset: 0; } }
-    @keyframes nodeAppear {
-      0%   { opacity: 0; transform: scale(.25); }
-      65%  { opacity: 1; transform: scale(1.25); }
-      100% { opacity: 1; transform: scale(1); }
+    .intro-particle {
+      position: absolute; width: .55em; height: .55em; border-radius: 50%;
+      background: var(--brand-badge-fg);
+      box-shadow: 0 0 .5em rgba(111,227,240,.8);
+      opacity: 0;
+      animation: particleConverge .8s cubic-bezier(.3,.6,.3,1) both;
     }
-    @keyframes pulseRingExpand {
-      0%   { opacity: .6; transform: scale(1); }
-      100% { opacity: 0; transform: scale(1.55); }
+    .intro-particle:nth-child(1) { --tx: 0em;    --ty: -6.4em; animation-delay: .05s; }
+    .intro-particle:nth-child(2) { --tx: 4.6em;  --ty: -4.6em; animation-delay: .10s; }
+    .intro-particle:nth-child(3) { --tx: 6.4em;  --ty: 0em;    animation-delay: .15s; }
+    .intro-particle:nth-child(4) { --tx: 4.6em;  --ty: 4.6em;  animation-delay: .20s; }
+    .intro-particle:nth-child(5) { --tx: 0em;    --ty: 6.4em;  animation-delay: .12s; }
+    .intro-particle:nth-child(6) { --tx: -4.6em; --ty: 4.6em;  animation-delay: .18s; }
+    .intro-particle:nth-child(7) { --tx: -6.4em; --ty: 0em;    animation-delay: .08s; }
+    .intro-particle:nth-child(8) { --tx: -4.6em; --ty: -4.6em; animation-delay: .22s; }
+    @keyframes particleConverge {
+      0%   { opacity: 0;   transform: translate(var(--tx), var(--ty)) scale(.4); }
+      40%  { opacity: .9;  transform: translate(calc(var(--tx) * .5), calc(var(--ty) * .5)) scale(.85); }
+      100% { opacity: 0;   transform: translate(0, 0) scale(.2); }
     }
-    #introSigilSvg.sigil-glow {
-      filter: drop-shadow(0 0 8px rgba(14,110,130,.65)) drop-shadow(0 0 26px rgba(14,110,130,.35));
+
+    /* Badge plate — the rounded-square backdrop, irising open with a
+       spring overshoot once the particles have mostly gathered in. */
+    .intro-plate {
+      fill: var(--brand-badge-bg);
+      transform-origin: 50px 50px;
+      transform: scale(0);
+      opacity: 0;
+      animation: plateIris .6s cubic-bezier(.34,1.56,.64,1) .42s forwards;
+    }
+    @keyframes plateIris {
+      0%   { transform: scale(0);    opacity: 0; }
+      65%  { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1);    opacity: 1; }
+    }
+
+    /* Icon strokes — same path data as the favicon, drawn on top of the
+       plate stroke-by-stroke as it settles in. */
+    .intro-icon { fill: none; stroke: var(--brand-badge-fg); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+    .sigil-path { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; animation: sigilDraw .55s cubic-bezier(.4,0,.2,1) forwards; }
+    .sigil-q       { animation-delay: .5s; }
+    .sigil-b-stem  { animation-delay: .58s; }
+    .sigil-b-upper { animation-delay: .72s; }
+    .sigil-q-tail  { animation-delay: .86s; }
+    .sigil-b-lower { animation-delay: .86s; }
+    @keyframes sigilDraw {
+      0%   { stroke-dashoffset: 1; opacity: 1; }
+      1%   { opacity: 1; }
+      100% { stroke-dashoffset: 0; opacity: 1; }
+    }
+    #introBadgeSvg.sigil-glow {
+      filter: drop-shadow(0 0 8px rgba(111,227,240,.55)) drop-shadow(0 0 24px rgba(111,227,240,.35));
       animation: sigilPulse 1s ease-in-out;
     }
-    #introSigilSvg.sigil-glow .sigil-pulse-ring {
-      animation: pulseRingExpand 1s ease-out forwards;
-    }
-    #introSigilSvg.sigil-glow .sigil-ring-spin {
-      opacity: .5;
-      animation: sigilRingSpin 6s linear infinite;
-    }
-    @keyframes sigilRingSpin { to { transform: rotate(360deg); } }
     @keyframes sigilPulse {
       0%   { transform: scale(1); }
-      42%  { transform: scale(1.07); }
+      42%  { transform: scale(1.08); }
       100% { transform: scale(1); }
     }
     .intro-wordmark {
@@ -183,13 +232,15 @@
     .intro-wordmark.show { opacity: 1; transform: translateY(0); }
     .intro-word-main {
       display: block; font-family: var(--font-display);
-      font-size: 1.05rem; font-weight: 600; letter-spacing: 2.5px;
-      color: #0A3F52; max-width: 260px;
+      font-size: clamp(.85rem, 3.4vw, 1.05rem); font-weight: 600; letter-spacing: 2.5px;
+      color: var(--brand-badge-bg); max-width: min(80vw, 260px);
     }
     @media (prefers-reduced-motion: reduce) {
       #introScreen { transition: opacity .3s ease; clip-path: none !important; }
-      .sigil-path, #introSigilSvg.sigil-glow, .sigil-ring-spin { animation: none !important; stroke-dashoffset: 0; opacity: 1; filter: none; }
-      .sigil-pulse-ring { animation: none !important; opacity: 0 !important; }
+      .intro-inner { transition: opacity .3s ease; transform: none !important; }
+      .intro-particles { display: none; }
+      .intro-plate { animation: none !important; transform: scale(1); opacity: 1; }
+      .sigil-path, #introBadgeSvg.sigil-glow { animation: none !important; stroke-dashoffset: 0; opacity: 1; filter: none; }
       .intro-wordmark { transition: opacity .3s ease; }
     }
 
@@ -224,24 +275,26 @@
       font-family: var(--font-display);
     }
     .header-title span { font-size: 1.3rem; }
-    .brand-mark { width: 30px; height: 30px; flex-shrink: 0; filter: drop-shadow(0 0 6px rgba(111,227,240,.5)); }
-    .brand-mark circle, .brand-mark path, .brand-mark ellipse { stroke: currentColor; }
-    .brand-mark .bm-ring {
-      stroke-dasharray: 3 6.5;
-      transform-origin: 50px 50px;
-      animation: bmRingSpin 20s linear infinite;
+    /* Header/hero logo — identical badge shape (rounded-square plate +
+       magnifying-glass "B" mark) as the tab favicon and the loading
+       screen; see --brand-badge-bg / --brand-badge-fg. */
+    .brand-mark { width: clamp(26px, 6vw, 30px); height: clamp(26px, 6vw, 30px); flex-shrink: 0; filter: drop-shadow(0 0 6px rgba(111,227,240,.45)); animation: badgeFloat 5s ease-in-out infinite; }
+    .brand-mark .badge-plate { fill: var(--brand-badge-bg); }
+    .brand-mark .badge-icon { fill: none; stroke: var(--brand-badge-fg); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+    .brand-mark .badge-icon circle {
+      transform-origin: 36px 54px;
+      animation: badgePulse 3.4s ease-in-out infinite;
     }
-    .brand-mark .bm-m {
-      transform-origin: 57px 50px;
-      animation: bmPulse 3.4s ease-in-out infinite;
+    @keyframes badgeFloat {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-2px); }
     }
-    @keyframes bmRingSpin { to { transform: rotate(360deg); } }
-    @keyframes bmPulse {
+    @keyframes badgePulse {
       0%, 100% { opacity: 1; }
-      50%      { opacity: .72; }
+      50%      { opacity: .78; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .brand-mark .bm-m, .brand-mark .bm-ring { animation: none; }
+      .brand-mark, .brand-mark .badge-icon circle { animation: none; }
     }
     .timer {
       font-size: 1.28rem; font-weight: 800;
@@ -269,7 +322,7 @@
       font-size: 2.1rem; font-weight: 600; letter-spacing: -.3px;
       display: flex; align-items: center; justify-content: center; gap: 12px;
     }
-    .home-hero h1 .brand-mark { width: 38px; height: 38px; }
+    .home-hero h1 .brand-mark { width: clamp(32px, 9vw, 44px); height: clamp(32px, 9vw, 44px); }
     .home-hero p { font-size: 1rem; opacity: .82; margin-top: 8px; letter-spacing: .1px; }
 
     .home-footer {

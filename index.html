@@ -17,16 +17,33 @@
 ══════════════════════════════════════════════ -->
 <div id="introScreen" aria-hidden="true">
   <div class="intro-inner">
-    <svg id="introSigilSvg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle class="sigil-path sigil-ring" cx="50" cy="50" r="44" pathLength="1"></circle>
-      <circle class="sigil-ring-spin" cx="50" cy="50" r="44"></circle>
-      <circle class="sigil-pulse-ring" cx="50" cy="50" r="44"></circle>
-      <circle class="sigil-path sigil-q" cx="37" cy="50" r="15" pathLength="1"></circle>
-      <path class="sigil-path sigil-q-tail" d="M45 59 L53 68" pathLength="1"></path>
-      <path class="sigil-path sigil-b-stem" d="M67 35 L67 65" pathLength="1"></path>
-      <path class="sigil-path sigil-b-upper" d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" pathLength="1"></path>
-      <path class="sigil-path sigil-b-lower" d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" pathLength="1"></path>
-    </svg>
+    <div class="intro-badge-wrap">
+      <!-- Scattered dots drift inward and dissolve as the badge assembles
+           behind them — purely decorative, removed for reduced-motion. -->
+      <div class="intro-particles" id="introParticles" aria-hidden="true">
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+        <span class="intro-particle"></span>
+      </div>
+      <!-- Same badge shape + path data as the <link rel="icon"> favicon in
+           <head> and the header .brand-mark, so this resolves into the
+           exact logo used everywhere else in the app. -->
+      <svg id="introBadgeSvg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect class="intro-plate" x="0" y="0" width="100" height="100" rx="22"></rect>
+        <g class="intro-icon">
+          <circle class="sigil-path sigil-q" cx="36" cy="54" r="16" pathLength="1"></circle>
+          <path class="sigil-path sigil-q-tail" d="M46 65 L58 78" pathLength="1"></path>
+          <path class="sigil-path sigil-b-stem" d="M66 30 L66 74" pathLength="1"></path>
+          <path class="sigil-path sigil-b-upper" d="M66 30 L78 30 A11 10 0 0 1 78 50 L66 50" pathLength="1"></path>
+          <path class="sigil-path sigil-b-lower" d="M66 50 L80 50 A12 12 0 0 1 80 74 L66 74" pathLength="1"></path>
+        </g>
+      </svg>
+    </div>
     <div class="intro-wordmark" id="introWordmark">
       <span class="intro-word-main">ANU MSP QUESTION BANK</span>
     </div>
@@ -182,15 +199,14 @@
   <div id="home">
     <div class="home-hero carved-surface">
       <h1>
-        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="44" stroke-width="1.2" opacity=".35"/>
-          <circle class="bm-ring" cx="50" cy="50" r="44" stroke-width="1" opacity=".55"/>
-          <g class="bm-m" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="37" cy="50" r="15" stroke-width="2.2"/>
-            <path d="M45 59 L53 68" stroke-width="2.2"/>
-            <path d="M67 35 L67 65" stroke-width="2.2"/>
-            <path d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" stroke-width="2.2"/>
-            <path d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" stroke-width="2.2"/>
+        <svg class="brand-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect class="badge-plate" x="0" y="0" width="100" height="100" rx="22"/>
+          <g class="badge-icon">
+            <circle cx="36" cy="54" r="16"/>
+            <path d="M46 65 L58 78"/>
+            <path d="M66 30 L66 74"/>
+            <path d="M66 30 L78 30 A11 10 0 0 1 78 50 L66 50"/>
+            <path d="M66 50 L80 50 A12 12 0 0 1 80 74 L66 74"/>
           </g>
         </svg>
         ANU MSP Question Bank
@@ -290,15 +306,14 @@
   <div id="quiz" class="hidden">
     <div class="header carved-surface">
       <div class="header-title">
-        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="44" stroke-width="1.2" opacity=".35"/>
-          <circle class="bm-ring" cx="50" cy="50" r="44" stroke-width="1" opacity=".55"/>
-          <g class="bm-m" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="37" cy="50" r="15" stroke-width="2.2"/>
-            <path d="M45 59 L53 68" stroke-width="2.2"/>
-            <path d="M67 35 L67 65" stroke-width="2.2"/>
-            <path d="M67 35 L76 35 A8 7.5 0 0 1 76 50 L67 50" stroke-width="2.2"/>
-            <path d="M67 50 L77 50 A7.5 7.5 0 0 1 77 65 L67 65" stroke-width="2.2"/>
+        <svg class="brand-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect class="badge-plate" x="0" y="0" width="100" height="100" rx="22"/>
+          <g class="badge-icon">
+            <circle cx="36" cy="54" r="16"/>
+            <path d="M46 65 L58 78"/>
+            <path d="M66 30 L66 74"/>
+            <path d="M66 30 L78 30 A11 10 0 0 1 78 50 L66 50"/>
+            <path d="M66 50 L80 50 A12 12 0 0 1 80 74 L66 74"/>
           </g>
         </svg>
         ANU MSP Question Bank

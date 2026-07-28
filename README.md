@@ -788,6 +788,41 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **82 — Header logo and loading screen now match the tab favicon
+  exactly, plus a new "assemble & focus" splash animation.** The header
+  logo (next to the site name on the home screen and the quiz screen) and
+  the loading-screen mark used to be a different, decorative line-art
+  variant of the icon (rings + thin strokes) instead of the actual
+  rounded-badge mark shown in the browser tab. Both now render the exact
+  same shape and path data as the `<link rel="icon">` favicon in
+  `index.html` — a navy rounded-square plate with the cyan magnifying-
+  glass/"B" mark — driven by two new shared CSS variables,
+  `--brand-badge-bg` / `--brand-badge-fg` (`css/styles.css`), so the
+  favicon, header logo, and loading screen can never drift out of sync
+  again; changing the brand colors is now a one-line edit.
+  - The loading screen (`#introScreen` in `index.html`,
+    `js/intro-animation.js`) was also redone with a new, more deliberate
+    choreography instead of just drawing static ring line-art: a ring of
+    small particles drifts inward and dissolves (`.intro-particles`), the
+    badge plate irises open behind them with a spring overshoot
+    (`.intro-plate` / `plateIris`), the magnifying-glass/"B" strokes draw
+    themselves on top stroke-by-stroke (reusing the existing
+    `pathLength`/`stroke-dashoffset` technique), a glow pulse and the
+    wordmark settle in, and finally the screen contracts away from the
+    badge's own position — handing off visually to the identical badge
+    already sitting in the header. `prefers-reduced-motion` continues to
+    skip straight to the static end state, now including hiding the
+    particle layer entirely.
+  - All of the new intro/header logo sizing uses `clamp()` (badge size,
+    particle spread via `font-size`, wordmark size/width) instead of
+    fixed pixel values, so the whole sequence — and the header logo
+    afterward — scales fluidly with viewport width/height rather than
+    relying on fixed breakpoints. Verified at 320px, 390px, and desktop
+    widths.
+  - Touches `css/styles.css` (brand-badge variables, `.brand-mark`, and
+    the full `#introScreen` block), `index.html` (both header
+    `.brand-mark` SVGs and the `#introScreen` markup), and
+    `js/intro-animation.js` (updated element IDs and timing to match).
 - **81 — Removed a redundant Firestore write left over in the curriculum
   publish flow.** Checked whether sharing a quiz to Community does the
   same version-check bookkeeping as an admin publishing to Curriculum —
