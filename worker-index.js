@@ -18,15 +18,15 @@
 // below — keep all three in sync with firestore.rules if that model ever
 // changes.
 //
-// NOT yet implemented here (flagged so nothing is silently skipped):
-//   - Per-item version manifest updates (appConfig/publishedManifest,
-//     appConfig/sharedQuizzesManifest) after a write.
-//   - DELETE is routed but not yet handled (see the bottom of this file) —
-//     content-client.js's deleteContentItem() calls currently get a 405
-//     from this Worker.
+// Every successful content write/delete also bumps/clears that item's
+// version marker in appConfig/publishedManifest (curriculum) or
+// appConfig/sharedQuizzesManifest (community) — see manifestLocationForKey()
+// below — since every manifest-gated reader in the app
+// (getCurriculumLecture/getCommunityQuiz/ensureSharedQuizzesLoaded) treats
+// "no manifest entry" as "doesn't exist."
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc } from './lib/firebaseAdmin.js';
+import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc, firestoreSetNestedField } from './lib/firebaseAdmin.js';
 
 /* =============================================================================
    CORS
@@ -41,8 +41,8 @@ import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc } from './lib/fi
    publicly readable anyway (see the GET handler below) — there's no
    per-origin secret being protected here. Writes are still fully gated by
    verifyFirebaseToken()/isCurriculumAdmin()/isCommunityAdmin()/
-   isCommunityQuizAuthor() regardless of
-   which origin the request claims to come from; CORS is a browser-side
+   isCommunityQuizAuthor() regardless of which origin the request claims to
+   come from; CORS is a browser-side
    convenience, not a security boundary, so widening it here doesn't weaken
    the real authorization checks already in place.
    ============================================================================= */
@@ -128,10 +128,25 @@ async function curriculumScopeAllowsSubject(env, email, subject) {
   return Array.isArray(moduleEntry) && moduleEntry.includes(subject);
 }
 
-/** True if this uid is the original author of the community quiz at this key. */
+/**
+ * True if this uid is the original author of the community quiz at this
+ * key — read directly off the R2 content object's `authorUid` field.
+ * (This used to check Firestore's `sharedQuizzes/{docId}` collection, but
+ * that collection was retired in build 56 when content moved to R2 — no
+ * client code writes it anymore, so that check silently returned false
+ * for every real owner, same class of bug as the old isAdmin(). authorUid
+ * now lives only on the R2 content object itself, set by sharing.js and
+ * echoed back by putContentItem(), so that's the one real source of truth.)
+ */
 async function isCommunityQuizAuthor(env, uid, communityQuizId) {
-  const doc = await firestoreGetDoc(env, `sharedQuizzes/${communityQuizId}`);
-  return !!doc && doc.authorUid === uid;
+  const object = await env.CONTENT_BUCKET.get(`community/${communityQuizId}.json`);
+  if (!object) return false;
+  try {
+    const content = await object.json();
+    return content.authorUid === uid;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -159,6 +174,35 @@ async function decrementImageRefcountAndMaybeDelete(env, hash, r2KeyPrefix) {
   } else {
     await firestorePatchDoc(env, `imageRefcounts/${hash}`, { count: next });
   }
+}
+
+/**
+ * Where a content key's version marker lives in Firestore — shared by the
+ * manifest-bump-on-write and manifest-clear-on-delete logic below, so the
+ * two paths can never disagree with each other about the doc/field shape.
+ * Mirrors the comment in js/content-client.js:
+ *   appConfig/publishedManifest.subjects[subject][lectureId] = ts   (curriculum)
+ *   appConfig/sharedQuizzesManifest.quizzes[quizId] = ts             (community)
+ */
+function manifestLocationForKey(key) {
+  if (key.startsWith('curriculum/')) {
+    const [, subject, file] = key.split('/');
+    return { docPath: 'appConfig/publishedManifest', fieldPath: ['subjects', subject, file.replace(/\.json$/, '')] };
+  }
+  const [, file] = key.split('/');
+  return { docPath: 'appConfig/sharedQuizzesManifest', fieldPath: ['quizzes', file.replace(/\.json$/, '')] };
+}
+
+/** Bumps the version marker for this content item so every reader that's gated on the manifest (getCurriculumLecture/getCommunityQuiz/ensureSharedQuizzesLoaded) can see the change. */
+async function bumpManifestVersion(env, key) {
+  const { docPath, fieldPath } = manifestLocationForKey(key);
+  await firestoreSetNestedField(env, docPath, fieldPath, Date.now());
+}
+
+/** Removes this content item's version marker entirely (not just null) so it drops out of every manifest-gated listing/read. */
+async function clearManifestVersion(env, key) {
+  const { docPath, fieldPath } = manifestLocationForKey(key);
+  await firestoreSetNestedField(env, docPath, fieldPath, undefined);
 }
 
 const GOOGLE_JWKS = createRemoteJWKSet(
@@ -316,20 +360,80 @@ async function handleRequest(request, env) {
     }
 
     // Non-image writes (quiz/lecture text JSON) — no hashing, no refcount,
-    // just a straightforward authorized write.
+    // just a straightforward authorized write, followed by the manifest
+    // bump every manifest-gated reader (getCurriculumLecture/
+    // getCommunityQuiz/ensureSharedQuizzesLoaded) needs to actually see it.
     await env.CONTENT_BUCKET.put(finalKey, bodyBuffer, {
       httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
     });
+    await bumpManifestVersion(env, finalKey);
 
     return withCors(new Response(JSON.stringify({ key: finalKey, deduped: false }), {
       headers: { 'Content-Type': 'application/json' }
     }));
   }
 
-  // ---- DELETE ----
-  // (Not yet implemented elsewhere in this file, but routed through the
-  // same withCors() wrapper for consistency once it is, and so it returns
-  // a CORS-safe 405 instead of a silent block in the meantime.)
+  // ---- DELETE: require the same authorization as a write to this key ----
+  if (request.method === 'DELETE') {
+    let uid, email;
+    try {
+      const payload = await verifyFirebaseToken(request, env.FIREBASE_PROJECT_ID);
+      uid = payload.sub;
+      email = payload.email || null;
+    } catch (err) {
+      return withCors(new Response(`Unauthorized: ${err.message}`, { status: 401 }));
+    }
+
+    if (key.startsWith('curriculum/')) {
+      const subject = key.split('/')[1];
+      const allowed = (await isCurriculumAdmin(env, email)) && (await curriculumScopeAllowsSubject(env, email, subject));
+      if (!allowed) {
+        return withCors(new Response('Forbidden: curriculum deletes are admin-only', { status: 403 }));
+      }
+    } else if (key.startsWith('community/')) {
+      const communityQuizId = key.split('/')[1];
+      const authorized = (await isCommunityAdmin(env, email)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
+      if (!authorized) {
+        return withCors(new Response('Forbidden: only the quiz author or an admin may delete this', { status: 403 }));
+      }
+    } else {
+      return withCors(new Response('Forbidden: unrecognized content path', { status: 403 }));
+    }
+
+    // Release any images this content referenced before removing it, so
+    // refcounts stay accurate — mirrors the PUT path's replace-image
+    // handling (see decrementImageRefcountAndMaybeDelete above). The
+    // content's own image prefix is derived the same way r2ImageUploadUrl()
+    // in js/content-client.js builds it: strip the trailing ".json".
+    const r2KeyPrefix = key.replace(/\.json$/, '');
+    const existingObject = await env.CONTENT_BUCKET.get(key);
+    if (existingObject) {
+      try {
+        const content = await existingObject.json();
+        const hashes = new Set();
+        for (const q of content.questions || []) {
+          if (typeof q.image === 'string' && q.image.includes('/images/')) {
+            const hash = q.image.split('/images/')[1]?.split('.')[0];
+            if (hash) hashes.add(hash);
+          }
+        }
+        for (const hash of hashes) {
+          await decrementImageRefcountAndMaybeDelete(env, hash, r2KeyPrefix);
+        }
+      } catch (err) {
+        // A malformed/unparsable existing object shouldn't block the
+        // delete itself — the content is removed below regardless.
+        console.error(`Failed to release images for ${key} before delete:`, err);
+      }
+    }
+
+    await env.CONTENT_BUCKET.delete(key);
+    await clearManifestVersion(env, key);
+
+    return withCors(new Response(JSON.stringify({ deleted: true, key }), {
+      headers: { 'Content-Type': 'application/json' }
+    }));
+  }
 
   return withCors(new Response('Method not allowed', { status: 405 }));
 }

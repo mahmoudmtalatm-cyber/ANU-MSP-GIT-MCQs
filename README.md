@@ -773,6 +773,71 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **69 — Worker: implemented the manifest bump build 68 diagnosed but
+  deliberately didn't guess at.** Every successful curriculum/community
+  write or delete through this Worker now also bumps (or, on delete,
+  removes) that item's version marker in `appConfig/publishedManifest` /
+  `appConfig/sharedQuizzesManifest` — the step build 56's design called
+  for but that was never actually implemented, which is why newly
+  published lectures and newly shared community quizzes stayed invisible
+  even after a reload (every manifest-gated reader —
+  `getCurriculumLecture()`, `getCommunityQuiz()`,
+  `ensureSharedQuizzesLoaded()`'s `Object.keys(manifest)` listing — treats
+  "no manifest entry" as "doesn't exist").
+  - `lib/firebaseAdmin.js` gained one new export,
+    `firestoreSetNestedField(env, path, fieldPath, value)` — a genuinely
+    nested Firestore field patch (or, passing `value: undefined`, a
+    targeted field *delete*), built correctly as a real nested `mapValue`
+    structure with a dotted `updateMask.fieldPaths`. This had to be a new
+    function rather than reusing `firestorePatchDoc()`, whose `fields`
+    keys become literal top-level Firestore field names — a dotted key
+    there wouldn't build the nested map structure Firestore's REST API
+    actually requires, and could have silently clobbered every other
+    already-published subject/lecture or shared quiz's manifest entry
+    instead of touching only the one intended. `firestorePatchDoc()`
+    itself is untouched — still used as-is for the existing flat
+    `imageRefcounts/{hash}` patches.
+  - `worker-index.js`: added `manifestLocationForKey()` (shared by both
+    directions, so a bump and its matching clear can never disagree about
+    the doc/field shape), `bumpManifestVersion()` (called right after the
+    content JSON `PUT` succeeds) and `clearManifestVersion()` (called
+    right after a successful `DELETE`).
+- **68 — Worker: implemented DELETE (was a flat 405), fixed a second
+  dead-collection auth bug, and diagnosed why published/shared content
+  doesn't show up.**
+  - `DELETE` requests to this Worker (curriculum unpublish, community quiz
+    removal — `deleteContentItem()` in `js/content-client.js`) were routed
+    but never handled; every one 405'd. Added the same authorization model
+    as `PUT` (curriculum admin + scope, or community admin/author), then
+    releases any images the deleted content referenced via the existing
+    refcount helpers before removing the R2 object itself.
+  - While wiring the community side of that, found `isCommunityQuizAuthor()`
+    had the same class of bug build 67 fixed for `isAdmin()`: it checked
+    Firestore's `sharedQuizzes/{docId}` collection, which was retired back
+    in build 56 when content moved to R2 — no client code writes it
+    anymore, so the check silently returned `false` for every real quiz
+    owner. `authorUid` now lives only on the R2 content object itself (set
+    by `sharing.js`), so the check reads it directly off that object
+    instead.
+  - **Diagnosed, not yet fixed — needs `lib/firebaseAdmin.js`:** newly
+    published curriculum lectures and shared community quizzes not
+    appearing (even after reload) is almost certainly the Worker never
+    bumping `appConfig/publishedManifest` / `appConfig/sharedQuizzesManifest`
+    after a successful write — something build 56's design already called
+    for (see that entry, and the code comments already in `firestore.rules`
+    and `content-client.js`) but was never actually implemented in the
+    Worker. Every version-gated read in the app (`getCurriculumLecture()`,
+    `getCommunityQuiz()`, and `ensureSharedQuizzesLoaded()`'s
+    `Object.keys(manifest)` listing) treats "no manifest entry" as "doesn't
+    exist," so with the manifest never bumped, new items are invisible by
+    design, not by accident. Implementing the bump needs to see
+    `lib/firebaseAdmin.js` first — specifically whether `firestorePatchDoc()`
+    supports a nested/dotted field path (`subjects.<subject>.<lectureId>`)
+    as a true field-level patch, or would overwrite the whole `subjects`/
+    `quizzes` map. Guessing that wrong risks silently wiping every other
+    already-published lecture/quiz's manifest entry — worse than the bug
+    it would fix — so this is the next thing to send over before it's
+    implemented.
 - **67 — Worker: fixed the real cause of `curriculum writes are admin-only`
   (and the equivalent community-write 403) — `isAdmin()` was checking a
   roster shape that doesn't exist.** Build 66 made the Worker's errors
