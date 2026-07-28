@@ -99,7 +99,7 @@ import { firebaseConfig } from './config/firebase-config.js';
       if (isAdminUser(user)) {
         _backfillManifestIfNeeded()
           .then(() => _backfillLectureOrderIfNeeded())
-          .then(() => loadPublishedQuestionsIntoSubjects());
+          .then(() => loadPublishedQuestionsIntoSubjects(true)); // skip throttle: backfill may have just changed the manifest
       }
     } else {
       // No user — nothing to load from Firestore, mark as ready immediately

@@ -744,7 +744,8 @@ async function adminSwapLectureOrder(lectureId, direction) {
     await putContentItem('curriculum', subj, b.id, { ...b, order: aOrder });
 
     // Refresh in-memory ordering + whatever the admin currently has open
-    await loadPublishedQuestionsIntoSubjects();
+    // (skip throttle: this write just changed the manifest and must show immediately)
+    await loadPublishedQuestionsIntoSubjects(true);
     if (selectedSubject === subj) selectSubject(subj);
     renderAdminAssignedList();
   } catch (e) {

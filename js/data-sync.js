@@ -412,12 +412,68 @@ async function _backfillLectureOrderIfNeeded() {
   }
 }
 
-async function loadPublishedQuestionsIntoSubjects() {
+/* Same 60-second-class idea as ensureSharedQuizzesLoaded() in
+   js/community-quizzes.js, applied to curriculum lectures: a plain
+   in-memory cache already makes re-opening the curriculum browser cost
+   nothing extra within one page load (this function only runs once at
+   startup — see js/firebase-init.js — plus explicitly after an admin
+   write). What it can't cover is a page REFRESH happening again shortly
+   after the last real check. 5 minutes (matching content-client.js's own
+   `THROTTLE_MS.curriculum`) is long enough to absorb that without students
+   ever seeing meaningfully stale content — any admin write that needs to
+   be reflected immediately calls this with skipThrottle = true. */
+const PUBLISHED_MANIFEST_THROTTLE_MS = 5 * 60 * 1000;
+const PUBLISHED_MANIFEST_THROTTLE_KEY = 'lastVersionCheck:curriculum';
+
+/* Rebuilds every subject's `lectures` map straight from IndexedDB, with NO
+   network calls at all. Returns true only if EVERY previously-tracked
+   published lecture could be fully reconstructed from cache; the moment
+   any single one is missing (e.g. storage was cleared) it returns false
+   and applies nothing, so the caller falls back to a real manifest check
+   rather than ever showing a partial/incomplete curriculum. */
+async function _rebuildPublishedFromCacheOnly() {
+  const perSubject = {};
+  for (const subjName of Object.keys(subjects)) {
+    const trackKey  = 'publishedTrack:' + subjName;
+    const prevTrack = _sessionPublishedTrack[subjName] || (await _idbGet(trackKey)) || {};
+    const lecIds = Object.keys(prevTrack);
+    const resolved = [];
+    for (const lectureId of lecIds) {
+      const cached = await _idbGet('published:' + subjName + ':' + lectureId);
+      if (!cached) return false; // incomplete — abort the whole rebuild, change nothing
+      resolved.push({ name: cached.lectureName, questions: cached.questions, order: cached.order });
+    }
+    perSubject[subjName] = { prevTrack, resolved };
+  }
+
+  Object.entries(perSubject).forEach(([subjName, { prevTrack, resolved }]) => {
+    if (!subjects[subjName].lectures) subjects[subjName].lectures = {};
+    Object.values(prevTrack).forEach(name => { delete subjects[subjName].lectures[name]; });
+    resolved.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    resolved.forEach(r => { subjects[subjName].lectures[r.name] = r.questions; });
+    _sessionPublishedTrack[subjName] = prevTrack;
+  });
+  return true;
+}
+
+/** @param {boolean} [skipThrottle] - force a real manifest check regardless of the time-throttle (used right after an admin write) */
+async function loadPublishedQuestionsIntoSubjects(skipThrottle) {
   if (!window._db) return;
   try {
+    const withinThrottle = !skipThrottle &&
+      (Date.now() - parseInt(localStorage.getItem(PUBLISHED_MANIFEST_THROTTLE_KEY) || '0', 10)) < PUBLISHED_MANIFEST_THROTTLE_MS;
+
+    if (withinThrottle && await _rebuildPublishedFromCacheOnly()) {
+      _reRenderOpenSelections();
+      _fsReady.published = true;
+      console.log('[cache] curriculum lectures: recent check (<5min ago) trusted, rebuilt from IndexedDB — 0 network calls');
+      return;
+    }
+
     /* ── 1. One tiny read tells us every published quiz's id + its own
             last-modified timestamp, per subject. No questions, no images. ── */
     const manifest = await _fetchPublishedManifest();
+    localStorage.setItem(PUBLISHED_MANIFEST_THROTTLE_KEY, String(Date.now()));
 
     /* ── 2. Handle every subject in parallel, and within each subject
             every quiz in parallel. Each quiz is checked/fetched/cached

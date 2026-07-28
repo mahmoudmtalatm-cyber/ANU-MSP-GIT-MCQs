@@ -98,10 +98,25 @@ function renderMergeTabContent() {
 }
 
 /* ── Community tab ──
-   Per-quiz granular caching now (fixes the real bug in the previous single-
+   Per-quiz granular caching (fixes the real bug in the previous single-
    global-version scheme, which forced a full re-fetch of every community
    quiz whenever any ONE of them changed). One cheap manifest read tells us
-   every quiz's own version; only changed/new ones are actually fetched. */
+   every quiz's own version; only changed/new ones are actually fetched.
+
+   Checked at most once per page load in practice: _allSharedQuizzes is an
+   in-memory (module-level) cache, so every re-open of the Community
+   Quizzes modal, the merge picker, or the admin Manage-Community tab
+   within the same page load reuses it with zero calls of any kind (see
+   the early-return on the very next line) — see build #80's README entry
+   for the full before/after.
+
+   The lastVersionCheck:community throttle below covers the remaining case
+   a plain in-memory cache can't: a page REFRESH (which clears the
+   in-memory cache) happening again within a minute of the last real
+   check — e.g. a flaky connection, or a student bouncing between tabs.
+   When that happens, this rebuilds the list straight from IndexedDB with
+   NO network calls at all (not even the one cheap manifest read), rather
+   than re-verifying against the server so soon. */
 async function ensureSharedQuizzesLoaded(forceReload) {
   if (_allSharedQuizzes.length && !forceReload) return true;
   try {
@@ -109,7 +124,22 @@ async function ensureSharedQuizzesLoaded(forceReload) {
     const withinThrottle = !forceReload &&
       (Date.now() - parseInt(localStorage.getItem(lastCheckKey) || '0', 10)) < 60 * 1000;
 
-    if (withinThrottle && _allSharedQuizzes.length) return true; // trust recent check, skip network entirely
+    if (withinThrottle) {
+      const knownIds = (await window._idbGet('communityKnownIds').catch(() => null)) || [];
+      if (knownIds.length) {
+        const rebuilt = await Promise.all(
+          knownIds.map(id => window._idbGet(`content:community:${id}`).catch(() => null))
+        );
+        if (rebuilt.every(Boolean)) {
+          _allSharedQuizzes = rebuilt;
+          console.log(`[cache] community quizzes: recent check (<60s ago) trusted, rebuilt ${rebuilt.length} from IndexedDB — 0 network calls`);
+          return true;
+        }
+        // Fall through to a real check below — some previously-known quiz
+        // is missing from IndexedDB (e.g. storage was cleared), so trusting
+        // the throttle here would risk showing an incomplete list.
+      }
+    }
 
     const { fetchCommunityManifest } = await import('./content-client.js');
     const manifest = await fetchCommunityManifest();

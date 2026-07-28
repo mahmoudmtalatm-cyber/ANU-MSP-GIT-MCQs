@@ -788,6 +788,55 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **80 — Verified and hardened "check once, not on every open" caching for
+  Community Quizzes and Curriculum; fixed a dead-code throttle.** Audited
+  whether opening the Community Quizzes window (or browsing the
+  curriculum) re-checks the server version every single time — it
+  didn't: both already used an in-memory cache (`_allSharedQuizzes` /
+  `subjects[...].lectures`) that's only populated once per page load and
+  reused with zero calls of any kind for every subsequent re-open in that
+  same load, only re-checking after a real mutation (sharing/deleting a
+  quiz, an admin publish/edit/reorder). That part needed no change.
+  - What genuinely needed a fix: `ensureSharedQuizzesLoaded()` in
+    `js/community-quizzes.js` already had a `lastVersionCheck:community`
+    localStorage timestamp clearly *intended* to also throttle across a
+    page **refresh** (which wipes the in-memory cache), but the actual
+    check (`withinThrottle && _allSharedQuizzes.length`) could never be
+    true — by the time execution reached it, `_allSharedQuizzes.length`
+    was always `0` (a non-empty list already returns earlier, on the
+    function's very first line). So every refresh, even one second after
+    the last one, still did a full manifest read plus a per-quiz
+    IndexedDB-vs-Worker comparison. Fixed by rebuilding the shared-quiz
+    list straight from IndexedDB (`communityKnownIds` +
+    `content:community:<id>`) with **zero** network calls whenever the
+    refresh happens inside that 60-second window — falling back to a
+    real check only if some previously-known quiz turns out to be missing
+    from local storage (e.g. cleared browser data), so an incomplete list
+    is never shown.
+  - Applied the same fix to curriculum lectures, which had no such
+    throttle at all before now: `loadPublishedQuestionsIntoSubjects()` in
+    `js/data-sync.js` gained an identical `lastVersionCheck:curriculum`
+    throttle (5 minutes, matching `content-client.js`'s already-existing
+    `THROTTLE_MS.curriculum` constant) and a new
+    `_rebuildPublishedFromCacheOnly()` helper that reconstructs every
+    subject's lecture list from IndexedDB (`publishedTrack:<subject>` +
+    `published:<subject>:<lectureId>`) with no Firestore or Worker calls,
+    for the same "refreshed again very soon" case. Call sites that just
+    performed an admin write (`js/quiz-editor.js`'s reorder handler, and
+    the post-backfill reload in `js/firebase-init.js`) now explicitly pass
+    `skipThrottle = true` so an admin's own change is never delayed by
+    this — only a plain page load/refresh is throttled.
+  - Net effect for the ~2000-daily-user target: a manifest check (one
+    cheap Firestore doc read) now happens at most once per minute
+    (community) / once per 5 minutes (curriculum) *per browser*,
+    regardless of how many times that browser refreshes or re-opens
+    either window in that window; and R2 reads were already, and remain,
+    limited to only the specific quizzes/lectures whose version actually
+    changed — nothing here loosened that per-item comparison, this only
+    removed redundant manifest re-checks around it.
+  - No UI or layout touched by this change — it's cache-timing logic
+    only, so there's nothing new to verify for responsiveness across
+    screen sizes. No `firestore.rules` change needed.
 - **79 — Local (per-device) explanation cache with stale-question detection.**
   Build 78 removed the shared Firestore explanation pool but left every
   "🤖 Explain" click calling Gemini fresh every single time, even when
