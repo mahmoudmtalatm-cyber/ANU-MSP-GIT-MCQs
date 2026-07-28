@@ -788,6 +788,21 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **76 — Fixed intermittent "permission denied" on the *receiving* device
+  only in P2P Backup & Transfer, even with build 71/72's rules correctly
+  published.** `firestore.rules`' `p2pSignaling` collection evaluates a
+  write as `create` if the target doc doesn't exist yet, or `update` if
+  it does. Normally the receiver's answer write is an `update` (the
+  sender's doc, with the offer, already exists) — but if that doc gets
+  deleted first (a fast ICE failure, a timeout, or the stale-doc sweep in
+  `js/p2p-transfer.js` running at an unlucky moment), Firestore sees no
+  existing doc and checks the receiver's write against `create` instead,
+  which required `offer`/`createdAt` fields an answer-only write doesn't
+  have — rejected. `allow create` now also accepts an answer-only shape
+  as a fallback, so the receiver's write can't fall between the two rule
+  branches. **Requires redeploying `firestore.rules`** (same as any rules
+  change) — Firebase Console → Firestore Database → Rules → paste →
+  Publish, or `firebase deploy --only firestore:rules`.
 - **75 — Deleted the `js/vendor/` QR libraries that were still physically
   in the repo.** Build 73 removed the QR feature from the code and said
   in its own changelog entry that `js/vendor/` had been deleted, but the

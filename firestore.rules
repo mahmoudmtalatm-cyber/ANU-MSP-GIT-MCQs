@@ -298,10 +298,22 @@ service cloud.firestore {
     function _isValidSdp(x) {
       return x is map && x.type is string && x.sdp is string && x.sdp.size() < 20000;
     }
+    // Build 76 fix: allow create to ALSO accept an answer-only write (no
+    // offer/createdAt), not just the sender's original offer shape. Without
+    // this, a receiver's write is only ever checked as an `update` (since
+    // normally the sender's doc already exists) — but if the sender's doc
+    // gets deleted first (fast ICE failure, timeout, or the stale-doc
+    // sweep in js/p2p-transfer.js running at an unlucky moment), Firestore
+    // sees no existing doc and evaluates the receiver's write as a
+    // `create` instead. The old create rule required offer+createdAt,
+    // which an answer-only write doesn't have, so it was rejected with
+    // "permission denied" — receiving side only, and only intermittently,
+    // which is exactly the symptom this fixes.
     match /p2pSignaling/{code} {
       allow read, delete: if true;
-      allow create: if _isValidSdp(request.resource.data.offer)
-                     && request.resource.data.createdAt is int;
+      allow create: if (_isValidSdp(request.resource.data.offer)
+                         && request.resource.data.createdAt is int)
+                     || _isValidSdp(request.resource.data.answer);
       allow update: if _isValidSdp(request.resource.data.answer);
     }
   }
