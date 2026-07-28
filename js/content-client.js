@@ -64,13 +64,13 @@ export async function getCurriculumLecture(subject, lectureId, { skipThrottle = 
   const idbKey = `content:curriculum:${subject}:${lectureId}`;
   const cached = await window._idbGet(idbKey).catch(() => null);
 
-  if (cached && !skipThrottle && withinThrottleWindow('curriculum')) return cached.value;
+  if (cached && !skipThrottle && withinThrottleWindow('curriculum')) return cached;
 
   const manifest = await fetchCurriculumManifest();
   markThrottleChecked('curriculum');
   const serverVersion = manifest[subject]?.[lectureId] ?? null;
 
-  if (cached && cached.value && cached.value.__version === serverVersion) return cached.value;
+  if (cached && cached.__version === serverVersion) return cached;
   if (serverVersion == null) { await window._idbDelete(idbKey).catch(() => {}); return null; } // deleted
 
   const resp = await fetch(`${WORKER_BASE_URL}/${r2Key('curriculum', subject, lectureId)}`);
@@ -89,13 +89,13 @@ export async function getCommunityQuiz(quizId, { skipThrottle = false } = {}) {
   const idbKey = `content:community:${quizId}`;
   const cached = await window._idbGet(idbKey).catch(() => null);
 
-  if (cached && !skipThrottle && withinThrottleWindow('community')) return cached.value;
+  if (cached && !skipThrottle && withinThrottleWindow('community')) return cached;
 
   const manifest = await fetchCommunityManifest();
   markThrottleChecked('community');
   const serverVersion = manifest[quizId] ?? null;
 
-  if (cached && cached.value && cached.value.__version === serverVersion) return cached.value;
+  if (cached && cached.__version === serverVersion) return cached;
   if (serverVersion == null) { await window._idbDelete(idbKey).catch(() => {}); return null; } // deleted
 
   const resp = await fetch(`${WORKER_BASE_URL}/${r2Key('community', null, quizId)}`);

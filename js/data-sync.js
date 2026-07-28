@@ -542,3 +542,36 @@ async function loadPublishedQuestionsIntoSubjects() {
   }
 }
 
+/* =============================================================================
+   Expose IndexedDB helpers globally.
+   data-sync.js is loaded as a classic (non-module) script, so its top-level
+   functions are local to this file only. Several other scripts
+   (local-store.js, community-quizzes.js, content-client.js) rely on these
+   being available as window._idbGet / window._idbSet / window._idbDelete /
+   window._idbList.
+
+   Two call-shapes exist across the codebase:
+     - content-client.js / community-quizzes.js: window._idbGet(key) returns
+       the raw stored value directly (or null), matching this file's native
+       _idbGet/_idbSet/_idbDelete behavior exactly — passed through as-is.
+     - local-store.js: expects window._idbGet(key) to resolve to { value }
+       (or null), and window._idbList(prefix) to resolve to
+       { keys: [...] } filtered by key prefix.
+
+   Since the raw shape is already relied on by more callers, window._idbGet/
+   _idbSet/_idbDelete stay pass-through (unwrapped). window._idbList is added
+   as a new prefix-filtering helper. local-store.js is patched separately to
+   unwrap { value } itself via a small local wrapper — see local-store.js.
+   ============================================================================= */
+window._idbGet    = _idbGet;
+window._idbSet    = _idbSet;
+window._idbDelete = _idbDelete;
+window._idbKeys   = _idbKeys;
+
+/** Lists all stored keys starting with `prefix`, returned as { keys: [...] }. */
+window._idbList = async function _idbList(prefix = '') {
+  const allKeys = await _idbKeys();
+  const keys = prefix ? allKeys.filter(k => k.startsWith(prefix)) : allKeys;
+  return { keys };
+};
+

@@ -15,6 +15,16 @@ function newId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * window._idbGet(key) (defined in data-sync.js) resolves directly to the
+ * stored value itself (or null) — this is a thin pass-through, not a
+ * { value } wrapper. This helper just documents/centralizes that shape so
+ * call sites below read clearly and only change in one place if it ever does.
+ */
+async function _idbGetValue(key) {
+  return window._idbGet(key).catch(() => null);
+}
+
 async function sha256HexOfString(str) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -34,8 +44,8 @@ export async function listCustomQuizzes() {
   const keys = await window._idbList('customQuiz:');
   const quizzes = [];
   for (const key of keys.keys || []) {
-    const result = await window._idbGet(key).catch(() => null);
-    if (result) quizzes.push(result.value);
+    const value = await _idbGetValue(key);
+    if (value) quizzes.push(value);
   }
   return quizzes;
 }
@@ -76,8 +86,8 @@ export async function listAttempts() {
   const keys = await window._idbList('attempt:');
   const attempts = [];
   for (const key of keys.keys || []) {
-    const result = await window._idbGet(key).catch(() => null);
-    if (result) attempts.push(result.value);
+    const value = await _idbGetValue(key);
+    if (value) attempts.push(value);
   }
   return attempts;
 }
@@ -110,10 +120,7 @@ export async function deleteAttempt(id) {
 // ---------------------------------------------------------------------------
 
 export async function getStatsAggregate() {
-  try {
-    const result = await window._idbGet('statsAggregate');
-    return result ? result.value : null;
-  } catch (e) { return null; }
+  return _idbGetValue('statsAggregate');
 }
 
 export async function saveStatsAggregate(aggregate) {

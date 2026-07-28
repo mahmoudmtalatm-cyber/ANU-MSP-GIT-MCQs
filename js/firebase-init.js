@@ -1,5 +1,6 @@
 import { runOneTimeMigrationIfNeeded } from './migration.js';
 import { listCustomQuizzes, listAttempts } from './local-store.js';
+import { firebaseConfig } from './config/firebase-config.js';
 
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";

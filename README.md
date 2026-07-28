@@ -773,6 +773,31 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **58 — Post-deployment fix: sign-in, curriculum, and backup/transfer all
+  broken after change #56 shipped.** Change #56's `firebase-init.js` never
+  actually imported `firebaseConfig` from `config/firebase-config.js` — it
+  referenced the bare name expecting it to already be in scope, which threw
+  `firebaseConfig is not defined` on load and silently prevented Firebase
+  (auth + Firestore) from initializing at all. Because sign-in, the
+  curriculum browser, and stats all depend on Firebase being up, all three
+  broke together, along with the Backup/Transfer modal (which depends on
+  `local-store.js`, itself depending on IndexedDB helpers that only get
+  attached once startup succeeds).
+  - Fixed the missing import in `firebase-init.js`.
+  - Separately, `data-sync.js`'s IndexedDB helpers (`_idbGet`/`_idbSet`/
+    `_idbDelete`) were never exposed on `window`, and `_idbList` (used by
+    `local-store.js` for prefix-based key listing) didn't exist at all —
+    `data-sync.js` loads as a classic script, so its functions stayed
+    private to that file. Added a single `window._idb*` exposure block at
+    the end of `data-sync.js`, plus a new `window._idbList(prefix)` helper
+    that filters keys by prefix and returns `{ keys: [...] }`.
+  - `local-store.js`, `community-quizzes.js`, and `content-client.js` had
+    each assumed a different shape for what `window._idbGet` resolves to —
+    some expected a `{ value }` wrapper, others the raw value directly.
+    Standardized on the raw-value shape (matching the real implementation),
+    fixed the two files that had the wrapped-shape assumption, and added a
+    small `_idbGetValue()` helper in `local-store.js` to keep call sites
+    readable.
 - **57 — Legacy content migration tool.** Change #56 moved curriculum
   and community-quiz reads entirely to R2/the Worker, with no Firestore
   fallback, but never shipped a way to actually move *existing* live

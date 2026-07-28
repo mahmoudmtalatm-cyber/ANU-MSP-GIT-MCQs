@@ -116,7 +116,7 @@ async function ensureSharedQuizzesLoaded(forceReload) {
     localStorage.setItem(lastCheckKey, String(Date.now()));
     const quizIds = Object.keys(manifest);
 
-    const prevKnownIds = (await window._idbGet('communityKnownIds').catch(() => null))?.value || [];
+    const prevKnownIds = (await window._idbGet('communityKnownIds').catch(() => null)) || [];
     const resolved = [];
 
     await Promise.all(quizIds.map(async (quizId) => {
@@ -124,8 +124,8 @@ async function ensureSharedQuizzesLoaded(forceReload) {
       const idbKey = `content:community:${quizId}`;
       const cached = await window._idbGet(idbKey).catch(() => null);
 
-      if (cached && cached.value && cached.value.__version === ver) {
-        resolved.push(cached.value);
+      if (cached && cached.__version === ver) {
+        resolved.push(cached);
         return;
       }
       try {
