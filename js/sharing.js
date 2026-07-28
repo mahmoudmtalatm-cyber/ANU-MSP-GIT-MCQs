@@ -211,6 +211,8 @@ async function renderCommunityQuizzes(forceReload) {
       body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--wrong-fg);">&#10060; Failed to load community quizzes. Please try again.</div>`;
       return;
     }
+  } else {
+    console.log('[cache] community quizzes hit, skipping fetch');
   }
 
   const myUid = window._currentUser ? window._currentUser.uid : null;
@@ -332,6 +334,13 @@ async function renderCommunityQuizzes(forceReload) {
       _communityQuizzesCache[idx] = item;
       const isOwn = item.authorUid === myUid;
       const date  = new Date(item.sharedAt).toLocaleDateString();
+      // Legacy/migrated items may be missing questionCount; fall back to
+      // the actual questions array, then to 0, so Math.max() below can
+      // never receive NaN (which the browser rejects on a number input's
+      // value attribute and logs a console warning for on every render).
+      const qCount = Number.isFinite(item.questionCount)
+        ? item.questionCount
+        : (Array.isArray(item.questions) ? item.questions.length : 0);
       const catBadge = (item.year || item.subjectLabel)
         ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
         : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
@@ -346,7 +355,7 @@ async function renderCommunityQuizzes(forceReload) {
             <div class="community-quiz-title">${escapeHtml(item.title)}</div>
             <div class="community-quiz-meta">
               ${catBadge}
-              ${item.questionCount} question${item.questionCount !== 1 ? 's' : ''}
+              ${qCount} question${qCount !== 1 ? 's' : ''}
               &nbsp;&middot;&nbsp; &#128100; ${escapeHtml(item.authorName)}
               ${isOwn ? ' <span class="share-chip">You</span>' : ''}
               &nbsp;&middot;&nbsp; &#128197; ${date}
@@ -355,7 +364,7 @@ async function renderCommunityQuizzes(forceReload) {
           </div>
         </div>
         <div class="community-quiz-actions">
-          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, item.questionCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid var(--border-soft);border-radius:6px;font-family:var(--font);font-size:.82rem;background:var(--surface-2);color:var(--text-main);" />
+          <input type="number" id="cqCommMins_${idx}" value="${Math.max(5, qCount)}" min="1" max="180" title="Duration (minutes)" style="width:64px;padding:7px 8px;border:1.5px solid var(--border-soft);border-radius:6px;font-family:var(--font);font-size:.82rem;background:var(--surface-2);color:var(--text-main);" />
           <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;">
             <input type="checkbox" id="cqCommShuffle_${idx}" style="width:14px;height:14px;accent-color:var(--accent);" /> &#128256;
           </label>

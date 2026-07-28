@@ -118,6 +118,7 @@ async function ensureSharedQuizzesLoaded(forceReload) {
 
     const prevKnownIds = (await window._idbGet('communityKnownIds').catch(() => null)) || [];
     const resolved = [];
+    let cacheHits = 0, fetched = 0, failed = 0;
 
     await Promise.all(quizIds.map(async (quizId) => {
       const ver = manifest[quizId];
@@ -125,18 +126,22 @@ async function ensureSharedQuizzesLoaded(forceReload) {
       const cached = await window._idbGet(idbKey).catch(() => null);
 
       if (cached && cached.__version === ver) {
+        cacheHits++;
         resolved.push(cached);
         return;
       }
       try {
         const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/community/${quizId}.json`);
-        if (!resp.ok) return; // 404 or transient error — skip, don't break the whole list
+        if (!resp.ok) { failed++; return; } // 404 or transient error — skip, don't break the whole list
         const data = await resp.json();
         data.__version = ver;
         await window._idbSet(idbKey, data);
+        fetched++;
         resolved.push(data);
-      } catch (e) { /* skip this one quiz, keep the rest of the list working */ }
+      } catch (e) { failed++; /* skip this one quiz, keep the rest of the list working */ }
     }));
+
+    console.log(`[cache] community quizzes: ${cacheHits} from IndexedDB, ${fetched} fetched from Worker${failed ? `, ${failed} failed` : ''} (of ${quizIds.length} total)`);
 
     // Drop local cache entries for quizzes that no longer exist at all.
     for (const oldId of prevKnownIds) {

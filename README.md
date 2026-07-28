@@ -773,6 +773,28 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **64 — Community Quizzes: fixed `NaN` console error on repeat opens, and
+  added cache visibility logging.** `renderCommunityQuizzes()` in
+  `js/sharing.js` built each quiz card's duration input from
+  `item.questionCount` directly; for any shared quiz missing that field
+  (e.g. items migrated by the legacy-content-to-R2 tool without it),
+  `Math.max(5, undefined)` evaluated to `NaN`, which the browser silently
+  rejects when set as a `<input type="number">` value — logged as `The
+  specified value "NaN" cannot be parsed, or is out of range.` on every
+  render, including the second/third time the modal was opened in the
+  same session (this was a rendering bug, not a caching bug — it fired on
+  every render of an affected item regardless of whether the quiz list
+  itself was freshly fetched or served from cache). Fixed by deriving a
+  safe `qCount` per item (`item.questionCount`, falling back to
+  `item.questions.length`, falling back to `0`) and using that everywhere
+  the count is displayed or used for the default duration.
+  Separately, added `console.log` cache-hit/miss summaries — one in
+  `renderCommunityQuizzes()` (in-memory `_allSharedQuizzes` hit) and one
+  in `ensureSharedQuizzesLoaded()` in `js/community-quizzes.js`
+  (per-quiz IndexedDB-vs-Worker-fetch counts) — matching the existing
+  `[cache] curriculum hit, skipping Firestore fetch` pattern, so caching
+  behavior for community quizzes is now directly visible in the console
+  instead of having to be inferred.
 - **63 — Orphaned P2P signaling docs now get cleaned up (existing and
   future).** The actual quiz/stats payload of a P2P transfer never touches
   Firestore — only a small handshake doc at `p2pSignaling/{code}` does
