@@ -773,6 +773,16 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **62 — P2P receive hung forever on "looking for sender."**
+  `startReceive()` in `js/p2p-transfer.js` waited for data to arrive over
+  the WebRTC channel *before* creating and sending its answer back to the
+  sender — the answer-creation and signaling write only ran inside a
+  `.finally()` attached to that wait. But a WebRTC connection can't be
+  established, and therefore no data can ever arrive, until the answer has
+  been sent — a chicken-and-egg deadlock. In practice the receiver just sat
+  on "looking for sender" until the 2-minute timeout silently fired.
+  Reordered so the answer is created and written to the signaling doc
+  first, then the receiver waits for the data channel to open.
 - **61 — Custom quizzes vanished after refresh (visible in Backup menu,
   not in Custom Quizzes).** Leftover naming mismatch from change #56's
   migration off Firestore. Every render path for custom quizzes

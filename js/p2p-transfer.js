@@ -89,9 +89,9 @@ export async function startReceive(code, onStatus = () => {}) {
     throw new Error('No transfer found with that code \u2014 check it and try again.');
   }
 
-  await pc.setRemoteDescription(offerSnap.data().offer);
-
-  const payload = await new Promise((resolve, reject) => {
+  // Attach the data-channel listener BEFORE the connection can possibly
+  // open, so we never miss the event.
+  const dataPromise = new Promise((resolve, reject) => {
     pc.ondatachannel = (event) => {
       const channel = event.channel;
       channel.onmessage = (e) => {
@@ -101,15 +101,23 @@ export async function startReceive(code, onStatus = () => {}) {
       };
     };
     setTimeout(() => reject(new Error('Timed out waiting for data.')), 2 * 60 * 1000);
-  }).finally(async () => {
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    await waitForIceGatheringComplete(pc);
-    onStatus('connecting');
-    await window._setDoc(window._doc(window._db, 'p2pSignaling', code), {
-      answer: pc.localDescription.toJSON()
-    }, { merge: true });
   });
+
+  await pc.setRemoteDescription(offerSnap.data().offer);
+
+  // The answer MUST be created and sent back to the sender before a
+  // connection (and therefore any data) can arrive \u2014 do this first,
+  // not after waiting for data, or the two sides deadlock waiting on
+  // each other.
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  await waitForIceGatheringComplete(pc);
+  onStatus('connecting');
+  await window._setDoc(window._doc(window._db, 'p2pSignaling', code), {
+    answer: pc.localDescription.toJSON()
+  }, { merge: true });
+
+  const payload = await dataPromise;
 
   onStatus('done');
   pc.close();
