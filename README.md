@@ -788,6 +788,48 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **79 — Local (per-device) explanation cache with stale-question detection.**
+  Build 78 removed the shared Firestore explanation pool but left every
+  "🤖 Explain" click calling Gemini fresh every single time, even when
+  reviewing the exact same quiz again a minute later on the same device.
+  Explanations are now cached in this device's IndexedDB (`js/local-store.js`)
+  instead — zero Firestore reads/writes (same as before), but also zero
+  redundant Gemini calls for a question you've already explained on this
+  device. This cache is per-device only: it's deliberately excluded from
+  `buildExportPayload()`/`applyImportPayload()`, so it never travels with
+  a Backup & Transfer export and never syncs anywhere.
+  - Cache entries are keyed by a best-effort "slot" identity (quiz source +
+    subject + lecture + question index — `_explainSlotKey()` in
+    `js/ai-features.js`) rather than by the question's own content, so a
+    minor edit to the question (e.g. an admin fixing a typo) doesn't just
+    silently evict the cached copy. Each entry also stores a content
+    fingerprint (`fingerprintQuestion()`) taken at cache time;
+    `getCachedExplanation()` compares it against the question's current
+    fingerprint and reports a `stale` flag rather than deciding for the
+    caller.
+  - When a cached explanation is stale, it's still shown instantly (no
+    extra cost) with a small amber "✏️ this question has changed since
+    this explanation was generated — regenerate recommended" hint above
+    the existing 🔄 Regenerate button, which is otherwise unchanged — it
+    already bypassed any cache and still forces a fresh Gemini call the
+    same way.
+  - If the slot identity itself doesn't hold steady (quiz retitled or
+    reordered, or a dynamically-assembled quiz like a retake or a
+    multi-custom-quiz merge), a lookup just misses next time, exactly like
+    a question that was never explained before — nothing incorrect is ever
+    shown, worst case is one extra Gemini call.
+  - The cache is capped at 500 entries (`EXPLANATION_CACHE_MAX_ENTRIES` in
+    `js/local-store.js`), oldest evicted first, so it can't grow unbounded
+    over months of use. `clearExplanationCache()` is available for a future
+    "clear cached explanations" control if one's ever wanted, though
+    nothing in the UI calls it yet.
+  - `js/ai-features.js`: `explainQuestion()` now checks the local cache
+    before requiring an API key or calling Gemini; a successful fresh
+    generation saves to it afterward. `css/styles.css`:
+    `.ai-explain-stale-hint` (new, responsive — no fixed widths, wraps
+    naturally at any screen size).
+  - Nothing to delete from your GitHub repo, and no `firestore.rules`
+    change needed — this build only adds local (client-side) storage.
 - **78 — Removed the shared (Firestore-backed) AI explanation pool.**
   Explanations were previously saved to and looked up from a Firestore
   `explanations` collection so that once one student generated an

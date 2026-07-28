@@ -387,6 +387,7 @@ function renderApiKeyManager() {
 // Track which questions are loaded/loading to avoid duplicate calls
 const _explainCache = {};   // { qIndex: 'loading' | html-string }
 const _explainRawText = {}; // { qIndex: raw AI text } — used to give chat context
+const _explainStale = {};   // { qIndex: true } — cached copy predates an edit to the question (see local-store.js)
 let   _explainAllBusy = false;
 
 // ── Cancellation tokens ──
@@ -598,11 +599,23 @@ function stopExplainQuestion(i) {
   _cancelAiToken(_singleCancelToken[i]);
 }
 
+/* ── Best-effort stable identity for "this question's slot" in the local
+   explanation cache (js/local-store.js). Holds steady across normal
+   re-review of the same quiz; can shift if the quiz is retitled/reordered
+   or is dynamically assembled each time (retake, multi-custom-quiz merge)
+   — in that case a lookup just misses, same as an unexplained question. ── */
+function _explainSlotKey(i) {
+  return `${currentQuizSource}::${selectedSubject}::${currentLecture}::${i}`;
+}
+
 /* ── Render an explanation into its panel, with a Regenerate control ── */
 function displayExplainPanel(i, html) {
   const panel = document.getElementById(`explainPanel_${i}`);
   if (!panel) return;
-  panel.innerHTML = html + `
+  const staleHint = _explainStale[i]
+    ? `<div class="ai-explain-stale-hint">✏️ This question has changed since this explanation was generated — regenerate recommended.</div>`
+    : '';
+  panel.innerHTML = html + staleHint + `
     <div class="ai-explain-regen-row" style="padding:6px 16px 14px;text-align:right;">
       <button class="ai-explain-regen-btn" onclick="regenerateExplanation(${i})" style="background:none;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font);">🔄 Regenerate</button>
     </div>`;
@@ -613,6 +626,7 @@ function regenerateExplanation(i) {
   if (_explainCache[i] === 'loading') return;
   _explainCache[i]   = undefined;
   _explainRawText[i] = undefined;
+  _explainStale[i]   = false;
   const panel = document.getElementById(`explainPanel_${i}`);
   if (panel) panel.innerHTML = '';
   explainQuestion(i, true);
@@ -636,6 +650,24 @@ async function explainQuestion(i, forceRegenerate = false) {
   }
 
   const q = currentQuestions[i];
+
+  if (!forceRegenerate) {
+    // Local, per-device explanation cache (js/local-store.js) — no
+    // Firestore reads/writes, no API key needed for a cache hit.
+    try {
+      const { fingerprintQuestion, getCachedExplanation } = await import('./local-store.js');
+      const liveHash = await fingerprintQuestion(q);
+      const cached = await getCachedExplanation(_explainSlotKey(i), liveHash);
+      if (cached && cached.html) {
+        _explainCache[i]   = cached.html;
+        _explainRawText[i] = cached.text;
+        _explainStale[i]   = cached.stale;
+        displayExplainPanel(i, cached.html);
+        btn.innerHTML = '🤖 Hide';
+        return;
+      }
+    } catch (e) { /* non-fatal — fall through to a fresh generation */ }
+  }
 
   const apiKey = getExplainKey();
 
@@ -714,10 +746,20 @@ async function explainQuestion(i, forceRegenerate = false) {
     const html = renderExplainText(text, q);
     _explainCache[i] = html;
     _explainRawText[i] = text;
+    _explainStale[i] = false;
 
     displayExplainPanel(i, html);
     const b = document.getElementById(`explainBtn_${i}`);
     if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Hide'; }
+
+    // Cache locally on this device only — never sent to Firestore or anywhere else.
+    (async () => {
+      try {
+        const { fingerprintQuestion, saveCachedExplanation } = await import('./local-store.js');
+        const hash = await fingerprintQuestion(q);
+        await saveCachedExplanation(_explainSlotKey(i), hash, text, html);
+      } catch (e) { /* non-fatal — explanation still shown, just won't be cached */ }
+    })();
 
   } catch(err) {
     if (err._cancelled) {

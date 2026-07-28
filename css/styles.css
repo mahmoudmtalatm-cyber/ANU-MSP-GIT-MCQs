@@ -1973,6 +1973,13 @@
 .ai-explain-panel .ai-exp-error {
   color: var(--wrong-fg); font-size: .84rem; font-weight: 600; padding: 10px 0;
 }
+.ai-explain-stale-hint {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 16px 10px; padding: 7px 10px;
+  background: var(--amber-pale); border-left: 3px solid var(--amber-mid);
+  border-radius: 6px; color: var(--unanswered-fg);
+  font-size: .78rem; font-weight: 600; line-height: 1.4;
+}
 .ai-explain-all-btn {
   display: inline-flex; align-items: center; gap: 7px;
   background: var(--violet-pale); color: var(--violet-dark); border: 2px solid #9575CD;

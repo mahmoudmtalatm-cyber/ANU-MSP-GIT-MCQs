@@ -339,3 +339,78 @@ export function shouldShowBackupReminder() {
 
   return daysSince >= timeThreshold || activity >= activityThreshold;
 }
+
+// ---------------------------------------------------------------------------
+// AI EXPLANATION CACHE (local-only — never Firestore, never in Backup/Export)
+// ---------------------------------------------------------------------------
+// Replaces the old Firestore-backed "shared explanation pool" (removed in
+// build 78, which cost a read/write per explanation across every user).
+// This cache lives entirely in this device's IndexedDB: nothing is ever
+// sent to or read from a server for it, and it's deliberately excluded from
+// buildExportPayload()/applyImportPayload() above — it doesn't travel with
+// a backup, by design.
+//
+// Entries are keyed by a best-effort "slot" identity (quiz source + subject
+// + lecture + question index — see _explainSlotKey in js/ai-features.js)
+// rather than by the question's own content, so a minor edit to the
+// question (e.g. an admin fixing a typo) doesn't just silently evict the
+// cache. Instead, each entry also stores a content fingerprint taken at
+// cache time; getCachedExplanation() compares that against the question's
+// current fingerprint and reports a `stale` flag rather than deciding for
+// the caller — the UI can then still show the (possibly slightly outdated)
+// explanation instantly, at zero cost, alongside a "regenerate recommended"
+// hint. If the slot identity itself doesn't hold steady (quiz retitled,
+// reordered, or dynamically assembled each time — retakes, merged custom
+// quizzes), this just falls back to a normal cache miss next time, exactly
+// like a question that was never explained; nothing incorrect is ever shown.
+const EXPLANATION_CACHE_PREFIX = 'explainCache:';
+const EXPLANATION_CACHE_MAX_ENTRIES = 500; // oldest evicted first past this cap
+
+/** Fingerprint of only the parts of a question that actually feed the AI prompt. */
+export async function fingerprintQuestion(q) {
+  const normalized = JSON.stringify({
+    question: q.question || '',
+    options: q.options || {},
+    answer: q.answer || '',
+    hasImage: !!q.image,
+  });
+  return sha256HexOfString(normalized);
+}
+
+/**
+ * @param {string} slotKey - stable-ish identity for this question's slot
+ * @param {string} liveHash - fingerprintQuestion() of the question as it exists right now
+ * @returns {Promise<{text:string, html:string, stale:boolean}|null>}
+ */
+export async function getCachedExplanation(slotKey, liveHash) {
+  const entry = await _idbGetValue(EXPLANATION_CACHE_PREFIX + slotKey);
+  if (!entry) return null;
+  return {
+    text: entry.text || '',
+    html: entry.html || '',
+    stale: entry.contentHash !== liveHash,
+  };
+}
+
+/** Saves/replaces the cached explanation for a slot, then prunes if over the cap. */
+export async function saveCachedExplanation(slotKey, contentHash, text, html) {
+  await window._idbSet(EXPLANATION_CACHE_PREFIX + slotKey, {
+    contentHash, text, html, cachedAt: Date.now(),
+  });
+  _pruneExplanationCache().catch(() => {});
+}
+
+async function _pruneExplanationCache() {
+  const { keys } = await window._idbList(EXPLANATION_CACHE_PREFIX);
+  if (!keys || keys.length <= EXPLANATION_CACHE_MAX_ENTRIES) return;
+  const entries = await Promise.all(keys.map(async k => ({ key: k, value: await _idbGetValue(k) })));
+  entries.sort((a, b) => (a.value?.cachedAt || 0) - (b.value?.cachedAt || 0));
+  const toDrop = entries.slice(0, entries.length - EXPLANATION_CACHE_MAX_ENTRIES);
+  await Promise.all(toDrop.map(e => window._idbDelete(e.key).catch(() => {})));
+}
+
+/** Wipes every locally cached explanation on this device (e.g. a "Clear cache" control). */
+export async function clearExplanationCache() {
+  const { keys } = await window._idbList(EXPLANATION_CACHE_PREFIX);
+  await Promise.all((keys || []).map(k => window._idbDelete(k).catch(() => {})));
+}

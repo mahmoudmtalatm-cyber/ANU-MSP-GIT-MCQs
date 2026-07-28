@@ -868,6 +868,7 @@ function _cancelAndClearResultsAiState() {
   Object.keys(_singleCancelToken).forEach(k => { _cancelAiToken(_singleCancelToken[k]); delete _singleCancelToken[k]; });
   for (const k in _explainCache) delete _explainCache[k];
   for (const k in _explainRawText) delete _explainRawText[k];
+  for (const k in _explainStale) delete _explainStale[k];
   Object.keys(_chatCancelToken).forEach(k => { _cancelAiToken(_chatCancelToken[k]); delete _chatCancelToken[k]; });
   for (const k in _chatHistory) delete _chatHistory[k];
   for (const k in _chatPending) delete _chatPending[k];
