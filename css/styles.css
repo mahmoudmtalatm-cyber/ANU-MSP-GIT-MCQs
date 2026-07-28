@@ -1140,19 +1140,63 @@
         display: flex; flex-direction: column; gap: 12px;
         padding: 16px;
       }
-      .backup-field-group { display: flex; flex-direction: column; gap: 6px; }
+      .backup-field-group { display: flex; flex-direction: column; gap: 8px; }
       .backup-field-label { font-size: .83rem; font-weight: 700; color: var(--text-main); }
-      .backup-checkbox-row {
-        display: flex; align-items: center; gap: 7px;
-        font-size: .85rem; cursor: pointer;
+
+      /* Stylish chip-style toggles for "What to include" — replaces plain
+         checkbox rows with card-like selectable chips that highlight when
+         checked, matching the look of .backup-mode-opt further down. */
+      .backup-toggle-group { display: flex; gap: 10px; flex-wrap: wrap; }
+      .backup-toggle-chip {
+        display: flex; align-items: center; gap: 8px;
+        flex: 1 1 150px;
+        padding: 10px 14px;
+        border: 1.5px solid var(--border-soft); border-radius: 10px;
+        background: var(--bg-card); color: var(--text-main);
+        font-size: .85rem; font-weight: 700; cursor: pointer;
+        transition: border-color .15s, background .15s, transform .12s, box-shadow .15s;
       }
+      .backup-toggle-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+      .backup-toggle-chip:has(input:checked) {
+        border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark);
+        box-shadow: 0 3px 10px rgba(0,0,0,.06);
+      }
+      .backup-toggle-chip input[type="checkbox"] {
+        width: 16px; height: 16px; accent-color: var(--accent-dark); flex-shrink: 0;
+      }
+
+      /* Quiz picker — a titled, bordered panel with a distinct "select all"
+         header row and a scrollable list of individually selectable quizzes,
+         each highlighting on hover for a clearer, more deliberate feel than
+         a bare list of checkboxes. */
       .backup-quiz-picker {
-        max-height: 140px; overflow-y: auto; margin-top: 4px;
-        border: 1px solid var(--border-soft); border-radius: 8px;
-        padding: 9px 10px; background: var(--bg-card);
+        border: 1px solid var(--border-soft); border-radius: 10px;
+        background: var(--bg-card); overflow: hidden;
       }
-      .backup-quiz-all { font-size: .85rem; margin-bottom: 4px; }
-      .backup-quiz-item { font-size: .83rem; margin-left: 16px; color: var(--text-muted); }
+      .backup-quiz-picker-header {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        padding: 9px 12px; background: var(--surface-2);
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .backup-quiz-count {
+        font-size: .74rem; font-weight: 800; color: var(--accent-dark);
+        background: var(--accent-soft); border-radius: 20px; padding: 2px 9px;
+        flex-shrink: 0;
+      }
+      .backup-quiz-list { max-height: 140px; overflow-y: auto; padding: 4px; }
+      .backup-quiz-row {
+        display: flex; align-items: center; gap: 9px;
+        padding: 7px 8px; border-radius: 8px;
+        font-size: .84rem; cursor: pointer;
+        transition: background .12s;
+      }
+      .backup-quiz-picker-header .backup-quiz-row { padding: 0; font-weight: 700; }
+      .backup-quiz-list .backup-quiz-row:hover { background: var(--surface-2); }
+      .backup-quiz-row input[type="checkbox"] {
+        width: 15px; height: 15px; accent-color: var(--accent-dark); flex-shrink: 0;
+      }
+      .backup-quiz-row span { color: var(--text-muted); overflow-wrap: anywhere; }
+      .backup-quiz-picker-header .backup-quiz-row span { color: var(--text-main); }
       .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
       .backup-status-area { font-size: .85rem; }
       .backup-progress-row-tight { margin-bottom: 10px; }

@@ -788,6 +788,15 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **74 — "What to include" selection in Backup & Transfer restyled as
+  chips/cards instead of plain checkboxes.** `renderBackupTransferModal()`
+  in `js/backup-transfer-ui.js`: the Custom quizzes / Stats checkboxes are
+  now `.backup-toggle-chip` cards that highlight when checked, and the
+  quiz picker is a bordered `.backup-quiz-picker` panel with a distinct
+  select-all header (with a live count badge) and a scrollable, hoverable
+  list of quizzes below it. Purely visual — same element ids and the same
+  `_backupToggleAllQuizzes()` / `_backupQuizItemChanged()` handlers as
+  before, so nothing about how selection works actually changed.
 - **73 — Removed QR sending/scanning; Backup & Transfer modal rebuilt as a
   clean, responsive two-card layout.**
   - **QR code removed entirely.** Build 70 added an optional QR code next

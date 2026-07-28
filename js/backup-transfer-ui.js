@@ -71,6 +71,19 @@
      look stays consistent and easy to restyle later. The button rows
      wrap responsively at narrow widths instead of relying on inline
      flex-wrap rules scattered through the markup.
+
+   Build 74 — "What to include" selection restyled:
+   - The plain "Custom quizzes" / "Stats" checkboxes are now stylish,
+     card-like toggle chips (`.backup-toggle-chip`) that highlight when
+     checked, laid out in a wrapping row (`.backup-toggle-group`).
+   - The quiz picker is now a bordered panel with a distinct header row
+     (select-all + a live count badge) and a scrollable list of
+     individually selectable quizzes that highlight on hover
+     (`.backup-quiz-picker-header` / `.backup-quiz-list` /
+     `.backup-quiz-row`) instead of a flat stack of checkboxes.
+   - No behavior changed — same ids, same onchange handlers
+     (`_backupToggleAllQuizzes`, `_backupQuizItemChanged`) — this is
+     purely a visual pass.
    ============================================================================= */
 
 let _backupSelectedQuizIds = null; // null = "all" (no explicit selection made yet)
@@ -119,11 +132,18 @@ async function renderBackupTransferModal() {
       <div class="backup-card-body">
         <div class="backup-field-group">
           <div class="backup-field-label">What to include</div>
-          <label class="backup-checkbox-row"><input type="checkbox" id="backupIncludeQuizzes" checked> Custom quizzes</label>
-          <label class="backup-checkbox-row"><input type="checkbox" id="backupIncludeStats" checked> Stats / history</label>
+          <div class="backup-toggle-group">
+            <label class="backup-toggle-chip"><input type="checkbox" id="backupIncludeQuizzes" checked><span>📝 Custom quizzes</span></label>
+            <label class="backup-toggle-chip"><input type="checkbox" id="backupIncludeStats" checked><span>📊 Stats / history</span></label>
+          </div>
           <div id="backupQuizPicker" class="backup-quiz-picker" ${quizzes.length ? '' : 'style="display:none;"'}>
-            <label class="backup-checkbox-row backup-quiz-all"><input type="checkbox" id="backupQuizAll" checked onchange="_backupToggleAllQuizzes(this.checked)"> All quizzes (${quizzes.length})</label>
-            ${quizzes.map(q => `<label class="backup-checkbox-row backup-quiz-item"><input type="checkbox" class="backupQuizItem" value="${q.id}" checked onchange="_backupQuizItemChanged()"> ${escapeHtml(q.title || 'Untitled quiz')}</label>`).join('')}
+            <div class="backup-quiz-picker-header">
+              <label class="backup-quiz-row backup-quiz-all"><input type="checkbox" id="backupQuizAll" checked onchange="_backupToggleAllQuizzes(this.checked)"><span>All quizzes</span></label>
+              <span class="backup-quiz-count">${quizzes.length}</span>
+            </div>
+            <div class="backup-quiz-list">
+              ${quizzes.map(q => `<label class="backup-quiz-row backup-quiz-item"><input type="checkbox" class="backupQuizItem" value="${q.id}" checked onchange="_backupQuizItemChanged()"><span>${escapeHtml(q.title || 'Untitled quiz')}</span></label>`).join('')}
+            </div>
           </div>
         </div>
 
