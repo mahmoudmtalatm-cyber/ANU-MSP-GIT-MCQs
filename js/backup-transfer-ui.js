@@ -45,15 +45,26 @@
      additionally gained _backupFriendlyP2PError() so that if a permission
      error is ever hit again (e.g. rules not yet redeployed), the message
      shown says so plainly instead of surfacing the raw Firestore string.
+
+   Build 72 follow-up:
+   - The error kept recurring after 71 because Firestore only enforces
+     whatever rules are currently PUBLISHED to the live project — editing
+     firestore.rules in the repo has zero effect until it's actually
+     deployed there (Firebase Console → Firestore Database → Rules →
+     paste → Publish, or `firebase deploy --only firestore:rules` in a
+     project with the Firebase CLI set up). _backupFriendlyP2PError()'s
+     message now says this explicitly instead of just "permission
+     denied," since that was the actual missing step, not another code
+     bug.
    ============================================================================= */
 
 let _backupSelectedQuizIds = null; // null = "all" (no explicit selection made yet)
 
-/** Turns a raw P2P (startSend/startReceive) error into a clear, actionable message. Most errors already have a good, user-facing e.message (see p2p-transfer.js); this only special-cases Firestore's raw "permission-denied" string, which isn't meaningful to someone using the app. */
+/** Turns a raw P2P (startSend/startReceive) error into a clear, actionable message. Most errors already have a good, user-facing e.message (see p2p-transfer.js); this only special-cases Firestore's raw "permission-denied" string, which isn't meaningful to someone using the app — and which, in this app's case, almost always means firestore.rules was edited locally but never actually published to the live Firebase project (Firestore only enforces whatever rules are currently published there; editing the file in the repo has no effect on its own). */
 function _backupFriendlyP2PError(e) {
   const raw = (e && e.message) || String(e);
   if (e && (e.code === 'permission-denied' || /missing or insufficient permissions/i.test(raw))) {
-    return "Couldn't reach the transfer service (permission denied). If this keeps happening, use Export/Import instead — it never needs a network connection.";
+    return "Couldn't reach the transfer service (permission denied by Firestore's security rules). If you're the site owner: this collection needs firestore.rules published to your Firebase project — Firebase Console → Firestore Database → Rules → paste the current file → Publish (editing the file in the repo alone doesn't change what's live). Everyone else: use Export/Import instead — it never needs a network connection.";
   }
   return `${raw} — you can always use Export/Import instead.`;
 }

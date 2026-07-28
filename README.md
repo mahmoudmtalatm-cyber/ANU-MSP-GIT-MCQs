@@ -797,6 +797,21 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **72 — Follow-up to 71: same "Missing or insufficient permissions"
+  persisted because the rule fix was never actually live.** Firestore
+  only enforces whichever `firestore.rules` is currently *published* to
+  the project — editing the file in this repo (what 71 did) has no
+  effect by itself until that's deployed. If you saw this error again
+  after applying 71, that's almost certainly the missing step, not a new
+  bug: open the Firebase Console → **Firestore Database → Rules**, paste
+  in the current contents of `firestore.rules`, and click **Publish**
+  (or run `firebase deploy --only firestore:rules` if you have the
+  Firebase CLI configured for this project — note this repo doesn't ship
+  a `firebase.json`/`.firebaserc`, so the CLI needs `firebase init` run
+  once against your own project first, or the console path above is the
+  simpler option). `js/backup-transfer-ui.js`'s
+  `_backupFriendlyP2PError()` now spells this out directly in the
+  in-app error message instead of just saying "permission denied."
 - **71 — Fixed P2P Backup & Transfer (incl. "📷 Scan QR") failing for
   signed-out users with "Missing or insufficient permissions."**
   `firestore.rules`' `p2pSignaling` collection required
