@@ -773,6 +773,29 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **63 — Orphaned P2P signaling docs now get cleaned up (existing and
+  future).** The actual quiz/stats payload of a P2P transfer never touches
+  Firestore — only a small handshake doc at `p2pSignaling/{code}` does
+  (the WebRTC offer/answer). Two gaps let these accumulate instead of
+  being cleaned up:
+  - In `js/p2p-transfer.js`, `startSend()` only deleted its own signaling
+    doc on the success path — if the sender's browser was closed, the
+    transfer timed out, or ICE failed, the function threw/exited before
+    reaching that delete, leaving the doc behind forever (no expiry
+    existed). Wrapped the whole send flow in try/finally so the doc is
+    deleted on every exit path — success, failure, or thrown error — not
+    just success. `startReceive()` now also deletes it as a second line
+    of defense once the payload has arrived, independent of whatever
+    happens to the sender afterward.
+  - Added `_sweepStaleSignalingDocs()`, a best-effort query
+    (`createdAt` older than 10 minutes — well past the 2-minute transfer
+    timeout) that runs opportunistically at the start of every send/receive
+    attempt and deletes whatever it finds. This is genuinely retroactive:
+    it queries by the same `createdAt` field every doc already has
+    (added in change #56, untouched here), so it cleans up docs orphaned
+    before this fix existed just as well as new ones — no migration step,
+    no Firebase Console work, no Cloud Function needed. `js/firebase-init.js`
+    now also exposes `query`/`where` on `window` for this.
 - **62 — P2P receive hung forever on "looking for sender."**
   `startReceive()` in `js/p2p-transfer.js` waited for data to arrive over
   the WebRTC channel *before* creating and sending its answer back to the

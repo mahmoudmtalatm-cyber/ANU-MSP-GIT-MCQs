@@ -6,7 +6,7 @@ import { firebaseConfig } from './config/firebase-config.js';
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, onSnapshot }
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, onSnapshot, query, where }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 
@@ -28,6 +28,8 @@ import { firebaseConfig } from './config/firebase-config.js';
   window._getDocs          = getDocs;
   window._deleteDoc        = deleteDoc;
   window._onSnapshot       = onSnapshot;
+  window._query            = query;
+  window._where            = where;
   window._signInWithPopup  = signInWithPopup;
   window._signOut          = signOut;
 

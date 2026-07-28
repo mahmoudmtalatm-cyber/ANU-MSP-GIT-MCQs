@@ -9,6 +9,36 @@
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }]; // public STUN only, no paid TURN relay
 
+// A signaling doc only ever needs to live for the ~2 minutes a transfer
+// has to complete in. Anything older than this is orphaned — almost
+// always because someone closed the tab mid-transfer, so the normal
+// cleanup at the end of startSend()/startReceive() never got to run.
+const SIGNALING_STALE_MS = 10 * 60 * 1000; // 10 min — generous margin over the 2 min transfer timeout
+
+/**
+ * Best-effort garbage collection for abandoned p2pSignaling docs. Runs
+ * opportunistically at the start of every send/receive attempt, so the
+ * collection self-cleans over normal use — no server-side job needed, and
+ * it catches BOTH docs orphaned just now and ones that have been sitting
+ * there from before this fix existed (their createdAt is a plain
+ * timestamp regardless of when they were written, so the query below
+ * finds all of them the same way). Never throws — a failed sweep should
+ * never block an actual transfer.
+ */
+async function _sweepStaleSignalingDocs() {
+  try {
+    const cutoff = Date.now() - SIGNALING_STALE_MS;
+    const staleQuery = window._query(
+      window._collection(window._db, 'p2pSignaling'),
+      window._where('createdAt', '<', cutoff)
+    );
+    const snap = await window._getDocs(staleQuery);
+    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref).catch(() => {})));
+  } catch (e) {
+    console.warn('P2P signaling sweep skipped:', e);
+  }
+}
+
 function newTransferCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -32,48 +62,57 @@ function waitForIceGatheringComplete(pc) {
  * transfer to the receiving device (read aloud, typed, etc.).
  */
 export async function startSend(payload, onStatus = () => {}) {
+  _sweepStaleSignalingDocs(); // fire-and-forget, doesn't block this transfer
+
   const code = newTransferCode();
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   const channel = pc.createDataChannel('transfer');
+  let unsubscribe = () => {};
 
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await waitForIceGatheringComplete(pc);
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForIceGatheringComplete(pc);
 
-  onStatus('waiting-for-receiver', code);
-  await window._setDoc(window._doc(window._db, 'p2pSignaling', code), {
-    offer: pc.localDescription.toJSON(),
-    createdAt: Date.now()
-  });
+    onStatus('waiting-for-receiver', code);
+    await window._setDoc(window._doc(window._db, 'p2pSignaling', code), {
+      offer: pc.localDescription.toJSON(),
+      createdAt: Date.now()
+    });
 
-  // Real-time listener: pick up the answer the instant it's written, no polling.
-  const unsubscribe = window._onSnapshot(window._doc(window._db, 'p2pSignaling', code), async (snap) => {
-    const data = snap.data();
-    if (data && data.answer && pc.signalingState === 'have-local-offer') {
-      await pc.setRemoteDescription(data.answer);
-    }
-  });
+    // Real-time listener: pick up the answer the instant it's written, no polling.
+    unsubscribe = window._onSnapshot(window._doc(window._db, 'p2pSignaling', code), async (snap) => {
+      const data = snap.data();
+      if (data && data.answer && pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(data.answer);
+      }
+    });
 
-  await new Promise((resolve, reject) => {
-    channel.onopen = async () => {
-      onStatus('connected');
-      channel.send(JSON.stringify(payload));
-      channel.onmessage = (e) => {
-        if (e.data === 'ack') {
-          onStatus('done');
-          resolve();
-        }
+    await new Promise((resolve, reject) => {
+      channel.onopen = async () => {
+        onStatus('connected');
+        channel.send(JSON.stringify(payload));
+        channel.onmessage = (e) => {
+          if (e.data === 'ack') {
+            onStatus('done');
+            resolve();
+          }
+        };
       };
-    };
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === 'failed') reject(new Error('Connection failed \u2014 use manual export/import instead.'));
-    };
-    setTimeout(() => reject(new Error('Timed out waiting for the other device.')), 2 * 60 * 1000);
-  });
-
-  unsubscribe();
-  await window._deleteDoc(window._doc(window._db, 'p2pSignaling', code)).catch(() => {});
-  pc.close();
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed') reject(new Error('Connection failed \u2014 use manual export/import instead.'));
+      };
+      setTimeout(() => reject(new Error('Timed out waiting for the other device.')), 2 * 60 * 1000);
+    });
+  } finally {
+    // Runs whether the transfer succeeded, failed, or threw \u2014 the
+    // signaling doc must not outlive this function, or it's orphaned in
+    // Firestore. (Can't help a hard tab close mid-transfer \u2014 nothing
+    // client-side can \u2014 but that's what the sweep above is for.)
+    unsubscribe();
+    await window._deleteDoc(window._doc(window._db, 'p2pSignaling', code)).catch(() => {});
+    pc.close();
+  }
 }
 
 /**
@@ -81,6 +120,8 @@ export async function startSend(payload, onStatus = () => {}) {
  * and returns the received payload.
  */
 export async function startReceive(code, onStatus = () => {}) {
+  _sweepStaleSignalingDocs(); // fire-and-forget, doesn't block this transfer
+
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
   onStatus('looking-for-sender');
@@ -118,6 +159,11 @@ export async function startReceive(code, onStatus = () => {}) {
   }, { merge: true });
 
   const payload = await dataPromise;
+
+  // Second line of defense on top of the sender's own cleanup \u2014 once
+  // this device has the payload, the signaling doc has served its
+  // purpose no matter what happens to the sender next.
+  await window._deleteDoc(window._doc(window._db, 'p2pSignaling', code)).catch(() => {});
 
   onStatus('done');
   pc.close();
