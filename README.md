@@ -788,6 +788,28 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **81 — Removed a redundant Firestore write left over in the curriculum
+  publish flow.** Checked whether sharing a quiz to Community does the
+  same version-check bookkeeping as an admin publishing to Curriculum —
+  the Community share flow (`shareCustomQuiz()` in `js/sharing.js`) was
+  already clean: it calls `putContentItem('community', ...)` once and
+  stops, trusting the Worker's server-side manifest bump entirely. The
+  Curriculum **publish** flow (`adminPublishQuiz()` in `js/quiz-editor.js`)
+  did the same `putContentItem('curriculum', ...)` call, but then *also*
+  called a leftover `_updatePublishedManifest()` — a second, client-side
+  Firestore write to the exact same `appConfig/publishedManifest` doc the
+  Worker had just bumped server-side a moment earlier. This was a genuine
+  miss from the R2 migration cleanup, not intentional: the sibling **edit**
+  flow (`adminSavePublishedEdits()`, right below it) already had this exact
+  call removed, with a comment explaining it "would now just be a redundant
+  second write" — publish was the one remaining spot that still made it.
+  The **delete** and **move** flows were already clean too. Removed the
+  call from `adminPublishQuiz()`, and deleted `_updatePublishedManifest()`
+  itself from `js/data-sync.js` since nothing calls it anymore (also fixed
+  a comment elsewhere in that file that referenced it by name). Net effect:
+  publishing a new curriculum lecture now costs one Firestore write for the
+  manifest bump instead of two, matching how Community sharing already
+  worked. No UI/layout touched. No `firestore.rules` change needed.
 - **80 — Verified and hardened "check once, not on every open" caching for
   Community Quizzes and Curriculum; fixed a dead-code throttle.** Audited
   whether opening the Community Quizzes window (or browsing the

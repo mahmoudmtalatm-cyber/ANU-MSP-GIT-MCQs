@@ -1264,9 +1264,12 @@ async function adminPublishQuiz() {
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
     if (nameInput) nameInput.value = '';
 
-    // Only THIS new quiz shows up as changed for every other user —
-    // their cache for every other quiz/subject stays untouched.
-    await _updatePublishedManifest(targetSubject, lectureId, publishedAt);
+    // Manifest bump (appConfig/publishedManifest) happens server-side in the
+    // Worker, right after putContentItem's write succeeds above — the
+    // separate _updatePublishedManifest() call this function used to also
+    // make here was a redundant second write to the same doc (the sibling
+    // adminSavePublishedEdits() below already had this same call removed;
+    // this was the one remaining spot that still had it).
 
     // Close the editor after a successful publish
     adminEditMode = null;

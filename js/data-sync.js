@@ -207,28 +207,6 @@ async function _fetchPublishedManifest() {
   } catch (e) { return {}; }
 }
 
-/* Call after publishing, editing, deleting, or moving a published lecture.
-   Pass ts = null to remove the entry (lecture deleted or moved away). */
-async function _updatePublishedManifest(subject, lectureId, ts) {
-  if (!window._db) return;
-  try {
-    const ref  = window._doc(window._db, 'appConfig', 'publishedManifest');
-    const snap = await window._getDoc(ref);
-    const data = snap.exists() ? (snap.data() || {}) : {};
-    if (!data.subjects) data.subjects = {};
-    if (!data.subjects[subject]) data.subjects[subject] = {};
-    if (ts == null) {
-      delete data.subjects[subject][lectureId];
-      if (!Object.keys(data.subjects[subject]).length) delete data.subjects[subject];
-    } else {
-      data.subjects[subject][lectureId] = ts;
-    }
-    await window._setDoc(ref, data);
-  } catch (e) {
-    console.warn('Failed to update published manifest:', e);
-  }
-}
-
 /* Apply a cached payload directly into memory (no Firestore reads) */
 function _applyCurriculumCache(cached) {
   const { extYears = [], extModules = {}, extModuleIcons = {}, extSubjects = {}, extYearIcons = {} } = cached.curriculum || {};
@@ -277,10 +255,13 @@ function _reRenderOpenSelections() {
    ------------------------------------------------------------
    loadPublishedQuestionsIntoSubjects() only ever fetches lecture
    IDs listed in appConfig/publishedManifest. That manifest is only
-   written by _updatePublishedManifest() (publish/edit/delete/move),
-   so any lecture that was published before that code existed never
-   got an entry — it's still sitting in Firestore, but the loader
-   never asks for it and it silently never appears.
+   written by publish/edit/delete/move actions (originally via a
+   client-side _updatePublishedManifest() call, now via the Worker's
+   server-side bumpManifestVersion() since the R2 migration — see
+   build #80's README entry for the last leftover client-side call
+   being retired), so any lecture that was published before that code
+   existed never got an entry — it's still sitting in Firestore, but
+   the loader never asks for it and it silently never appears.
 
    This scans each known subject's `lectures` subcollection once,
    finds any doc IDs missing from the manifest, and adds them so the
