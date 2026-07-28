@@ -788,6 +788,31 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **77 — Removed the P2P direct-device transfer feature entirely.**
+  Backup & Transfer now only offers file-based Export/Import — same as
+  it always did — with the "Direct device-to-device transfer" card gone.
+  - `js/p2p-transfer.js` (the WebRTC/signaling module) is deleted
+    outright.
+  - `js/backup-transfer-ui.js`: removed the second modal card and its
+    four handler functions (`_backupStartP2PSend`, `_backupCopyP2PCode`,
+    `_backupRenderP2PReceiveEntry`, `_backupRunP2PReceive`), plus the
+    Firestore-specific `_backupFriendlyP2PError()` helper. Export/Import
+    is untouched — same ids, same handlers.
+  - `firestore.rules`: removed the `p2pSignaling` collection's rules and
+    the `_isValidSdp()` helper, since nothing writes to that collection
+    anymore. **Requires redeploying `firestore.rules`** (Firebase
+    Console → Firestore Database → Rules → paste → Publish, or
+    `firebase deploy --only firestore:rules`) for the removal to take
+    effect on the live project — until then the old rules (which are
+    harmless with nothing calling them) stay published, which is fine,
+    but redeploying keeps the live rules matching the repo.
+  - `css/styles.css`: removed the P2P transfer-code box, the device-to-
+    device receive-entry styles, and the `.backup-code-input` field —
+    the single remaining Export/Import card's styles are untouched.
+  - If you're syncing this onto your existing GitHub repo, run
+    `git rm js/p2p-transfer.js` there — that's the only file that needs
+    deleting; everything else here is edits to files that already exist
+    in your repo.
 - **76 — Fixed intermittent "permission denied" on the *receiving* device
   only in P2P Backup & Transfer, even with build 71/72's rules correctly
   published.** `firestore.rules`' `p2pSignaling` collection evaluates a

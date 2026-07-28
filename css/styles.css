@@ -960,29 +960,6 @@
         color: white;
         box-shadow: 0 4px 14px rgba(0,0,0,.12);
       }
-      /* P2P transfer code — shown to the sender, typed on the receiver */
-      .p2p-code-box {
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        background: var(--surface-2); border: 1.5px dashed var(--accent);
-        border-radius: 10px; padding: 12px 16px; margin-top: 10px;
-        flex-wrap: wrap;
-      }
-      .p2p-code-value {
-        font-family: 'Courier New', monospace; font-size: 1.4rem; font-weight: 800;
-        letter-spacing: 3px; color: var(--accent-dark); word-break: break-all;
-      }
-      .p2p-code-copy-btn {
-        background: var(--accent); color: white; border: none; border-radius: 8px;
-        padding: 8px 14px; font-family: var(--font); font-size: .82rem; font-weight: 700;
-        cursor: pointer; white-space: nowrap; transition: filter .15s;
-        flex-shrink: 0;
-      }
-      .p2p-code-copy-btn:hover { filter: brightness(1.1); }
-      @media (max-width: 420px) {
-        .p2p-code-box { flex-direction: column; align-items: stretch; text-align: center; }
-        .p2p-code-value { font-size: 1.25rem; text-align: center; }
-        .p2p-code-copy-btn { width: 100%; }
-      }
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }
@@ -991,8 +968,8 @@
 
       /* ── Backup & Transfer — in-progress / finished status bars ──
          A stylised, indeterminate "rotating" bar for anything in flight
-         (export, import, P2P send/receive), replaced by a solid colored
-         bar once it settles — green for success, red for failure. */
+         (export, import), replaced by a solid colored bar once it
+         settles — green for success, red for failure. */
       .backup-progress-wrap { margin-top: 4px; }
       .backup-progress-row {
         display: flex; align-items: center; gap: 8px;
@@ -1053,23 +1030,19 @@
       /* ── Backup & Transfer — optional export file name ── */
       .backup-filename-row { display: flex; flex-direction: column; gap: 5px; }
       .backup-filename-row label { font-size: .83rem; font-weight: 600; }
-      .backup-text-input, .backup-code-input {
+      .backup-text-input {
         font-family: var(--font); font-size: .88rem;
         border: 1.5px solid var(--border-soft); border-radius: 8px;
         padding: 9px 12px; background: var(--bg-card); color: var(--text-main);
         outline: none; transition: border-color .15s, box-shadow .15s;
         width: 100%;
       }
-      .backup-text-input:focus, .backup-code-input:focus {
+      .backup-text-input:focus {
         border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
-      }
-      .backup-code-input {
-        text-transform: uppercase; letter-spacing: 2px; font-weight: 700;
-        text-align: center; max-width: 160px;
       }
 
       /* ── Backup & Transfer — import confirmation panel ──
-         Shown before ANY import (file or P2P) is actually applied. */
+         Shown before an import is actually applied. */
       .backup-import-confirm {
         background: var(--surface-2); border: 1px solid var(--border-soft);
         border-radius: 12px; padding: 14px 16px; margin-top: 4px;
@@ -1106,10 +1079,10 @@
       .backup-import-confirm .backup-cancel-btn:hover { background: var(--red-pale); color: var(--wrong-fg); }
 
       /* ── Backup & Transfer — modal layout ──
-         A short intro line followed by two clearly separated, titled
-         cards (Export/Import and Device-to-device). Built with real
-         classes rather than inline styles so it stays easy to restyle
-         and behaves consistently at any viewport width. */
+         A short intro line followed by a single titled Export/Import
+         card. Built with real classes rather than inline styles so it
+         stays easy to restyle and behaves consistently at any viewport
+         width. */
       .backup-intro {
         background: var(--card-bg, rgba(255,255,255,.04));
         border: 1px solid var(--border-soft);
@@ -1205,13 +1178,7 @@
         border-radius: 10px; padding: 10px 14px; font-size: .85rem;
       }
 
-      /* ── Backup & Transfer — device-to-device receive entry ── */
-      .backup-receive-entry { margin-top: 2px; }
-      .backup-receive-hint { font-size: .85rem; color: var(--text-muted); margin-bottom: 8px; }
-      .backup-receive-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       @media (max-width: 480px) {
-        .backup-receive-row { flex-direction: column; align-items: stretch; }
-        .backup-code-input { max-width: none; }
         .backup-card-header { flex-direction: column; }
         .backup-actions { flex-direction: column; }
         .backup-actions .stats-open-btn { width: 100%; justify-content: center; }

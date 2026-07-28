@@ -1,17 +1,14 @@
 /* =============================================================================
    backup-transfer-ui.js
 
-   The interface for everything js/local-store.js and js/p2p-transfer.js
-   already do under the hood: export/import (file-based, always works,
-   doubles as backup) and P2P direct-device transfer (private, no server
-   round-trip for the actual data). Both are first-class, equally visible
-   options here — neither is presented as a fallback to the other.
+   The interface for everything js/local-store.js does under the hood:
+   file-based export/import, which always works and doubles as a backup.
 
    Plain script (not a module) — its open/close functions are called
    directly from onclick="" attributes in index.html, which can only reach
    global functions. Internally it uses dynamic import() to reach the
-   ES-module pieces (local-store.js, p2p-transfer.js, content-client.js),
-   same pattern used throughout the rest of the app's plain scripts.
+   ES-module pieces (local-store.js, content-client.js), same pattern
+   used throughout the rest of the app's plain scripts.
 
    Build 70 additions:
    - Every async action here (export, import, P2P send, P2P receive) now
@@ -84,18 +81,22 @@
    - No behavior changed — same ids, same onchange handlers
      (`_backupToggleAllQuizzes`, `_backupQuizItemChanged`) — this is
      purely a visual pass.
+
+   Build 77 — P2P direct-device transfer removed entirely:
+   - Removed the whole "Direct device-to-device transfer" card and its
+     four handler functions (`_backupStartP2PSend`, `_backupCopyP2PCode`,
+     `_backupRenderP2PReceiveEntry`, `_backupRunP2PReceive`), plus the
+     Firestore-specific `_backupFriendlyP2PError()` helper. `js/p2p-
+     transfer.js` — the module those functions imported from — is deleted
+     from the project outright.
+   - The `p2pSignaling` collection and its rules in `firestore.rules` are
+     removed too, since nothing writes to it anymore.
+   - Export/Import (file-based) is untouched and is now the only backup
+     path presented in this modal — same ids, same handlers
+     (`_backupDoExport`, `_backupDoImport`, `_backupConfirmImportFlow`).
    ============================================================================= */
 
 let _backupSelectedQuizIds = null; // null = "all" (no explicit selection made yet)
-
-/** Turns a raw P2P (startSend/startReceive) error into a clear, actionable message. Most errors already have a good, user-facing e.message (see p2p-transfer.js); this only special-cases Firestore's raw "permission-denied" string, which isn't meaningful to someone using the app — and which, in this app's case, almost always means firestore.rules was edited locally but never actually published to the live Firebase project (Firestore only enforces whatever rules are currently published there; editing the file in the repo has no effect on its own). */
-function _backupFriendlyP2PError(e) {
-  const raw = (e && e.message) || String(e);
-  if (e && (e.code === 'permission-denied' || /missing or insufficient permissions/i.test(raw))) {
-    return "Couldn't reach the transfer service (permission denied by Firestore's security rules). If you're the site owner: this collection needs firestore.rules published to your Firebase project — Firebase Console → Firestore Database → Rules → paste the current file → Publish (editing the file in the repo alone doesn't change what's live). Everyone else: use Export/Import instead — it never needs a network connection.";
-  }
-  return `${raw} — you can always use Export/Import instead.`;
-}
 
 function openBackupTransfer() {
   document.getElementById('backupOverlay').classList.remove('hidden');
@@ -160,24 +161,6 @@ async function renderBackupTransferModal() {
         <div id="backupFileStatus" class="backup-status-area"></div>
       </div>
     </div>
-
-    <div class="backup-card">
-      <div class="backup-card-header">
-        <span class="backup-card-icon">📡</span>
-        <div>
-          <div class="backup-card-title">Direct device-to-device transfer</div>
-          <div class="backup-card-subtitle">More private — data goes straight between the two devices, never sitting on a server. Both devices need this page open at the same time.</div>
-        </div>
-      </div>
-
-      <div class="backup-card-body">
-        <div class="backup-actions">
-          <button class="stats-open-btn" onclick="_backupStartP2PSend()">📤 Send from this device</button>
-          <button class="stats-open-btn" onclick="_backupRenderP2PReceiveEntry()">📥 Receive on this device</button>
-        </div>
-        <div id="backupP2PStatus" class="backup-status-area"></div>
-      </div>
-    </div>
   `;
 
   _backupRenderReminderNote();
@@ -210,10 +193,9 @@ async function _backupBuildSelectedPayload() {
    these operations have a real byte-level percentage to report, so this
    is intentionally indeterminate) that gets replaced by a solid, colored
    "finished" bar once the operation settles — green for success, red for
-   failure. Used by every async action in this menu: export, import
-   (file or P2P), and P2P send/receive. `message` may contain simple
-   inline HTML (e.g. a bolded count), matching how the rest of this file
-   already builds its status strings. */
+   failure. Used by every async action in this menu: export and import.
+   `message` may contain simple inline HTML (e.g. a bolded count),
+   matching how the rest of this file already builds its status strings. */
 function _backupProgressHTML(message) {
   return `<div class="backup-progress-wrap">
     <div class="backup-progress-row"><span class="backup-progress-dot"></span> ${message}</div>
@@ -257,7 +239,7 @@ function _backupResolveExportFilename() {
 }
 
 /**
- * Shared confirmation step for BOTH import paths (file and P2P): inspects
+ * Confirmation step for file import: inspects
  * the payload without writing anything, then renders an inline panel
  * (into the same status element the caller is already using) asking:
  *   - which data type(s) to load, only shown when the backup actually has
@@ -342,7 +324,7 @@ async function _backupDoImport(file) {
   }
 }
 
-/** After any import (file or P2P), refresh in-memory state so the rest of the app (Stats, Custom Quizzes) reflects it immediately, without needing a page reload. */
+/** After a file import, refresh in-memory state so the rest of the app (Stats, Custom Quizzes) reflects it immediately, without needing a page reload. */
 async function _backupRefreshAfterImport() {
   const { listCustomQuizzes } = await import('./local-store.js');
   window._cachedCustomQuizzes = await listCustomQuizzes();
@@ -351,103 +333,6 @@ async function _backupRefreshAfterImport() {
   }
   if (typeof renderCustomQuizModal === 'function') renderCustomQuizModal();
   if (typeof renderStatsModal === 'function') renderStatsModal();
-}
-
-async function _backupStartP2PSend() {
-  const statusEl = document.getElementById('backupP2PStatus');
-  try {
-    const payload = await _backupBuildSelectedPayload();
-    const { startSend } = await import('./p2p-transfer.js');
-    statusEl.innerHTML = _backupProgressHTML('Setting up…');
-    await startSend(payload, (status, code) => {
-      if (status === 'waiting-for-receiver' && code) {
-        statusEl.innerHTML = `
-          <div class="backup-progress-row backup-progress-row-tight"><span class="backup-progress-dot"></span> Waiting for the other device — tell it to tap "Receive on this device":</div>
-          <div class="p2p-code-box">
-            <span class="p2p-code-value" id="p2pCodeValue">${escapeHtml(code)}</span>
-            <button class="p2p-code-copy-btn" onclick="_backupCopyP2PCode('${code}')">📋 Copy</button>
-          </div>`;
-        return;
-      }
-      if (status === 'connected') {
-        statusEl.innerHTML = _backupProgressHTML('Connected! Sending…');
-      } else if (status === 'done') {
-        statusEl.innerHTML = _backupResultHTML(true, 'Sent successfully.');
-      }
-    });
-    const { markBackedUp } = await import('./local-store.js');
-    markBackedUp();
-  } catch (e) {
-    statusEl.innerHTML = _backupResultHTML(false, escapeHtml(_backupFriendlyP2PError(e)));
-  }
-}
-
-/** Copies the P2P transfer code to the clipboard, with a graceful fallback for browsers/contexts where the Clipboard API is unavailable (e.g. non-HTTPS). */
-async function _backupCopyP2PCode(code) {
-  try {
-    await navigator.clipboard.writeText(code);
-  } catch (e) {
-    const ta = document.createElement('textarea');
-    ta.value = code;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); } catch (e2) { /* best-effort */ }
-    document.body.removeChild(ta);
-  }
-  const btn = document.querySelector('.p2p-code-copy-btn');
-  if (btn) {
-    const original = btn.textContent;
-    btn.textContent = '✅ Copied';
-    setTimeout(() => { btn.textContent = original; }, 1500);
-  }
-}
-
-/** Renders the manual-code entry UI for the receiving side, replacing the previous prompt()-based flow with something themed and inline. */
-function _backupRenderP2PReceiveEntry() {
-  const statusEl = document.getElementById('backupP2PStatus');
-  statusEl.innerHTML = `
-    <div class="backup-receive-entry">
-      <div class="backup-receive-hint">Enter the code shown on the sending device.</div>
-      <div class="backup-receive-row">
-        <input type="text" id="backupReceiveCodeInput" class="backup-code-input" maxlength="8" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
-        <button class="stats-open-btn" id="backupReceiveConnectBtn" type="button">▶️ Connect</button>
-      </div>
-    </div>`;
-
-  const codeInput = document.getElementById('backupReceiveCodeInput');
-  const goConnect = () => {
-    const code = codeInput.value.trim();
-    if (code) _backupRunP2PReceive(code);
-  };
-  document.getElementById('backupReceiveConnectBtn').onclick = goConnect;
-  codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') goConnect(); });
-}
-
-/** Runs the actual P2P receive connection + import for a given (typed) code. */
-async function _backupRunP2PReceive(code) {
-  const statusEl = document.getElementById('backupP2PStatus');
-  statusEl.innerHTML = _backupProgressHTML('Connecting…');
-  try {
-    const { startReceive } = await import('./p2p-transfer.js');
-    const payload = await startReceive(code.trim().toUpperCase(), (status) => {
-      const messages = { 'looking-for-sender': 'Looking for the other device…', connecting: 'Connecting…' };
-      statusEl.innerHTML = _backupProgressHTML(messages[status] || status);
-    });
-
-    const choice = await _backupConfirmImportFlow(payload, statusEl);
-    if (!choice.proceed) { statusEl.innerHTML = ''; return; }
-
-    statusEl.innerHTML = _backupProgressHTML('Importing…');
-    const { applyImportPayload } = await import('./local-store.js');
-    const result = await applyImportPayload(payload, choice);
-    await _backupRefreshAfterImport();
-    statusEl.innerHTML = _backupResultHTML(true, `Received: ${result.quizzes.added} quiz(zes) added, ${result.attempts.added} stats entries added.`);
-    setTimeout(() => renderBackupTransferModal(), 1800);
-  } catch (e) {
-    statusEl.innerHTML = _backupResultHTML(false, escapeHtml(_backupFriendlyP2PError(e)));
-  }
 }
 
 /* ── Gentle backup reminder ──

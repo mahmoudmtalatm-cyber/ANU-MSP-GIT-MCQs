@@ -70,7 +70,7 @@ export async function clearCustomQuizzes() {
 }
 
 /**
- * Imports quizzes (from a file or P2P transfer).
+ * Imports quizzes (from an imported backup file).
  * @param {object[]} incomingQuizzes
  * @param {{ mode?: 'merge'|'replace' }} [options]
  *   - 'merge' (default): keep existing quizzes, skip exact-duplicate content.
@@ -147,7 +147,7 @@ export async function saveStatsAggregate(aggregate) {
 }
 
 /**
- * Used ONLY when merging two devices' data (import/P2P) — recomputes a
+ * Used ONLY when merging in imported backup data — recomputes a
  * fresh aggregate from the de-duplicated union of attempts, so combining
  * two devices' history can never double-count. Precision note, disclosed
  * rather than silently approximated: individual attempts don't store the
@@ -199,7 +199,7 @@ export async function clearAttempts() {
 }
 
 /**
- * Safe merge for stats coming from import/P2P.
+ * Safe merge for stats coming from an imported backup.
  * @param {object[]} incomingAttempts
  * @param {{ mode?: 'merge'|'replace' }} [options]
  *   - 'merge' (default): union by attempt ID, de-duplicating exact repeats.
@@ -282,7 +282,7 @@ export function inspectImportPayload(payload) {
 }
 
 /**
- * Validates + applies an imported payload (from a file or P2P transfer).
+ * Validates + applies an imported payload (from a backup file).
  * @param {object} payload
  * @param {{ mode?: 'merge'|'replace', includeQuizzes?: boolean, includeStats?: boolean }} [options]
  *   - mode: 'merge' (default, keeps existing data) or 'replace' (deletes
