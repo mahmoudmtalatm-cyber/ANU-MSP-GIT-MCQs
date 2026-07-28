@@ -23,23 +23,21 @@ async function shareCustomQuiz(id) {
 
   try {
     const sharedId = 'sq_' + window._currentUser.uid + '_' + id;
-    const sharedRef = window._doc(window._db, 'sharedQuizzes', sharedId);
 
     await hydrateQuizImages(quiz.questions);
 
-    const questionsForFirestore = JSON.parse(JSON.stringify(quiz.questions)).map(q => {
+    const questionsForUpload = JSON.parse(JSON.stringify(quiz.questions)).map(q => {
       if (q.imageUrl && q.imageUrl.startsWith('firestore://')) delete q.imageUrl;
       return q;
     });
 
-    await uploadSharedQuizImages(sharedId, questionsForFirestore);
-
-    await window._setDoc(sharedRef, cleanForFirestore({
+    const { putContentItem } = await import('./content-client.js');
+    await putContentItem('community', null, sharedId, {
       id: sharedId,
       originalId: id,
       title: quiz.title,
-      questions: questionsForFirestore,
-      authorUid: window._currentUser.uid,
+      questions: questionsForUpload,
+      authorUid: window._currentUser.uid, // enforced/overridden server-side by the Worker regardless — see index.js
       authorName: displayName,
       sharedAt: Date.now(),
       questionCount: quiz.questions.length,
@@ -49,12 +47,11 @@ async function shareCustomQuiz(id) {
       subjectKey: shareDetails.subjectKey || '',
       subjectLabel: shareDetails.subjectLabel || '',
       tags: shareDetails.tags || []
-    }));
+    });
 
     quiz.sharedAt = Date.now();
     await saveCustomQuizzesList(quizzes);
     _allSharedQuizzes = []; // invalidate in-memory cache so community list refreshes on next open
-    await bumpSharedQuizzesVersion(); // invalidate every user's local community-quiz cache
     renderCustomQuizModal();
 
     const statusEl = document.getElementById('cqStatus');
@@ -201,32 +198,16 @@ function communityOnSearchInput(val) {
 async function renderCommunityQuizzes(forceReload) {
   const body = document.getElementById('communityQuizBody');
 
-  // Only fetch from Firestore when opening fresh or forced
+  // Only fetch when opening fresh or forced — ensureSharedQuizzesLoaded
+  // (js/community-quizzes.js) does the actual per-quiz granular caching;
+  // this used to be a SEPARATE, duplicate copy of that same logic (with
+  // the old single-global-version bug) — removed in favor of the one,
+  // already-fixed implementation, so there's no risk of the two drifting
+  // out of sync with each other again.
   if (!_allSharedQuizzes.length || forceReload) {
     body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="font-size:2rem;margin-bottom:10px;">&#8987;</div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
-    try {
-      // Cache check: one tiny doc read tells us if the full collection changed
-      const serverVer = forceReload ? null : await _fetchSharedServerVersion();
-      const localVer  = _readSharedCacheVer();
-      const cached    = await _readCache();
-
-      if (!forceReload && serverVer && localVer === serverVer && cached && cached.shared) {
-        console.log('[cache] community quizzes hit, skipping Firestore fetch');
-        _allSharedQuizzes = cached.shared;
-      } else {
-        const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
-        _allSharedQuizzes = [];
-        snap.forEach(d => _allSharedQuizzes.push(d.data()));
-
-        // Save to local cache so the next open skips the full read
-        const existing = (await _readCache()) || {};
-        existing.shared = _allSharedQuizzes;
-        await _writeCache(existing);
-        let verToStore = forceReload ? await _fetchSharedServerVersion() : serverVer;
-        if (!verToStore) verToStore = await bumpSharedQuizzesVersion(); // establish baseline first time
-        if (verToStore) _writeSharedCacheVer(verToStore);
-      }
-    } catch(e) {
+    const ok = await ensureSharedQuizzesLoaded(forceReload);
+    if (!ok) {
       body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--wrong-fg);">&#10060; Failed to load community quizzes. Please try again.</div>`;
       return;
     }
@@ -438,12 +419,11 @@ async function importCommunityQuiz(sharedId) {
     alert('Please sign in to save quizzes.');
     return;
   }
-  // Find the quiz from the already-rendered list by re-fetching
+  // Find the quiz from R2 (already-resolved images, no separate hydrate needed)
   try {
-    const ref  = window._doc(window._db, 'sharedQuizzes', sharedId);
-    const snap = await window._getDoc(ref);
-    if (!snap.exists()) { alert('Quiz not found.'); return; }
-    const q = snap.data();
+    const { getCommunityQuiz } = await import('./content-client.js');
+    const q = await getCommunityQuiz(sharedId);
+    if (!q) { alert('Quiz not found.'); return; }
 
     const quizzes = loadCustomQuizzes();
     // Avoid duplicates
@@ -451,9 +431,10 @@ async function importCommunityQuiz(sharedId) {
     if (alreadyExists) { alert('You already have this quiz saved.'); return; }
 
     const importedQuestions = restoreOptionsOrder(q.questions);
-    // Hydrate images: new quizzes use the shared subcollection; legacy may use Storage URLs
-    await hydrateSharedQuizImages(sharedId, importedQuestions);
-    await hydrateQuizImages(importedQuestions); // handles legacy Storage URLs
+    // This is a full, independent local copy from this moment on — not a
+    // reference. Deleting the original community quiz later has zero
+    // effect on it (see plan: custom quizzes are local-only, never linked).
+    await hydrateQuizImages(importedQuestions); // resolves any legacy Storage-URL images only; R2 images are already real URLs
 
     quizzes.unshift({
       id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -474,23 +455,26 @@ async function deleteCommunityQuiz(sharedId) {
   if (!window._currentUser) return;
   if (!confirm('Remove this quiz from the community? Other users won\'t be able to find it anymore.')) return;
   try {
-    const ref = window._doc(window._db, 'sharedQuizzes', sharedId);
-    const snap = await window._getDoc(ref);
-    if (snap.exists() && snap.data().authorUid !== window._currentUser.uid) {
+    const { getCommunityQuiz, deleteContentItem } = await import('./content-client.js');
+    const q = await getCommunityQuiz(sharedId, { skipThrottle: true });
+    if (q && q.authorUid !== window._currentUser.uid) {
       alert('You can only remove your own shared quizzes.');
       return;
     }
-    await window._deleteDoc(ref);
-    await deleteSharedQuizImages(sharedId); // remove images subcollection too
+    // Deletes the content AND releases its images' refcounts (deleting the
+    // actual R2 image only if nothing else — e.g. a student's already-saved
+    // custom-quiz copy — still needs it; but per the design, saved copies
+    // are full independent copies, so this only ever protects against a
+    // rare identical-image-reused-elsewhere case, same as curriculum).
+    await deleteContentItem('community', null, sharedId);
 
     // Clear sharedAt from local quiz cache
     const quizzes = loadCustomQuizzes();
     const localQuiz = quizzes.find(q => 'sq_' + window._currentUser.uid + '_' + q.id === sharedId);
     if (localQuiz) { delete localQuiz.sharedAt; await saveCustomQuizzesList(quizzes); }
 
-    // Invalidate client + local + everyone-else's cache so lists refresh from Firestore
+    // Invalidate in-memory cache so the community list refreshes fresh
     _allSharedQuizzes = [];
-    await bumpSharedQuizzesVersion();
     renderCommunityQuizzes(true);
     renderCustomQuizModal();
   } catch(e) {

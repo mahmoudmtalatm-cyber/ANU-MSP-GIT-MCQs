@@ -97,26 +97,54 @@ function renderMergeTabContent() {
   else _renderMergeCurriculumTab();
 }
 
-/* ── Community tab ── */
+/* ── Community tab ──
+   Per-quiz granular caching now (fixes the real bug in the previous single-
+   global-version scheme, which forced a full re-fetch of every community
+   quiz whenever any ONE of them changed). One cheap manifest read tells us
+   every quiz's own version; only changed/new ones are actually fetched. */
 async function ensureSharedQuizzesLoaded(forceReload) {
   if (_allSharedQuizzes.length && !forceReload) return true;
   try {
-    const serverVer = forceReload ? null : await _fetchSharedServerVersion();
-    const localVer  = _readSharedCacheVer();
-    const cached    = await _readCache();
-    if (!forceReload && serverVer && localVer === serverVer && cached && cached.shared) {
-      _allSharedQuizzes = cached.shared;
-      return true;
+    const lastCheckKey = 'lastVersionCheck:community';
+    const withinThrottle = !forceReload &&
+      (Date.now() - parseInt(localStorage.getItem(lastCheckKey) || '0', 10)) < 60 * 1000;
+
+    if (withinThrottle && _allSharedQuizzes.length) return true; // trust recent check, skip network entirely
+
+    const { fetchCommunityManifest } = await import('./content-client.js');
+    const manifest = await fetchCommunityManifest();
+    localStorage.setItem(lastCheckKey, String(Date.now()));
+    const quizIds = Object.keys(manifest);
+
+    const prevKnownIds = (await window._idbGet('communityKnownIds').catch(() => null))?.value || [];
+    const resolved = [];
+
+    await Promise.all(quizIds.map(async (quizId) => {
+      const ver = manifest[quizId];
+      const idbKey = `content:community:${quizId}`;
+      const cached = await window._idbGet(idbKey).catch(() => null);
+
+      if (cached && cached.value && cached.value.__version === ver) {
+        resolved.push(cached.value);
+        return;
+      }
+      try {
+        const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/community/${quizId}.json`);
+        if (!resp.ok) return; // 404 or transient error — skip, don't break the whole list
+        const data = await resp.json();
+        data.__version = ver;
+        await window._idbSet(idbKey, data);
+        resolved.push(data);
+      } catch (e) { /* skip this one quiz, keep the rest of the list working */ }
+    }));
+
+    // Drop local cache entries for quizzes that no longer exist at all.
+    for (const oldId of prevKnownIds) {
+      if (!quizIds.includes(oldId)) await window._idbDelete(`content:community:${oldId}`).catch(() => {});
     }
-    const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
-    _allSharedQuizzes = [];
-    snap.forEach(d => _allSharedQuizzes.push(d.data()));
-    const existing = (await _readCache()) || {};
-    existing.shared = _allSharedQuizzes;
-    await _writeCache(existing);
-    let verToStore = forceReload ? await _fetchSharedServerVersion() : serverVer;
-    if (!verToStore) verToStore = await bumpSharedQuizzesVersion();
-    if (verToStore) _writeSharedCacheVer(verToStore);
+    await window._idbSet('communityKnownIds', quizIds);
+
+    _allSharedQuizzes = resolved;
     return true;
   } catch (e) { return false; }
 }

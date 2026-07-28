@@ -590,44 +590,39 @@ async function adminExecMoveQuiz(andDelete) {
   statusEl.textContent = '⏳ Working…';
 
   try {
-    // Fetch the source lecture (with questions + images)
-    const srcRef  = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', _moveQuizLectureId);
-    const srcSnap = await window._getDoc(srcRef);
-    if (!srcSnap.exists()) throw new Error('Source lecture not found.');
-    const srcData = srcSnap.data();
+    // Fetch the source lecture from R2 (images already resolved, permanent URLs)
+    const srcResp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${adminTargetSubject}/${_moveQuizLectureId}.json`);
+    if (!srcResp.ok) throw new Error('Source lecture not found.');
+    const srcData = await srcResp.json();
 
-    // Hydrate images so they are inline in the copied object
     const questions = JSON.parse(JSON.stringify(srcData.questions || []));
-    await hydratePublishedLectureImages(adminTargetSubject, _moveQuizLectureId, questions);
+    // Images are already permanent R2 URLs — left as-is even across the
+    // move (content-hash addressing means they're valid forever regardless
+    // of which subject folder they were originally uploaded under).
 
-    // Create new lecture in destination
     const newId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const cleanQ = questions.map(q => { delete q.pubImageIdx; return q; });
-    await uploadPublishedLectureImages(destSubject, newId, cleanQ);
-
-    const destRef = window._doc(window._db, 'publishedQuestions', destSubject, 'lectures', newId);
     const publishedAt = Date.now();
-    await window._setDoc(destRef, cleanForFirestore({
+
+    const { putContentItem } = await import('./content-client.js');
+    await putContentItem('curriculum', destSubject, newId, {
       id: newId,
       lectureName: destName,
-      questions: cleanQ,
+      questions,
       sourceTitle: srcData.sourceTitle || _moveQuizLectureName,
       sourceType:  srcData.sourceType  || 'copy',
       publishedBy: window._currentUser ? window._currentUser.uid : null,
       publishedAt,
       order: publishedAt // appended to the end of the destination subject's list
-    }));
+    });
 
     // Update in-memory for destination subject
     if (!subjects[destSubject].lectures) subjects[destSubject].lectures = {};
-    const hydrated = JSON.parse(JSON.stringify(cleanQ));
-    await hydratePublishedLectureImages(destSubject, newId, hydrated);
-    subjects[destSubject].lectures[destName] = hydrated;
+    subjects[destSubject].lectures[destName] = JSON.parse(JSON.stringify(questions));
 
     // If move: delete original
     if (andDelete) {
-      await deletePublishedLectureImages(adminTargetSubject, _moveQuizLectureId);
-      await window._deleteDoc(srcRef);
+      const { deleteContentItem } = await import('./content-client.js');
+      await deleteContentItem('curriculum', adminTargetSubject, _moveQuizLectureId); // also updates the manifest server-side
       const srcLecName = srcData.lectureName || _moveQuizLectureId;
       if (subjects[adminTargetSubject].lectures) {
         delete subjects[adminTargetSubject].lectures[srcLecName];
@@ -638,14 +633,9 @@ async function adminExecMoveQuiz(andDelete) {
     statusEl.textContent = andDelete
       ? `✅ Moved to ${subjects[destSubject].label || destSubject}!`
       : `✅ Copied to ${subjects[destSubject].label || destSubject}!`;
-
-    // Only the destination quiz (and, on a move, the now-removed source
-    // quiz) show up as changed for every other user.
-    await _updatePublishedManifest(destSubject, newId, publishedAt);
-    if (andDelete) {
-      _idbDelete('published:' + adminTargetSubject + ':' + _moveQuizLectureId);
-      await _updatePublishedManifest(adminTargetSubject, _moveQuizLectureId, null);
-    }
+    // Manifest bump for the new destination lecture already happened
+    // server-side in the Worker (as part of putContentItem above) — no
+    // separate call needed here.
 
     // Refresh views
     if (selectedSubject === adminTargetSubject || selectedSubject === destSubject) {
@@ -730,32 +720,23 @@ function _confirmCascadeDelete(title, detail, typeToConfirm) {
 }
 
 /* Permanently deletes every published quiz belonging to one subject:
-   each lecture's images subcollection, the lecture doc itself, its
-   local IndexedDB cache entry, and its entry in the shared
-   appConfig/publishedManifest doc. Also clears the subject's in-memory
-   lecture list. Used by adminDeleteSubject/-Module/-Year cascades. */
+   each lecture's content + images (via the Worker, which also releases
+   their image refcounts) and its local IndexedDB cache entry. The
+   Worker's delete handler already cleans up that subject's entry in
+   appConfig/publishedManifest once its last lecture is removed — no
+   separate manifest cleanup needed here. Also clears the subject's
+   in-memory lecture list. Used by adminDeleteSubject/-Module/-Year cascades. */
 async function _deleteSubjectQuizzesFromFirestore(subjKey) {
   try {
-    const col  = window._collection(window._db, 'publishedQuestions', subjKey, 'lectures');
-    const snap = await window._getDocs(col);
-    await Promise.all(snap.docs.map(async d => {
-      await deletePublishedLectureImages(subjKey, d.id);
-      await window._deleteDoc(d.ref);
-      await _idbDelete('published:' + subjKey + ':' + d.id);
+    const { fetchCurriculumManifest, deleteContentItem } = await import('./content-client.js');
+    const manifest = await fetchCurriculumManifest();
+    const lectureIds = Object.keys(manifest[subjKey] || {});
+    await Promise.all(lectureIds.map(async (lectureId) => {
+      await deleteContentItem('curriculum', subjKey, lectureId);
+      await _idbDelete('published:' + subjKey + ':' + lectureId);
     }));
   } catch (e) {
     console.warn('Failed to delete published quizzes for subject', subjKey, e);
-  }
-  try {
-    const ref  = window._doc(window._db, 'appConfig', 'publishedManifest');
-    const snap = await window._getDoc(ref);
-    const data = snap.exists() ? (snap.data() || {}) : {};
-    if (data.subjects && data.subjects[subjKey]) {
-      delete data.subjects[subjKey];
-      await window._setDoc(ref, data);
-    }
-  } catch (e) {
-    console.warn('Failed to clean published manifest for subject', subjKey, e);
   }
   if (subjects[subjKey]) subjects[subjKey].lectures = {};
 }

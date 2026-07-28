@@ -1117,44 +1117,21 @@ function defaultStats() {
         older entry is served from the local cache untouched. See
         loadHistoryEntries in js/firebase-storage.js. */
 async function loadStatsFromFirestore() {
+  // Name kept for compatibility with existing call sites elsewhere in the
+  // app; stats now live entirely in local storage, never Firestore.
   if (!window._currentUser) return;
-  const uid = window._currentUser.uid;
   try {
-    const serverVer = await _fetchStatsServerVersion(uid);
-    const localVer  = _readStatsCacheVer(uid);
-    const cachedAgg = _readStatsCache(uid);
-
-    let aggregate;
-    if (serverVer && localVer === serverVer && cachedAgg) {
-      console.log('[cache] stats aggregate hit, skipping Firestore fetch');
-      aggregate = cachedAgg;
-    } else {
-      const ref  = window._doc(window._db, 'stats', uid);
-      const snap = await window._getDoc(ref);
-      aggregate = snap.exists() ? snap.data() : {};
-
-      // One-time migration: accounts saved before per-quiz documents
-      // existed still have their whole `history` array inlined here.
-      // Split it out into individual documents + build the manifest,
-      // exactly once — see _migrateInlineHistoryToDocs.
-      if (Array.isArray(aggregate.history) && aggregate.history.length) {
-        aggregate = await _migrateInlineHistoryToDocs(uid, aggregate);
-      }
-
-      _writeStatsCache(uid, aggregate);
-      if (serverVer) _writeStatsCacheVer(uid, serverVer);
-      else await _bumpStatsVersion(uid).then(v => v && _writeStatsCacheVer(uid, v)); // first time: create the doc
-    }
-
-    const history = await loadHistoryEntries(uid, aggregate.historyManifest || {});
-    window._cachedStats = Object.assign(defaultStats(), aggregate, { history });
-  } catch(e) {
-    console.error('Failed to load stats from Firestore:', e);
-    try {
-      const cachedAgg = _readStatsCache(uid) || {};
-      const history    = await loadHistoryEntries(uid, cachedAgg.historyManifest || {}).catch(() => []);
-      window._cachedStats = Object.assign(defaultStats(), cachedAgg, { history });
-    } catch(_) { window._cachedStats = defaultStats(); }
+    const { getStatsAggregate, listAttempts } = await import('./local-store.js');
+    const aggregate = await getStatsAggregate();
+    const attempts = await listAttempts();
+    window._cachedStats = Object.assign(
+      defaultStats(),
+      aggregate || {}, // the incrementally-maintained totals — full precision, not recomputed
+      { history: attempts.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)) }
+    );
+  } catch (e) {
+    console.error('Failed to load local stats:', e);
+    window._cachedStats = defaultStats();
   } finally {
     _fsReady.stats = true;
   }
@@ -1162,18 +1139,10 @@ async function loadStatsFromFirestore() {
 
 // Called everywhere stats are read — returns the in-memory cache
 function loadStats() {
-  if (window._currentUser) {
-    // Signed in — use Firestore cache (or empty if still loading)
-    return window._cachedStats || defaultStats();
-  } else {
-    // Not signed in — fall back to localStorage. No per-quiz documents
-    // exist for anonymous use, so this stays a single simple blob with
-    // history included, same as before.
-    try {
-      const raw = localStorage.getItem(STATS_KEY);
-      return raw ? Object.assign(defaultStats(), JSON.parse(raw)) : defaultStats();
-    } catch(e) { return defaultStats(); }
-  }
+  // Stats live in local storage for both signed-in and signed-out use now
+  // (there was never a meaningful difference once nothing touches Firestore) —
+  // window._cachedStats is kept warm by loadStatsFromFirestore()/saveQuizStats().
+  return window._cachedStats || defaultStats();
 }
 
 // Saves the AGGREGATE fields only (totals/subjectStats/historyManifest) —
@@ -1182,25 +1151,13 @@ function loadStats() {
 // use has no per-quiz documents at all, so its localStorage blob keeps
 // history inlined, same as before.
 function persistStats(st) {
-  window._cachedStats = st; // always update the in-memory cache (history included, for rendering)
+  window._cachedStats = st; // keep the in-memory cache (used everywhere for rendering) in sync
 
-  if (window._currentUser) {
-    const uid = window._currentUser.uid;
-    const { history, ...aggregate } = st;
-    const ref = window._doc(window._db, 'stats', uid);
-    window._setDoc(ref, aggregate)
-      .then(() => {
-        // Write-through the local cache immediately and bump the server
-        // version, so the very next load — this device or a fresh
-        // session/device — is warm.
-        _writeStatsCache(uid, aggregate);
-        return _bumpStatsVersion(uid);
-      })
-      .then(newVer => { if (newVer) _writeStatsCacheVer(uid, newVer); })
-      .catch(e => console.error('Failed to save stats:', e));
-  } else {
-    try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch(e) {}
-  }
+  // Persist the aggregate fields (everything except `history`, which is
+  // stored per-attempt separately via recordAttempt/deleteAttempt) —
+  // incrementally maintained, full precision, not recomputed from history.
+  const { history, ...aggregate } = st;
+  import('./local-store.js').then(({ saveStatsAggregate }) => saveStatsAggregate(aggregate));
 }
 
 /* Stats/Retake history stores whatever was in `selectedSubject` at quiz-submit
@@ -1242,59 +1199,33 @@ async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs,
 
   const avgTime = timedQs > 0 ? Math.round(timeSecs / timedQs) : 0;
 
-  // Deep-clone before storage: uploadHistoryImagesToStorage strips q.image
-  // off whatever array it's given, and these must never be the same
-  // objects as currentQuestions — that array is still driving the results
-  // screen currently on-screen, and stripping its images would blank them
-  // out there too.
   const historyId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const ts = Date.now();
   const wrongQuestions = JSON.parse(JSON.stringify(
     currentQuestions.filter((q, i) => (userAnswers[i] || '') !== q.answer)
   ));
-
-  // Full snapshot — every question as taken (right + wrong), archived
-  // separately from wrongQuestions above. Not displayed anywhere today;
-  // kept in case a future feature needs to review a whole past quiz.
-  // Frozen at submit time, so it's completely unaffected if an admin
-  // later edits or deletes the live quiz it came from.
-  const fullSnapshot = JSON.parse(JSON.stringify(currentQuestions)).map((q, i) => ({
-    ...q,
-    userAnswer: userAnswers[i] || null,
-    isCorrect: (userAnswers[i] || '') === q.answer
-  }));
-
-  let hasFullSnapshot = false;
-  if (window._currentUser) {
-    // Signed in — move this entry's wrong-question images out to a
-    // Firestore subcollection (see js/firebase-storage.js) instead of
-    // inlining base64 anywhere, and best-effort archive the full snapshot.
-    await uploadHistoryImagesToStorage(historyId, wrongQuestions);
-    hasFullSnapshot = await uploadHistoryFullSnapshotToStorage(historyId, fullSnapshot);
-  }
+  // No Firestore/Storage upload needed anymore — this entry (including each
+  // wrong question's image, kept inline) is written straight to local
+  // storage below, at zero server cost. The old fullSnapshot feature is
+  // removed: it was never surfaced in any UI, and retake now only ever
+  // needs wrong questions, per the design decision to keep this local-only.
 
   const entry = {
     id: historyId, ts, subject, lecture, score, total, pct, avgTime, c2w, w2c,
     date: new Date().toLocaleDateString(),
-    wrongQuestions,
-    hasFullSnapshot
+    wrongQuestions
   };
 
   // Keep the in-memory array (rendering/Retake read this directly and
-  // never change), but persist it as its OWN document plus a manifest
-  // entry — not inlined here — so this quiz never re-downloads the rest
-  // of history, and vice versa. See "STATS HISTORY — per-quiz documents"
-  // in js/firebase-storage.js.
+  // never change) — persisted entirely to local storage now, never
+  // Firestore. See js/local-store.js.
   st.history.unshift(entry);
-  if (!st.historyManifest) st.historyManifest = {};
-  st.historyManifest[historyId] = ts;
 
-  if (window._currentUser) {
-    try {
-      await saveHistoryEntryToStorage(window._currentUser.uid, historyId, entry);
-    } catch (e) {
-      console.error('Failed to save quiz history entry:', e);
-    }
+  try {
+    const { recordAttempt } = await import('./local-store.js');
+    await recordAttempt(entry);
+  } catch (e) {
+    console.error('Failed to save quiz history entry:', e);
   }
 
   persistStats(st);
@@ -1326,20 +1257,17 @@ function resetStats() {
   if (!confirm('Reset ALL statistics? This cannot be undone.')) return;
 
   const previousHistory = window._cachedStats ? window._cachedStats.history : null;
-  const uid = window._currentUser ? window._currentUser.uid : null;
 
-  // persistStats() both updates window._cachedStats and writes the empty
-  // aggregate doc (signed in) or clears localStorage (signed out) —
-  // same path every other save uses, nothing special-cased here.
+  // persistStats() just updates the in-memory cache for rendering — the
+  // actual clearing of every local attempt record happens below.
   persistStats(defaultStats());
 
-  if (uid) {
-    // Best-effort cleanup of every entry's own document, its image and
-    // full-snapshot subcollections, and its local cache entry (see
-    // deleteHistoryEntryCompletely in js/firebase-storage.js) — not
-    // awaited, since the reset itself doesn't depend on any of it finishing.
-    (previousHistory || []).forEach(h => { if (h.id) deleteHistoryEntryCompletely(uid, h.id); });
-  }
+  (async () => {
+    const { deleteAttempt } = await import('./local-store.js');
+    for (const h of previousHistory || []) {
+      if (h.id) await deleteAttempt(h.id).catch(() => {});
+    }
+  })();
 
   renderStatsModal();
 }

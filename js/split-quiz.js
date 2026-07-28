@@ -475,7 +475,8 @@ async function executeSplitQuiz(targetMode) {
         const partQuestions = JSON.parse(JSON.stringify(srcQuestions.slice(c.start - 1, c.end))).map(q => {
           delete q.imageUrl;
           delete q.sharedImageIdx;
-          delete q.pubImageIdx; // will be re-assigned after upload
+          delete q.pubImageIdx;
+          if (!q.qid) q.qid = 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
           return q;
         });
         const lectureName = ((cqSplitState.mode === 'custom' || cqSplitState.mode === 'visual') && c.label)
@@ -483,9 +484,8 @@ async function executeSplitQuiz(targetMode) {
           : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`;
         const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i;
 
-        await uploadPublishedLectureImages(subject, lectureId, partQuestions);
-        const ref = window._doc(window._db, 'publishedQuestions', subject, 'lectures', lectureId);
-        await window._setDoc(ref, cleanForFirestore({
+        const { putContentItem } = await import('./content-client.js');
+        await putContentItem('curriculum', subject, lectureId, {
           id: lectureId,
           lectureName,
           questions: partQuestions,
@@ -494,21 +494,21 @@ async function executeSplitQuiz(targetMode) {
           publishedBy: window._currentUser ? window._currentUser.uid : null,
           publishedAt: publishedAt + i,
           order: publishedAt + i
-        }));
+        });
         newLectures.push({ lectureId, lectureName, questions: partQuestions });
       }
 
       // Remove the original lecture now that its replacements are live.
-      await deletePublishedLectureImages(subject, origLectureId);
-      await window._deleteDoc(window._doc(window._db, 'publishedQuestions', subject, 'lectures', origLectureId));
+      const { deleteContentItem } = await import('./content-client.js');
+      await deleteContentItem('curriculum', subject, origLectureId);
 
       // Update in-memory subject: drop the old lecture, add the new ones.
+      // Images are already resolved, permanent R2 URLs (putContentItem
+      // mutated them in place during upload) — no separate hydrate needed.
       if (subjects[subject].lectures) delete subjects[subject].lectures[baseTitle];
       if (!subjects[subject].lectures) subjects[subject].lectures = {};
       for (const nl of newLectures) {
-        const hydrated = JSON.parse(JSON.stringify(nl.questions));
-        await hydratePublishedLectureImages(subject, nl.lectureId, hydrated);
-        subjects[subject].lectures[nl.lectureName] = hydrated;
+        subjects[subject].lectures[nl.lectureName] = nl.questions;
       }
 
       // If the original lecture was open in the editor, close it.
@@ -518,12 +518,9 @@ async function executeSplitQuiz(targetMode) {
         adminEditingPublishedId = null;
         adminEditingPublishedName = '';
       }
-
-      _idbDelete('published:' + subject + ':' + origLectureId);
-      await _updatePublishedManifest(subject, origLectureId, null);
-      for (const nl of newLectures) {
-        await _updatePublishedManifest(subject, nl.lectureId, publishedAt);
-      }
+      // Manifest bumps for the removed original and each new part already
+      // happened server-side in the Worker (as part of the writes/delete
+      // above) — no separate calls needed here.
 
       cqSplitState = null;
       renderAdminAssignedList();
@@ -607,7 +604,9 @@ async function deleteCustomQuiz(id) {
   if (!confirm('Delete this custom quiz? This cannot be undone.')) return;
   let quizzes = loadCustomQuizzes();
   quizzes = quizzes.filter(q => q.id !== id);
-  await deleteQuizImagesFromStorage(id);
+  // No Firestore cleanup needed anymore — custom quizzes (and their images,
+  // kept inline) live entirely in local storage; saveCustomQuizzesList's
+  // local-storage diff already removes this quiz's entry cleanly.
   await saveCustomQuizzesList(quizzes);
   renderCustomQuizModal();
 }

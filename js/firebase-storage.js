@@ -554,51 +554,19 @@ async function loadCustomQuizzesFromFirestore() {
 }
 
 async function saveCustomQuizzesList(arr) {
+  // Custom quizzes now live entirely in local storage (see js/local-store.js)
+  // — no Firestore round-trip, no Storage image upload, no version bump.
   window._cachedCustomQuizzes = arr;
-  if (window._currentUser) {
-    try {
-      const col = window._collection(window._db, 'users', window._currentUser.uid, 'customQuizzes');
-      const snap = await window._getDocs(col);
-      const existingIds = new Set();
-      snap.forEach(d => existingIds.add(d.id));
-      const newIds = new Set(arr.map(q => q.id));
+  const { saveCustomQuiz, deleteCustomQuiz: deleteLocal, listCustomQuizzes } =
+    await import('./local-store.js');
 
-      // Delete removed quizzes and their Storage images
-      for (const id of existingIds) {
-        if (!newIds.has(id)) {
-          await window._deleteDoc(window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', id));
-          await deleteQuizImagesFromStorage(id);
-        }
-      }
-
-      for (const quiz of arr) {
-        // Deep-clone so we don't mutate the in-memory cached copy
-        const quizToSave = JSON.parse(JSON.stringify(quiz));
-
-        // Upload any new base64 images to Storage, replacing them with URLs
-        await uploadQuizImagesToStorage(quizToSave.id, quizToSave.questions || []);
-
-        // Also update the in-memory cache with the imageUrls so next save is a no-op
-        quiz.questions.forEach((q, idx) => {
-          if (quizToSave.questions[idx]?.imageUrl) {
-            q.imageUrl = quizToSave.questions[idx].imageUrl;
-          }
-        });
-
-        const ref = window._doc(window._db, 'users', window._currentUser.uid, 'customQuizzes', quizToSave.id);
-        await window._setDoc(ref, quizToSave);
-      }
-
-      // Refresh this user's local cache immediately (arr is already fully
-      // hydrated in memory) and bump the server version so other devices
-      // know to refetch on their next load.
-      const uid = window._currentUser.uid;
-      _writeCqCache(uid, arr);
-      const newVer = await _bumpCqVersion(uid);
-      if (newVer) _writeCqCacheVer(uid, newVer);
-    } catch (e) { console.error('Failed to save custom quizzes:', e); }
-  } else {
-    try { localStorage.setItem(CQ_KEY, JSON.stringify(arr)); } catch (e) {}
+  const existing = await listCustomQuizzes();
+  const newIds = new Set(arr.map(q => q.id));
+  for (const quiz of existing) {
+    if (!newIds.has(quiz.id)) await deleteLocal(quiz.id);
+  }
+  for (const quiz of arr) {
+    await saveCustomQuiz(quiz);
   }
 }
 function openCustomQuizzes() {

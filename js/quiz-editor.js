@@ -717,10 +717,14 @@ async function adminSwapLectureOrder(lectureId, direction) {
   const subj = _pubListSubject();
   if (!subj) return;
   try {
-    const col  = window._collection(window._db, 'publishedQuestions', subj, 'lectures');
-    const snap = await window._getDocs(col);
+    const { fetchCurriculumManifest, putContentItem } = await import('./content-client.js');
+    const manifest = await fetchCurriculumManifest();
+    const lectureIds = Object.keys(manifest[subj] || {});
     const entries = [];
-    snap.forEach(d => entries.push({ id: d.id, ...d.data() }));
+    for (const lecId of lectureIds) {
+      const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${subj}/${lecId}.json`);
+      if (resp.ok) entries.push({ id: lecId, ...(await resp.json()) });
+    }
     entries.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
 
     const idx = entries.findIndex(e => e.id === lectureId);
@@ -733,20 +737,11 @@ async function adminSwapLectureOrder(lectureId, direction) {
     const aOrder = a.order ?? a.publishedAt ?? 0;
     const bOrder = b.order ?? b.publishedAt ?? 0;
 
-    await window._setDoc(
-      window._doc(window._db, 'publishedQuestions', subj, 'lectures', a.id),
-      { order: bOrder }, { merge: true }
-    );
-    await window._setDoc(
-      window._doc(window._db, 'publishedQuestions', subj, 'lectures', b.id),
-      { order: aOrder }, { merge: true }
-    );
-
-    // Only these two quizzes are invalidated for every other user — nothing
-    // else they've already cached is touched.
-    const now = Date.now();
-    await _updatePublishedManifest(subj, a.id, now);
-    await _updatePublishedManifest(subj, b.id, now + 1);
+    // Each write here is a normal authorized content write — updates that
+    // one lecture's `order` field and (server-side, in the Worker) bumps
+    // just its own manifest entry, same as any other edit.
+    await putContentItem('curriculum', subj, a.id, { ...a, order: bOrder });
+    await putContentItem('curriculum', subj, b.id, { ...b, order: aOrder });
 
     // Refresh in-memory ordering + whatever the admin currently has open
     await loadPublishedQuestionsIntoSubjects();
@@ -766,9 +761,13 @@ async function renderAdminAssignedList() {
 
   let entries = [];
   try {
-    const col = window._collection(window._db, 'publishedQuestions', subj, 'lectures');
-    const snap = await window._getDocs(col);
-    snap.forEach(d => entries.push({ id: d.id, ...d.data() }));
+    const { fetchCurriculumManifest } = await import('./content-client.js');
+    const manifest = await fetchCurriculumManifest();
+    const lectureIds = Object.keys(manifest[subj] || {});
+    await Promise.all(lectureIds.map(async (lecId) => {
+      const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${subj}/${lecId}.json`);
+      if (resp.ok) entries.push({ id: lecId, ...(await resp.json()) });
+    }));
   } catch (e) {
     sec.innerHTML += `<div style="color:var(--text-muted);font-size:.82rem;">Could not load published lectures.</div>`;
     return;
@@ -932,17 +931,19 @@ async function openAdminSplitPanel(lectureId) {
 /* Load a published lecture's questions into the inline editor */
 async function adminEditPublished(lectureId) {
   try {
-    const ref  = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', lectureId);
-    const snap = await window._getDoc(ref);
-    if (!snap.exists()) { alert('Could not find this lecture.'); return; }
-    const data = snap.data();
+    const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${adminTargetSubject}/${lectureId}.json`);
+    if (!resp.ok) { alert('Could not find this lecture.'); return; }
+    const data = await resp.json();
 
     adminEditMode = 'published';
     adminEditingPublishedId   = lectureId;
     adminEditingPublishedName = data.lectureName || lectureId;
     adminEditQuestions = JSON.parse(JSON.stringify(data.questions || []));
-    // Hydrate images from the subcollection so they appear in the editor
-    await hydratePublishedLectureImages(adminTargetSubject, lectureId, adminEditQuestions);
+    // Images are already resolved, permanent R2 URLs — no hydrate step needed.
+    // Each question's __previousImageUrl is set here so that IF the admin
+    // changes its image, the save step below can tell the Worker which old
+    // hash to safely release (refcount-checked, never an unconditional delete).
+    adminEditQuestions.forEach(q => { if (q.image) q.__previousImageUrl = q.image; });
     _questionEditDirty = false;
 
     renderAdminAssignedList();
@@ -973,12 +974,12 @@ async function adminRenamePublished(lectureId) {
   if (!trimmed || trimmed === current) return;
 
   try {
-    const ref  = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', lectureId);
-    const snap = await window._getDoc(ref);
-    if (!snap.exists()) { alert('Could not find this lecture.'); return; }
-    const data = snap.data();
+    const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${adminTargetSubject}/${lectureId}.json`);
+    if (!resp.ok) { alert('Could not find this lecture.'); return; }
+    const data = await resp.json();
     const updatedAt = Date.now();
-    await window._setDoc(ref, cleanForFirestore({ ...data, lectureName: trimmed, updatedAt }));
+    const { putContentItem } = await import('./content-client.js');
+    await putContentItem('curriculum', adminTargetSubject, lectureId, { ...data, lectureName: trimmed, updatedAt });
 
     // Move the in-memory entry over to its new name key.
     const lectures = subjects[adminTargetSubject] && subjects[adminTargetSubject].lectures;
@@ -991,10 +992,8 @@ async function adminRenamePublished(lectureId) {
     // its editor title in sync too, so ✏️ Edit → 💾 Save Changes below
     // doesn't silently revert the rename.
     if (adminEditingPublishedId === lectureId) adminEditingPublishedName = trimmed;
-
-    // Only THIS quiz's cache entry is invalidated for every other user —
-    // same as any other edit to a published lecture (see adminSavePublishedEdits).
-    await _updatePublishedManifest(adminTargetSubject, lectureId, updatedAt);
+    // Manifest bump happens server-side in the Worker automatically, as
+    // part of the authorized write above — no separate call needed here.
 
     _renderAdminAssignedListHTML();
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
@@ -1067,42 +1066,41 @@ async function adminSavePublishedEdits() {
     const cleanQuestions = JSON.parse(JSON.stringify(adminEditQuestions)).map(q => {
       delete q.imageUrl;
       delete q.sharedImageIdx;
-      delete q.pubImageIdx; // will be re-assigned after upload
+      delete q.pubImageIdx;
+      if (!q.qid) q.qid = 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); // backfill for pre-existing lectures
       return q;
     });
 
-    // Re-upload images into the subcollection (handles new images added during edit,
-    // and also re-saves existing ones so no image is ever lost)
     if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Uploading images…</div>`;
-    await uploadPublishedLectureImages(adminTargetSubject, lectureId, cleanQuestions);
 
-    const ref = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', lectureId);
-    const snap = await window._getDoc(ref);
-    const existing = snap.exists() ? snap.data() : {};
+    // Fetch the existing record first (for fields we want to preserve —
+    // publishedAt, order, sourceTitle/sourceType) rather than a Firestore getDoc.
+    const existingResp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${adminTargetSubject}/${lectureId}.json`);
+    const existing = existingResp.ok ? await existingResp.json() : {};
     const updatedAt = Date.now();
 
-    await window._setDoc(ref, cleanForFirestore({
+    const { putContentItem } = await import('./content-client.js');
+    await putContentItem('curriculum', adminTargetSubject, lectureId, {
       ...existing,
       id: lectureId,
       lectureName: adminEditingPublishedName,
-      questions: cleanQuestions,
+      questions: cleanQuestions, // changed images (data URLs) get uploaded to R2 in-place; each q.__previousImageUrl (set in adminEditPublished) lets the Worker safely release the old one via refcount
       publishedBy: window._currentUser ? window._currentUser.uid : null,
       publishedAt: existing.publishedAt || updatedAt,
       updatedAt,
       order: existing.order != null ? existing.order : updatedAt // preserve admin-set position; backfill if missing
-    }));
+    });
+    // Manifest bump (appConfig/publishedManifest) happens server-side in the
+    // Worker, right after this authorized write succeeds — the separate
+    // _updatePublishedManifest() call that used to be needed here is gone,
+    // since it would now just be a redundant second write to the same doc.
 
-    // Update in-memory subject (hydrate images from subcollection for immediate use)
-    const hydratedForMemory = JSON.parse(JSON.stringify(cleanQuestions));
-    await hydratePublishedLectureImages(adminTargetSubject, lectureId, hydratedForMemory);
+    // Update in-memory subject — cleanQuestions already has resolved R2
+    // image URLs at this point (putContentItem mutates them in place).
     if (!subjects[adminTargetSubject].lectures) subjects[adminTargetSubject].lectures = {};
-    subjects[adminTargetSubject].lectures[adminEditingPublishedName] = hydratedForMemory;
+    subjects[adminTargetSubject].lectures[adminEditingPublishedName] = cleanQuestions;
 
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Changes saved!</div>`;
-
-    // Only THIS quiz's cache entry is invalidated for every other user —
-    // everything else they've already cached stays untouched.
-    await _updatePublishedManifest(adminTargetSubject, lectureId, updatedAt);
 
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
 
@@ -1124,13 +1122,13 @@ async function adminRemovePublished(lectureId) {
   if (!confirm('Remove this lecture from the question bank? This affects all users.')) return;
   try {
     // Look up the lecture name before deleting so we can remove it from memory
-    const ref = window._doc(window._db, 'publishedQuestions', adminTargetSubject, 'lectures', lectureId);
-    const snap = await window._getDoc(ref);
-    const lectureName = snap.exists() ? (snap.data().lectureName || lectureId) : null;
+    const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${adminTargetSubject}/${lectureId}.json`);
+    const lectureName = resp.ok ? ((await resp.json()).lectureName || lectureId) : null;
 
-    // Delete images subcollection first, then the lecture doc itself
-    await deletePublishedLectureImages(adminTargetSubject, lectureId);
-    await window._deleteDoc(ref);
+    // Deletes the content + images (also releasing their refcounts) and
+    // updates the manifest, all server-side in the Worker.
+    const { deleteContentItem } = await import('./content-client.js');
+    await deleteContentItem('curriculum', adminTargetSubject, lectureId);
 
     // Remove from in-memory subject too
     if (lectureName && subjects[adminTargetSubject].lectures) {
@@ -1145,8 +1143,6 @@ async function adminRemovePublished(lectureId) {
       adminEditingPublishedName = '';
     }
 
-    _idbDelete('published:' + adminTargetSubject + ':' + lectureId);
-    await _updatePublishedManifest(adminTargetSubject, lectureId, null);
     renderAdminAssignedList();
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
   } catch (e) {
@@ -1189,21 +1185,20 @@ async function adminPublishQuiz() {
       }
     }
 
-    // Deep-clone + strip source-specific sentinels so each question is clean
+    // Deep-clone + strip source-specific sentinels so each question is clean.
+    // Assign a STABLE id to every question that doesn't already have one —
+    // this must survive community -> publish -> later-edit unchanged, since
+    // it's what image references and (if ever needed) retake snapshots key
+    // off, instead of array position (which breaks silently on reorder).
     const cleanQuestions = JSON.parse(JSON.stringify(questions)).map(q => {
       delete q.imageUrl;
       delete q.sharedImageIdx;
-      delete q.pubImageIdx; // will be re-assigned below after image upload
+      delete q.pubImageIdx;
+      if (!q.qid) q.qid = 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
       return q;
     });
 
     const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-
-    // Upload images into a separate subcollection so the lecture doc stays under Firestore's
-    // 1 MB limit — and so the published lecture is fully self-contained, independent of the
-    // source quiz.  Even if the source quiz is later deleted, images remain here.
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Uploading images…</div>`;
-    await uploadPublishedLectureImages(targetSubject, lectureId, cleanQuestions);
 
     const publishedAt = Date.now();
 
@@ -1212,14 +1207,22 @@ async function adminPublishQuiz() {
     // If the admin picked a before/after spot in the picker, compute an
     // order value that slots it exactly there — midpoint between the two
     // neighboring order values (or one below/above the first/last entry).
+    // Content now lives in R2, not a queryable Firestore collection, so
+    // existing lectures' order/publishedAt are read from R2 directly here
+    // (admin-only, infrequent action — the cost of a few extra reads is
+    // fine for this, unlike the student-facing hot paths elsewhere).
     let order = publishedAt;
     const pos = adminPublishInsertPosition;
     if (pos) {
       try {
-        const col  = window._collection(window._db, 'publishedQuestions', targetSubject, 'lectures');
-        const snap = await window._getDocs(col);
+        const { fetchCurriculumManifest } = await import('./content-client.js');
+        const manifest = await fetchCurriculumManifest();
+        const lecIds = Object.keys(manifest[targetSubject] || {});
         const existing = [];
-        snap.forEach(d => existing.push({ id: d.id, ...d.data() }));
+        for (const lecId of lecIds) {
+          const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${targetSubject}/${lecId}.json`);
+          if (resp.ok) existing.push({ id: lecId, ...(await resp.json()) });
+        }
         existing.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
         const idx = existing.findIndex(e => e.id === pos.lectureId);
         if (idx !== -1) {
@@ -1237,25 +1240,25 @@ async function adminPublishQuiz() {
       }
     }
 
-    const ref = window._doc(window._db, 'publishedQuestions', targetSubject, 'lectures', lectureId);
-    await window._setDoc(ref, cleanForFirestore({
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Uploading images…</div>`;
+    const { putContentItem } = await import('./content-client.js');
+    await putContentItem('curriculum', targetSubject, lectureId, {
       id: lectureId,
       lectureName,
-      questions: cleanQuestions,
+      questions: cleanQuestions, // images (data URLs) get uploaded to R2 in-place by putContentItem, becoming permanent URLs
       sourceTitle: adminSelectedQuiz.title,
       sourceType: adminSelectedQuiz.sourceType,
       publishedBy: window._currentUser ? window._currentUser.uid : null,
       publishedAt,
-      order // newest goes last by default, or the admin-chosen before/after spot
-    }));
+      order
+    });
 
-    // Merge into the in-memory subject so it's usable immediately.
-    // Build a hydrated copy (with q.image restored) for in-memory use,
-    // while cleanQuestions (with pubImageIdx sentinels) was what we saved to Firestore.
-    const hydratedForMemory = JSON.parse(JSON.stringify(cleanQuestions));
-    await hydratePublishedLectureImages(targetSubject, lectureId, hydratedForMemory);
+    // Merge into the in-memory subject so it's usable immediately —
+    // cleanQuestions already has real, resolved R2 image URLs at this
+    // point (putContentItem mutates them in place during upload), so no
+    // separate hydrate step is needed.
     if (!subjects[targetSubject].lectures) subjects[targetSubject].lectures = {};
-    subjects[targetSubject].lectures[lectureName] = hydratedForMemory;
+    subjects[targetSubject].lectures[lectureName] = cleanQuestions;
 
     if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
     if (nameInput) nameInput.value = '';

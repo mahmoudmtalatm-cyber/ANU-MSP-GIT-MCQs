@@ -326,6 +326,12 @@ function _reRenderOpenSelections() {
    signed-out visitor will just fail with permission-denied on the
    setDoc calls (harmless, but pointless — it can never complete).
 ══════════════════════════════════════════════════════════ */
+/* NOTE: this one-time migration is now OBSOLETE as of the R2 migration —
+   publishedQuestions/{subject}/lectures no longer holds live content, so
+   this will simply find nothing and no-op harmlessly (its own
+   manifestBackfillDone flag also means it already ran and returns
+   immediately on any deployment where it previously completed). Left
+   in place rather than removed, since it's inert either way and safe. */
 async function _backfillManifestIfNeeded() {
   try {
     const doneRef  = window._doc(window._db, 'appConfig', 'manifestBackfillDone');
@@ -385,6 +391,8 @@ async function _backfillManifestIfNeeded() {
    appConfig/* and to lecture docs are gated by Firestore rules, so
    only call this once an admin user is confirmed signed in.
 ══════════════════════════════════════════════════════════ */
+/* NOTE: also OBSOLETE post-R2-migration, same reasoning as
+   _backfillManifestIfNeeded above — safe, inert no-op. */
 async function _backfillLectureOrderIfNeeded() {
   try {
     const doneRef  = window._doc(window._db, 'appConfig', 'orderBackfillDone');
@@ -481,19 +489,16 @@ async function loadPublishedQuestionsIntoSubjects() {
           return;
         }
 
-        // New or changed quiz — fetch just this one document.
+        // New or changed quiz — fetch just this one item from R2 via the Worker.
         try {
-          const ref  = window._doc(window._db, 'publishedQuestions', subjName, 'lectures', lectureId);
-          const snap = await window._getDoc(ref);
-          if (!snap.exists()) return;
-          const data = snap.data();
+          const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${subjName}/${lectureId}.json`);
+          if (!resp.ok) { if (resp.status === 404) return; throw new Error(`Fetch failed: ${resp.status}`); }
+          const data = await resp.json();
           const name = data.lectureName || lectureId;
           const questions = data.questions || [];
           const order = data.order != null ? data.order : (data.publishedAt || 0);
-          // Hydrate images from the separate images subcollection (published lectures
-          // store images there to stay under Firestore's 1 MB doc limit, and to keep
-          // the snapshot independent of the original source quiz).
-          await hydratePublishedLectureImages(subjName, lectureId, questions);
+          // Images are already resolved, permanent R2 URLs in the fetched
+          // JSON — no separate hydrate step needed (see js/user-profile.js).
 
           resolved.push({ name, questions, order });
           newTrack[lectureId] = name;
