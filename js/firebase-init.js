@@ -74,7 +74,7 @@ import { firebaseConfig } from './config/firebase-config.js';
       // directly here; stats reuse the one, already-correct loader in
       // js/app-core.js (window.loadStatsFromFirestore) rather than
       // duplicating that logic a second time in this file.
-      window._customQuizzes = await listCustomQuizzes();
+      window._cachedCustomQuizzes = await listCustomQuizzes();
       await window.loadStatsFromFirestore();
       window._quizAttempts = await listAttempts();
       _fsReady.customQuizzes = true;

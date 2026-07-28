@@ -773,6 +773,47 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **61 — Custom quizzes vanished after refresh (visible in Backup menu,
+  not in Custom Quizzes).** Leftover naming mismatch from change #56's
+  migration off Firestore. Every render path for custom quizzes
+  (`js/quiz-editor.js`, `sharing.js`, `split-quiz.js`,
+  `community-quizzes.js`, `admin-panel.js`, `ai-solve.js`) reads the list
+  through `loadCustomQuizzes()` in `js/firebase-storage.js`, which returns
+  `window._cachedCustomQuizzes`. But the code that loads quizzes from
+  IndexedDB on sign-in (`js/firebase-init.js`) was writing them into a
+  *differently named* global, `window._customQuizzes` — so
+  `_cachedCustomQuizzes` was never populated on page load and every render
+  saw an empty list. It only looked correct immediately after saving
+  because `saveCustomQuizzesList()` sets `_cachedCustomQuizzes` directly as
+  an in-memory side effect of that save — which is also why a refresh made
+  it vanish again. The Backup & Transfer menu was unaffected because it
+  calls `listCustomQuizzes()` from `js/local-store.js` directly, bypassing
+  this broken cache. Fixed both write sites
+  (`js/firebase-init.js` and the post-import refresh in
+  `js/backup-transfer-ui.js`) to use `window._cachedCustomQuizzes`, the
+  name every reader actually expects. (Note: `loadCustomQuizzesFromFirestore()`
+  and its per-user version-cache helpers in `js/ai-features.js` are now
+  confirmed fully dead code from before #56 — not touched here, flagged for
+  a future cleanup pass.)
+- **60 — Two Backup & Transfer bugs: invisible button text, missing P2P
+  code.**
+  - `.stats-open-btn` is styled for the dark gradient *modal header*
+    (`color: white`), but `js/backup-transfer-ui.js` also reused it for the
+    Export/Import/Send/Receive buttons in the modal *body*, which sits on
+    the light theme's white card background. White text on a white card is
+    invisible — only the emoji (unaffected by CSS `color`) showed. Added a
+    `.stats-body .stats-open-btn` override in `css/styles.css` with its own
+    light-theme palette (accent-tinted background, accent-colored text)
+    scoped only to buttons inside a modal body, so the header buttons
+    elsewhere are untouched.
+  - `js/p2p-transfer.js`'s `startSend()` generated a short transfer code
+    but never returned or surfaced it anywhere — it fired
+    `onStatus('waiting-for-receiver')` with no code, even though the UI
+    text told the user a code would appear. The receiving device had no
+    way to know what to type. Fixed by passing the code as a 2nd argument
+    to `onStatus`, and `backup-transfer-ui.js` now renders it in a large,
+    monospace, dashed-border box with a one-tap Copy button
+    (`.p2p-code-box`, responsive down to narrow phone widths).
 - **59 — Two more post-deployment fixes: Worker CORS, missing migration
   rule.** After #58 fixed Firebase init, two smaller issues surfaced:
   - The Cloudflare Worker (`worker/src/index.js`) never sent

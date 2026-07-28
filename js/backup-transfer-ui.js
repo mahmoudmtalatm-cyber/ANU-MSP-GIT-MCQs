@@ -131,7 +131,7 @@ async function _backupDoImport(file) {
 /** After any import (file or P2P), refresh in-memory state so the rest of the app (Stats, Custom Quizzes) reflects it immediately, without needing a page reload. */
 async function _backupRefreshAfterImport() {
   const { listCustomQuizzes } = await import('./local-store.js');
-  window._customQuizzes = await listCustomQuizzes();
+  window._cachedCustomQuizzes = await listCustomQuizzes();
   if (window._currentUser && typeof loadStatsFromFirestore === 'function') {
     await loadStatsFromFirestore();
   }
@@ -145,18 +145,48 @@ async function _backupStartP2PSend() {
     const payload = await _backupBuildSelectedPayload();
     const { startSend } = await import('./p2p-transfer.js');
     statusEl.innerHTML = `⏳ Setting up…`;
-    await startSend(payload, (status) => {
+    await startSend(payload, (status, code) => {
+      if (status === 'waiting-for-receiver' && code) {
+        statusEl.innerHTML = `
+          📤 Ready — tell the other device to tap "Receive on this device" and enter this code:
+          <div class="p2p-code-box">
+            <span class="p2p-code-value" id="p2pCodeValue">${escapeHtml(code)}</span>
+            <button class="p2p-code-copy-btn" onclick="_backupCopyP2PCode('${code}')">📋 Copy</button>
+          </div>`;
+        return;
+      }
       const messages = {
-        'waiting-for-receiver': '📤 Ready — tell the other device to tap "Receive on this device" and enter the code shown once it appears.',
         connected: '🔗 Connected! Sending…',
         done: '✅ Sent successfully.'
       };
-      statusEl.innerHTML = messages[status] || status;
+      if (messages[status]) statusEl.innerHTML = messages[status];
     });
     const { markBackedUp } = await import('./local-store.js');
     markBackedUp();
   } catch (e) {
     statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ ${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.</span>`;
+  }
+}
+
+/** Copies the P2P transfer code to the clipboard, with a graceful fallback for browsers/contexts where the Clipboard API is unavailable (e.g. non-HTTPS). */
+async function _backupCopyP2PCode(code) {
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = code;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) { /* best-effort */ }
+    document.body.removeChild(ta);
+  }
+  const btn = document.querySelector('.p2p-code-copy-btn');
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = '✅ Copied';
+    setTimeout(() => { btn.textContent = original; }, 1500);
   }
 }
 

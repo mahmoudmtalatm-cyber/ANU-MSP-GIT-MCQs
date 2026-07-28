@@ -945,6 +945,44 @@
         transform: translateY(-1px);
         box-shadow: 0 4px 14px rgba(0,0,0,.2);
       }
+      /* .stats-open-btn is designed for the dark gradient modal header.
+         Inside a modal BODY (light card background) it needs its own
+         light-theme palette, or the white text is invisible against the
+         white card — only the emoji shows. */
+      .stats-body .stats-open-btn {
+        background: var(--accent-soft);
+        border: 1.5px solid var(--accent);
+        color: var(--accent-dark);
+      }
+      .stats-body .stats-open-btn:hover {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: white;
+        box-shadow: 0 4px 14px rgba(0,0,0,.12);
+      }
+      /* P2P transfer code — shown to the sender, typed on the receiver */
+      .p2p-code-box {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        background: var(--surface-2); border: 1.5px dashed var(--accent);
+        border-radius: 10px; padding: 12px 16px; margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .p2p-code-value {
+        font-family: 'Courier New', monospace; font-size: 1.4rem; font-weight: 800;
+        letter-spacing: 3px; color: var(--accent-dark); word-break: break-all;
+      }
+      .p2p-code-copy-btn {
+        background: var(--accent); color: white; border: none; border-radius: 8px;
+        padding: 8px 14px; font-family: var(--font); font-size: .82rem; font-weight: 700;
+        cursor: pointer; white-space: nowrap; transition: filter .15s;
+        flex-shrink: 0;
+      }
+      .p2p-code-copy-btn:hover { filter: brightness(1.1); }
+      @media (max-width: 420px) {
+        .p2p-code-box { flex-direction: column; align-items: stretch; text-align: center; }
+        .p2p-code-value { font-size: 1.25rem; text-align: center; }
+        .p2p-code-copy-btn { width: 100%; }
+      }
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }

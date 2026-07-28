@@ -25,9 +25,11 @@ function waitForIceGatheringComplete(pc) {
 
 /**
  * Sending side: creates an offer, writes ONE signaling document, waits for
- * the answer, then streams the payload once connected. Returns a short
- * code to show/share with the receiving device (out of band — the user
- * reads it aloud, types it, etc.).
+ * the answer, then streams the payload once connected. The generated code
+ * is passed as the 2nd argument to onStatus alongside the
+ * 'waiting-for-receiver' status, so the caller can display it — it must be
+ * shown to the user, since it's the only thing that identifies this
+ * transfer to the receiving device (read aloud, typed, etc.).
  */
 export async function startSend(payload, onStatus = () => {}) {
   const code = newTransferCode();
@@ -38,7 +40,7 @@ export async function startSend(payload, onStatus = () => {}) {
   await pc.setLocalDescription(offer);
   await waitForIceGatheringComplete(pc);
 
-  onStatus('waiting-for-receiver');
+  onStatus('waiting-for-receiver', code);
   await window._setDoc(window._doc(window._db, 'p2pSignaling', code), {
     offer: pc.localDescription.toJSON(),
     createdAt: Date.now()
