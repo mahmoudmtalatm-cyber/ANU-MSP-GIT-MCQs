@@ -788,6 +788,43 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **78 — Removed the shared (Firestore-backed) AI explanation pool.**
+  Explanations were previously saved to and looked up from a Firestore
+  `explanations` collection so that once one student generated an
+  explanation for a question, every other student reviewing that same
+  question got it for free instead of calling Gemini again — but that
+  meant every "🤖 Explain" click cost a Firestore read (and every fresh
+  generation cost a write), which eats into the free-tier read/write
+  quota as usage grows. Explanations are now generated fresh per user —
+  Gemini is called every time, with results kept only in an in-memory,
+  per-session cache (`_explainCache`) so re-opening/re-toggling the same
+  panel within one results view doesn't re-call the API. The 🔄
+  **Regenerate** button is unaffected — it already bypassed the pool and
+  still forces a fresh Gemini call the same way.
+  - `js/ai-features.js`: removed the pool snapshot/lookup/save functions
+    (`_qHash`, `_loadExplainPool`, `_saveExplainToPool`,
+    `_getExplainFromPool`) and the pool state
+    (`_explainSessionPool`, `_explainPoolLoadPromise`), along with the
+    pool-lookup at the top of `explainQuestion()` and the
+    save-to-pool call after a successful generation.
+  - `js/app-core.js`: `buildResults()` no longer kicks off a pool
+    snapshot (`_explainPoolLoadPromise = _loadExplainPool(...)`) when the
+    results screen is built.
+  - `firestore.rules`: removed the `explanations/{questionHash}` match
+    block, since nothing reads or writes that collection anymore.
+    **Requires redeploying `firestore.rules`** (Firebase Console →
+    Firestore Database → Rules → paste → Publish, or
+    `firebase deploy --only firestore:rules`) for the removal to take
+    effect on the live project — until then the old rules (harmless,
+    since nothing calls them) stay published, but redeploying keeps the
+    live rules matching the repo.
+  - Nothing to delete from your GitHub repo for this change — every
+    change here is an edit to a file that already exists; no files were
+    added or removed. If you want to reclaim the space, the old
+    `explanations` documents already sitting in Firestore from before
+    this build are now orphaned and can be deleted manually (Firebase
+    Console → Firestore Database → the `explanations` collection →
+    delete), though leaving them costs nothing since nothing reads them.
 - **77 — Removed the P2P direct-device transfer feature entirely.**
   Backup & Transfer now only offers file-based Export/Import — same as
   it always did — with the "Direct device-to-device transfer" card gone.

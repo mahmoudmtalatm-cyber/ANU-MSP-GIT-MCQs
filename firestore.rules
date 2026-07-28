@@ -237,12 +237,12 @@ service cloud.firestore {
     // (and the matching client-side read/write code in js/data-sync.js) was
     // kept around only as a transition safety net and has now been confirmed
     // unused and removed outright.
-    // Shared AI explanation pool — any signed-in user can read,
-    // any signed-in user can create or update (to save/replace an explanation)
-    match /explanations/{questionHash} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
+    // Shared AI explanation pool (match /explanations/{questionHash}) —
+    // REMOVED in build 78. Explanations are now generated fresh per
+    // user/session only (Gemini call + in-memory session cache) and are
+    // never written to or read from Firestore, so this collection's rules
+    // are no longer needed. Deploy this file to drop the old rules from
+    // the live project.
 
     // --- New, added for the R2/local-storage architecture ---
 

@@ -878,9 +878,6 @@ function _cancelAndClearResultsAiState() {
 function buildResults() {
   // Cancel any in-progress explanations from a previous result view
   _cancelAndClearResultsAiState();
-  // Snapshot any shared (Firestore) explanations for this quiz so they can be reused
-  // instantly instead of re-generated, and so newly-generated ones can be shared too.
-  _explainPoolLoadPromise = _loadExplainPool(currentQuestions);
   const explainAllBtn = document.getElementById('explainAllBtn');
   if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '🤖&nbsp; Explain All Questions'; explainAllBtn.onclick = explainAllQuestions; }
 

@@ -525,61 +525,6 @@ function _guardedClose(closeFn) {
   closeFn();
 }
 
-// ── Shared explanation pool (Firestore-backed, session-isolated) ──
-// At the start of each result session we snapshot the pool so concurrent users
-// don't interfere with each other while reviewing.  New generations update
-// Firestore immediately but other in-progress sessions are unaffected.
-let _explainSessionPool = {}; // { questionHash: { text, html } } — frozen at session start
-let _explainPoolLoadPromise = null; // resolves once the pool snapshot for the current results view is ready
-
-async function _qHash(text) {
-  // Fast deterministic hash for question text used as Firestore document ID
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
-}
-
-async function _loadExplainPool(questions) {
-  // Snapshot Firestore explanations for all questions in this quiz into session memory.
-  // Called once when results are built — isolates this reviewer from concurrent updates.
-  _explainSessionPool = {};
-  if (!window._db) return;
-  try {
-    await Promise.all(questions.map(async (q) => {
-      try {
-        const hash = await _qHash(q.question);
-        const ref  = window._doc(window._db, 'explanations', hash);
-        const snap = await window._getDoc(ref);
-        if (snap.exists()) {
-          const d = snap.data();
-          _explainSessionPool[hash] = { text: d.text || '', html: d.html || '' };
-        }
-      } catch(e) { /* non-fatal */ }
-    }));
-  } catch(e) { /* non-fatal */ }
-}
-
-async function _saveExplainToPool(questionText, rawText, html) {
-  // Save to Firestore and update local session pool
-  try {
-    const hash = await _qHash(questionText);
-    _explainSessionPool[hash] = { text: rawText, html };
-    if (!window._db) return;
-    const ref = window._doc(window._db, 'explanations', hash);
-    await window._setDoc(ref, cleanForFirestore({ text: rawText, html, updatedAt: Date.now() }));
-  } catch(e) { /* non-fatal */ }
-}
-
-async function _getExplainFromPool(questionText) {
-  // Returns { text, html } if cached in session pool, else null
-  try {
-    const hash = await _qHash(questionText);
-    return _explainSessionPool[hash] || null;
-  } catch(e) { return null; }
-}
-
 /* ── Build Gemini prompt for one question ── */
 function buildExplainPrompt(questions, q, userAnswer) {
   const optLines = getOptionEntries(q)
@@ -653,7 +598,7 @@ function stopExplainQuestion(i) {
   _cancelAiToken(_singleCancelToken[i]);
 }
 
-/* ── Render an explanation (own or shared) into its panel, with a Regenerate control ── */
+/* ── Render an explanation into its panel, with a Regenerate control ── */
 function displayExplainPanel(i, html) {
   const panel = document.getElementById(`explainPanel_${i}`);
   if (!panel) return;
@@ -663,7 +608,7 @@ function displayExplainPanel(i, html) {
     </div>`;
 }
 
-/* ── Force a fresh AI explanation, bypassing the shared pool and any cached copy ── */
+/* ── Force a fresh AI explanation, bypassing any cached copy ── */
 function regenerateExplanation(i) {
   if (_explainCache[i] === 'loading') return;
   _explainCache[i]   = undefined;
@@ -691,20 +636,6 @@ async function explainQuestion(i, forceRegenerate = false) {
   }
 
   const q = currentQuestions[i];
-
-  if (!forceRegenerate) {
-    // Shared explanation pool — if another user already generated this explanation,
-    // reuse it instantly (no API key required).
-    if (_explainPoolLoadPromise) { try { await _explainPoolLoadPromise; } catch(e) {} }
-    const pooled = await _getExplainFromPool(q.question);
-    if (pooled && pooled.html) {
-      _explainCache[i] = pooled.html;
-      _explainRawText[i] = pooled.text;
-      displayExplainPanel(i, pooled.html);
-      btn.innerHTML = '🤖 Hide';
-      return;
-    }
-  }
 
   const apiKey = getExplainKey();
 
@@ -787,9 +718,6 @@ async function explainQuestion(i, forceRegenerate = false) {
     displayExplainPanel(i, html);
     const b = document.getElementById(`explainBtn_${i}`);
     if (b) { b.disabled = false; b.classList.remove('loading'); b.innerHTML = '🤖 Hide'; }
-
-    // Share this explanation so other users reviewing the same question get it instantly
-    _saveExplainToPool(q.question, text, html);
 
   } catch(err) {
     if (err._cancelled) {
