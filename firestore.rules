@@ -80,6 +80,22 @@ service cloud.firestore {
     match /stats/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    // OLD (pre-#56) per-quiz history documents, nested directly under
+    // stats/{userId} rather than users/{userId} — kept ONLY so
+    // js/migration.js (runOneTimeMigrationIfNeeded) can read and then
+    // delete these once each entry is safely copied to local storage.
+    // Not written by any current-architecture code; safe to remove this
+    // rule (and delete any leftover documents here) once the migration
+    // has been confirmed complete for all users.
+    match /stats/{userId}/statsHistory/{historyId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /stats/{userId}/statsHistory/{historyId}/images/{imgIdx} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /stats/{userId}/statsHistory/{historyId}/fullImages/{imgIdx} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
     // One document per finished quiz (see saveHistoryEntryToStorage in
     // js/firebase-storage.js) — owner-only, same as their other data.
     match /users/{userId}/statsHistory/{historyId} {

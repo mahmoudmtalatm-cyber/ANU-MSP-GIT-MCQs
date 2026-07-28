@@ -773,6 +773,26 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **59 — Two more post-deployment fixes: Worker CORS, missing migration
+  rule.** After #58 fixed Firebase init, two smaller issues surfaced:
+  - The Cloudflare Worker (`worker/src/index.js`) never sent
+    `Access-Control-Allow-Origin` on its responses, so every
+    `content-client.js` fetch from the GitHub Pages origin was silently
+    blocked by the browser's CORS policy before reaching app code at all
+    (worked fine when tested directly via curl/browser address bar, since
+    CORS is a browser-enforced, not server-enforced, restriction). Added a
+    shared CORS headers object applied to every response (including error
+    responses) and an `OPTIONS` preflight handler.
+  - `js/migration.js`'s one-time stats migration (moving old Firestore
+    stats history to local storage) reads and deletes documents at
+    `stats/{userId}/statsHistory/{historyId}` (the old, pre-#56
+    architecture's path) — but `firestore.rules` only ever covered the
+    newer `users/{userId}/statsHistory/{historyId}` path, so Firestore
+    denied it by default with "Missing or insufficient permissions,"
+    causing the migration to harmlessly retry forever. Added the missing
+    rules for the old path (and its `images`/`fullImages`
+    subcollections) — safe to remove once the migration is confirmed
+    complete for all users.
 - **58 — Post-deployment fix: sign-in, curriculum, and backup/transfer all
   broken after change #56 shipped.** Change #56's `firebase-init.js` never
   actually imported `firebaseConfig` from `config/firebase-config.js` — it
