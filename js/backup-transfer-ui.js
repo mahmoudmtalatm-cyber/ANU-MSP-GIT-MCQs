@@ -13,15 +13,29 @@
    ES-module pieces (local-store.js, p2p-transfer.js, content-client.js),
    same pattern used throughout the rest of the app's plain scripts.
 
-   Load-options picker (merge/replace + which parts to load) and the
-   animated progress bar are shared by BOTH import paths (file and P2P)
-   via _backupRunTransferStep() / _backupShowLoadPicker(), so the two
-   stay in sync instead of drifting into two separate implementations.
+   Build 70 additions:
+   - Every async action here (export, import, P2P send, P2P receive) now
+     shows a stylised in-progress bar, then a solid done/failed result bar
+     — instead of plain spinner text — via _backupProgressHTML() /
+     _backupResultHTML() below.
+   - Export gained an optional custom file name field
+     (_backupResolveExportFilename()).
+   - Import (file or P2P) now always asks first, via
+     _backupConfirmImportFlow(): whether to merge with or replace existing
+     on-device data, and — when a backup contains both custom quizzes and
+     stats — which of the two to actually load.
+   - P2P send now also renders a QR code of the transfer code
+     (_backupRenderSendQr()); P2P receive gained a "Scan QR" camera option
+     (_backupStartQrScan()) alongside the existing manual code entry —
+     the manual/typed path is untouched, this is purely additive.
+   - QR generation/scanning use vendored local libraries
+     (js/vendor/qrcode-generator.min.js, js/vendor/jsQR.min.js) — lazy
+     loaded on first use, same pattern gemini-uploads.js already uses for
+     pdf.js — so this never depends on a CDN being reachable and costs
+     nothing until someone actually sends/scans.
    ============================================================================= */
 
 let _backupSelectedQuizIds = null; // null = "all" (no explicit selection made yet)
-let _backupPendingPayload = null; // payload awaiting the user's merge/replace + parts choice
-let _backupPendingSource = null;  // 'file' | 'p2p' — which status box to report into
 
 function openBackupTransfer() {
   document.getElementById('backupOverlay').classList.remove('hidden');
@@ -30,13 +44,14 @@ function openBackupTransfer() {
 
 function closeBackupTransfer() {
   document.getElementById('backupOverlay').classList.add('hidden');
+  _backupStopQrScan(); // never leave the camera running once the modal is closed
 }
 
 async function renderBackupTransferModal() {
   const body = document.getElementById('backupBody');
   const { listCustomQuizzes } = await import('./local-store.js');
   const quizzes = await listCustomQuizzes();
-  const todayStamp = new Date().toISOString().slice(0, 10);
+  const defaultExportName = `anu-msp-backup-${new Date().toISOString().slice(0, 10)}`;
 
   body.innerHTML = `
     <div style="background:var(--card-bg,rgba(255,255,255,.04));border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:.86rem;line-height:1.5;color:var(--text-muted);">
@@ -57,18 +72,17 @@ async function renderBackupTransferModal() {
             <label style="display:block;font-size:.85rem;margin-bottom:4px;"><input type="checkbox" id="backupQuizAll" checked onchange="_backupToggleAllQuizzes(this.checked)"> All quizzes (${quizzes.length})</label>
             ${quizzes.map(q => `<label style="display:block;font-size:.83rem;margin-left:14px;color:var(--text-muted);"><input type="checkbox" class="backupQuizItem" value="${q.id}" checked onchange="_backupQuizItemChanged()"> ${escapeHtml(q.title || 'Untitled quiz')}</label>`).join('')}
           </div>
-          <div class="backup-filename-row">
-            <label for="backupFilenameInput" style="font-size:.85rem;color:var(--text-muted);white-space:nowrap;">File name:</label>
-            <input type="text" id="backupFilenameInput" placeholder="anu-msp-backup-${todayStamp}" value="anu-msp-backup-${todayStamp}">
-            <span style="font-size:.8rem;color:var(--text-muted);">.json</span>
-          </div>
+        </div>
+        <div class="backup-filename-row">
+          <label for="backupExportName">File name (optional)</label>
+          <input type="text" id="backupExportName" class="backup-text-input" placeholder="${escapeHtml(defaultExportName)}" maxlength="80" />
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="stats-open-btn" onclick="_backupDoExport()">⬇️ Export to file</button>
           <button class="stats-open-btn" onclick="document.getElementById('backupImportFileInput').click()">⬆️ Import from file</button>
-          <input type="file" id="backupImportFileInput" accept="application/json" style="display:none" onchange="_backupPickFile(this.files[0])">
+          <input type="file" id="backupImportFileInput" accept="application/json" style="display:none" onchange="_backupDoImport(this.files[0])">
         </div>
-        <div id="backupFileStatus" style="font-size:.85rem;"></div>
+        <div id="backupFileStatus"></div>
       </div>
     </div>
 
@@ -80,7 +94,7 @@ async function renderBackupTransferModal() {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
         <button class="stats-open-btn" onclick="_backupStartP2PSend()">📤 Send from this device</button>
-        <button class="stats-open-btn" onclick="_backupStartP2PReceive()">📥 Receive on this device</button>
+        <button class="stats-open-btn" onclick="_backupRenderP2PReceiveEntry()">📥 Receive on this device</button>
       </div>
       <div id="backupP2PStatus" style="font-size:.85rem;"></div>
     </div>
@@ -111,156 +125,140 @@ async function _backupBuildSelectedPayload() {
   return buildExportPayload({ includeQuizzes, includeStats, quizIds });
 }
 
-/** Sanitizes a user-provided file name into something safe to use as a download filename. */
-function _backupSanitizeFilename(name) {
-  const fallback = `anu-msp-backup-${new Date().toISOString().slice(0, 10)}`;
-  const trimmed = (name || '').trim().replace(/\.json$/i, '');
-  const safe = trimmed.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 100);
-  return (safe || fallback) + '.json';
+/* ── Unified progress / result bar ──
+   A small stylised "in progress" bar (animated moving stripes — none of
+   these operations have a real byte-level percentage to report, so this
+   is intentionally indeterminate) that gets replaced by a solid, colored
+   "finished" bar once the operation settles — green for success, red for
+   failure. Used by every async action in this menu: export, import
+   (file or P2P), and P2P send/receive. `message` may contain simple
+   inline HTML (e.g. a bolded count), matching how the rest of this file
+   already builds its status strings. */
+function _backupProgressHTML(message) {
+  return `<div class="backup-progress-wrap">
+    <div class="backup-progress-row"><span class="backup-progress-dot"></span> ${message}</div>
+    <div class="backup-progress-track"><div class="backup-progress-fill"></div></div>
+  </div>`;
 }
-
-/* ── Animated progress bar (shared by export, import, and both P2P directions) ──
-   Indeterminate (sliding) by default; call with a 0-100 pct to switch to a
-   determinate fill, e.g. once we know real byte/step progress. */
-function _backupProgressHtml(label, pct = null) {
-  const determinate = pct !== null;
-  return `
-    <div class="backup-progress-wrap">
-      <div class="backup-progress-label">${escapeHtml(label)}</div>
-      <div class="backup-progress-track">
-        <div class="backup-progress-fill${determinate ? ' is-determinate' : ''}" style="${determinate ? `--pct:${Math.max(0, Math.min(100, pct))}%` : ''}"></div>
-      </div>
-    </div>`;
+function _backupResultHTML(ok, message) {
+  return `<div class="backup-result-bar ${ok ? 'ok' : 'fail'}">
+    <span class="backup-result-icon">${ok ? '✅' : '❌'}</span>
+    <span class="backup-result-msg">${message}</span>
+  </div>`;
 }
 
 async function _backupDoExport() {
   const statusEl = document.getElementById('backupFileStatus');
-  statusEl.innerHTML = _backupProgressHtml('Preparing your export…');
+  statusEl.innerHTML = _backupProgressHTML('Preparing your file…');
   try {
     const { downloadExportFile, markBackedUp } = await import('./local-store.js');
     const payload = await _backupBuildSelectedPayload();
-    const nameInput = document.getElementById('backupFilenameInput');
-    const filename = _backupSanitizeFilename(nameInput ? nameInput.value : '');
+    const filename = _backupResolveExportFilename();
     downloadExportFile(payload, filename);
     markBackedUp();
-    statusEl.innerHTML = `<span style="color:var(--correct-fg,#4caf50);">✅ Downloaded as <strong>${escapeHtml(filename)}</strong> — save it somewhere you'll remember (Downloads folder, your own cloud drive, etc.)</span>`;
+    statusEl.innerHTML = _backupResultHTML(true, `Downloaded as <strong>${escapeHtml(filename)}</strong> — save it somewhere you'll remember (Downloads folder, your own cloud drive, etc.)`);
   } catch (e) {
-    statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ Export failed: ${escapeHtml(e.message || String(e))}</span>`;
+    statusEl.innerHTML = _backupResultHTML(false, `Export failed: ${escapeHtml(e.message || String(e))}`);
   }
 }
 
-/** Step 1 of import-from-file: just read + parse the file, then hand off to the shared load-options picker. */
-async function _backupPickFile(file) {
-  const statusEl = document.getElementById('backupFileStatus');
-  if (!file) return;
-  statusEl.innerHTML = _backupProgressHtml('Reading file…');
-  try {
-    const text = await file.text();
-    const payload = JSON.parse(text);
-    if (!payload || payload.__app !== 'anu-msp-question-bank') {
-      throw new Error('This file doesn\u2019t look like a valid backup for this app.');
-    }
-    _backupPendingPayload = payload;
-    _backupPendingSource = 'file';
-    _backupShowLoadPicker(statusEl, payload);
-  } catch (e) {
-    statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ ${escapeHtml(e.message || String(e))}</span>`;
-  }
+/** Reads the optional custom name field and turns it into a safe, unique
+ *  filename — falling back to the usual dated default when left blank. */
+function _backupResolveExportFilename() {
+  const input = document.getElementById('backupExportName');
+  const raw = input ? input.value.trim() : '';
+  const defaultName = `anu-msp-backup-${new Date().toISOString().slice(0, 10)}`;
+  // Strip characters that are awkward/unsafe as filenames across OSes,
+  // then collapse whitespace to single dashes so the download looks tidy.
+  let name = raw ? raw.replace(/[\\/:*?"<>|]+/g, '').trim().replace(/\s+/g, '-') : defaultName;
+  if (!name) name = defaultName;
+  if (!/\.json$/i.test(name)) name += '.json';
+  return name;
 }
 
 /**
- * Renders the merge/replace + "what to load" picker into the given status
- * element, based on what the payload actually contains (skips offering a
- * choice for a part that isn't in the file/transfer at all).
+ * Shared confirmation step for BOTH import paths (file and P2P): inspects
+ * the payload without writing anything, then renders an inline panel
+ * (into the same status element the caller is already using) asking:
+ *   - which data type(s) to load, only shown when the backup actually has
+ *     both custom quizzes and stats and thus a real choice exists;
+ *   - whether to merge with this device's existing data (default, safest)
+ *     or delete it first and replace it with the incoming set.
+ * Resolves with either { proceed: false } (user cancelled) or
+ * { proceed: true, mode, includeQuizzes, includeStats } ready to hand
+ * straight to applyImportPayload().
  */
-async function _backupShowLoadPicker(statusEl, payload) {
-  const { describeImportPayload } = await import('./local-store.js');
-  const info = describeImportPayload(payload);
-
+async function _backupConfirmImportFlow(payload, statusEl) {
+  const { inspectImportPayload } = await import('./local-store.js');
+  const info = inspectImportPayload(payload);
+  if (!info.valid) {
+    throw new Error('This file doesn\u2019t look like a valid backup for this app.');
+  }
   if (!info.hasQuizzes && !info.hasStats) {
-    statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ That backup doesn\u2019t contain any quizzes or stats to load.</span>`;
-    _backupPendingPayload = null;
-    return;
+    throw new Error('This backup is empty \u2014 nothing to import.');
   }
 
-  const partsHtml = `
-    <div class="blo-parts">
-      ${info.hasQuizzes ? `<label><input type="checkbox" id="bloLoadQuizzes" checked> Custom quizzes (${info.quizCount})</label>` : ''}
-      ${info.hasStats ? `<label><input type="checkbox" id="bloLoadStats" checked> Stats / history (${info.statCount})</label>` : ''}
-    </div>`;
-
-  statusEl.innerHTML = `
-    <div class="backup-load-options">
-      <div class="blo-title">How should this be loaded?</div>
-      <div class="blo-mode-choice">
-        <label class="blo-mode-card is-selected" id="bloModeMergeCard">
-          <div><input type="radio" name="bloMode" id="bloModeMerge" value="merge" checked onchange="_backupModeChanged()"><span class="blo-mode-name">Merge</span></div>
-          <div class="blo-mode-desc">Keep what's already on this device and add anything new. Exact duplicates are skipped.</div>
-        </label>
-        <label class="blo-mode-card" id="bloModeReplaceCard">
-          <div><input type="radio" name="bloMode" id="bloModeReplace" value="replace" onchange="_backupModeChanged()"><span class="blo-mode-name">Replace</span></div>
-          <div class="blo-mode-desc">Delete what's currently on this device first, then load this backup as the new complete set.</div>
-        </label>
-      </div>
-      ${partsHtml}
-      <div class="blo-actions">
-        <button class="stats-open-btn" onclick="_backupConfirmLoad()">✅ Load now</button>
-        <button class="stats-open-btn" onclick="_backupCancelLoad()">Cancel</button>
-      </div>
-    </div>`;
-}
-
-function _backupModeChanged() {
-  const merge = document.getElementById('bloModeMerge').checked;
-  document.getElementById('bloModeMergeCard').classList.toggle('is-selected', merge);
-  document.getElementById('bloModeReplaceCard').classList.toggle('is-selected', !merge);
-}
-
-function _backupCancelLoad() {
-  _backupPendingPayload = null;
-  _backupPendingSource = null;
-  const statusEl = document.getElementById(_backupPendingSource === 'p2p' ? 'backupP2PStatus' : 'backupFileStatus');
-  if (statusEl) statusEl.innerHTML = '';
-  document.getElementById('backupFileStatus').innerHTML = '';
-  document.getElementById('backupP2PStatus').innerHTML = '';
-}
-
-/** Reads the picker's chosen mode + parts and actually applies the pending payload. */
-async function _backupConfirmLoad() {
-  const source = _backupPendingSource;
-  const statusEl = document.getElementById(source === 'p2p' ? 'backupP2PStatus' : 'backupFileStatus');
-  const payload = _backupPendingPayload;
-  if (!payload) return;
-
-  const mode = document.getElementById('bloModeReplace') && document.getElementById('bloModeReplace').checked ? 'replace' : 'merge';
-  const loadQuizzesBox = document.getElementById('bloLoadQuizzes');
-  const loadStatsBox = document.getElementById('bloLoadStats');
-  const loadQuizzes = loadQuizzesBox ? loadQuizzesBox.checked : true;
-  const loadStats = loadStatsBox ? loadStatsBox.checked : true;
-
-  statusEl.innerHTML = _backupProgressHtml(mode === 'replace' ? 'Replacing existing data…' : 'Merging data…');
-  try {
-    const { applyImportPayload } = await import('./local-store.js');
-    const result = await applyImportPayload(payload, { mode, loadQuizzes, loadStats });
-    await _backupRefreshAfterImport();
-
+  return new Promise((resolve) => {
+    const bothPresent = info.hasQuizzes && info.hasStats;
     const parts = [];
-    if (loadQuizzes) {
-      parts.push(mode === 'replace'
-        ? `${result.quizzes.added} quiz(zes) loaded (${result.quizzes.replaced || 0} previous removed)`
-        : `${result.quizzes.added} quiz(zes) added (${result.quizzes.skipped} already had)`);
-    }
-    if (loadStats) {
-      parts.push(mode === 'replace'
-        ? `${result.attempts.added} stats entries loaded (${result.attempts.replaced || 0} previous removed)`
-        : `${result.attempts.added} stats entries added (${result.attempts.skipped} already had)`);
-    }
-    statusEl.innerHTML = `<span style="color:var(--correct-fg,#4caf50);">✅ ${parts.join(', ') || 'Nothing selected to load.'}</span>`;
-    _backupPendingPayload = null;
-    _backupPendingSource = null;
-    renderBackupTransferModal();
+    if (info.hasQuizzes) parts.push(`${info.quizCount} custom quiz${info.quizCount === 1 ? '' : 'zes'}`);
+    if (info.hasStats) parts.push(`${info.statsCount} stats entr${info.statsCount === 1 ? 'y' : 'ies'}`);
+
+    statusEl.innerHTML = `
+      <div class="backup-import-confirm">
+        <div class="backup-import-confirm-summary">This backup has <strong>${parts.join(' &amp; ')}</strong>.</div>
+        ${bothPresent ? `
+        <div class="backup-import-type-row">
+          <label><input type="checkbox" id="backupImportIncludeQuizzes" checked> Custom quizzes (${info.quizCount})</label>
+          <label><input type="checkbox" id="backupImportIncludeStats" checked> Stats / history (${info.statsCount})</label>
+        </div>` : ''}
+        <div class="backup-mode-row">
+          <label class="backup-mode-opt">
+            <input type="radio" name="backupImportMode" value="merge" checked>
+            <span>🔀 Merge with what's already on this device <em>(recommended)</em></span>
+          </label>
+          <label class="backup-mode-opt">
+            <input type="radio" name="backupImportMode" value="replace">
+            <span>🗑️ Delete this device's existing data first, then load this backup</span>
+          </label>
+        </div>
+        <div class="backup-confirm-actions">
+          <button class="stats-open-btn" id="backupImportApplyBtn" type="button">✅ Apply</button>
+          <button class="stats-open-btn backup-cancel-btn" id="backupImportCancelBtn" type="button">✖️ Cancel</button>
+        </div>
+      </div>`;
+
+    document.getElementById('backupImportApplyBtn').onclick = () => {
+      const includeQuizzes = bothPresent ? document.getElementById('backupImportIncludeQuizzes').checked : info.hasQuizzes;
+      const includeStats = bothPresent ? document.getElementById('backupImportIncludeStats').checked : info.hasStats;
+      const mode = document.querySelector('input[name="backupImportMode"]:checked').value;
+      resolve({ proceed: true, mode, includeQuizzes, includeStats });
+    };
+    document.getElementById('backupImportCancelBtn').onclick = () => resolve({ proceed: false });
+  });
+}
+
+async function _backupDoImport(file) {
+  const statusEl = document.getElementById('backupFileStatus');
+  if (!file) return;
+  statusEl.innerHTML = _backupProgressHTML('Reading backup file…');
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+
+    const choice = await _backupConfirmImportFlow(payload, statusEl);
+    if (!choice.proceed) { statusEl.innerHTML = ''; return; }
+
+    statusEl.innerHTML = _backupProgressHTML('Importing…');
+    const { applyImportPayload } = await import('./local-store.js');
+    const result = await applyImportPayload(payload, choice);
+    await _backupRefreshAfterImport();
+    statusEl.innerHTML = _backupResultHTML(true, `Imported: ${result.quizzes.added} quiz(zes) added (${result.quizzes.skipped} already had), ${result.attempts.added} stats entries added (${result.attempts.skipped} already had).`);
+    // Give the result bar a moment on screen before the quiz picker above
+    // refreshes to reflect the newly-imported quizzes.
+    setTimeout(() => renderBackupTransferModal(), 1800);
   } catch (e) {
-    statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ Import failed: ${escapeHtml(e.message || String(e))}</span>`;
+    statusEl.innerHTML = _backupResultHTML(false, `Import failed: ${escapeHtml(e.message || String(e))}. Make sure you picked a real backup file from this app.`);
   }
 }
 
@@ -280,24 +278,30 @@ async function _backupStartP2PSend() {
   try {
     const payload = await _backupBuildSelectedPayload();
     const { startSend } = await import('./p2p-transfer.js');
-    statusEl.innerHTML = _backupProgressHtml('Setting up…');
+    statusEl.innerHTML = _backupProgressHTML('Setting up…');
     await startSend(payload, (status, code) => {
       if (status === 'waiting-for-receiver' && code) {
         statusEl.innerHTML = `
-          📤 Ready — tell the other device to tap "Receive on this device" and enter this code:
+          <div class="backup-progress-row" style="margin-bottom:10px;"><span class="backup-progress-dot"></span> Waiting for the other device — tell it to tap "Receive on this device":</div>
           <div class="p2p-code-box">
             <span class="p2p-code-value" id="p2pCodeValue">${escapeHtml(code)}</span>
             <button class="p2p-code-copy-btn" onclick="_backupCopyP2PCode('${code}')">📋 Copy</button>
-          </div>`;
+          </div>
+          <div class="backup-qr-hint">Or scan this instead of typing the code:</div>
+          <div class="backup-qr-box" id="backupQrBox"><div class="backup-qr-loading">Generating QR code…</div></div>`;
+        _backupRenderSendQr(code);
         return;
       }
-      if (status === 'connected') statusEl.innerHTML = _backupProgressHtml('🔗 Connected! Sending…');
-      if (status === 'done') statusEl.innerHTML = `<span style="color:var(--correct-fg,#4caf50);">✅ Sent successfully.</span>`;
+      if (status === 'connected') {
+        statusEl.innerHTML = _backupProgressHTML('Connected! Sending…');
+      } else if (status === 'done') {
+        statusEl.innerHTML = _backupResultHTML(true, 'Sent successfully.');
+      }
     });
     const { markBackedUp } = await import('./local-store.js');
     markBackedUp();
   } catch (e) {
-    statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ ${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.</span>`;
+    statusEl.innerHTML = _backupResultHTML(false, `${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.`);
   }
 }
 
@@ -323,22 +327,159 @@ async function _backupCopyP2PCode(code) {
   }
 }
 
-async function _backupStartP2PReceive() {
-  const statusEl = document.getElementById('backupP2PStatus');
-  const code = prompt('Enter the code shown on the sending device:');
-  if (!code) return;
+// ---------------------------------------------------------------------------
+// QR CODE — generation (sending side) and camera scanning (receiving side).
+// Both libraries are vendored locally under js/vendor/ (not loaded from a
+// CDN) and lazy-loaded on first use, so nothing here costs anything until
+// someone actually sends or scans, and neither ever depends on a third
+// party being reachable. See js/vendor/*.LICENSE for attribution.
+// ---------------------------------------------------------------------------
+
+function _backupLoadScriptOnce(src, globalCheck) {
+  if (globalCheck()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Couldn\u2019t load a required file \u2014 check your connection.'));
+    document.head.appendChild(script);
+  });
+}
+function _backupEnsureQrGenLib() {
+  return _backupLoadScriptOnce('js/vendor/qrcode-generator.min.js', () => typeof window.qrcode === 'function');
+}
+function _backupEnsureQrScanLib() {
+  return _backupLoadScriptOnce('js/vendor/jsQR.min.js', () => typeof window.jsQR === 'function');
+}
+
+/** Renders a QR code encoding the plain transfer code into #backupQrBox — additive alongside the existing text code + copy button, never replacing them. */
+async function _backupRenderSendQr(code) {
+  const box = document.getElementById('backupQrBox');
+  if (!box) return;
   try {
-    statusEl.innerHTML = _backupProgressHtml('Connecting…');
+    await _backupEnsureQrGenLib();
+    const qr = window.qrcode(0, 'M'); // type 0 = smallest size that fits the data
+    qr.addData(code);
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+    const svg = box.querySelector('svg');
+    if (svg) { svg.removeAttribute('width'); svg.removeAttribute('height'); }
+  } catch (e) {
+    box.innerHTML = `<div class="backup-qr-unavailable">QR code unavailable right now — the code above still works.</div>`;
+  }
+}
+
+/** Renders the manual-code / scan-QR entry UI for the receiving side, replacing the previous prompt()-based flow with something themed and inline. */
+function _backupRenderP2PReceiveEntry() {
+  const statusEl = document.getElementById('backupP2PStatus');
+  statusEl.innerHTML = `
+    <div class="backup-receive-entry">
+      <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Enter the code shown on the sending device, or scan its QR code.</div>
+      <div class="backup-receive-row">
+        <input type="text" id="backupReceiveCodeInput" class="backup-code-input" maxlength="8" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
+        <button class="stats-open-btn" id="backupReceiveConnectBtn" type="button">▶️ Connect</button>
+        <button class="stats-open-btn" id="backupReceiveScanBtn" type="button">📷 Scan QR</button>
+      </div>
+      <div id="backupScanArea"></div>
+    </div>`;
+
+  const codeInput = document.getElementById('backupReceiveCodeInput');
+  const goConnect = () => {
+    const code = codeInput.value.trim();
+    if (code) _backupRunP2PReceive(code);
+  };
+  document.getElementById('backupReceiveConnectBtn').onclick = goConnect;
+  codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') goConnect(); });
+  document.getElementById('backupReceiveScanBtn').onclick = () => _backupStartQrScan();
+}
+
+let _backupScanStream = null;
+let _backupScanRAF = null;
+
+/** Opens the camera and scans for a QR code, filling the code field and starting the transfer automatically the moment one's found. Manual entry above is untouched and always available as a fallback. */
+async function _backupStartQrScan() {
+  const area = document.getElementById('backupScanArea');
+  if (!area) return;
+  area.innerHTML = `
+    <div class="backup-scan-box">
+      <div class="backup-scan-video-wrap">
+        <video id="backupScanVideo" class="backup-scan-video" playsinline muted></video>
+        <div class="backup-scan-frame"></div>
+      </div>
+      <div class="backup-scan-hint">Point the camera at the QR code shown on the other device.</div>
+      <button class="stats-open-btn backup-cancel-btn" id="backupScanCancelBtn" type="button">✖️ Cancel scan</button>
+    </div>`;
+  document.getElementById('backupScanCancelBtn').onclick = () => _backupStopQrScan();
+
+  try {
+    await _backupEnsureQrScanLib();
+    _backupScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) {
+    area.innerHTML = `<div class="backup-scan-error">❌ Couldn't access the camera (${escapeHtml(e.message || String(e))}) — type the code above instead.</div>`;
+    return;
+  }
+
+  const video = document.getElementById('backupScanVideo');
+  if (!video) { _backupStopQrScan(); return; } // area got rebuilt/closed mid-setup
+  video.srcObject = _backupScanStream;
+  await video.play().catch(() => {});
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  const tick = () => {
+    if (!_backupScanStream) return; // scan was cancelled or already matched
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const found = window.jsQR(frame.data, frame.width, frame.height);
+      if (found && found.data) {
+        const code = found.data.trim();
+        _backupStopQrScan();
+        const input = document.getElementById('backupReceiveCodeInput');
+        if (input) input.value = code.toUpperCase();
+        _backupRunP2PReceive(code);
+        return;
+      }
+    }
+    _backupScanRAF = requestAnimationFrame(tick);
+  };
+  _backupScanRAF = requestAnimationFrame(tick);
+}
+
+/** Stops the camera + scan loop and clears the scan area, if either is active. Safe to call any time, including when nothing is running. */
+function _backupStopQrScan() {
+  if (_backupScanRAF) { cancelAnimationFrame(_backupScanRAF); _backupScanRAF = null; }
+  if (_backupScanStream) { _backupScanStream.getTracks().forEach(t => t.stop()); _backupScanStream = null; }
+  const area = document.getElementById('backupScanArea');
+  if (area) area.innerHTML = '';
+}
+
+/** Runs the actual P2P receive connection + import for a given code (typed or scanned), shared by both entry points. */
+async function _backupRunP2PReceive(code) {
+  const statusEl = document.getElementById('backupP2PStatus');
+  _backupStopQrScan(); // camera's done its job once we have a code
+  statusEl.innerHTML = _backupProgressHTML('Connecting…');
+  try {
     const { startReceive } = await import('./p2p-transfer.js');
     const payload = await startReceive(code.trim().toUpperCase(), (status) => {
-      const messages = { 'looking-for-sender': '🔍 Looking for the other device…', connecting: '🔗 Connecting…' };
-      statusEl.innerHTML = _backupProgressHtml(messages[status] || status);
+      const messages = { 'looking-for-sender': 'Looking for the other device…', connecting: 'Connecting…' };
+      statusEl.innerHTML = _backupProgressHTML(messages[status] || status);
     });
-    _backupPendingPayload = payload;
-    _backupPendingSource = 'p2p';
-    await _backupShowLoadPicker(statusEl, payload);
+
+    const choice = await _backupConfirmImportFlow(payload, statusEl);
+    if (!choice.proceed) { statusEl.innerHTML = ''; return; }
+
+    statusEl.innerHTML = _backupProgressHTML('Importing…');
+    const { applyImportPayload } = await import('./local-store.js');
+    const result = await applyImportPayload(payload, choice);
+    await _backupRefreshAfterImport();
+    statusEl.innerHTML = _backupResultHTML(true, `Received: ${result.quizzes.added} quiz(zes) added, ${result.attempts.added} stats entries added.`);
+    setTimeout(() => renderBackupTransferModal(), 1800);
   } catch (e) {
-    statusEl.innerHTML = `<span style="color:var(--wrong-fg,#e53935);">❌ ${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.</span>`;
+    statusEl.innerHTML = _backupResultHTML(false, `${escapeHtml(e.message || String(e))} — you can always use Export/Import instead.`);
   }
 }
 

@@ -983,75 +983,165 @@
         .p2p-code-value { font-size: 1.25rem; text-align: center; }
         .p2p-code-copy-btn { width: 100%; }
       }
-      /* Backup: animated progress bar shown during export/import/P2P work */
-      .backup-progress-wrap {
-        display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
-      }
-      .backup-progress-track {
-        position: relative; width: 100%; height: 9px; border-radius: 6px;
-        background: var(--surface-2); border: 1px solid var(--border-soft);
-        overflow: hidden;
-      }
-      .backup-progress-fill {
-        position: absolute; inset: 0; width: 35%; border-radius: 6px;
-        background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-        animation: backupProgressSlide 1.15s ease-in-out infinite;
-      }
-      .backup-progress-fill.is-determinate {
-        animation: none; width: var(--pct, 0%);
-        transition: width .25s ease;
-      }
-      @keyframes backupProgressSlide {
-        0%   { left: -35%; }
-        100% { left: 100%; }
-      }
-      .backup-progress-label {
-        font-size: .8rem; color: var(--text-muted); font-weight: 600;
-      }
-      /* Backup: merge-vs-replace + what-to-load picker (shown before an import actually runs) */
-      .backup-load-options {
-        background: var(--surface-2); border: 1px solid var(--border-soft);
-        border-radius: 10px; padding: 14px 16px; margin-top: 10px;
-        display: flex; flex-direction: column; gap: 12px;
-      }
-      .backup-load-options .blo-title {
-        font-size: .78rem; font-weight: 700; color: var(--text-muted);
-        text-transform: uppercase; letter-spacing: .6px;
-      }
-      .blo-mode-choice { display: flex; gap: 10px; flex-wrap: wrap; }
-      .blo-mode-card {
-        flex: 1 1 160px; min-width: 140px; cursor: pointer;
-        border: 1.5px solid var(--border-soft); border-radius: 10px;
-        padding: 10px 12px; transition: border-color .15s, background .15s;
-      }
-      .blo-mode-card:hover { border-color: var(--accent); }
-      .blo-mode-card.is-selected {
-        border-color: var(--accent); background: var(--accent-soft);
-      }
-      .blo-mode-card input { margin-right: 6px; }
-      .blo-mode-card .blo-mode-name { font-weight: 700; font-size: .88rem; }
-      .blo-mode-card .blo-mode-desc { font-size: .77rem; color: var(--text-muted); margin-top: 3px; line-height: 1.35; }
-      .blo-parts { display: flex; gap: 16px; flex-wrap: wrap; }
-      .blo-parts label { font-size: .87rem; display: flex; align-items: center; gap: 6px; }
-      .blo-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-      .backup-filename-row {
-        display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px;
-      }
-      .backup-filename-row input[type="text"] {
-        flex: 1 1 200px; min-width: 0;
-        background: var(--surface-2); border: 1px solid var(--border-soft);
-        border-radius: 8px; padding: 8px 10px; font-family: var(--font); font-size: .85rem;
-        color: var(--text-main);
-      }
-      @media (max-width: 480px) {
-        .blo-mode-choice { flex-direction: column; }
-        .blo-parts { gap: 10px; }
-        .backup-filename-row { flex-direction: column; align-items: stretch; }
-      }
       @media (max-width: 600px) {
         .stats-grid { grid-template-columns: repeat(3, 1fr); }
         .stat-tile .stat-val { font-size: 1.1rem; }
         .subj-stat-name { min-width: 56px; max-width: 100px; font-size: .75rem; }
+      }
+
+      /* ── Backup & Transfer — in-progress / finished status bars ──
+         A stylised, indeterminate "rotating" bar for anything in flight
+         (export, import, P2P send/receive), replaced by a solid colored
+         bar once it settles — green for success, red for failure. */
+      .backup-progress-wrap { margin-top: 4px; }
+      .backup-progress-row {
+        display: flex; align-items: center; gap: 8px;
+        font-size: .85rem; color: var(--text-main); margin-bottom: 8px;
+      }
+      .backup-progress-dot {
+        width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        background: var(--accent);
+        box-shadow: 0 0 0 0 var(--accent-soft);
+        animation: backupDotPulse 1.1s ease-in-out infinite;
+      }
+      @keyframes backupDotPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(14,110,130,.35); }
+        70%  { box-shadow: 0 0 0 7px rgba(14,110,130,0); }
+        100% { box-shadow: 0 0 0 0 rgba(14,110,130,0); }
+      }
+      .backup-progress-track {
+        position: relative; width: 100%; height: 9px; border-radius: 5px;
+        background: var(--surface-2); border: 1px solid var(--border-soft);
+        overflow: hidden;
+      }
+      .backup-progress-fill {
+        position: absolute; inset: 0;
+        background-image: repeating-linear-gradient(
+          115deg,
+          var(--accent) 0 14px,
+          var(--gold-bright) 14px 20px,
+          var(--accent-dark) 20px 34px
+        );
+        background-size: 200% 100%;
+        animation: backupStripeMove 1.1s linear infinite;
+        border-radius: 5px;
+      }
+      @keyframes backupStripeMove {
+        from { background-position: 0 0; }
+        to   { background-position: -68px 0; }
+      }
+      .backup-result-bar {
+        display: flex; align-items: center; gap: 9px;
+        border-radius: 10px; padding: 10px 14px; margin-top: 4px;
+        font-size: .85rem; font-weight: 600; line-height: 1.4;
+        animation: backupResultIn .25s ease-out;
+      }
+      @keyframes backupResultIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .backup-result-bar.ok {
+        background: var(--correct-bg); color: var(--correct-fg);
+        border: 1px solid var(--green-pale-border);
+      }
+      .backup-result-bar.fail {
+        background: var(--wrong-bg); color: var(--wrong-fg);
+        border: 1px solid var(--red-soft-border);
+      }
+      .backup-result-icon { font-size: 1rem; flex-shrink: 0; }
+
+      /* ── Backup & Transfer — optional export file name ── */
+      .backup-filename-row { display: flex; flex-direction: column; gap: 5px; }
+      .backup-filename-row label { font-size: .83rem; font-weight: 600; }
+      .backup-text-input, .backup-code-input {
+        font-family: var(--font); font-size: .88rem;
+        border: 1.5px solid var(--border-soft); border-radius: 8px;
+        padding: 9px 12px; background: var(--bg-card); color: var(--text-main);
+        outline: none; transition: border-color .15s, box-shadow .15s;
+        width: 100%;
+      }
+      .backup-text-input:focus, .backup-code-input:focus {
+        border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .backup-code-input {
+        text-transform: uppercase; letter-spacing: 2px; font-weight: 700;
+        text-align: center; max-width: 160px;
+      }
+
+      /* ── Backup & Transfer — import confirmation panel ──
+         Shown before ANY import (file or P2P) is actually applied. */
+      .backup-import-confirm {
+        background: var(--surface-2); border: 1px solid var(--border-soft);
+        border-radius: 12px; padding: 14px 16px; margin-top: 4px;
+      }
+      .backup-import-confirm-summary { font-size: .87rem; margin-bottom: 10px; }
+      .backup-import-type-row {
+        display: flex; flex-direction: column; gap: 6px;
+        font-size: .84rem; margin-bottom: 12px;
+      }
+      .backup-import-type-row label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+      .backup-mode-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+      .backup-mode-opt {
+        display: flex; align-items: flex-start; gap: 9px; cursor: pointer;
+        font-size: .84rem; padding: 9px 11px; border-radius: 9px;
+        border: 1.5px solid var(--border-soft); background: var(--bg-card);
+        transition: border-color .15s, background .15s;
+      }
+      .backup-mode-opt:has(input:checked) {
+        border-color: var(--accent); background: var(--accent-soft);
+      }
+      .backup-mode-opt input[type="radio"] { margin-top: 2px; accent-color: var(--accent-dark); flex-shrink: 0; }
+      .backup-mode-opt em { color: var(--accent-dark); font-style: normal; font-weight: 700; }
+      .backup-confirm-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .backup-cancel-btn {
+        background: var(--wrong-bg); border-color: var(--red-soft-border) !important; color: var(--wrong-fg);
+      }
+      /* .stats-open-btn's default look targets the dark modal header; the
+         confirm panel sits on a light surface, so override to the same
+         light-theme palette .stats-body .stats-open-btn already uses. */
+      .backup-import-confirm .stats-open-btn {
+        background: var(--accent-soft); border: 1.5px solid var(--accent); color: var(--accent-dark);
+      }
+      .backup-import-confirm .stats-open-btn:hover { background: var(--accent); color: white; }
+      .backup-import-confirm .backup-cancel-btn:hover { background: var(--red-pale); color: var(--wrong-fg); }
+
+      /* ── Backup & Transfer — QR code (sending side) ── */
+      .backup-qr-hint { font-size: .8rem; color: var(--text-muted); margin: 10px 0 6px; }
+      .backup-qr-box {
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #fff; border: 1.5px solid var(--accent); border-radius: 12px;
+        padding: 10px; width: 160px; height: 160px;
+      }
+      .backup-qr-box svg { width: 100%; height: 100%; display: block; }
+      .backup-qr-loading, .backup-qr-unavailable {
+        font-size: .78rem; color: var(--text-muted); text-align: center; padding: 8px;
+      }
+
+      /* ── Backup & Transfer — QR scan (receiving side) ── */
+      .backup-receive-entry { margin-top: 2px; }
+      .backup-receive-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+      .backup-scan-box { margin-top: 10px; }
+      .backup-scan-video-wrap {
+        position: relative; width: 100%; max-width: 320px;
+        aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
+        background: #000; border: 1.5px solid var(--accent);
+      }
+      .backup-scan-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .backup-scan-frame {
+        position: absolute; inset: 14%; border: 3px solid var(--gold-bright);
+        border-radius: 14px; box-shadow: 0 0 0 2000px rgba(0,0,0,.25);
+        pointer-events: none;
+      }
+      .backup-scan-hint { font-size: .8rem; color: var(--text-muted); margin: 10px 0 8px; }
+      .backup-scan-error {
+        font-size: .82rem; color: var(--wrong-fg); background: var(--wrong-bg);
+        border: 1px solid var(--red-soft-border); border-radius: 9px; padding: 10px 12px; margin-top: 8px;
+      }
+      @media (max-width: 480px) {
+        .backup-scan-video-wrap { max-width: 100%; }
+        .backup-receive-row { flex-direction: column; align-items: stretch; }
+        .backup-code-input { max-width: none; }
+        .backup-qr-box { width: 100%; max-width: 220px; height: auto; aspect-ratio: 1/1; }
       }
 /* ── CUSTOM QUIZZES (AI) ── */
 .cq-section {

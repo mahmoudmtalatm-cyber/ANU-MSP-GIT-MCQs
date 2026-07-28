@@ -291,6 +291,21 @@ anu-msp-question-bank/
 │   ├── user-profile.js           # Display name + misc Firestore utilities
 │   ├── data-sync.js              # Local cache, published-quiz manifest,
 │   │                              #   one-time data migrations
+│   ├── content-client.js         # Read-only fetch helpers for published
+│   │                              #   curriculum content served from R2
+│   ├── migration.js              # One-time move of legacy Firestore-stored
+│   │                              #   stats/custom quizzes to local storage
+│   ├── local-store.js            # Custom quizzes + stats/history — all
+│   │                              #   local (IndexedDB), never Firestore;
+│   │                              #   export/import payload + merge-vs-
+│   │                              #   replace import logic lives here
+│   ├── p2p-transfer.js           # Direct device-to-device transfer (WebRTC
+│   │                              #   data channel, Firestore only for the
+│   │                              #   brief connection handshake)
+│   ├── backup-transfer-ui.js     # Backup & Transfer modal: file export/
+│   │                              #   import (with a merge/replace choice
+│   │                              #   and a custom file name) and the P2P
+│   │                              #   send/receive UI (QR generate + scan)
 │   ├── icon-picker.js            # Icon library + reusable icon-picker widget
 │   ├── admin-panel.js            # Publish flow, manage admins, manage
 │   │                              #   community submissions
@@ -299,7 +314,16 @@ anu-msp-question-bank/
 │   │                              #   curriculum or specific Year/Module/
 │   │                              #   Subject(s); the Add-Admin scope picker
 │   ├── quiz-editor.js            # Inline editors for published & custom quizzes
-│   └── curriculum-admin.js       # Admin curriculum tree management
+│   ├── curriculum-admin.js       # Admin curriculum tree management
+│   └── vendor/                   # Small third-party libraries, vendored
+│       │                          #   locally (not loaded from a CDN) so
+│       │                          #   they never depend on a third party
+│       │                          #   being reachable — see each file's
+│       │                          #   matching .LICENSE
+│       ├── qrcode-generator.min.js  # QR generation — the P2P transfer
+│       │                             #   code shown as a scannable code
+│       └── jsQR.min.js              # QR scanning (camera) — reads that
+│                                    #   code back on the receiving device
 ├── firestore.rules               # Firestore security rules (owner-only data,
 │                                  #   public reads, roster-based admin perms)
 ├── package.json                  # Convenience scripts for a local dev server
@@ -773,53 +797,45 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
-- **70 — Backup & Transfer: merge-vs-replace choice, selective
-  quizzes/stats loading, an animated progress indicator, and a custom
-  export file name.**
-  - `js/local-store.js`: `importCustomQuizzes()` and `importAttempts()`
-    both now take a `{ mode: 'merge' | 'replace' }` option. `'merge'`
-    (still the default, unchanged behavior) adds only new/non-duplicate
-    items on top of what's already on the device. `'replace'` deletes
-    everything currently on the device first, then loads the incoming set
-    as the new, complete collection — used when the user explicitly picks
-    "Replace" in the new load-options picker. `applyImportPayload()` also
-    gained `loadQuizzes` / `loadStats` options so a backup containing both
-    a quiz set and a stats/history export can have just one part applied
-    instead of always loading both. New `describeImportPayload()` inspects
-    a payload up front (does it have quizzes? stats? how many of each?) so
-    the UI only offers choices that are actually relevant to the file in
-    hand — a quizzes-only backup doesn't ask "load stats too?".
-  - `js/backup-transfer-ui.js`: file import is now two steps — picking the
-    file just reads and validates it, then a shared load-options picker
-    (`_backupShowLoadPicker` / `_backupConfirmLoad`) shows Merge vs Replace
-    as two selectable cards (with a plain-language description of what
-    each does) plus a checkbox per part the payload actually contains.
-    The exact same picker is reused for the P2P receive path
-    (`_backupStartP2PReceive`), so both transfer methods behave
-    identically instead of P2P silently always merging.
-  - Added a reusable animated progress bar (`_backupProgressHtml()`, new
-    `.backup-progress-*` styles in `css/styles.css`) shown during file
-    read, merge/replace application, and every P2P connection stage
-    (setup → waiting → connected → sending), replacing the old plain-text
-    "⏳ …" status lines with a persistent sliding indicator so a slow step
-    doesn't look like it stalled.
-  - The Export panel gained an editable file name field, pre-filled with
-    the existing `anu-msp-backup-YYYY-MM-DD` pattern; the name is
-    sanitized (path separators and other invalid filename characters
-    stripped, `.json` appended if missing) before being handed to
-    `downloadExportFile()`.
-  - All new UI (mode-choice cards, part checkboxes, progress bar, filename
-    row) uses flex-wrap and a `max-width: 480px` media query so it
-    reflows correctly on narrow phone screens, matching the rest of the
-    Backup & Transfer modal.
-  - **Not included in this drop:** a QR-code send/scan option was explored
-    for the P2P path but pulled before shipping — a hand-rolled QR
-    encoder failed decode verification (bad timing-pattern/format-info
-    placement) and no offline, dependency-free, verified-correct
-    alternative was available in this network-restricted build
-    environment. The manual transfer-code entry (copy/paste or read
-    aloud) remains the only P2P pairing method for now; QR can be
-    revisited as its own focused drop once a verified encoder is sourced.
+- **70 — Backup & Transfer overhaul: merge-vs-replace import choice,
+  progress/result bars, custom export name, QR send/scan.**
+  - **Import confirmation step (file or P2P), `_backupConfirmImportFlow()`
+    in `js/backup-transfer-ui.js`.** Neither import path used to ask
+    anything — a file drop or a completed P2P transfer applied
+    immediately, always merging. Now both go through one shared inline
+    panel first: a summary of what the backup actually contains, a choice
+    of **merge with existing data** (default) or **delete existing data
+    on this device, then load this backup**, and — only when a backup
+    has *both* custom quizzes and stats — checkboxes to load just one or
+    both. `js/local-store.js` gained the matching plumbing:
+    `clearCustomQuizzes()` / `clearAttempts()`, a `mode: 'merge'|'replace'`
+    option threaded through `importCustomQuizzes()` / `importAttempts()`
+    (replace deletes this device's existing set first, still
+    de-duplicating within the incoming batch), `inspectImportPayload()`
+    to report what's in a payload without writing anything, and
+    `applyImportPayload()` now takes `{ mode, includeQuizzes,
+    includeStats }` instead of always applying everything present.
+  - **Stylised progress / result bars** (`_backupProgressHTML()` /
+    `_backupResultHTML()`) now cover every async action in this menu that
+    didn't already have one — export, import, P2P send, P2P receive. An
+    animated, indeterminate striped bar (there's no real byte-level
+    percentage to report for any of these) while something's in flight,
+    replaced by a solid green/red bar with the outcome once it settles.
+  - **Optional custom export file name** — a text field next to Export;
+    left blank it falls back to the existing dated default. Input is
+    sanitized (strips characters unsafe in filenames across OSes) and
+    always ends in `.json`.
+  - **QR code for P2P send/receive**, kept fully additive to the existing
+    code-box + copy-button flow — nothing about typing the code changed
+    for anyone who prefers that. The sending device now also renders a QR
+    code of the same transfer code; the receiving device gained a
+    "📷 Scan QR" option (camera + live decode) next to its manual code
+    field, replacing the old blocking `prompt()` with an inline, themed
+    entry UI. Both libraries (`qrcode-generator` for generating,
+    `jsQR` for scanning) are vendored locally under `js/vendor/` — not
+    loaded from a CDN — and lazy-loaded only when send/receive is
+    actually used, so this costs nothing otherwise and never depends on a
+    third party being reachable.
 - **69 — Worker: implemented the manifest bump build 68 diagnosed but
   deliberately didn't guess at.** Every successful curriculum/community
   write or delete through this Worker now also bumps (or, on delete,
@@ -1173,7 +1189,12 @@ change (see the filename of whichever zip you're reading this from).
     server, only a brief connection handshake does) are both first-class
     options, side by side, with a choice of custom quizzes / stats / both.
     A subtle, non-alarming reminder appears if it's been a while since your
-    last backup.
+    last backup. Every import (file or P2P) now asks first whether to
+    merge with or replace this device's existing data, and — when a
+    backup contains both custom quizzes and stats — which of the two to
+    actually load (see build 70). Sending a P2P transfer also shows a QR
+    code of the connection code, which the receiving device can scan
+    instead of typing it in.
 - **55 — Real incremental caching for Statistics: one document per
   quiz instead of one growing array.** #54's version check could only
   ever tell you "something changed" — because `history` was still one
