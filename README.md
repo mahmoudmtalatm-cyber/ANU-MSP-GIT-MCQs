@@ -305,7 +305,7 @@ anu-msp-question-bank/
 │   ├── backup-transfer-ui.js     # Backup & Transfer modal: file export/
 │   │                              #   import (with a merge/replace choice
 │   │                              #   and a custom file name) and the P2P
-│   │                              #   send/receive UI (QR generate + scan)
+│   │                              #   send/receive UI (manual transfer code)
 │   ├── icon-picker.js            # Icon library + reusable icon-picker widget
 │   ├── admin-panel.js            # Publish flow, manage admins, manage
 │   │                              #   community submissions
@@ -314,16 +314,7 @@ anu-msp-question-bank/
 │   │                              #   curriculum or specific Year/Module/
 │   │                              #   Subject(s); the Add-Admin scope picker
 │   ├── quiz-editor.js            # Inline editors for published & custom quizzes
-│   ├── curriculum-admin.js       # Admin curriculum tree management
-│   └── vendor/                   # Small third-party libraries, vendored
-│       │                          #   locally (not loaded from a CDN) so
-│       │                          #   they never depend on a third party
-│       │                          #   being reachable — see each file's
-│       │                          #   matching .LICENSE
-│       ├── qrcode-generator.min.js  # QR generation — the P2P transfer
-│       │                             #   code shown as a scannable code
-│       └── jsQR.min.js              # QR scanning (camera) — reads that
-│                                    #   code back on the receiving device
+│   └── curriculum-admin.js       # Admin curriculum tree management
 ├── firestore.rules               # Firestore security rules (owner-only data,
 │                                  #   public reads, roster-based admin perms)
 ├── package.json                  # Convenience scripts for a local dev server
@@ -797,6 +788,30 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **73 — Removed QR sending/scanning; Backup & Transfer modal rebuilt as a
+  clean, responsive two-card layout.**
+  - **QR code removed entirely.** Build 70 added an optional QR code next
+    to the P2P transfer code (generated on the sending device, scanned
+    with the camera on the receiving device). That whole path — send-side
+    generation, receive-side "📷 Scan QR" camera flow, and the two
+    vendored libraries it depended on (`js/vendor/qrcode-generator.min.js`,
+    `js/vendor/jsQR.min.js`, now deleted along with the rest of
+    `js/vendor/`) — has been removed. The manual transfer code (shown
+    with a Copy button on send, typed in on receive) was always the
+    primary path and needed no changes; this only removes the QR
+    shortcut around it.
+  - **Modal rebuilt with real CSS classes instead of inline styles.**
+    `renderBackupTransferModal()` in `js/backup-transfer-ui.js` now
+    renders a short intro line followed by two clearly separated,
+    titled cards — `.backup-card` for **Export / Import** and
+    **Direct device-to-device transfer** — each with an icon header,
+    a `.backup-field-group` for the include/quiz-picker controls, a
+    `.backup-actions` button row, and a `.backup-status-area` for
+    progress/result messages. All of the corresponding rules live in
+    `css/styles.css` under "Backup & Transfer — modal layout". Button
+    rows and the card header stack to full width below 480px instead of
+    depending on scattered inline `flex-wrap` rules, so the modal stays
+    usable at any screen size.
 - **72 — Follow-up to 71: same "Missing or insufficient permissions"
   persisted because the rule fix was never actually live.** Firestore
   only enforces whichever `firestore.rules` is currently *published* to
@@ -1229,9 +1244,7 @@ change (see the filename of whichever zip you're reading this from).
     last backup. Every import (file or P2P) now asks first whether to
     merge with or replace this device's existing data, and — when a
     backup contains both custom quizzes and stats — which of the two to
-    actually load (see build 70). Sending a P2P transfer also shows a QR
-    code of the connection code, which the receiving device can scan
-    instead of typing it in.
+    actually load (see build 70).
 - **55 — Real incremental caching for Statistics: one document per
   quiz instead of one growing array.** #54's version check could only
   ever tell you "something changed" — because `history` was still one

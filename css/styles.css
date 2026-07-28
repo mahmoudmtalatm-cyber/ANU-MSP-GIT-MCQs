@@ -1105,43 +1105,72 @@
       .backup-import-confirm .stats-open-btn:hover { background: var(--accent); color: white; }
       .backup-import-confirm .backup-cancel-btn:hover { background: var(--red-pale); color: var(--wrong-fg); }
 
-      /* ── Backup & Transfer — QR code (sending side) ── */
-      .backup-qr-hint { font-size: .8rem; color: var(--text-muted); margin: 10px 0 6px; }
-      .backup-qr-box {
-        display: inline-flex; align-items: center; justify-content: center;
-        background: #fff; border: 1.5px solid var(--accent); border-radius: 12px;
-        padding: 10px; width: 160px; height: 160px;
+      /* ── Backup & Transfer — modal layout ──
+         A short intro line followed by two clearly separated, titled
+         cards (Export/Import and Device-to-device). Built with real
+         classes rather than inline styles so it stays easy to restyle
+         and behaves consistently at any viewport width. */
+      .backup-intro {
+        background: var(--card-bg, rgba(255,255,255,.04));
+        border: 1px solid var(--border-soft);
+        border-radius: 12px; padding: 14px 16px;
+        font-size: .86rem; line-height: 1.55; color: var(--text-muted);
       }
-      .backup-qr-box svg { width: 100%; height: 100%; display: block; }
-      .backup-qr-loading, .backup-qr-unavailable {
-        font-size: .78rem; color: var(--text-muted); text-align: center; padding: 8px;
+      .backup-card {
+        background: var(--surface-2);
+        border: 1px solid var(--border-soft);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .backup-card-header {
+        display: flex; align-items: flex-start; gap: 12px;
+        padding: 14px 16px;
+        background: linear-gradient(120deg, var(--accent-soft), transparent);
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .backup-card-icon { font-size: 1.3rem; line-height: 1.3; flex-shrink: 0; }
+      .backup-card-title {
+        font-size: .95rem; font-weight: 800; color: var(--text-main);
+        font-family: var(--font-display);
+      }
+      .backup-card-subtitle {
+        font-size: .8rem; color: var(--text-muted); margin-top: 3px; line-height: 1.4;
+      }
+      .backup-card-body {
+        display: flex; flex-direction: column; gap: 12px;
+        padding: 16px;
+      }
+      .backup-field-group { display: flex; flex-direction: column; gap: 6px; }
+      .backup-field-label { font-size: .83rem; font-weight: 700; color: var(--text-main); }
+      .backup-checkbox-row {
+        display: flex; align-items: center; gap: 7px;
+        font-size: .85rem; cursor: pointer;
+      }
+      .backup-quiz-picker {
+        max-height: 140px; overflow-y: auto; margin-top: 4px;
+        border: 1px solid var(--border-soft); border-radius: 8px;
+        padding: 9px 10px; background: var(--bg-card);
+      }
+      .backup-quiz-all { font-size: .85rem; margin-bottom: 4px; }
+      .backup-quiz-item { font-size: .83rem; margin-left: 16px; color: var(--text-muted); }
+      .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .backup-status-area { font-size: .85rem; }
+      .backup-progress-row-tight { margin-bottom: 10px; }
+      .backup-reminder-note {
+        background: var(--warn-bg, rgba(255,193,7,.12));
+        border-radius: 10px; padding: 10px 14px; font-size: .85rem;
       }
 
-      /* ── Backup & Transfer — QR scan (receiving side) ── */
+      /* ── Backup & Transfer — device-to-device receive entry ── */
       .backup-receive-entry { margin-top: 2px; }
-      .backup-receive-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
-      .backup-scan-box { margin-top: 10px; }
-      .backup-scan-video-wrap {
-        position: relative; width: 100%; max-width: 320px;
-        aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
-        background: #000; border: 1.5px solid var(--accent);
-      }
-      .backup-scan-video { width: 100%; height: 100%; object-fit: cover; display: block; }
-      .backup-scan-frame {
-        position: absolute; inset: 14%; border: 3px solid var(--gold-bright);
-        border-radius: 14px; box-shadow: 0 0 0 2000px rgba(0,0,0,.25);
-        pointer-events: none;
-      }
-      .backup-scan-hint { font-size: .8rem; color: var(--text-muted); margin: 10px 0 8px; }
-      .backup-scan-error {
-        font-size: .82rem; color: var(--wrong-fg); background: var(--wrong-bg);
-        border: 1px solid var(--red-soft-border); border-radius: 9px; padding: 10px 12px; margin-top: 8px;
-      }
+      .backup-receive-hint { font-size: .85rem; color: var(--text-muted); margin-bottom: 8px; }
+      .backup-receive-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       @media (max-width: 480px) {
-        .backup-scan-video-wrap { max-width: 100%; }
         .backup-receive-row { flex-direction: column; align-items: stretch; }
         .backup-code-input { max-width: none; }
-        .backup-qr-box { width: 100%; max-width: 220px; height: auto; aspect-ratio: 1/1; }
+        .backup-card-header { flex-direction: column; }
+        .backup-actions { flex-direction: column; }
+        .backup-actions .stats-open-btn { width: 100%; justify-content: center; }
       }
 /* ── CUSTOM QUIZZES (AI) ── */
 .cq-section {

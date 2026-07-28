@@ -56,6 +56,21 @@
      message now says this explicitly instead of just "permission
      denied," since that was the actual missing step, not another code
      bug.
+
+   Build 73 — QR removed, modal rebuilt as a proper two-card layout:
+   - Removed the QR code feature entirely (send-side generation and
+     receive-side camera scanning), along with `js/vendor/qrcode-
+     generator.min.js` and `js/vendor/jsQR.min.js`. The manual transfer
+     code (copy on send, type on receive) was always the primary path
+     and is untouched — this only removes the QR shortcut around it.
+   - The modal body no longer builds its layout from ad-hoc inline
+     `style=""` attributes. It's now two clearly separated, titled cards
+     (`.backup-card`) — File and Device-to-device — each with its own
+     icon header, action-button row (`.backup-actions`), and status
+     area, all driven by real CSS classes in css/styles.css so the
+     look stays consistent and easy to restyle later. The button rows
+     wrap responsively at narrow widths instead of relying on inline
+     flex-wrap rules scattered through the markup.
    ============================================================================= */
 
 let _backupSelectedQuizIds = null; // null = "all" (no explicit selection made yet)
@@ -76,7 +91,6 @@ function openBackupTransfer() {
 
 function closeBackupTransfer() {
   document.getElementById('backupOverlay').classList.add('hidden');
-  _backupStopQrScan(); // never leave the camera running once the modal is closed
 }
 
 async function renderBackupTransferModal() {
@@ -86,49 +100,63 @@ async function renderBackupTransferModal() {
   const defaultExportName = `anu-msp-backup-${new Date().toISOString().slice(0, 10)}`;
 
   body.innerHTML = `
-    <div style="background:var(--card-bg,rgba(255,255,255,.04));border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:.86rem;line-height:1.5;color:var(--text-muted);">
+    <div class="backup-intro">
       Your custom quizzes and stats live on this device to keep the app free to run.
       That means clearing your browser data, switching browsers, or losing this
       device means this data is gone unless you've backed it up. Use either option
       below whenever you want — both work, pick whichever's easier right now.
     </div>
 
-    <div class="stats-section">
-      <div class="stats-section-title">📁 Export / Import (a file — works everywhere)</div>
-      <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="backup-card">
+      <div class="backup-card-header">
+        <span class="backup-card-icon">📁</span>
         <div>
-          <div style="font-weight:600;margin-bottom:6px;">What to include:</div>
-          <label style="display:block;margin-bottom:4px;"><input type="checkbox" id="backupIncludeQuizzes" checked> Custom quizzes</label>
-          <label style="display:block;margin-bottom:8px;"><input type="checkbox" id="backupIncludeStats" checked> Stats / history</label>
-          <div id="backupQuizPicker" style="max-height:140px;overflow-y:auto;border:1px solid var(--border-color,#3334);border-radius:8px;padding:8px;${quizzes.length ? '' : 'display:none;'}">
-            <label style="display:block;font-size:.85rem;margin-bottom:4px;"><input type="checkbox" id="backupQuizAll" checked onchange="_backupToggleAllQuizzes(this.checked)"> All quizzes (${quizzes.length})</label>
-            ${quizzes.map(q => `<label style="display:block;font-size:.83rem;margin-left:14px;color:var(--text-muted);"><input type="checkbox" class="backupQuizItem" value="${q.id}" checked onchange="_backupQuizItemChanged()"> ${escapeHtml(q.title || 'Untitled quiz')}</label>`).join('')}
+          <div class="backup-card-title">Export / Import</div>
+          <div class="backup-card-subtitle">A file you keep — works everywhere, no connection needed</div>
+        </div>
+      </div>
+
+      <div class="backup-card-body">
+        <div class="backup-field-group">
+          <div class="backup-field-label">What to include</div>
+          <label class="backup-checkbox-row"><input type="checkbox" id="backupIncludeQuizzes" checked> Custom quizzes</label>
+          <label class="backup-checkbox-row"><input type="checkbox" id="backupIncludeStats" checked> Stats / history</label>
+          <div id="backupQuizPicker" class="backup-quiz-picker" ${quizzes.length ? '' : 'style="display:none;"'}>
+            <label class="backup-checkbox-row backup-quiz-all"><input type="checkbox" id="backupQuizAll" checked onchange="_backupToggleAllQuizzes(this.checked)"> All quizzes (${quizzes.length})</label>
+            ${quizzes.map(q => `<label class="backup-checkbox-row backup-quiz-item"><input type="checkbox" class="backupQuizItem" value="${q.id}" checked onchange="_backupQuizItemChanged()"> ${escapeHtml(q.title || 'Untitled quiz')}</label>`).join('')}
           </div>
         </div>
+
         <div class="backup-filename-row">
           <label for="backupExportName">File name (optional)</label>
           <input type="text" id="backupExportName" class="backup-text-input" placeholder="${escapeHtml(defaultExportName)}" maxlength="80" />
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+
+        <div class="backup-actions">
           <button class="stats-open-btn" onclick="_backupDoExport()">⬇️ Export to file</button>
           <button class="stats-open-btn" onclick="document.getElementById('backupImportFileInput').click()">⬆️ Import from file</button>
           <input type="file" id="backupImportFileInput" accept="application/json" style="display:none" onchange="_backupDoImport(this.files[0])">
         </div>
-        <div id="backupFileStatus"></div>
+        <div id="backupFileStatus" class="backup-status-area"></div>
       </div>
     </div>
 
-    <div class="stats-section">
-      <div class="stats-section-title">📡 Direct device-to-device transfer</div>
-      <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:10px;">
-        More private — your data goes straight between the two devices, never
-        sitting on a server. Both devices need this page open at the same time.
+    <div class="backup-card">
+      <div class="backup-card-header">
+        <span class="backup-card-icon">📡</span>
+        <div>
+          <div class="backup-card-title">Direct device-to-device transfer</div>
+          <div class="backup-card-subtitle">More private — data goes straight between the two devices, never sitting on a server. Both devices need this page open at the same time.</div>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-        <button class="stats-open-btn" onclick="_backupStartP2PSend()">📤 Send from this device</button>
-        <button class="stats-open-btn" onclick="_backupRenderP2PReceiveEntry()">📥 Receive on this device</button>
+
+      <div class="backup-card-body">
+        <div class="backup-actions">
+          <button class="stats-open-btn" onclick="_backupStartP2PSend()">📤 Send from this device</button>
+          <button class="stats-open-btn" onclick="_backupRenderP2PReceiveEntry()">📥 Receive on this device</button>
+        </div>
+        <div id="backupP2PStatus" class="backup-status-area"></div>
       </div>
-      <div id="backupP2PStatus" style="font-size:.85rem;"></div>
     </div>
   `;
 
@@ -314,14 +342,11 @@ async function _backupStartP2PSend() {
     await startSend(payload, (status, code) => {
       if (status === 'waiting-for-receiver' && code) {
         statusEl.innerHTML = `
-          <div class="backup-progress-row" style="margin-bottom:10px;"><span class="backup-progress-dot"></span> Waiting for the other device — tell it to tap "Receive on this device":</div>
+          <div class="backup-progress-row backup-progress-row-tight"><span class="backup-progress-dot"></span> Waiting for the other device — tell it to tap "Receive on this device":</div>
           <div class="p2p-code-box">
             <span class="p2p-code-value" id="p2pCodeValue">${escapeHtml(code)}</span>
             <button class="p2p-code-copy-btn" onclick="_backupCopyP2PCode('${code}')">📋 Copy</button>
-          </div>
-          <div class="backup-qr-hint">Or scan this instead of typing the code:</div>
-          <div class="backup-qr-box" id="backupQrBox"><div class="backup-qr-loading">Generating QR code…</div></div>`;
-        _backupRenderSendQr(code);
+          </div>`;
         return;
       }
       if (status === 'connected') {
@@ -359,60 +384,16 @@ async function _backupCopyP2PCode(code) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// QR CODE — generation (sending side) and camera scanning (receiving side).
-// Both libraries are vendored locally under js/vendor/ (not loaded from a
-// CDN) and lazy-loaded on first use, so nothing here costs anything until
-// someone actually sends or scans, and neither ever depends on a third
-// party being reachable. See js/vendor/*.LICENSE for attribution.
-// ---------------------------------------------------------------------------
-
-function _backupLoadScriptOnce(src, globalCheck) {
-  if (globalCheck()) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Couldn\u2019t load a required file \u2014 check your connection.'));
-    document.head.appendChild(script);
-  });
-}
-function _backupEnsureQrGenLib() {
-  return _backupLoadScriptOnce('js/vendor/qrcode-generator.min.js', () => typeof window.qrcode === 'function');
-}
-function _backupEnsureQrScanLib() {
-  return _backupLoadScriptOnce('js/vendor/jsQR.min.js', () => typeof window.jsQR === 'function');
-}
-
-/** Renders a QR code encoding the plain transfer code into #backupQrBox — additive alongside the existing text code + copy button, never replacing them. */
-async function _backupRenderSendQr(code) {
-  const box = document.getElementById('backupQrBox');
-  if (!box) return;
-  try {
-    await _backupEnsureQrGenLib();
-    const qr = window.qrcode(0, 'M'); // type 0 = smallest size that fits the data
-    qr.addData(code);
-    qr.make();
-    box.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
-    const svg = box.querySelector('svg');
-    if (svg) { svg.removeAttribute('width'); svg.removeAttribute('height'); }
-  } catch (e) {
-    box.innerHTML = `<div class="backup-qr-unavailable">QR code unavailable right now — the code above still works.</div>`;
-  }
-}
-
-/** Renders the manual-code / scan-QR entry UI for the receiving side, replacing the previous prompt()-based flow with something themed and inline. */
+/** Renders the manual-code entry UI for the receiving side, replacing the previous prompt()-based flow with something themed and inline. */
 function _backupRenderP2PReceiveEntry() {
   const statusEl = document.getElementById('backupP2PStatus');
   statusEl.innerHTML = `
     <div class="backup-receive-entry">
-      <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Enter the code shown on the sending device, or scan its QR code.</div>
+      <div class="backup-receive-hint">Enter the code shown on the sending device.</div>
       <div class="backup-receive-row">
         <input type="text" id="backupReceiveCodeInput" class="backup-code-input" maxlength="8" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
         <button class="stats-open-btn" id="backupReceiveConnectBtn" type="button">▶️ Connect</button>
-        <button class="stats-open-btn" id="backupReceiveScanBtn" type="button">📷 Scan QR</button>
       </div>
-      <div id="backupScanArea"></div>
     </div>`;
 
   const codeInput = document.getElementById('backupReceiveCodeInput');
@@ -422,77 +403,11 @@ function _backupRenderP2PReceiveEntry() {
   };
   document.getElementById('backupReceiveConnectBtn').onclick = goConnect;
   codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') goConnect(); });
-  document.getElementById('backupReceiveScanBtn').onclick = () => _backupStartQrScan();
 }
 
-let _backupScanStream = null;
-let _backupScanRAF = null;
-
-/** Opens the camera and scans for a QR code, filling the code field and starting the transfer automatically the moment one's found. Manual entry above is untouched and always available as a fallback. */
-async function _backupStartQrScan() {
-  const area = document.getElementById('backupScanArea');
-  if (!area) return;
-  area.innerHTML = `
-    <div class="backup-scan-box">
-      <div class="backup-scan-video-wrap">
-        <video id="backupScanVideo" class="backup-scan-video" playsinline muted></video>
-        <div class="backup-scan-frame"></div>
-      </div>
-      <div class="backup-scan-hint">Point the camera at the QR code shown on the other device.</div>
-      <button class="stats-open-btn backup-cancel-btn" id="backupScanCancelBtn" type="button">✖️ Cancel scan</button>
-    </div>`;
-  document.getElementById('backupScanCancelBtn').onclick = () => _backupStopQrScan();
-
-  try {
-    await _backupEnsureQrScanLib();
-    _backupScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-  } catch (e) {
-    area.innerHTML = `<div class="backup-scan-error">❌ Couldn't access the camera (${escapeHtml(e.message || String(e))}) — type the code above instead.</div>`;
-    return;
-  }
-
-  const video = document.getElementById('backupScanVideo');
-  if (!video) { _backupStopQrScan(); return; } // area got rebuilt/closed mid-setup
-  video.srcObject = _backupScanStream;
-  await video.play().catch(() => {});
-
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-  const tick = () => {
-    if (!_backupScanStream) return; // scan was cancelled or already matched
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const found = window.jsQR(frame.data, frame.width, frame.height);
-      if (found && found.data) {
-        const code = found.data.trim();
-        _backupStopQrScan();
-        const input = document.getElementById('backupReceiveCodeInput');
-        if (input) input.value = code.toUpperCase();
-        _backupRunP2PReceive(code);
-        return;
-      }
-    }
-    _backupScanRAF = requestAnimationFrame(tick);
-  };
-  _backupScanRAF = requestAnimationFrame(tick);
-}
-
-/** Stops the camera + scan loop and clears the scan area, if either is active. Safe to call any time, including when nothing is running. */
-function _backupStopQrScan() {
-  if (_backupScanRAF) { cancelAnimationFrame(_backupScanRAF); _backupScanRAF = null; }
-  if (_backupScanStream) { _backupScanStream.getTracks().forEach(t => t.stop()); _backupScanStream = null; }
-  const area = document.getElementById('backupScanArea');
-  if (area) area.innerHTML = '';
-}
-
-/** Runs the actual P2P receive connection + import for a given code (typed or scanned), shared by both entry points. */
+/** Runs the actual P2P receive connection + import for a given (typed) code. */
 async function _backupRunP2PReceive(code) {
   const statusEl = document.getElementById('backupP2PStatus');
-  _backupStopQrScan(); // camera's done its job once we have a code
   statusEl.innerHTML = _backupProgressHTML('Connecting…');
   try {
     const { startReceive } = await import('./p2p-transfer.js');
@@ -524,7 +439,7 @@ async function _backupRenderReminderNote() {
   if (!shouldShowBackupReminder()) return;
   const body = document.getElementById('backupBody');
   const note = document.createElement('div');
-  note.style.cssText = 'background:var(--warn-bg,rgba(255,193,7,.12));border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.85rem;';
+  note.className = 'backup-reminder-note';
   note.innerHTML = `💡 It's been a while since your last backup — worth taking a minute to export or transfer a copy.`;
   body.prepend(note);
 }
