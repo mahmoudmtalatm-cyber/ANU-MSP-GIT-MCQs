@@ -791,6 +791,17 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **84 — Fixed the flowchart hint text overlapping the subject toggle list
+  below it.** In build 83's new Curriculum Breakdown, the "Tap a subject to
+  see every quiz taken for it in this module." hint (`.flow-hint` in
+  `css/styles.css`) had a negative bottom margin (`margin: 2px 0 -2px`),
+  left over from an early layout pass — it pulled the first subject card
+  right up underneath the hint text instead of sitting cleanly below it.
+  Replaced with proper positive spacing (`margin: 10px 0 4px`) and gave
+  `.quiz-toggle-list` its own small top margin as a defensive spacer, so the
+  hint and the subject cards never crowd each other regardless of subject
+  name length or how many wrap onto a second line. No JS touched, no other
+  layout affected — purely this one rule in `css/styles.css`.
 - **83 — Statistics now break down by Year → Module → Subject, with a
   dynamic drill-down flowchart and per-subject/per-module "toggle menu" of
   the actual quizzes behind each number.** Previously, Statistics only

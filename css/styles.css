@@ -1046,11 +1046,11 @@
       .flow-node .fn-meta { font-size: .74rem; color: var(--text-muted); font-weight: 600; margin-bottom: 5px; }
       .flow-node .fn-bar-wrap { background: var(--chip-blue-bg); border-radius: 4px; height: 6px; overflow: hidden; }
       .flow-node .fn-bar { height: 100%; border-radius: 4px; transition: width .4s; }
-      .flow-hint { font-size: .8rem; color: var(--text-muted); margin: 2px 0 -2px; }
+      .flow-hint { font-size: .8rem; color: var(--text-muted); margin: 10px 0 4px; }
 
       /* ── QUIZ TITLE TOGGLE MENUS ── used both for subjects inside the
          flowchart and for Other Quiz Sources (Custom/Community/Retake) */
-      .quiz-toggle-list { display: flex; flex-direction: column; gap: 8px; }
+      .quiz-toggle-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
       .quiz-toggle-group {
         background: var(--surface-2); border: 1px solid var(--border-soft-2);
         border-radius: 10px; overflow: hidden;
