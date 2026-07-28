@@ -788,6 +788,17 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **75 — Deleted the `js/vendor/` QR libraries that were still physically
+  in the repo.** Build 73 removed the QR feature from the code and said
+  in its own changelog entry that `js/vendor/` had been deleted, but the
+  four files (`jsQR.min.js`, `jsQR.LICENSE`, `qrcode-generator.min.js`,
+  `qrcode-generator.LICENSE`) were still sitting in the repo, unused by
+  anything — confirmed via a full-project search for every reference to
+  `qr`, `jsQR`, `qrcode`, and `vendor` across `index.html`, `css/`,
+  `js/`, and `package.json`. No code changes; the `js/vendor/` directory
+  itself is now gone from this project drop too. If you're syncing this
+  onto your existing GitHub repo rather than replacing the whole tree,
+  run `git rm -r js/vendor` there so the dead files don't linger.
 - **74 — "What to include" selection in Backup & Transfer restyled as
   chips/cards instead of plain checkboxes.** `renderBackupTransferModal()`
   in `js/backup-transfer-ui.js`: the Custom quizzes / Stats checkboxes are
