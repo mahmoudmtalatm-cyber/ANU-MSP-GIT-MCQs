@@ -751,11 +751,87 @@ Every question follows this shape:
 }
 ```
 
+## Deploying change #56 to an existing live project (one-time)
+
+If you're updating an already-live deployment (not a fresh install), the
+new curriculum/community reads go **only** through R2/the Worker — there
+is no Firestore fallback. Existing published lectures and community
+quizzes must be copied into R2 *before* this app code goes live, or
+they'll simply be missing until re-published. Use the separate
+`legacy-content-to-r2-migration` tool (kept outside this project, since
+it's a one-time script, not part of the running app) — see its own
+README for exact steps. It's read-only against Firestore's existing
+content and safe to run at any time, including against a live project
+with active users, since nothing currently deployed reads from R2 yet.
+
+Recommended order: deploy the Worker → run the migration tool → verify
+a few items → deploy this app code → monitor → only then retire the old
+Firestore-side curriculum/community data.
+
 ## Changelog
 
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading this from).
 
+- **57 — Legacy content migration tool.** Change #56 moved curriculum
+  and community-quiz reads entirely to R2/the Worker, with no Firestore
+  fallback, but never shipped a way to actually move *existing* live
+  content there — meaning deploying #56 as-is would have made every
+  already-published lecture and community quiz disappear until manually
+  re-published. Added `legacy-content-to-r2-migration/`, a standalone,
+  read-only-against-Firestore script that copies existing curriculum
+  lectures and community quizzes (plus their images, resolved from
+  whichever of the three legacy image-storage shapes this project has
+  used over time) into R2 using the same key scheme, manifest format,
+  and content-hashing the Worker itself uses — dry-run by default,
+  idempotent, verifies every write, and never deletes or modifies
+  anything in Firestore. See
+  [Deploying change #56 to an existing live project](#deploying-change-56-to-an-existing-live-project-one-time)
+  above.
+- **56 — Major architecture change: content moved to Cloudflare R2,
+  personal data moved fully local, per-quiz community caching, safe
+  image dedup.** Firestore's free-tier read/write/storage limits were
+  the wrong fit for two very different kinds of data this app stores,
+  so each is now handled the way it actually should be:
+  - **Curriculum & community quiz content** (text + images) now lives
+    in Cloudflare R2 instead of Firestore, served through a new
+    Cloudflare Worker (`worker/`) that verifies the requester's real
+    Firebase identity and enforces who's allowed to write what (admins
+    only for curriculum; a quiz's own author, or an admin, for
+    community quizzes) before touching storage. Firestore keeps only a
+    tiny per-item version marker for each lecture/quiz — replacing
+    community quizzes' old single-global-version scheme, which forced
+    a full re-fetch of every community quiz whenever any one of them
+    changed. Images are content-hash-addressed, so identical bytes
+    never get duplicated, and a safe reference-counting step (also new)
+    means an old image is only actually deleted once nothing else
+    (another question reusing the same picture) still needs it.
+  - **Your own custom quizzes and stats/history** now live entirely on
+    your device (local storage) — never Firestore, never R2. This
+    includes retake — bringing back wrong-question review, snapshotted
+    locally at the moment you finish a quiz, at zero server cost.
+    Since this is now personal, on-device data: back it up. Use
+    Export/Import (a downloadable file — works everywhere, doubles as
+    a backup) or the new direct device-to-device transfer (no file
+    needed, nothing touches a server except a brief connection
+    handshake) to move things to another device or protect against
+    losing your browser data. The app will gently remind you if it's
+    been a while.
+  - Existing users are migrated automatically and safely on their next
+    visit: old Firestore-stored stats/custom quizzes are copied to
+    local storage first, confirmed, and only then removed from
+    Firestore — never the other way around. Curriculum content already
+    published is carried over to R2 the same way (copied, verified,
+    then the old copy is cleaned up) — never deleted outright, only
+    relocated.
+  - **Backup & Transfer** is now a real, visible feature (💾 button on the
+    home screen) — not just underlying capability. Export/Import a file
+    (works on every device, doubles as a backup) and direct
+    device-to-device transfer (more private — your data never touches a
+    server, only a brief connection handshake does) are both first-class
+    options, side by side, with a choice of custom quizzes / stats / both.
+    A subtle, non-alarming reminder appears if it's been a while since your
+    last backup.
 - **55 — Real incremental caching for Statistics: one document per
   quiz instead of one growing array.** #54's version check could only
   ever tell you "something changed" — because `history` was still one

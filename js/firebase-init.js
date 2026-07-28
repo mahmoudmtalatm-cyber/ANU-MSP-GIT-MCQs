@@ -1,4 +1,5 @@
-import { firebaseConfig } from './config/firebase-config.js';
+import { runOneTimeMigrationIfNeeded } from './migration.js';
+import { listCustomQuizzes, listAttempts } from './local-store.js';
 
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -56,8 +57,27 @@ import { firebaseConfig } from './config/firebase-config.js';
       // Mark as loading before the async calls so fsAwaitIfNeeded shows the spinner
       _fsReady.stats         = false;
       _fsReady.customQuizzes = false;
-      loadStatsFromFirestore();
-      loadCustomQuizzesFromFirestore();
+
+      // One-time, safe migration for existing users: pulls any of their
+      // OLD Firestore-stored stats/custom quizzes down to local storage
+      // first, confirms the write, THEN deletes the old Firestore copies.
+      // Safe to re-run if interrupted; already-migrated users return
+      // immediately ({ alreadyDone: true }) at essentially no cost.
+      const migrationResult = await runOneTimeMigrationIfNeeded(user.uid);
+      if (migrationResult.errors && migrationResult.errors.length) {
+        console.warn('Migration incomplete, will retry next visit:', migrationResult.errors);
+      }
+
+      // Custom quizzes and stats now live entirely in local storage —
+      // never Firestore. Load them from there. Custom quizzes are loaded
+      // directly here; stats reuse the one, already-correct loader in
+      // js/app-core.js (window.loadStatsFromFirestore) rather than
+      // duplicating that logic a second time in this file.
+      window._customQuizzes = await listCustomQuizzes();
+      await window.loadStatsFromFirestore();
+      window._quizAttempts = await listAttempts();
+      _fsReady.customQuizzes = true;
+
       // Pre-load display name so sharing feels instant
       try {
         const ref  = window._doc(window._db, 'userProfiles', user.uid);

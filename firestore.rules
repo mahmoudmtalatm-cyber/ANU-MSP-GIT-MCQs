@@ -216,8 +216,10 @@ service cloud.firestore {
       allow write: if isAdminsAdmin();
     }
     // Community-quiz cache-version doc (appConfig/sharedQuizzesVersion).
-    // Any signed-in user can bump it (they do, whenever they publish/delete
-    // their own shared quiz) — it only ever holds a timestamp, nothing sensitive.
+    // SUPERSEDED by appConfig/sharedQuizzesManifest below (per-quiz granular,
+    // Worker-written only) — left in place, unused, rather than removed
+    // outright, in case any not-yet-updated client code still reads it
+    // during the transition. Safe to delete once the rollout is confirmed complete.
     match /appConfig/sharedQuizzesVersion {
       allow read: if true;
       allow write: if request.auth != null;
@@ -227,6 +229,42 @@ service cloud.firestore {
     match /explanations/{questionHash} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
+    }
+
+    // --- New, added for the R2/local-storage architecture ---
+
+    // Curriculum's existing per-lecture manifest doc (appConfig/publishedManifest)
+    // is now ALSO bumped by the Cloudflare Worker (using its own Firebase
+    // Admin credentials, which bypass these rules entirely) every time it
+    // authorizes a curriculum content write/delete — on top of whatever
+    // admin-side writes already happen elsewhere in this file. No rule
+    // change needed here beyond what already exists above for appConfig/{docId}.
+
+    // Community quizzes' version tracking moves from a single global
+    // timestamp (the real bug this fixes — any one quiz changing forced a
+    // full re-fetch of every cached community quiz) to this new, per-quiz
+    // granular manifest doc. Written ONLY by the Worker (Admin SDK bypasses
+    // rules) — never directly by a client, so a version can never be
+    // bumped except as a side effect of a write the Worker already
+    // authorized against the real quiz's author/admin check.
+    match /appConfig/sharedQuizzesManifest {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Image reference counters (see plan §4). Entirely internal bookkeeping
+    // for the Worker's safe delete-on-replace logic — no client ever needs
+    // to read or write these directly.
+    match /imageRefcounts/{hash} {
+      allow read, write: if false;
+    }
+
+    // P2P transfer signaling — small, ephemeral, self-cleaning documents.
+    // Any signed-in user may create/read/update/delete one; the transfer
+    // code itself (a random string, not guessable) is the real protection,
+    // same as a one-time-use link.
+    match /p2pSignaling/{code} {
+      allow read, write: if request.auth != null;
     }
   }
 }

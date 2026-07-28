@@ -99,6 +99,17 @@
     </div>
   </div>
 
+<!-- BACKUP & TRANSFER MODAL -->
+  <div id="backupOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeBackupTransfer()">
+    <div class="stats-modal">
+      <div class="stats-modal-header">
+        <h2>💾&nbsp; Backup &amp; Transfer</h2>
+        <button class="stats-close-btn" onclick="closeBackupTransfer()">✕</button>
+      </div>
+      <div class="stats-body" id="backupBody"></div>
+    </div>
+  </div>
+
 <!-- MERGE QUIZZES PICKER MODAL -->
   <div id="mergeQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeMergePicker()">
     <div class="stats-modal" style="max-width:720px;">
@@ -190,6 +201,7 @@
         <button class="stats-open-btn" onclick="openRetake()">🔄&nbsp; Retake Wrong Qs</button>
         <button class="stats-open-btn" onclick="openCustomQuizzes()">🤖&nbsp; Custom Quizzes</button>
         <button class="stats-open-btn" onclick="openCommunityQuizzes()">🌐&nbsp; Community Quizzes</button>
+        <button class="stats-open-btn" onclick="openBackupTransfer()">💾&nbsp; Backup &amp; Transfer</button>
         <button class="apikey-open-btn" onclick="openApiKeyManager()">🔑&nbsp; Manage APIs</button>
         <button class="stats-open-btn admin-btn hidden" id="adminOpenBtn" onclick="openAdminPanel()">🛠️&nbsp; Admin Panel</button>
     </div>
@@ -355,6 +367,7 @@
 <script src="js/data-sync.js"></script>
 <script src="js/icon-picker.js"></script>
 <script src="js/curriculum-admin.js"></script>
+<script src="js/backup-transfer-ui.js"></script>
 <script src="js/firebase-init.js" type="module"></script>
 <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "f4142a9a44aa49c6a67437c3b8932b61"}'></script><!-- End Cloudflare Web Analytics -->
 </body>

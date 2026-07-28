@@ -79,131 +79,74 @@ function cleanForFirestore(obj) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   SHARED QUIZ IMAGE HELPERS (subcollection per shared quiz)
-   Path: sharedQuizzes/{sharedId}/images/{questionIdx}
+   IMAGE UPLOAD — now via the Cloudflare Worker/R2, content-hash
+   addressed. Images stored in R2 are PERMANENT URLs, not sentinels —
+   once uploaded, q.image is set to the real R2 URL directly, so there
+   is no separate "hydrate" step needed anymore: fetching a lecture's
+   or quiz's content JSON from R2 (see js/content-client.js) already
+   returns fully-resolved image URLs, ready to use as-is.
 ══════════════════════════════════════════════════════════ */
 
-/* Upload images for a shared quiz into its images subcollection.
-   Compresses each image first, then replaces q.image with a sharedImageIdx sentinel. */
+const WORKER_BASE_URL = 'https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev';
+
+/** Uploads one image (a data URL) for a given content item, returning its permanent R2 URL. */
+async function uploadImageToR2(category, subject, itemId, dataUrl, previousR2Url) {
+  const idToken = await window._currentUser.getIdToken();
+  const bytes = await (await fetch(dataUrl)).blob();
+  const previousHash = previousR2Url ? previousR2Url.split('/images/')[1]?.split('.')[0] || '' : '';
+  const uploadUrl = category === 'curriculum'
+    ? `${WORKER_BASE_URL}/curriculum/${subject}/${itemId}/images/new.jpg`
+    : `${WORKER_BASE_URL}/community/${itemId}/images/new.jpg`;
+
+  const resp = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': bytes.type || 'image/jpeg',
+      'X-Previous-Image-Hash': previousHash
+    },
+    body: bytes
+  });
+  if (!resp.ok) throw new Error(`Image upload failed: ${await resp.text()}`);
+  const { key } = await resp.json();
+  return `${WORKER_BASE_URL}/${key}`;
+}
+
+/** Uploads any not-yet-uploaded (data URL) images for a shared/community quiz, mutating questions in place. */
 async function uploadSharedQuizImages(sharedId, questions) {
-  for (let idx = 0; idx < questions.length; idx++) {
-    const q = questions[idx];
-    if (!q.image) continue;
+  for (const q of questions) {
+    if (!q.image || !q.image.startsWith('data:')) continue; // already a real URL, or no image
     try {
-      const compressed = await compressImageDataUrl(q.image);
-      const imgRef = window._doc(
-        window._db,
-        'sharedQuizzes', sharedId,
-        'images', String(idx)
-      );
-      await window._setDoc(imgRef, { imageData: compressed });
-      q.sharedImageIdx = idx; // sentinel for consumers
-      delete q.image;
+      q.image = await uploadImageToR2('community', null, sharedId, q.image, q.__previousImageUrl);
+      delete q.__previousImageUrl;
     } catch (e) {
-      console.warn('Shared image upload failed for question', idx, e);
-      // Keep inline as fallback
+      console.warn('Shared image upload failed:', e);
     }
   }
 }
 
-/* Fetch images for a shared quiz from its images subcollection. */
-async function hydrateSharedQuizImages(sharedId, questions) {
-  await Promise.all(questions.map(async (q) => {
-    if (q.image) return; // already in memory
-    if (typeof q.sharedImageIdx !== 'number') return; // no image
-    try {
-      const imgRef = window._doc(
-        window._db,
-        'sharedQuizzes', sharedId,
-        'images', String(q.sharedImageIdx)
-      );
-      const snap = await window._getDoc(imgRef);
-      if (snap.exists()) q.image = snap.data().imageData;
-    } catch (e) {
-      console.warn('Shared image fetch failed for question', q.sharedImageIdx, e);
-    }
-  }));
-}
+/** No-op under the new architecture — R2-fetched content already has resolved image URLs. Kept for call-site compatibility. */
+async function hydrateSharedQuizImages(_sharedId, _questions) { /* nothing to do — see comment above */ }
 
-/* Delete all image subcollection docs for a shared quiz. */
-async function deleteSharedQuizImages(sharedId) {
-  try {
-    const col = window._collection(window._db, 'sharedQuizzes', sharedId, 'images');
-    const snap = await window._getDocs(col);
-    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
-  } catch (e) {
-    console.warn('Shared image cleanup failed for quiz', sharedId, e);
-  }
-}
+/** Images live at community/{sharedId}/images/{hash}.* in R2 — deletion is handled by the Worker's DELETE endpoint's refcount cleanup, not a separate call. Kept for call-site compatibility. */
+async function deleteSharedQuizImages(_sharedId) { /* handled by the Worker on content delete, via image refcounts */ }
 
-/* ══════════════════════════════════════════════════════════
-   PUBLISHED LECTURE IMAGE HELPERS
-   Images are stored in a subcollection to avoid Firestore's
-   1 MB per-document limit.  The published lecture doc stores
-   a `pubImageIdx` sentinel (the question index) instead of
-   the raw base64 string, just like sharedImageIdx works for
-   community quizzes.  This makes published lectures fully
-   self-contained and independent of the source quiz.
-   Path: publishedQuestions/{subject}/lectures/{lectureId}/images/{questionIdx}
-══════════════════════════════════════════════════════════ */
-
-/** Upload images for a published lecture into its images subcollection.
- *  Modifies questions in-place: replaces q.image with a pubImageIdx sentinel. */
+/** Uploads any not-yet-uploaded (data URL) images for a published lecture, mutating questions in place. */
 async function uploadPublishedLectureImages(subject, lectureId, questions) {
-  for (let idx = 0; idx < questions.length; idx++) {
-    const q = questions[idx];
-    if (!q.image) continue;
+  for (const q of questions) {
+    if (!q.image || !q.image.startsWith('data:')) continue;
     try {
-      const compressed = await compressImageDataUrl(q.image);
-      const imgRef = window._doc(
-        window._db,
-        'publishedQuestions', subject,
-        'lectures', lectureId,
-        'images', String(idx)
-      );
-      await window._setDoc(imgRef, { imageData: compressed });
-      q.pubImageIdx = idx; // sentinel: tells hydrate where to fetch
-      delete q.image;
+      q.image = await uploadImageToR2('curriculum', subject, lectureId, q.image, q.__previousImageUrl);
+      delete q.__previousImageUrl;
     } catch (e) {
-      console.warn('Published image upload failed for question', idx, e);
-      // Keep inline as fallback — better to store than lose the image
+      console.warn('Published image upload failed:', e);
     }
   }
 }
 
-/** Fetch images for a published lecture from its images subcollection. */
-async function hydratePublishedLectureImages(subject, lectureId, questions) {
-  await Promise.all(questions.map(async (q) => {
-    if (q.image) return; // already in memory
-    if (typeof q.pubImageIdx !== 'number') return; // no image
-    try {
-      const imgRef = window._doc(
-        window._db,
-        'publishedQuestions', subject,
-        'lectures', lectureId,
-        'images', String(q.pubImageIdx)
-      );
-      const snap = await window._getDoc(imgRef);
-      if (snap.exists()) q.image = snap.data().imageData;
-    } catch (e) {
-      console.warn('Published image fetch failed for question', q.pubImageIdx, e);
-    }
-  }));
-}
+/** No-op under the new architecture — see hydrateSharedQuizImages above. Kept for call-site compatibility. */
+async function hydratePublishedLectureImages(_subject, _lectureId, _questions) { /* nothing to do */ }
 
-/** Delete all image subcollection docs for a published lecture. */
-async function deletePublishedLectureImages(subject, lectureId) {
-  try {
-    const col = window._collection(
-      window._db,
-      'publishedQuestions', subject,
-      'lectures', lectureId,
-      'images'
-    );
-    const snap = await window._getDocs(col);
-    await Promise.all(snap.docs.map(d => window._deleteDoc(d.ref)));
-  } catch (e) {
-    console.warn('Published image cleanup failed for lecture', lectureId, e);
-  }
-}
+/** Kept for call-site compatibility — deletion + refcount cleanup now handled by the Worker's DELETE endpoint. */
+async function deletePublishedLectureImages(_subject, _lectureId) { /* handled by the Worker on content delete */ }
 

@@ -410,27 +410,10 @@ async function renderAdminPanel() {
   if (adminSourceTab === 'community') {
     if (!adminCommunityCache) {
       try {
-        // Reuse the version-checked community cache (shared with the browse overlay)
-        // instead of always doing a full Firestore read.
-        const serverVer = await _fetchSharedServerVersion();
-        const localVer  = _readSharedCacheVer();
-        const cached     = await _readCache();
-        let shared;
-
-        if (serverVer && localVer === serverVer && cached && cached.shared) {
-          shared = cached.shared.slice();
-        } else {
-          const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
-          shared = [];
-          snap.forEach(d => shared.push(d.data()));
-          const existing = (await _readCache()) || {};
-          existing.shared = shared;
-          await _writeCache(existing);
-          let verToStore = serverVer;
-          if (!verToStore) verToStore = await bumpSharedQuizzesVersion(); // establish baseline first time
-          if (verToStore) _writeSharedCacheVer(verToStore);
-        }
-
+        // Reuse the one, already-fixed per-quiz-granular loader (js/community-quizzes.js)
+        // instead of maintaining a third separate copy of the same logic.
+        await ensureSharedQuizzesLoaded(false);
+        const shared = _allSharedQuizzes.slice();
         shared.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
         adminCommunityCache = shared;
         _allSharedQuizzes = shared; // keep the browse overlay's in-memory copy in sync too
@@ -604,12 +587,10 @@ async function adminDeleteSourceQuiz(sourceId) {
   }
   if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
   try {
-    const ref = window._doc(window._db, 'sharedQuizzes', sourceId);
-    await window._deleteDoc(ref);
-    await deleteSharedQuizImages(sourceId);
+    const { deleteContentItem } = await import('./content-client.js');
+    await deleteContentItem('community', null, sourceId); // also releases the quiz's images' refcounts
     adminCommunityCache = (adminCommunityCache || []).filter(q => q.id !== sourceId);
     _allSharedQuizzes = [];
-    await bumpSharedQuizzesVersion();
 
     if (adminSelectedQuiz && adminSelectedQuiz.sourceType === 'community' && adminSelectedQuiz.sourceId === sourceId) {
       adminSelectedQuiz = null;
@@ -654,29 +635,12 @@ async function renderAdminManageCommunityPanel(forceReload) {
   // switching between them in one session doesn't re-fetch needlessly.
   if (!_allSharedQuizzes.length || forceReload) {
     body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="font-size:2rem;margin-bottom:10px;">&#8987;</div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
-    try {
-      const serverVer = forceReload ? null : await _fetchSharedServerVersion();
-      const localVer  = _readSharedCacheVer();
-      const cached    = await _readCache();
-
-      if (!forceReload && serverVer && localVer === serverVer && cached && cached.shared) {
-        _allSharedQuizzes = cached.shared;
-      } else {
-        const snap = await window._getDocs(window._collection(window._db, 'sharedQuizzes'));
-        _allSharedQuizzes = [];
-        snap.forEach(d => _allSharedQuizzes.push(d.data()));
-        const existing = (await _readCache()) || {};
-        existing.shared = _allSharedQuizzes;
-        await _writeCache(existing);
-        let verToStore = forceReload ? await _fetchSharedServerVersion() : serverVer;
-        if (!verToStore) verToStore = await bumpSharedQuizzesVersion(); // establish baseline first time
-        if (verToStore) _writeSharedCacheVer(verToStore);
-      }
-      adminCommunityCache = _allSharedQuizzes; // keep the Publish tab's copy of the cache in sync too
-    } catch (e) {
+    const ok = await ensureSharedQuizzesLoaded(forceReload);
+    if (!ok) {
       body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--wrong-fg);">&#10060; Failed to load community quizzes. Please try again.</div>`;
       return;
     }
+    adminCommunityCache = _allSharedQuizzes; // keep the Publish tab's copy of the cache in sync too
   }
 
   const myUid = window._currentUser ? window._currentUser.uid : null;
