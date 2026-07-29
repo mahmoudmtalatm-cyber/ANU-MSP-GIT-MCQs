@@ -199,23 +199,10 @@ async function bumpManifestVersion(env, key) {
   await firestoreSetNestedField(env, docPath, fieldPath, Date.now());
 }
 
-/**
- * Removes this content item's version marker entirely (not just null) so it
- * drops out of every manifest-gated listing/read. Deliberately swallows its
- * own errors: by the time this runs the R2 object is already deleted (see
- * the DELETE handler below), so the delete itself has already succeeded —
- * a manifest-bookkeeping hiccup shouldn't surface to the admin as "Delete
- * failed" when the content is in fact gone. Any reader that still has a
- * stale manifest entry will simply get a 404 on next fetch and prune the
- * item locally, same as the existing "quiz vanished mid-session" path.
- */
+/** Removes this content item's version marker entirely (not just null) so it drops out of every manifest-gated listing/read. */
 async function clearManifestVersion(env, key) {
-  try {
-    const { docPath, fieldPath } = manifestLocationForKey(key);
-    await firestoreSetNestedField(env, docPath, fieldPath, undefined);
-  } catch (err) {
-    console.error(`Failed to clear manifest version for ${key} (content itself was already deleted):`, err);
-  }
+  const { docPath, fieldPath } = manifestLocationForKey(key);
+  await firestoreSetNestedField(env, docPath, fieldPath, undefined);
 }
 
 const GOOGLE_JWKS = createRemoteJWKSet(
@@ -321,7 +308,7 @@ async function handleRequest(request, env) {
         return withCors(new Response('Forbidden: curriculum writes are admin-only', { status: 403 }));
       }
     } else if (key.startsWith('community/')) {
-      const communityQuizId = key.split('/')[1].replace(/\.json$/, '');
+      const communityQuizId = key.split('/')[1];
       const authorized = (await isCommunityAdmin(env, email)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
       if (!authorized) {
         return withCors(new Response('Forbidden: only the quiz author or an admin may write here', { status: 403 }));
@@ -404,7 +391,7 @@ async function handleRequest(request, env) {
         return withCors(new Response('Forbidden: curriculum deletes are admin-only', { status: 403 }));
       }
     } else if (key.startsWith('community/')) {
-      const communityQuizId = key.split('/')[1].replace(/\.json$/, '');
+      const communityQuizId = key.split('/')[1];
       const authorized = (await isCommunityAdmin(env, email)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
       if (!authorized) {
         return withCors(new Response('Forbidden: only the quiz author or an admin may delete this', { status: 403 }));

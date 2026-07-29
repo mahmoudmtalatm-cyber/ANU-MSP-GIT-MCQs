@@ -455,8 +455,7 @@ async function importCommunityQuiz(sharedId) {
       questions: importedQuestions,
       createdAt: Date.now(),
       originalSharedId: sharedId,
-      importedFrom: q.authorName,
-      collectionId: _cqTargetCollectionId(null)
+      importedFrom: q.authorName
     });
     await saveCustomQuizzesList(quizzes);
     alert(`"${q.title}" saved to your Custom Quizzes!`);

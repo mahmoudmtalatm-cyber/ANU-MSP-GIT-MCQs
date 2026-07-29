@@ -1,5 +1,5 @@
 import { runOneTimeMigrationIfNeeded } from './migration.js';
-import { listCustomQuizzes, listQuizCollections, listAttempts } from './local-store.js';
+import { listCustomQuizzes, listAttempts } from './local-store.js';
 import { firebaseConfig } from './config/firebase-config.js';
 
   import { initializeApp }
@@ -77,7 +77,6 @@ import { firebaseConfig } from './config/firebase-config.js';
       // js/app-core.js (window.loadStatsFromFirestore) rather than
       // duplicating that logic a second time in this file.
       window._cachedCustomQuizzes = await listCustomQuizzes();
-      window._cachedQuizCollections = await listQuizCollections();
       await window.loadStatsFromFirestore();
       window._quizAttempts = await listAttempts();
       _fsReady.customQuizzes = true;

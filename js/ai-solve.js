@@ -1483,8 +1483,7 @@ async function saveGeneratedCustomQuiz() {
     id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     title,
     questions: cqGeneratedQuestions,
-    createdAt: Date.now(),
-    collectionId: _cqTargetCollectionId(null)
+    createdAt: Date.now()
   });
 
   // Self-healing references (see js/dom-utils.js) — saveCustomQuizzesList
