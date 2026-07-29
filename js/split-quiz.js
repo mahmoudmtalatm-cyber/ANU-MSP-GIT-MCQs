@@ -567,16 +567,13 @@ async function executeSplitQuiz(targetMode) {
   }
 
   const quizzes = loadCustomQuizzes();
-  const srcQuiz = cqSplitState.quizId ? quizzes.find(q => q.id === cqSplitState.quizId) : null;
-  const splitCollectionId = _cqTargetCollectionId(srcQuiz);
   const newQuizzes = chunks.map((c, i) => ({
     id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i,
     title: ((cqSplitState.mode === 'custom' || cqSplitState.mode === 'visual') && c.label)
       ? c.label
       : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`,
     questions: srcQuestions.slice(c.start - 1, c.end),
-    createdAt: Date.now() + i,
-    collectionId: splitCollectionId
+    createdAt: Date.now() + i
   }));
 
   // Insert new quizzes at top

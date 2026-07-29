@@ -109,9 +109,8 @@ function closeBackupTransfer() {
 
 async function renderBackupTransferModal() {
   const body = document.getElementById('backupBody');
-  const { listCustomQuizzes, listQuizCollections } = await import('./local-store.js');
+  const { listCustomQuizzes } = await import('./local-store.js');
   const quizzes = await listCustomQuizzes();
-  window._cachedQuizCollections = await listQuizCollections(); // warm cache for the chip helper below
   const defaultExportName = `anu-msp-backup-${new Date().toISOString().slice(0, 10)}`;
 
   body.innerHTML = `
@@ -316,10 +315,7 @@ async function _backupDoImport(file) {
     const { applyImportPayload } = await import('./local-store.js');
     const result = await applyImportPayload(payload, choice);
     await _backupRefreshAfterImport();
-    const collectionsNote = result.collections && result.collections.added
-      ? `, ${result.collections.added} collection${result.collections.added !== 1 ? 's' : ''} restored`
-      : '';
-    statusEl.innerHTML = _backupResultHTML(true, `Imported: ${result.quizzes.added} quiz(zes) added (${result.quizzes.skipped} already had)${collectionsNote}, ${result.attempts.added} stats entries added (${result.attempts.skipped} already had).`);
+    statusEl.innerHTML = _backupResultHTML(true, `Imported: ${result.quizzes.added} quiz(zes) added (${result.quizzes.skipped} already had), ${result.attempts.added} stats entries added (${result.attempts.skipped} already had).`);
     // Give the result bar a moment on screen before the quiz picker above
     // refreshes to reflect the newly-imported quizzes.
     setTimeout(() => renderBackupTransferModal(), 1800);
@@ -330,9 +326,8 @@ async function _backupDoImport(file) {
 
 /** After a file import, refresh in-memory state so the rest of the app (Stats, Custom Quizzes) reflects it immediately, without needing a page reload. */
 async function _backupRefreshAfterImport() {
-  const { listCustomQuizzes, listQuizCollections } = await import('./local-store.js');
+  const { listCustomQuizzes } = await import('./local-store.js');
   window._cachedCustomQuizzes = await listCustomQuizzes();
-  window._cachedQuizCollections = await listQuizCollections();
   if (window._currentUser && typeof loadStatsFromFirestore === 'function') {
     await loadStatsFromFirestore();
   }

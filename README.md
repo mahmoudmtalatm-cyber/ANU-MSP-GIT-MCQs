@@ -24,12 +24,6 @@ else is plain HTML/CSS/JavaScript.
   per-subject "toggle menu" quiz-title lists — see changelog **#83**.
 - **Custom quizzes** — write your own, or generate one from pasted MCQs
   or lecture material using Gemini.
-  - **Collections** — organize your custom quizzes into folders, nested
-    to any depth (a folder inside a folder inside a folder, etc). Drag a
-    quiz card onto a folder in the sidebar to file it, or use its 📁 Move
-    button/the bulk "Move to…" action for a non-drag alternative; drag
-    folders themselves onto each other to re-nest or reorder them. See
-    changelog **#85**.
 - **Community quizzes** — browse, take, and share quizzes made by other
   students; merge questions from one quiz into another.
 - **AI tools** (Gemini, bring-your-own API key) — extract questions from
@@ -295,8 +289,6 @@ anu-msp-question-bank/
 │   ├── firebase-storage.js       # Firebase Storage helpers for quiz images
 │   │                              #   and Statistics wrong-question images
 │   ├── split-quiz.js             # Split a long quiz into smaller ones
-│   ├── quiz-collections.js       # Nested folder system for custom quizzes —
-│   │                              #   tree UI, drag-and-drop, move menus
 │   ├── sharing.js                # Share-quiz links + shared quiz image helpers
 │   ├── community-quizzes.js      # Browse/merge community-submitted quizzes
 │   ├── user-profile.js           # Display name + misc Firestore utilities
@@ -306,10 +298,10 @@ anu-msp-question-bank/
 │   │                              #   curriculum content served from R2
 │   ├── migration.js              # One-time move of legacy Firestore-stored
 │   │                              #   stats/custom quizzes to local storage
-│   ├── local-store.js            # Custom quizzes + nested collections/folders
-│   │                              #   + stats/history — all local (IndexedDB),
-│   │                              #   never Firestore; export/import payload
-│   │                              #   + merge-vs-replace import logic lives here
+│   ├── local-store.js            # Custom quizzes + stats/history — all
+│   │                              #   local (IndexedDB), never Firestore;
+│   │                              #   export/import payload + merge-vs-
+│   │                              #   replace import logic lives here
 │   ├── p2p-transfer.js           # Direct device-to-device transfer (WebRTC
 │   │                              #   data channel, Firestore only for the
 │   │                              #   brief connection handshake)
@@ -798,54 +790,6 @@ Firestore-side curriculum/community data.
 
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
-
-- **85 — Collections: nested folders for Custom Quizzes, with drag-and-drop.**
-  You can now organize your custom quizzes into folders — and folders inside
-  folders, to any depth — from a new tree sidebar in the "Your Custom
-  Quizzes" modal.
-  - **Data model** (`js/local-store.js`): a new `quizCollection` IndexedDB
-    entity — `{ id, name, parentId, icon, color, order, createdAt }` — lives
-    entirely on-device, never Firestore, exactly like the quizzes
-    themselves. A quiz opts into a folder via its own `collectionId` field;
-    no field (or a `collectionId` whose folder was deleted) just means
-    "Uncategorized." Collections don't store their own quiz list — the quiz
-    points at its folder — so moving or deleting a quiz never touches a
-    collection document.
-  - **New module** `js/quiz-collections.js` is the whole UI/state layer: a
-    recursive tree renderer, a breadcrumb, and every action (create, inline
-    rename, delete-with-promote, recolor, re-icon). It mirrors the existing
-    load-cache/save-and-recache pattern `js/firebase-storage.js` already
-    used for the quizzes themselves, so the two caches
-    (`window._cachedCustomQuizzes` / `window._cachedQuizCollections`) never
-    drift out of sync mid-session.
-  - **Drag-and-drop**: drag a quiz card onto any folder in the sidebar (or
-    onto "Uncategorized") to file it there; drag a folder onto another
-    folder to re-nest it, or onto "All Quizzes" to move it back to the top
-    level. Dropping a folder into its own subtree is rejected with a
-    friendly message instead of silently corrupting the tree. Every quiz
-    card also has a non-drag 📁 **Move** button (and multi-selected quizzes
-    get a bulk "Move to…") for touch devices and anyone who'd rather not
-    drag.
-  - **Deleting a folder** never deletes a quiz: subfolders move up to become
-    children of the deleted folder's own parent, and any quiz filed
-    directly inside becomes Uncategorized. The confirm dialog spells out
-    exactly what will happen before you commit.
-  - Each folder gets a customizable icon (curated emoji set) and color,
-    picked from a small popover on its ⋮ menu; the active color/icon shows
-    up as a chip on every quiz card filed inside it (and in the community
-    merge-quiz picker, for context).
-  - **Wired into every quiz-creation path**: AI-generated quizzes, hand-
-    written quizzes, and community quiz imports land in whichever folder
-    you're currently browsing; splitting a saved custom quiz into parts
-    files the new parts into the *source* quiz's own folder. Backups
-    (`buildExportPayload()`/`applyImportPayload()`/the new
-    `importCollectionsAndQuizzes()`, all in `js/local-store.js`) carry the
-    full folder tree alongside the quizzes, remapping ids so the hierarchy
-    — and each quiz's placement in it — survives a round trip to another
-    device.
-  - Fully responsive: the sidebar is a fixed column beside the quiz list on
-    wide screens, and collapses to a "📁 Browse Folders" drawer above the
-    list below 720px, matching the rest of the app's mobile breakpoints.
 
 - **84 — Fixed the flowchart hint text overlapping the subject toggle list
   below it.** In build 83's new Curriculum Breakdown, the "Tap a subject to
