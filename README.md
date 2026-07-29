@@ -799,6 +799,44 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **87 — Fixed: admins couldn't delete certain community quizzes ("Firestore
+  nested PATCH failed: Invalid property path").** Deleting a community quiz
+  bumps a version marker off in `appConfig/sharedQuizzesManifest.quizzes
+  [quizId]` (`lib/firebaseAdmin.js`: `clearManifestVersion()` →
+  `firestoreSetNestedField()`) so every reader gated on that manifest drops
+  the quiz from its cache. The old implementation targeted that one nested
+  field via Firestore's REST `updateMask.fieldPaths` syntax — a dotted,
+  backtick-quoted string built from the quiz ID. That syntax can't represent
+  every string an ID might contain; a quiz whose ID happened to reduce to a
+  single `` ` `` character reliably 400'd no matter how it was quoted or
+  escaped, and — because the quiz's actual content had already been deleted
+  from R2 by that point in the request — the admin saw a **"Delete failed"**
+  error for a quiz that was, in fact, already gone (it just never dropped
+  out of the manifest, so it kept reappearing in the list).
+  - **Root fix**: `firestoreSetNestedField()` no longer builds a dotted
+    field-path string at all. It now reads the whole top-level map
+    (`quizzes` or `subjects`), mutates the target key in plain JS, and
+    writes that single top-level field back with `firestorePatchDoc()`.
+    Firestore map keys accept any string with zero escaping, so this works
+    regardless of what characters end up in an ID.
+  - `jsToFirestoreValue()` (same file) gained proper recursive map/array
+    support (previously only primitives were handled; anything else fell
+    back to a stringified-JSON blob) so a whole nested map can round-trip
+    through a single PATCH correctly.
+  - `clearManifestVersion()` no longer lets a manifest-bookkeeping error
+    fail the whole delete request — by the time it runs, the R2 content is
+    already gone, so the delete has already succeeded either way. Any
+    reader with a stale manifest entry still self-heals on its next fetch
+    (existing 404-and-prune behavior in `js/community-quizzes.js`).
+  - **Also fixed while in this code path**: `worker-index.js`'s community
+    write/delete authorization checks derived `communityQuizId` straight
+    from the URL key without stripping its `.json` suffix, so
+    `isCommunityQuizAuthor()` was always looking up a nonexistent
+    double-suffixed R2 key (`community/<id>.json.json`) and returning
+    `false` — meaning a quiz's own author (not just a community admin)
+    could never save or delete their own shared quiz. Both checks now
+    strip `.json` before the lookup.
+
 - **86 — Collections follow-up: collapsible sidebar, a working Move button,
   merge-by-name on import, and a real choice when deleting a folder.**
   - **Sidebar is now collapsible on desktop too**, not just as the existing
