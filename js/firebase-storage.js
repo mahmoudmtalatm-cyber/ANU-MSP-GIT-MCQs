@@ -584,6 +584,7 @@ function openCustomQuizzes() {
   cqNewQuizTitle = '';
   cqMultiSelected = new Set();
   _questionEditDirty = false;
+  cqResetCollectionsTransientState();
   document.getElementById('customQuizOverlay').classList.remove('hidden');
   renderCustomQuizModal();
 }
@@ -624,8 +625,9 @@ function renderCqApiKeyBadge() {
 }
 
 function renderCustomQuizModal() {
-  const body     = document.getElementById('customQuizBody');
-  const quizzes  = loadCustomQuizzes();
+  const body       = document.getElementById('customQuizBody');
+  const quizzes    = loadCustomQuizzes();
+  const collections = loadQuizCollections();
 
   let html = '';
 
@@ -661,23 +663,46 @@ function renderCustomQuizModal() {
           <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:700;color:var(--text-muted);cursor:pointer;" title="Shuffle questions">
             <input type="checkbox" id="cqMultiShuffle" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
           </label>
+          <div class="cq-move-wrap">
+            <button class="cq-btn cq-btn-secondary" id="cqBulkMoveBtn" style="background:var(--violet-strong);" onclick="event.stopPropagation(); cqToggleBulkMoveMenu()">📁 Move to…</button>
+            ${cqBulkMoveMenuOpen ? _renderBulkMoveMenuHTML() : ''}
+          </div>
           <button class="cq-btn" onclick="startCustomQuizzesMulti()">&#9654; Start Selected</button>
           <button class="cq-btn cq-btn-secondary" onclick="clearCqMultiSelect()">✖ Clear</button>
         </div>
       </div>`;
     }
 
-    quizzes.forEach(q => {
+    /* ── Collections sidebar + breadcrumb + filtered list ── */
+    const visibleQuizzes = _filterQuizzesByActiveCollection(quizzes, collections);
+    html += `<div class="cq-coll-layout ${cqSidebarCollapsed ? 'cq-coll-sidebar-collapsed' : ''}">
+      ${renderCqCollectionsSidebarHTML(quizzes, collections)}
+      <div class="cq-coll-main">
+        ${renderCqBreadcrumbHTML(collections)}
+        <div class="cq-coll-quiz-list">`;
+
+    if (!visibleQuizzes.length) {
+      html += `<div class="empty-state" style="padding:16px 12px;">
+        <div class="empty-icon">📁</div>
+        No quizzes in this folder yet — drag a quiz here, or use its 📁 Move button.
+      </div>`;
+    }
+
+    visibleQuizzes.forEach(q => {
       const defMins = Math.max(5, q.questions.length);
       const isEditing = cqEditingQuizId === q.id;
       const isChecked = cqMultiSelected.has(q.id);
-      html += `<div class="cq-quiz-item">
+      const moveOpen = cqCollectionMoveMenuFor === q.id;
+      html += `<div class="cq-quiz-item" draggable="true"
+          ondragstart="cqQuizDragStart(event,'${q.id}')" ondragend="cqQuizDragEnd(event)">
         <div class="cq-quiz-info" style="display:flex;align-items:flex-start;gap:8px;">
+          <span class="cq-drag-handle" title="Drag to a folder">⠿</span>
           <input type="checkbox" title="Select for a combined quiz" style="margin-top:3px;width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;"
             ${isChecked ? 'checked' : ''} onchange="toggleCqMultiSelect('${q.id}', this.checked)" />
           <div>
             <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
             <div class="cq-quiz-meta">${q.questions.length} question${q.questions.length !== 1 ? 's' : ''} &middot; created ${new Date(q.createdAt).toLocaleDateString()}${q.sharedAt ? ' &middot; <span class="share-chip">&#127758; Shared</span>' : ''}</div>
+            ${_quizCollectionChipHTML(q, collections) ? `<div style="margin-top:5px;">${_quizCollectionChipHTML(q, collections)}</div>` : ''}
           </div>
         </div>
         <div class="cq-quiz-actions">
@@ -686,6 +711,10 @@ function renderCustomQuizModal() {
             <input type="checkbox" id="cqShuffle_${q.id}" style="width:14px;height:14px;accent-color:var(--accent);" /> 🔀
           </label>
           <button class="cq-btn" onclick="startCustomQuiz('${q.id}')">&#9654; Start</button>
+          <div class="cq-move-wrap">
+            <button class="cq-btn cq-btn-secondary" data-move-btn="${q.id}" style="background:var(--violet-strong);" onclick="event.stopPropagation(); cqToggleQuizMoveMenu('${q.id}')" title="Move to a folder">📁 Move</button>
+            ${moveOpen ? _renderQuizMoveMenuHTML(q) : ''}
+          </div>
           <button class="cq-btn cq-btn-secondary" onclick="renameCustomQuiz('${q.id}')" style="background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);" title="Rename this quiz">&#127991;&#65039; Rename</button>
           <button class="cq-btn cq-btn-secondary" onclick="${isEditing ? 'closeCustomQuizEditor()' : `openCustomQuizEditor('${q.id}')`}" style="background:var(--accent);color:#fff;">${isEditing ? '✖ Close Editor' : '✏️ Edit'}</button>
           <button class="cq-share-btn" onclick="shareCustomQuiz('${q.id}')" title="Share with community">&#128279; Share</button>
@@ -694,6 +723,8 @@ function renderCustomQuizModal() {
         ${isEditing ? `<div class="cq-inline-editor" id="cqCustomEditorArea_${q.id}" style="margin-top:10px;"></div>` : ''}
       </div>`;
     });
+
+    html += `</div></div></div>`; // .cq-coll-quiz-list, .cq-coll-main, .cq-coll-layout
   }
   html += `</div>`;
 

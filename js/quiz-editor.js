@@ -686,7 +686,8 @@ async function saveCustomQuizEdits() {
       id: 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
       title: cqNewQuizTitle.trim(),
       questions: JSON.parse(JSON.stringify(cqEditQuestions)),
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      collectionId: _cqTargetCollectionId(null)
     });
   } else {
     const quiz = quizzes.find(q => q.id === cqEditingQuizId);
