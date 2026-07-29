@@ -98,6 +98,107 @@ export async function importCustomQuizzes(incomingQuizzes, { mode = 'merge' } = 
 }
 
 // ---------------------------------------------------------------------------
+// QUIZ COLLECTIONS — nested folders for organizing custom quizzes. Purely
+// local (IndexedDB), never Firestore, exactly like the quizzes themselves
+// (see js/quiz-collections.js for the UI/state layer built on top of this).
+//
+// Shape: { id, name, parentId (null = top level), icon, color, order,
+//          createdAt }. A quiz opts into a folder via its own
+// `collectionId` field (null/undefined = "Uncategorized") — collections
+// don't store a list of their quizzes, the quiz points at its folder, so
+// moving/deleting a quiz never has to touch a collection document.
+// Depth is unlimited: a collection's parentId can point at any other
+// collection, including one several levels up.
+// ---------------------------------------------------------------------------
+
+export async function listQuizCollections() {
+  const keys = await window._idbList('quizCollection:');
+  const collections = [];
+  for (const key of keys.keys || []) {
+    const value = await _idbGetValue(key);
+    if (value) collections.push(value);
+  }
+  return collections;
+}
+
+export async function saveQuizCollection(col) {
+  if (!col.id) col.id = newId();
+  await window._idbSet(`quizCollection:${col.id}`, col);
+  return col;
+}
+
+export async function deleteQuizCollectionRaw(id) {
+  await window._idbDelete(`quizCollection:${id}`).catch(() => {});
+}
+
+/** Deletes every collection on this device. Used only by the "replace"
+ *  import mode, right before writing the incoming set. */
+export async function clearQuizCollections() {
+  const existing = await listQuizCollections();
+  await Promise.all(existing.map(c => window._idbDelete(`quizCollection:${c.id}`).catch(() => {})));
+}
+
+/**
+ * Imports both collections and quizzes from a backup file together, so a
+ * quiz's folder placement survives the round trip. Collections are always
+ * recreated with fresh local ids (never deduped by name — two devices'
+ * "Cardio" folders may hold entirely different quizzes) via an old-id ->
+ * new-id map that also rewrites each collection's own parentId, so the
+ * incoming hierarchy — however deep — is reproduced exactly. Quizzes reuse
+ * the existing content-fingerprint de-dup from importCustomQuizzes, with
+ * `collectionId` rewritten through the same map; a quiz whose folder wasn't
+ * included in this import (or wasn't found) simply lands in Uncategorized
+ * rather than failing.
+ * @param {object[]} incomingCollections
+ * @param {object[]} incomingQuizzes
+ * @param {{ mode?: 'merge'|'replace' }} [options]
+ */
+export async function importCollectionsAndQuizzes(incomingCollections, incomingQuizzes, { mode = 'merge' } = {}) {
+  if (mode === 'replace') {
+    await clearQuizCollections();
+    await clearCustomQuizzes();
+  }
+
+  const incoming = incomingCollections || [];
+  const idMap = new Map();
+  incoming.forEach(c => idMap.set(c.id, newId()));
+
+  let addedCollections = 0;
+  for (const c of incoming) {
+    const copy = {
+      id: idMap.get(c.id),
+      name: c.name || 'Untitled Collection',
+      parentId: (c.parentId && idMap.has(c.parentId)) ? idMap.get(c.parentId) : null,
+      icon: c.icon || '📁',
+      color: c.color || null,
+      order: typeof c.order === 'number' ? c.order : 0,
+      createdAt: c.createdAt || Date.now(),
+    };
+    await window._idbSet(`quizCollection:${copy.id}`, copy);
+    addedCollections++;
+  }
+
+  const existing = mode === 'replace' ? [] : await listCustomQuizzes();
+  const existingFingerprints = new Set(await Promise.all(existing.map(fingerprintQuiz)));
+
+  let added = 0, skipped = 0;
+  for (const quiz of (incomingQuizzes || [])) {
+    const fp = await fingerprintQuiz(quiz);
+    if (existingFingerprints.has(fp)) { skipped++; continue; }
+    const copy = {
+      ...quiz,
+      id: newId(),
+      lastActivityAt: Date.now(),
+      collectionId: (quiz.collectionId && idMap.has(quiz.collectionId)) ? idMap.get(quiz.collectionId) : null,
+    };
+    await window._idbSet(`customQuiz:${copy.id}`, copy);
+    existingFingerprints.add(fp);
+    added++;
+  }
+  return { quizzes: { added, skipped }, collections: { added: addedCollections } };
+}
+
+// ---------------------------------------------------------------------------
 // STATS / HISTORY (aggregate + retake snapshots, all local)
 // ---------------------------------------------------------------------------
 
@@ -247,6 +348,12 @@ export async function buildExportPayload({ includeQuizzes = true, includeStats =
     let quizzes = await listCustomQuizzes();
     if (quizIds) quizzes = quizzes.filter(q => quizIds.includes(q.id));
     payload.customQuizzes = quizzes; // full content baked in, always self-contained
+    // Always export the full collection tree alongside quizzes (even for a
+    // partial quizIds export) — a folder with no quizzes selected still
+    // travels, so re-importing on another device reproduces the same
+    // structure to file future quizzes into, and any selected quiz's
+    // collectionId always resolves to something real on the other end.
+    payload.quizCollections = await listQuizCollections();
   }
   if (includeStats) {
     payload.attempts = await listAttempts();
@@ -273,11 +380,13 @@ export function inspectImportPayload(payload) {
   }
   const hasQuizzes = Array.isArray(payload.customQuizzes) && payload.customQuizzes.length > 0;
   const hasStats = Array.isArray(payload.attempts) && payload.attempts.length > 0;
+  const collectionCount = Array.isArray(payload.quizCollections) ? payload.quizCollections.length : 0;
   return {
     valid: true,
     hasQuizzes, hasStats,
     quizCount: hasQuizzes ? payload.customQuizzes.length : 0,
-    statsCount: hasStats ? payload.attempts.length : 0
+    statsCount: hasStats ? payload.attempts.length : 0,
+    collectionCount
   };
 }
 
@@ -295,9 +404,11 @@ export async function applyImportPayload(payload, { mode = 'merge', includeQuizz
   if (!payload || payload.__app !== 'anu-msp-question-bank') {
     throw new Error('This file doesn\u2019t look like a valid backup for this app.');
   }
-  const results = { quizzes: { added: 0, skipped: 0 }, attempts: { added: 0, skipped: 0 } };
+  const results = { quizzes: { added: 0, skipped: 0 }, attempts: { added: 0, skipped: 0 }, collections: { added: 0 } };
   if (includeQuizzes && Array.isArray(payload.customQuizzes)) {
-    results.quizzes = await importCustomQuizzes(payload.customQuizzes, { mode });
+    const r = await importCollectionsAndQuizzes(payload.quizCollections || [], payload.customQuizzes, { mode });
+    results.quizzes = r.quizzes;
+    results.collections = r.collections;
   }
   if (includeStats && Array.isArray(payload.attempts)) {
     results.attempts = await importAttempts(payload.attempts, { mode });
