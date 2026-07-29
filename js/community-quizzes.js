@@ -458,9 +458,12 @@ function mergeToggleCurriculum(key, checked) {
    any case_group ids (and, within a group, its case_link_id/case_parent_id
    sub-case ids) with a source-specific prefix so a case cluster — and any
    sub-cases nested inside it — from one merged-in quiz can never collide
-   with one from another, and stripping image sentinels that only resolve
-   against their original source collection (the actual image data, already
-   hydrated into q.image, is kept). */
+   with one from another, and stripping legacy image sentinels that only
+   resolve against their original source collection. By the time this runs,
+   the caller has already downloaded any still-remote (community R2) image
+   into a real local data URL via downloadRemoteQuizImages(), so q.image
+   here is a genuinely independent copy, not a live reference back to the
+   source quiz. */
 function _mergeCloneQuestions(rawQuestions, namespace, sourceLabel) {
   const qs = JSON.parse(JSON.stringify(rawQuestions || []));
   qs.forEach(q => {
@@ -522,6 +525,12 @@ async function confirmMergeSelectedQuizzes() {
       const restored = restoreOptionsOrder(JSON.parse(JSON.stringify(item.questions)));
       await hydrateSharedQuizImages(id, restored);
       await hydrateQuizImages(restored);
+      // Still-remote (R2) images need to be pulled down into a real local
+      // data URL here too — a merged-in question is just as much a
+      // permanent local copy as anything from "Save to Mine", so it can't
+      // be left depending on the source community quiz's images still
+      // existing after this merge is saved.
+      await downloadRemoteQuizImages(restored);
       appended = appended.concat(_mergeCloneQuestions(restored, 'comm_' + id, item.title || 'Community quiz'));
     }
 

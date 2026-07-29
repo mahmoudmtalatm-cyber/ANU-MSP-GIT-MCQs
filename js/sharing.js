@@ -444,10 +444,20 @@ async function importCommunityQuiz(sharedId) {
     if (alreadyExists) { alert('You already have this quiz saved.'); return; }
 
     const importedQuestions = restoreOptionsOrder(q.questions);
-    // This is a full, independent local copy from this moment on — not a
-    // reference. Deleting the original community quiz later has zero
-    // effect on it (see plan: custom quizzes are local-only, never linked).
     await hydrateQuizImages(importedQuestions); // resolves any legacy Storage-URL images only; R2 images are already real URLs
+
+    // A community quiz's images live at community/{sharedId}/images/... in
+    // R2, kept alive only by that share's own image refcount — if the
+    // original share is later deleted, that refcount drops to zero and the
+    // image is deleted for good, breaking any saved copy still pointing at
+    // it. So this isn't a fully independent copy just because the question
+    // text has been cloned into this user's own quiz list: the images
+    // still point straight back at the community post. Pull every
+    // still-remote image down into a real local data URL first, exactly
+    // like any other custom-quiz question image (inline in IndexedDB, never
+    // a remote reference) — that's what actually makes this copy survive
+    // the original share being edited or deleted later.
+    await downloadRemoteQuizImages(importedQuestions);
 
     quizzes.unshift({
       id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),

@@ -799,6 +799,42 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **91 — Fixed: a community quiz's images disappeared (broken image icon)
+  from your own saved copy once the original share was deleted.** "Save to
+  Mine" (`importCommunityQuiz`) and "🧩 Merge Quizzes In" both cloned a
+  community quiz's question text into your own quiz, but left `q.image`
+  pointing straight at that quiz's own R2-hosted image URL
+  (`community/{sharedId}/images/{hash}.*`) instead of an actual local
+  copy. Those images are only kept alive by that *specific* community
+  post's own image refcount (`worker-index.js`'s `decrementImage
+  RefcountAndMaybeDelete`) — nothing ever bumped that refcount for a
+  saved/merged-in copy, since no such copy re-uploads or re-references the
+  image at all. So the moment the original author (or an admin) deleted
+  the shared quiz, its refcount dropped to zero, the Worker deleted the
+  R2 object outright, and every "independent" saved/merged copy that
+  still pointed at that same URL was left with a dead link.
+  - Added `downloadRemoteQuizImages()` (`firebase-storage.js`, alongside
+    `hydrateQuizImages`/the new shared `_urlToDataUrl()` helper both now
+    use) — fetches any still-remote (`http(s)://`) question image and
+    resolves it to a real local `data:` URL in place. Already-local
+    (`data:`) images and image-less questions are left untouched.
+  - `importCommunityQuiz()` (`sharing.js`) now calls it right before the
+    quiz is written to `Your Custom Quizzes`, so the saved copy's images
+    live inline in this device's IndexedDB from that point on — exactly
+    like any other custom quiz's images — with zero remaining dependency
+    on the community post they came from.
+  - `confirmMergeSelectedQuizzes()` (`community-quizzes.js`) — the "🧩 Merge
+    Quizzes In" picker had the identical gap for community-sourced
+    questions merged into an existing quiz/lecture; fixed the same way,
+    and corrected a stale comment on `_mergeCloneQuestions()` that had
+    incorrectly claimed this was already handled.
+  - Deliberately *not* a Worker/refcount-side fix: the app already has a
+    working, unused-until-now local-storage path for custom quiz images
+    (plain inline `data:` URLs in IndexedDB — see `local-store.js`), so
+    the fix reuses that existing architecture instead of adding a new
+    server-side dependency for something that only needs to happen once,
+    client-side, at save time.
+
 - **90 — Fixed two bugs in the custom-quiz Collections folders: picking a
   color visibly did nothing, and picking a new color/icon reset the
   folder-tree scroll position back to the top.**
