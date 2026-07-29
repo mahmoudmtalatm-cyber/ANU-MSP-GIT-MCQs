@@ -799,6 +799,28 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **89 — Fixed: deleting an answer choice left the remaining choices
+  mislettered (e.g. deleting B out of A/B/C/D left A, C, D instead of
+  relettering to A, B, C).** All three places a choice can be deleted —
+  the admin question editor, the custom-quiz editor (`quiz-editor.js`),
+  and the AI-generation/extraction review screen (`ai-solve.js`) — removed
+  the option from `options`/`optionsOrder` but never re-sequenced the
+  letters of what was left, so gaps accumulated with every deletion and a
+  question could end up displaying choices "A, C, F" instead of a clean
+  run starting at A.
+  - Added a shared `relabelOptionsSequentially()` helper (`app-core.js`,
+    next to `getOptionEntries()`) that all three delete-option functions
+    now call: it walks the question's remaining choices in their existing
+    order and reassigns clean, contiguous `A, B, C…` keys, rewriting both
+    `options` and `optionsOrder` and carrying `answer` along to whatever
+    new letter the correct choice lands on — including when the deleted
+    choice *was* the correct answer (the existing "pick the first
+    remaining option" fallback now also gets relettered correctly instead
+    of keeping its old, possibly non-`A` letter).
+  - No visual/markup changes — this is a data-layer fix, so the existing
+    responsive layout of the answer-choice rows (wrapping flex rows that
+    already adapt to narrow/mobile widths) is untouched.
+
 - **88 — Fixed: sharing a quiz to the community always failed with 403
   Forbidden for anyone who wasn't a `community`-permission admin.**
   `worker-index.js`'s PUT authorization for `community/` keys required

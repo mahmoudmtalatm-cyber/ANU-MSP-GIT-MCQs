@@ -735,6 +735,34 @@ function getOptionEntries(q) {
   return Object.entries(q.options);
 }
 
+/* ── Re-sequences a question's option keys (A, B, C, D…) so they're always
+   contiguous from A, with no gaps. Without this, deleting option B out of
+   A/B/C/D left the remaining choices labeled A, C, D — call this right
+   after any option removal (once the deleted key is gone from both
+   `q.options` and `q.optionsOrder`, and `q.answer` has been reassigned to
+   some *existing* key if the deleted option was the correct one) to
+   relabel what's left as a clean A, B, C… run, carrying `q.answer` along
+   to whatever new letter its option lands on. ── */
+function relabelOptionsSequentially(q) {
+  const ALL_KEYS = ['A','B','C','D','E','F','G','H','I','J'];
+  const entries = getOptionEntries(q);
+  const oldAnswerKey = q.answer;
+  const newOptions = {};
+  const newOrder = [];
+  let newAnswer = oldAnswerKey;
+
+  entries.forEach(([oldKey, value], i) => {
+    const newKey = ALL_KEYS[i] || oldKey; // fall back if somehow >10 options
+    newOptions[newKey] = value;
+    newOrder.push({ key: newKey, value });
+    if (oldKey === oldAnswerKey) newAnswer = newKey;
+  });
+
+  q.options = newOptions;
+  q.optionsOrder = newOrder;
+  q.answer = newAnswer;
+}
+
 /* ══════════════════════════════════════════════════════════
    RENDER QUESTION
 ══════════════════════════════════════════════════════════ */

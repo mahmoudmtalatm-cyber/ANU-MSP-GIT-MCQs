@@ -1415,6 +1415,7 @@ function cqDeleteOption(qIdx, key) {
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   // If we deleted the correct answer, pick first remaining
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  relabelOptionsSequentially(q);
   _markQuestionEditDirty();
   renderCQPreview();
 }

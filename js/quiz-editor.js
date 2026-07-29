@@ -242,6 +242,7 @@ function adminEditDeleteOption(qIdx, key) {
   delete q.options[key];
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  relabelOptionsSequentially(q);
   _markQuestionEditDirty();
   renderAdminQuestionEditor(_adminEditorContainerId());
 }
@@ -597,6 +598,7 @@ function cqEditDeleteOption(qIdx, key) {
   delete q.options[key];
   if (q.optionsOrder) q.optionsOrder = q.optionsOrder.filter(o => o.key !== key);
   if (q.answer === key) q.answer = Object.keys(q.options)[0] || '';
+  relabelOptionsSequentially(q);
   _markQuestionEditDirty();
   renderCustomQuizEditor();
 }
