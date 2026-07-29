@@ -422,14 +422,46 @@ export async function buildExportPayload({ includeQuizzes = true, includeStats =
   return payload;
 }
 
+/**
+ * Triggers a browser download of `payload` as a JSON file.
+ *
+ * Two easy-to-miss reliability bugs here, both invisible on small
+ * payloads and only surfacing once a backup gets large — which any
+ * quiz with embedded base64 images does immediately (a single photo
+ * easily adds hundreds of KB to several MB):
+ *
+ *  1. The `<a>` was never attached to the document before `.click()` —
+ *     some browsers only reliably trigger a download-via-anchor when
+ *     the element is actually in the DOM.
+ *  2. `URL.revokeObjectURL(url)` was called SYNCHRONOUSLY, immediately
+ *     after `.click()` — before the browser has necessarily finished
+ *     reading the Blob and writing it to disk. For a few hundred bytes
+ *     of quiz text that race is essentially always won invisibly; for
+ *     a multi-MB payload (embedded images) it's a real race, and losing
+ *     it truncates/corrupts the downloaded file — the images (the
+ *     largest part of the payload, and typically serialized last within
+ *     each question) are exactly what's most likely to land after the
+ *     cut-off point. This reproduces on ANY image-containing quiz,
+ *     regardless of whether its images were ever remote — unrelated to
+ *     the save-time remote-image fixes in #91/#92/#93.
+ */
 export function downloadExportFile(payload, filename = 'anu-msp-backup.json') {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  // Give the browser time to actually finish reading the Blob before its
+  // object URL is revoked out from under it. A fixed delay isn't a
+  // perfect guarantee under extreme load, but it's the standard,
+  // widely-used mitigation for this exact race (there's no browser event
+  // for "download fully read the Blob"), and comfortably covers backups
+  // with many embedded images.
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 /** Validates a payload and reports what it contains, WITHOUT writing

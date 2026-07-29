@@ -799,6 +799,70 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **94 — Fixed the actual root cause of the backup-export image bug (#93
+  was a real but secondary fix — this is the one that mattered): the
+  downloaded backup `.json` file itself could come out truncated/
+  corrupted whenever it included images, even for a brand-new quiz whose
+  image was already a clean local `data:` URL from the moment it was
+  saved.** `downloadExportFile()` (`local-store.js`) built the file as a
+  Blob and triggered its download via a detached `<a>` element, then
+  called `URL.revokeObjectURL(url)` *synchronously*, immediately after
+  `.click()` — before the browser had necessarily finished reading the
+  Blob and writing it to disk. For a small, text-only payload that race
+  is essentially always won invisibly; the moment a quiz has an embedded
+  base64 image (easily hundreds of KB to a few MB, and typically
+  serialized near the end of its question), it becomes a real race, and
+  losing it truncates or corrupts exactly the image data — independent
+  of whether that image was ever remote, so completely unrelated to
+  #91/#92/#93. This is why testing with a fresh, already-healthy quiz
+  still showed a broken image in the downloaded file.
+  - `downloadExportFile()` now attaches the `<a>` to the document before
+    `.click()` (some browsers only reliably trigger a download-via-anchor
+    when it's actually in the DOM) and delays `URL.revokeObjectURL()` by
+    4 seconds instead of calling it synchronously — the standard
+    mitigation for this exact "download started, Blob revoked before it
+    finished being read" race, since there's no browser event for
+    "the download fully read the Blob."
+
+- **93 — Fixed: the same "broken image icon" bug could also surface in a
+  downloaded backup file (and on re-import), even for quizzes that looked
+  fine in the app.** #91/#92 made "Save to Mine," "Merge Quizzes In," and
+  admin-publish-from-community all pull remote images down into a local
+  `data:` URL at save time — but that download is intentionally
+  best-effort and silent on failure (a transient network hiccup, the
+  Worker briefly unreachable, etc.), so an image could still end up
+  saved with a live `http(s)://` URL rather than a truly local copy. The
+  backup/export path (`_backupDoExport` → `buildExportPayload()` in
+  `local-store.js`) never re-checked this — it just serialized whatever
+  was already sitting in IndexedDB — so a still-remote image got baked
+  straight into the downloaded `.json` file. That file is meant to be a
+  fully self-contained, restore-anywhere-anytime backup, but a baked-in
+  remote URL quietly re-introduces the exact same dependency on the
+  original community/curriculum post surviving, just relocated to
+  whenever the backup is later restored (often long after the original
+  source is gone).
+  - Added `_backupHealQuizImages()` (`backup-transfer-ui.js`) — scans a
+    given list of already-loaded quizzes for any question still pointing
+    at a remote image, and re-runs `downloadRemoteQuizImages()` (the
+    same helper from #91) on it, persisting the repair back to IndexedDB
+    via the normal `saveCustomQuiz()` write path.
+  - **Export**: `_backupDoExport()` now calls this (via
+    `_backupHealSelectedQuizImages()`) on whichever quizzes are actually
+    selected for the export, right before the file is built — giving any
+    still-remote image one more chance to be pulled down while its
+    source might still be reachable, before it's locked into a portable
+    file.
+  - **Import**: `_backupDoImport()` now also runs a repair pass
+    (`_backupHealAllQuizImagesAfterImport()`) across every on-device
+    quiz right after applying an imported payload — this catches a
+    backup file that was itself exported from another device/session
+    before it ever got healed, and, as a side effect, opportunistically
+    repairs any older quiz on this device that predates #91/#92 too.
+  - Both passes are best-effort and silent per-image, same as the helper
+    they call: if a source image is already gone by the time healing
+    runs, that question is no worse off than before this fix — it's
+    still a broken image icon, just not a new failure mode.
+
 - **92 — Fixed: the same "broken image icon" bug from #91 was still
   reachable through a path #91 didn't cover — an admin publishing a
   community-sourced quiz to the official curriculum.** `adminPublishQuiz()`

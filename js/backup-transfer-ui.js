@@ -214,6 +214,9 @@ async function _backupDoExport() {
   const statusEl = document.getElementById('backupFileStatus');
   statusEl.innerHTML = _backupProgressHTML('Preparing your file…');
   try {
+    const includeQuizzes = document.getElementById('backupIncludeQuizzes').checked;
+    if (includeQuizzes) await _backupHealSelectedQuizImages(statusEl);
+
     const { downloadExportFile, markBackedUp } = await import('./local-store.js');
     const payload = await _backupBuildSelectedPayload();
     const filename = _backupResolveExportFilename();
@@ -222,6 +225,82 @@ async function _backupDoExport() {
     statusEl.innerHTML = _backupResultHTML(true, `Downloaded as <strong>${escapeHtml(filename)}</strong> — save it somewhere you'll remember (Downloads folder, your own cloud drive, etc.)`);
   } catch (e) {
     statusEl.innerHTML = _backupResultHTML(false, `Export failed: ${escapeHtml(e.message || String(e))}`);
+  }
+}
+
+/**
+ * Backups are meant to be fully self-contained — a file you can restore
+ * from on any device, indefinitely, with no dependency on this app's
+ * servers still having anything. But `buildExportPayload()` just reads
+ * whatever's already sitting in IndexedDB (`listCustomQuizzes()`); it was
+ * never the place responsible for making sure images are actually local.
+ * A question can still end up with a remote (`http(s)://`) `q.image`
+ * at export OR import time in a couple of ways — a transient network
+ * failure the one time `downloadRemoteQuizImages()` tried to pull it
+ * down after a "Save to Mine" / merge (see #91/#92; failures there are
+ * intentionally silent + best-effort, not retried), a quiz saved before
+ * those fixes existed at all, or an incoming backup file that was itself
+ * exported from another device/session before it ever got healed. Baking
+ * — or re-importing — a still-remote URL just relocates the same "broken
+ * image icon" bug to whenever that file is next opened, usually far away
+ * in time from whatever it was still (barely) depending on.
+ *
+ * Heals a given list of already-loaded quiz objects in place and persists
+ * the repair via `saveCustomQuiz()`, same write path any other quiz edit
+ * uses. Best-effort and silent on individual image failures, same as the
+ * helper it calls — an image that still can't be fetched here is no
+ * worse off than before, it just stays remote. Returns how many quizzes
+ * needed (and were attempted for) healing.
+ */
+async function _backupHealQuizImages(quizzes) {
+  const { saveCustomQuiz } = await import('./local-store.js');
+  const needsHealing = (quizzes || []).filter(q =>
+    (q.questions || []).some(question => question.image && /^https?:\/\//i.test(question.image))
+  );
+  for (const quiz of needsHealing) {
+    await downloadRemoteQuizImages(quiz.questions);
+    await saveCustomQuiz(quiz);
+  }
+  return needsHealing.length;
+}
+
+/** Export-time wrapper: heals only the quizzes actually selected for this export. */
+async function _backupHealSelectedQuizImages(statusEl) {
+  try {
+    const { listCustomQuizzes } = await import('./local-store.js');
+    const allBox = document.getElementById('backupQuizAll');
+    const selectedIds = allBox && !allBox.checked
+      ? [...document.querySelectorAll('.backupQuizItem:checked')].map(cb => cb.value)
+      : null; // null = "All" selected, nothing to filter
+
+    const quizzes = await listCustomQuizzes();
+    const targets = selectedIds ? quizzes.filter(q => selectedIds.includes(q.id)) : quizzes;
+
+    const healedCount = await _backupHealQuizImages(targets);
+    if (!healedCount) return;
+
+    if (statusEl) statusEl.innerHTML = _backupProgressHTML(`Making ${healedCount} quiz${healedCount === 1 ? '' : 'zes'}' images self-contained…`);
+    // Keep the in-memory cache (window._cachedCustomQuizzes) consistent
+    // with what was just persisted, same as any other quiz-list mutation.
+    window._cachedCustomQuizzes = await listCustomQuizzes();
+  } catch (e) {
+    // Best-effort: if this fails for any reason, fall through and export
+    // whatever's on-device as-is — no worse than before this pass existed.
+    console.warn('Pre-export image healing failed:', e);
+  }
+}
+
+/** Import-time wrapper: heals across ALL on-device quizzes (not just the
+ *  ones from this import) — an inexpensive no-op scan for anyone whose
+ *  images are already local, and the only way to also catch quizzes that
+ *  were already broken on this device before this repair pass existed. */
+async function _backupHealAllQuizImagesAfterImport() {
+  try {
+    const { listCustomQuizzes } = await import('./local-store.js');
+    await _backupHealQuizImages(await listCustomQuizzes());
+    window._cachedCustomQuizzes = await listCustomQuizzes();
+  } catch (e) {
+    console.warn('Post-import image healing failed:', e);
   }
 }
 
@@ -315,6 +394,7 @@ async function _backupDoImport(file) {
     statusEl.innerHTML = _backupProgressHTML('Importing…');
     const { applyImportPayload } = await import('./local-store.js');
     const result = await applyImportPayload(payload, choice);
+    if (choice.includeQuizzes) await _backupHealAllQuizImagesAfterImport();
     await _backupRefreshAfterImport();
     const collectionsNoteParts = [];
     if (result.collections && result.collections.added) collectionsNoteParts.push(`${result.collections.added} collection${result.collections.added !== 1 ? 's' : ''} restored`);
