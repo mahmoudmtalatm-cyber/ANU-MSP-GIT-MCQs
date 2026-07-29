@@ -1172,7 +1172,7 @@ async function adminPublishQuiz() {
   try {
     let questions;
     if (adminEditMode === 'publish' && adminEditQuestions) {
-      // Use the admin-edited working copy as-is (images already inline as data URLs)
+      // Use the admin-edited working copy as-is
       _cqNormalizeCaseGroups(adminEditQuestions);
       _stripEditorTransientFields(adminEditQuestions);
       questions = adminEditQuestions;
@@ -1181,13 +1181,26 @@ async function adminPublishQuiz() {
       questions = adminSelectedQuiz.questions;
       if (adminSelectedQuiz.sourceType === 'community') {
         questions = restoreOptionsOrder(questions);
-        // Hydrate any shared images so q.image is present before saving
-        await hydrateSharedQuizImages(adminSelectedQuiz.sourceId, questions);
       } else {
         // Make sure custom-quiz images are hydrated too
         await hydrateQuizImages(questions);
       }
     }
+
+    // adminSelectedQuiz always comes from a CUSTOM or COMMUNITY source here
+    // (see adminSelectQuiz) — never an already-published curriculum lecture
+    // — so any question still pointing at a remote http(s) image URL at
+    // this point is, by definition, someone ELSE's storage: a community
+    // post's own R2 prefix (community/{sharedId}/images/{hash}.*), kept
+    // alive only by that post's own image refcount (see #91). That's true
+    // whether "✏️ Edit Before Publishing" was used or not — adminEditQuestions
+    // is just a working-copy clone of the same source questions and was
+    // never hydrated on its own. Pull every remote image down into a real
+    // local data: URL right before it's written; putContentItem below then
+    // re-uploads it fresh under THIS lecture's own curriculum/ prefix, so
+    // the published copy stays live even if the original community post is
+    // later edited or deleted. Already-local (data:) images are untouched.
+    await downloadRemoteQuizImages(questions);
 
     // Deep-clone + strip source-specific sentinels so each question is clean.
     // Assign a STABLE id to every question that doesn't already have one —

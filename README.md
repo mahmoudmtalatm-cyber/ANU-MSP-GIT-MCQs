@@ -799,6 +799,44 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **92 — Fixed: the same "broken image icon" bug from #91 was still
+  reachable through a path #91 didn't cover — an admin publishing a
+  community-sourced quiz to the official curriculum.** `adminPublishQuiz()`
+  (`quiz-editor.js`) wrote the new curriculum lecture straight from the
+  community quiz's questions, and `putContentItem()` (`content-client.js`)
+  only re-uploads an image if it's still a `data:` URL — a community
+  question's `q.image` is already a *resolved* `https://` R2 URL by that
+  point, so it was skipped and left pointing at the community post's own
+  storage (`community/{sharedId}/images/{hash}.*`, governed by that post's
+  own image refcount — see #91). Net effect: any officially published
+  lecture created from a community quiz stayed silently dependent on that
+  original community post never being edited or deleted — and since a
+  published lecture is visible to every student, not just the one who
+  imported it, this was the more consequential version of the same bug.
+  The same gap existed whether or not the admin used "✏️ Edit Before
+  Publishing" first — `adminToggleEditBeforePublish()`
+  (`admin-panel.js`) clones `adminSelectedQuiz.questions` into a working
+  copy with no hydration step at all, so a stale inline comment claiming
+  those images were "already inline as data URLs" was simply wrong for a
+  community source.
+  - `adminPublishQuiz()` now calls the same `downloadRemoteQuizImages()`
+    helper #91 added (`firebase-storage.js`) unconditionally, right before
+    `putContentItem()`, regardless of which branch produced `questions` —
+    every remaining remote image is pulled down into a real local `data:`
+    URL first, so `putContentItem()`'s existing upload step re-hosts it
+    fresh under the new lecture's own `curriculum/` prefix. A quiz
+    selected for publishing here is always a custom or community source
+    (never an already-published curriculum lecture — see
+    `adminSelectQuiz()`), so this can never mistakenly re-upload an
+    already-owned curriculum image.
+  - **Not automatically retroactive**: this only protects lectures
+    published *after* this fix. A curriculum lecture published from a
+    community quiz *before* this fix may already have a live dependency
+    on that community post; if so, re-publishing it (with the source quiz
+    still available) re-runs it through the fixed path and makes it
+    independent. Let us know if a bulk repair pass across existing
+    lectures would help and it can be added as a follow-up admin tool.
+
 - **91 — Fixed: a community quiz's images disappeared (broken image icon)
   from your own saved copy once the original share was deleted.** "Save to
   Mine" (`importCommunityQuiz`) and "🧩 Merge Quizzes In" both cloned a
