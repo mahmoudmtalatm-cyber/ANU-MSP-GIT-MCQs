@@ -24,6 +24,12 @@ else is plain HTML/CSS/JavaScript.
   per-subject "toggle menu" quiz-title lists — see changelog **#83**.
 - **Custom quizzes** — write your own, or generate one from pasted MCQs
   or lecture material using Gemini.
+  - **Collections** — organize your custom quizzes into folders, nested
+    to any depth (a folder inside a folder inside a folder, etc). Drag a
+    quiz card onto a folder in the sidebar to file it, or use its 📁 Move
+    button/the bulk "Move to…" action for a non-drag alternative; drag
+    folders themselves onto each other to re-nest or reorder them. See
+    changelog **#85**.
 - **Community quizzes** — browse, take, and share quizzes made by other
   students; merge questions from one quiz into another.
 - **AI tools** (Gemini, bring-your-own API key) — extract questions from
@@ -289,6 +295,8 @@ anu-msp-question-bank/
 │   ├── firebase-storage.js       # Firebase Storage helpers for quiz images
 │   │                              #   and Statistics wrong-question images
 │   ├── split-quiz.js             # Split a long quiz into smaller ones
+│   ├── quiz-collections.js       # Nested folder system for custom quizzes —
+│   │                              #   tree UI, drag-and-drop, move menus
 │   ├── sharing.js                # Share-quiz links + shared quiz image helpers
 │   ├── community-quizzes.js      # Browse/merge community-submitted quizzes
 │   ├── user-profile.js           # Display name + misc Firestore utilities
@@ -298,10 +306,10 @@ anu-msp-question-bank/
 │   │                              #   curriculum content served from R2
 │   ├── migration.js              # One-time move of legacy Firestore-stored
 │   │                              #   stats/custom quizzes to local storage
-│   ├── local-store.js            # Custom quizzes + stats/history — all
-│   │                              #   local (IndexedDB), never Firestore;
-│   │                              #   export/import payload + merge-vs-
-│   │                              #   replace import logic lives here
+│   ├── local-store.js            # Custom quizzes + nested collections/folders
+│   │                              #   + stats/history — all local (IndexedDB),
+│   │                              #   never Firestore; export/import payload
+│   │                              #   + merge-vs-replace import logic lives here
 │   ├── p2p-transfer.js           # Direct device-to-device transfer (WebRTC
 │   │                              #   data channel, Firestore only for the
 │   │                              #   brief connection handshake)
@@ -790,6 +798,161 @@ Firestore-side curriculum/community data.
 
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
+
+- **88 — Fixed: sharing a quiz to the community always failed with 403
+  Forbidden for anyone who wasn't a `community`-permission admin.**
+  `worker-index.js`'s PUT authorization for `community/` keys required
+  *either* `isCommunityAdmin()` *or* `isCommunityQuizAuthor()` to pass —
+  but a brand-new share has no prior R2 object to check authorship
+  against, so `isCommunityQuizAuthor()` always returned `false` for it,
+  and an ordinary student is never a roster `community` admin either.
+  Net effect: **no non-admin user could ever create a new community quiz
+  at all** — only re-save one they already owned (once build 87 also
+  fixed the `.json`-suffix bug that had broken even that). Fixed by
+  allowing the write through when the target key doesn't exist in R2 yet
+  (i.e. this *is* the first share) — the author/admin gate still applies
+  in full to every subsequent edit of an already-shared quiz.
+  - **Closed the resulting spoofing gap**: since any signed-in user can
+    now create a *new* community entry, the Worker now overwrites
+    whatever `authorUid` the client sent with the verified caller's real
+    uid before writing (previously only claimed in a comment in
+    `js/sharing.js`, never actually done in `worker-index.js`) — so no
+    one can claim authorship of a quiz under someone else's uid, whether
+    sharing for the first time or editing later.
+  - **If you're re-testing build 87's delete fix and still saw the exact
+    same "Firestore nested PATCH failed" error**: that fix lives entirely
+    in `worker-index.js`/`lib/firebaseAdmin.js`, i.e. the Cloudflare
+    Worker, not the static frontend — pushing the updated files to GitHub
+    Pages alone doesn't update it. Re-run your Worker deploy step (e.g.
+    `wrangler deploy` from the project root) and retry.
+
+- **87 — Fixed: admins couldn't delete certain community quizzes ("Firestore
+  nested PATCH failed: Invalid property path").** Deleting a community quiz
+  bumps a version marker off in `appConfig/sharedQuizzesManifest.quizzes
+  [quizId]` (`lib/firebaseAdmin.js`: `clearManifestVersion()` →
+  `firestoreSetNestedField()`) so every reader gated on that manifest drops
+  the quiz from its cache. The old implementation targeted that one nested
+  field via Firestore's REST `updateMask.fieldPaths` syntax — a dotted,
+  backtick-quoted string built from the quiz ID. That syntax can't represent
+  every string an ID might contain; a quiz whose ID happened to reduce to a
+  single `` ` `` character reliably 400'd no matter how it was quoted or
+  escaped, and — because the quiz's actual content had already been deleted
+  from R2 by that point in the request — the admin saw a **"Delete failed"**
+  error for a quiz that was, in fact, already gone (it just never dropped
+  out of the manifest, so it kept reappearing in the list).
+  - **Root fix**: `firestoreSetNestedField()` no longer builds a dotted
+    field-path string at all. It now reads the whole top-level map
+    (`quizzes` or `subjects`), mutates the target key in plain JS, and
+    writes that single top-level field back with `firestorePatchDoc()`.
+    Firestore map keys accept any string with zero escaping, so this works
+    regardless of what characters end up in an ID.
+  - `jsToFirestoreValue()` (same file) gained proper recursive map/array
+    support (previously only primitives were handled; anything else fell
+    back to a stringified-JSON blob) so a whole nested map can round-trip
+    through a single PATCH correctly.
+  - `clearManifestVersion()` no longer lets a manifest-bookkeeping error
+    fail the whole delete request — by the time it runs, the R2 content is
+    already gone, so the delete has already succeeded either way. Any
+    reader with a stale manifest entry still self-heals on its next fetch
+    (existing 404-and-prune behavior in `js/community-quizzes.js`).
+  - **Also fixed while in this code path**: `worker-index.js`'s community
+    write/delete authorization checks derived `communityQuizId` straight
+    from the URL key without stripping its `.json` suffix, so
+    `isCommunityQuizAuthor()` was always looking up a nonexistent
+    double-suffixed R2 key (`community/<id>.json.json`) and returning
+    `false` — meaning a quiz's own author (not just a community admin)
+    could never save or delete their own shared quiz. Both checks now
+    strip `.json` before the lookup.
+
+- **86 — Collections follow-up: collapsible sidebar, a working Move button,
+  merge-by-name on import, and a real choice when deleting a folder.**
+  - **Sidebar is now collapsible on desktop too**, not just as the existing
+    mobile drawer. A new ◂ button in the sidebar header (`js/quiz-
+    collections.js`: `cqToggleSidebarCollapsed()`, persisted via
+    `localStorage`) hides the whole folder column so the quiz list can use
+    the full width; a "📁 Show Folders ▸" pill brings it back. This is
+    fully independent of the existing sub-720px "📁 Browse Folders" drawer
+    toggle, so each breakpoint keeps its own natural collapse behavior.
+  - **Fixed: the 📁 Move button (and the bulk "Move to…" button) did
+    nothing.** Root cause: `renderCustomQuizModal()` fully replaces
+    `customQuizBody`'s `innerHTML` on every state change. Clicking Move
+    opened its dropdown and re-rendered — but the *same click* then
+    bubbled to the document-level "close popover on outside click"
+    listener in `js/quiz-collections.js`. Since the original button had
+    just been detached from the DOM by that re-render, the listener's
+    `contains()` checks against it always failed, so it immediately closed
+    the popover that had just opened. The ⋮ collection-menu button already
+    guarded against exactly this with `event.stopPropagation()`; the Move
+    buttons in `js/firebase-storage.js` didn't. Added it to both.
+  - **Deleting a folder now offers a real choice**, via a proper two-step
+    modal (`cqDeleteCollection()` and friends in `js/quiz-collections.js`,
+    reusing the app's existing `.qm-*` modal styling) instead of a single
+    `confirm()`: **"Just remove this folder"** (the original, non-
+    destructive behavior — subfolders move up, quizzes become
+    Uncategorized) or **"Delete everything inside"**, which permanently
+    removes the folder, every nested subfolder, and every quiz filed
+    anywhere inside it. The destructive option requires a second, explicit
+    confirmation screen spelling out exactly what's about to be deleted
+    before anything happens.
+  - **Backup import now merges collections by name on 'merge' mode**,
+    instead of always creating a duplicate folder. `importCollections
+    AndQuizzes()` in `js/local-store.js` resolves the incoming tree
+    parent-first (so nesting is never ambiguous regardless of array
+    order); an incoming folder that shares both a name and a resolved
+    position in the tree with an existing one is folded into it rather
+    than duplicated, so quizzes from both sides end up filed together in
+    the one surviving folder. A same-named folder at a *different* point
+    in the tree, or a "replace"-mode import, still gets a fresh folder as
+    before. The import result panel in `js/backup-transfer-ui.js` now
+    reports merged vs. newly-restored collection counts separately.
+
+- **85 — Collections: nested folders for Custom Quizzes, with drag-and-drop.**
+  You can now organize your custom quizzes into folders — and folders inside
+  folders, to any depth — from a new tree sidebar in the "Your Custom
+  Quizzes" modal.
+  - **Data model** (`js/local-store.js`): a new `quizCollection` IndexedDB
+    entity — `{ id, name, parentId, icon, color, order, createdAt }` — lives
+    entirely on-device, never Firestore, exactly like the quizzes
+    themselves. A quiz opts into a folder via its own `collectionId` field;
+    no field (or a `collectionId` whose folder was deleted) just means
+    "Uncategorized." Collections don't store their own quiz list — the quiz
+    points at its folder — so moving or deleting a quiz never touches a
+    collection document.
+  - **New module** `js/quiz-collections.js` is the whole UI/state layer: a
+    recursive tree renderer, a breadcrumb, and every action (create, inline
+    rename, delete-with-promote, recolor, re-icon). It mirrors the existing
+    load-cache/save-and-recache pattern `js/firebase-storage.js` already
+    used for the quizzes themselves, so the two caches
+    (`window._cachedCustomQuizzes` / `window._cachedQuizCollections`) never
+    drift out of sync mid-session.
+  - **Drag-and-drop**: drag a quiz card onto any folder in the sidebar (or
+    onto "Uncategorized") to file it there; drag a folder onto another
+    folder to re-nest it, or onto "All Quizzes" to move it back to the top
+    level. Dropping a folder into its own subtree is rejected with a
+    friendly message instead of silently corrupting the tree. Every quiz
+    card also has a non-drag 📁 **Move** button (and multi-selected quizzes
+    get a bulk "Move to…") for touch devices and anyone who'd rather not
+    drag.
+  - **Deleting a folder** never deletes a quiz: subfolders move up to become
+    children of the deleted folder's own parent, and any quiz filed
+    directly inside becomes Uncategorized. The confirm dialog spells out
+    exactly what will happen before you commit.
+  - Each folder gets a customizable icon (curated emoji set) and color,
+    picked from a small popover on its ⋮ menu; the active color/icon shows
+    up as a chip on every quiz card filed inside it (and in the community
+    merge-quiz picker, for context).
+  - **Wired into every quiz-creation path**: AI-generated quizzes, hand-
+    written quizzes, and community quiz imports land in whichever folder
+    you're currently browsing; splitting a saved custom quiz into parts
+    files the new parts into the *source* quiz's own folder. Backups
+    (`buildExportPayload()`/`applyImportPayload()`/the new
+    `importCollectionsAndQuizzes()`, all in `js/local-store.js`) carry the
+    full folder tree alongside the quizzes, remapping ids so the hierarchy
+    — and each quiz's placement in it — survives a round trip to another
+    device.
+  - Fully responsive: the sidebar is a fixed column beside the quiz list on
+    wide screens, and collapses to a "📁 Browse Folders" drawer above the
+    list below 720px, matching the rest of the app's mobile breakpoints.
 
 - **84 — Fixed the flowchart hint text overlapping the subject toggle list
   below it.** In build 83's new Curriculum Breakdown, the "Tap a subject to

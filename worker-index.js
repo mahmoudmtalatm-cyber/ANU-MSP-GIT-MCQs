@@ -199,10 +199,23 @@ async function bumpManifestVersion(env, key) {
   await firestoreSetNestedField(env, docPath, fieldPath, Date.now());
 }
 
-/** Removes this content item's version marker entirely (not just null) so it drops out of every manifest-gated listing/read. */
+/**
+ * Removes this content item's version marker entirely (not just null) so it
+ * drops out of every manifest-gated listing/read. Deliberately swallows its
+ * own errors: by the time this runs the R2 object is already deleted (see
+ * the DELETE handler below), so the delete itself has already succeeded —
+ * a manifest-bookkeeping hiccup shouldn't surface to the admin as "Delete
+ * failed" when the content is in fact gone. Any reader that still has a
+ * stale manifest entry will simply get a 404 on next fetch and prune the
+ * item locally, same as the existing "quiz vanished mid-session" path.
+ */
 async function clearManifestVersion(env, key) {
-  const { docPath, fieldPath } = manifestLocationForKey(key);
-  await firestoreSetNestedField(env, docPath, fieldPath, undefined);
+  try {
+    const { docPath, fieldPath } = manifestLocationForKey(key);
+    await firestoreSetNestedField(env, docPath, fieldPath, undefined);
+  } catch (err) {
+    console.error(`Failed to clear manifest version for ${key} (content itself was already deleted):`, err);
+  }
 }
 
 const GOOGLE_JWKS = createRemoteJWKSet(
@@ -308,8 +321,17 @@ async function handleRequest(request, env) {
         return withCors(new Response('Forbidden: curriculum writes are admin-only', { status: 403 }));
       }
     } else if (key.startsWith('community/')) {
-      const communityQuizId = key.split('/')[1];
-      const authorized = (await isCommunityAdmin(env, email)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
+      const communityQuizId = key.split('/')[1].replace(/\.json$/, '');
+      // A community quiz's *first* write is a share by definition — there's
+      // no prior author to check against, and requiring 'community' admin
+      // permission here would mean an ordinary student could never share a
+      // quiz at all (isCommunityAdmin() is only ever true for roster admins
+      // — see below). Only an *existing* quiz's author/admin gate applies
+      // once there's actually a prior version to protect.
+      const existingObject = await env.CONTENT_BUCKET.get(key);
+      const authorized = !existingObject
+        || (await isCommunityAdmin(env, email))
+        || (await isCommunityQuizAuthor(env, uid, communityQuizId));
       if (!authorized) {
         return withCors(new Response('Forbidden: only the quiz author or an admin may write here', { status: 403 }));
       }
@@ -363,7 +385,23 @@ async function handleRequest(request, env) {
     // just a straightforward authorized write, followed by the manifest
     // bump every manifest-gated reader (getCurriculumLecture/
     // getCommunityQuiz/ensureSharedQuizzesLoaded) needs to actually see it.
-    await env.CONTENT_BUCKET.put(finalKey, bodyBuffer, {
+    let finalBody = bodyBuffer;
+    if (key.startsWith('community/')) {
+      // authorUid must reflect who's actually making this request, not
+      // whatever the client happened to send — otherwise the "any signed-in
+      // user may create a new community quiz" rule above would let someone
+      // claim authorship (and therefore future edit/delete rights) under a
+      // different uid. Re-serializing here is the one place that's true
+      // for every community write, regardless of client version.
+      try {
+        const content = JSON.parse(new TextDecoder().decode(bodyBuffer));
+        content.authorUid = uid;
+        finalBody = new TextEncoder().encode(JSON.stringify(content));
+      } catch (err) {
+        return withCors(new Response(`Bad request: quiz content isn't valid JSON: ${err.message}`, { status: 400 }));
+      }
+    }
+    await env.CONTENT_BUCKET.put(finalKey, finalBody, {
       httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
     });
     await bumpManifestVersion(env, finalKey);
@@ -391,7 +429,7 @@ async function handleRequest(request, env) {
         return withCors(new Response('Forbidden: curriculum deletes are admin-only', { status: 403 }));
       }
     } else if (key.startsWith('community/')) {
-      const communityQuizId = key.split('/')[1];
+      const communityQuizId = key.split('/')[1].replace(/\.json$/, '');
       const authorized = (await isCommunityAdmin(env, email)) || (await isCommunityQuizAuthor(env, uid, communityQuizId));
       if (!authorized) {
         return withCors(new Response('Forbidden: only the quiz author or an admin may delete this', { status: 403 }));

@@ -371,6 +371,7 @@ function _renderMergeCustomTab() {
           <div>
             <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
             <div class="cq-quiz-meta">${q.questions.length} question${q.questions.length !== 1 ? 's' : ''} &middot; created ${new Date(q.createdAt).toLocaleDateString()}</div>
+            ${_quizCollectionChipHTML(q, loadQuizCollections()) ? `<div style="margin-top:4px;">${_quizCollectionChipHTML(q, loadQuizCollections())}</div>` : ''}
           </div>
         </label>
       </div>`;
