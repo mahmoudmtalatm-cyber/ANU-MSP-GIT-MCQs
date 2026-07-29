@@ -799,6 +799,30 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **90 — Fixed two bugs in the custom-quiz Collections folders: picking a
+  color visibly did nothing, and picking a new color/icon reset the
+  folder-tree scroll position back to the top.**
+  - **Color had no visible effect**: the sidebar's folder icon applied the
+    chosen color via CSS `color` on the emoji glyph itself — but color
+    emoji (📁, 🧬, 🩺, etc.) are rendered as fixed full-color glyphs by the
+    browser/OS and simply ignore the `color` property, so the swatch was
+    saved correctly (its "selected" ring in the picker updated fine) but
+    never showed up anywhere. Fixed by giving `.cq-coll-icon` a proper
+    padded, rounded shape and applying the chosen color as a background
+    tint + inset border instead (`color-mix(...)`, same technique already
+    used successfully by the quiz-card folder chip) — the same approach
+    that already worked for chips now also works for the tree icon.
+  - **Folder tree jumped to the top on every color/icon pick**: `.cq-coll-
+    sidebar` is its own independently-scrollable box (`overflow-y: auto`),
+    but `renderCustomQuizModal()` rebuilds the *entire* modal body's
+    `innerHTML` on every change, including this sidebar — with no scroll
+    position ever saved or restored, so scrolling down to a folder further
+    down the list and picking a color/icon on it snapped the whole tree
+    back to the top. Fixed the same way `renderAdminQuestionEditor()`
+    already handles this for its own question list: capture `.cq-coll-
+    sidebar`'s `scrollTop` immediately before the rebuild, restore it
+    right after.
+
 - **89 — Fixed: deleting an answer choice left the remaining choices
   mislettered (e.g. deleting B out of A/B/C/D left A, C, D instead of
   relettering to A, B, C).** All three places a choice can be deleted —

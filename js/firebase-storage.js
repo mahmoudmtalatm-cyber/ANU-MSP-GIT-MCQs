@@ -629,6 +629,14 @@ function renderCustomQuizModal() {
   const quizzes    = loadCustomQuizzes();
   const collections = loadQuizCollections();
 
+  // Remember the folder-tree sidebar's scroll position — it's torn down
+  // and rebuilt from scratch below (along with the rest of the modal),
+  // which would otherwise snap it back to the top on every single action
+  // inside it (picking a color/icon, renaming, expanding a folder, etc).
+  // Same pattern as the scroll-preservation in renderAdminQuestionEditor.
+  const _prevSidebar = body ? body.querySelector('.cq-coll-sidebar') : null;
+  const _prevSidebarScrollTop = _prevSidebar ? _prevSidebar.scrollTop : null;
+
   let html = '';
 
   /* ── Saved custom quizzes ── */
@@ -988,6 +996,11 @@ function renderCustomQuizModal() {
   </div>`;
 
   body.innerHTML = html;
+
+  if (_prevSidebarScrollTop !== null) {
+    const _newSidebar = body.querySelector('.cq-coll-sidebar');
+    if (_newSidebar) _newSidebar.scrollTop = _prevSidebarScrollTop;
+  }
 
   if (cqGeneratedQuestions) renderCQPreview();
   if ((cqEditingQuizId || cqCreatingNew) && cqEditQuestions) renderCustomQuizEditor();

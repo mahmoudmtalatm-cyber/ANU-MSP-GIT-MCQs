@@ -211,7 +211,9 @@ function _renderCollectionNode(collections, quizzes, node, depth) {
   const isEditing = cqEditingCollectionId === node.id;
   const menuOpen = cqCollectionMenuOpenFor === node.id;
   const count = _quizCountForCollection(quizzes, collections, node.id);
-  const swatch = node.color || 'var(--accent)';
+  const swatchStyle = node.color
+    ? `background:color-mix(in srgb, ${node.color} 22%, transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb, ${node.color} 55%, transparent);`
+    : '';
 
   return `<div class="cq-coll-node" style="--depth:${depth}">
     <div class="cq-coll-row ${isActive ? 'active' : ''}"
@@ -223,7 +225,7 @@ function _renderCollectionNode(collections, quizzes, node, depth) {
          ondrop="cqCollectionDrop(event,'${node.id}')"
          onclick="${isEditing ? '' : `cqSelectCollection('${node.id}')`}">
       <span class="cq-coll-caret ${hasChildren ? '' : 'empty'}" onclick="event.stopPropagation(); cqToggleCollectionExpand('${node.id}')">${hasChildren ? (expanded ? '▾' : '▸') : ''}</span>
-      <span class="cq-coll-icon" style="color:${swatch}">${escapeHtml(node.icon || '📁')}</span>
+      <span class="cq-coll-icon" style="${swatchStyle}">${escapeHtml(node.icon || '📁')}</span>
       ${isEditing
         ? `<input type="text" class="cq-coll-rename-input" id="cqCollRename_${node.id}" value="${escapeHtml(node.name)}"
              onclick="event.stopPropagation()"

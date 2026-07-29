@@ -1546,7 +1546,12 @@
   cursor: pointer; border-radius: 3px;
 }
 .cq-coll-caret:not(.empty):hover { background: var(--border-soft-2); }
-.cq-coll-icon { flex-shrink: 0; font-size: .92rem; line-height: 1; }
+.cq-coll-icon {
+  flex-shrink: 0; font-size: .92rem; line-height: 1;
+  width: 22px; height: 22px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .12s ease, box-shadow .12s ease;
+}
 .cq-coll-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
