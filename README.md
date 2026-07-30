@@ -799,6 +799,90 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **96 — Closed the follow-up flagged in #95: publishing a community quiz
+  to curriculum no longer downloads and re-uploads the image over the
+  network at all.** #95 made the Worker dedupe by content hash, so a
+  published lecture's image never gets stored twice — but the browser
+  was still doing a full round trip for nothing: fetching the source
+  image into memory and re-uploading the identical bytes, only for the
+  Worker to discard them and just link to the existing object. Removed
+  that entirely.
+  - **Worker** (`worker-index.js`): the image PUT route now also accepts
+    an `X-Reference-Hash` header in place of a request body — "link this
+    already-existing image, no bytes needed." Only accepted for a hash
+    that's already tracked with a known `ownerKey` (see #95); a malformed
+    hash or one with no backing object is rejected with `400`, so a
+    client can never inflate a refcount for bytes nobody actually
+    uploaded to this server.
+  - **Client** (`content-client.js`): `putContentItem()` now branches on
+    the image's current value — `data:` URL → uploads the bytes (genuinely
+    new); already `${WORKER_BASE_URL}/.../images/...` → sends the hash
+    alone via `X-Reference-Hash`, no body, no download; anything else is
+    left untouched (shouldn't occur in this app, since every image is
+    always one of those two things).
+  - **Admin publish flow** (`quiz-editor.js`): removed the
+    `downloadRemoteQuizImages()` call #92 added before publish — no
+    longer needed, since `putContentItem()` now handles an already-
+    self-hosted image URL directly. A community quiz's image is never
+    downloaded into the browser at all during publish anymore; it goes
+    straight from "community's R2 URL" to "linked into the curriculum
+    lecture" via one lightweight, bodyless request.
+  - #91's and #93's downloads are unaffected and still necessary — those
+    save to *local* IndexedDB storage, which has no concept of "reference
+    an existing server-side hash," so an actual local copy of the bytes
+    genuinely has to exist on-device for those paths.
+
+- **95 — Fixed: publishing a community quiz to curriculum (#92) stored a
+  full duplicate copy of every image, and the image-refcount system had
+  a latent bug that could permanently leak one of the two copies in R2
+  regardless.** `imageRefcounts/{hash}` (`worker-index.js`) only ever
+  tracked a raw `count`, never *where the bytes physically live* — but
+  R2 object keys are scoped per item (`{r2KeyPrefix}/images/{hash}.ext`),
+  not globally by hash. So when #92 made publish-from-community re-upload
+  the source image (to make the published lecture independent), the
+  Worker's dedup check (`head()` on this item's own path) could never
+  find the byte-identical copy already sitting under the *community*
+  post's own prefix — it always wrote a second physical copy. Worse: the
+  shared, prefix-blind refcount meant that even with two copies existing,
+  deleting either the community post or the curriculum lecture first
+  would silently decrement the *shared* count without necessarily
+  deleting anything at that item's own path — permanently orphaning
+  whichever copy's "turn" never came up, with no record left once the
+  count reached zero.
+  - `imageRefcounts/{hash}` now also records `ownerKey`: the R2 key that
+    *actually* holds this hash's bytes, set once on first write and never
+    changed after. `incrementImageRefcount()` takes this as a parameter;
+    `decrementImageRefcountAndMaybeDelete()` deletes from the recorded
+    `ownerKey` instead of assuming the deleting item's own prefix —
+    correct regardless of which item created the object or which one
+    happens to be the last to release it.
+  - The PUT image-upload handler now checks the refcount doc *first*: if
+    `ownerKey` is already set (this item's own upload, or a completely
+    different item that happened to upload byte-identical bytes), it
+    just points at the existing object and bumps the count — **no bytes
+    are written a second time**. A hash with no tracked owner yet (a
+    genuinely new image, or a legacy doc from before this fix) falls back
+    to a `head()` check on this item's own path before deciding a write
+    is actually needed, then records itself as the owner going forward.
+  - Fully backward compatible: every refcount doc created before this
+    fix has no `ownerKey`, so its cleanup behavior is unchanged (delete
+    from the deleting item's own prefix) — correct for all of them, since
+    no hash was ever shared across items before #92 existed anyway. Only
+    hashes uploaded from this point forward get real cross-item dedup.
+  - **No client-side changes were needed at all** — `putContentItem()`
+    (`content-client.js`) already just uses whatever `key` the server
+    returns as the image's final URL, so a deduped response pointing at
+    a different item's existing object works transparently. The client
+    still re-fetches and re-uploads the source image's bytes over the
+    network during publish (same as #92) — the Worker just no longer
+    stores or counts them a second time. Skipping that redundant network
+    round-trip entirely (detecting a same-origin source URL and sending a
+    lightweight "reference this hash" request instead of the full image
+    bytes) would need a small new endpoint; flagging it as a possible
+    follow-up rather than folding it in here, since it's a bandwidth
+    optimization on top of an already-correct storage fix, not a
+    correctness fix itself.
+
 - **94 — Fixed the actual root cause of the backup-export image bug (#93
   was a real but secondary fix — this is the one that mattered): the
   downloaded backup `.json` file itself could come out truncated/

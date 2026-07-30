@@ -1190,17 +1190,19 @@ async function adminPublishQuiz() {
     // adminSelectedQuiz always comes from a CUSTOM or COMMUNITY source here
     // (see adminSelectQuiz) — never an already-published curriculum lecture
     // — so any question still pointing at a remote http(s) image URL at
-    // this point is, by definition, someone ELSE's storage: a community
-    // post's own R2 prefix (community/{sharedId}/images/{hash}.*), kept
-    // alive only by that post's own image refcount (see #91). That's true
-    // whether "✏️ Edit Before Publishing" was used or not — adminEditQuestions
-    // is just a working-copy clone of the same source questions and was
-    // never hydrated on its own. Pull every remote image down into a real
-    // local data: URL right before it's written; putContentItem below then
-    // re-uploads it fresh under THIS lecture's own curriculum/ prefix, so
-    // the published copy stays live even if the original community post is
-    // later edited or deleted. Already-local (data:) images are untouched.
-    await downloadRemoteQuizImages(questions);
+    // this point is, by definition, a community post's own R2 object
+    // (community/{sharedId}/images/{hash}.*), kept alive only by that
+    // post's own image refcount (see #91). That's true whether "✏️ Edit
+    // Before Publishing" was used or not — adminEditQuestions is just a
+    // working-copy clone of the same source questions. Nothing needs to
+    // be downloaded here, though: putContentItem() (content-client.js)
+    // detects an already-self-hosted image URL and sends the Worker a
+    // hash-only reference request instead of re-uploading bytes — the
+    // Worker links to the existing object (see #95) and bumps its
+    // refcount, so the published lecture stays live even if the original
+    // community post is later edited or deleted, without the browser
+    // ever having to download and re-upload the image at all. Already-
+    // local (data:) images are uploaded there the normal way.
 
     // Deep-clone + strip source-specific sentinels so each question is clean.
     // Assign a STABLE id to every question that doesn't already have one —
