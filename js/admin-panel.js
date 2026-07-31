@@ -285,7 +285,139 @@ function renderAdminManagePanel() {
       ${adminCurrScopePickerSectionHtml()}
       <button class="admin-assign-btn" id="adminAddAdminBtn" onclick="adminAssignAdminUI()" style="margin-top:14px;">➕ Add Admin</button>
       <div class="admin-status" id="adminManageStatus"></div>
+
+      ${isSuperAdmin(user) ? `
+      <h3 style="margin:26px 0 10px;font-size:1rem;">🛠️ Maintenance — inline image storage</h3>
+      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px;line-height:1.4;">
+        Images are now stored inline, right on each question, instead of as separate hosted files. Content shared or
+        published before this change may still point at one of those old files. Run these one at a time, in order.
+      </div>
+      <div style="border:1.5px solid #ccc;border-radius:10px;padding:12px;margin-bottom:12px;">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">Step 1 — Migrate existing content</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:10px;">
+          Walks every published curriculum lecture and every community quiz, pulls any remaining old-style image
+          down, and re-saves it inline. Safe to run repeatedly — already-inline content is skipped.
+        </div>
+        <button class="admin-assign-btn" id="adminMigrateImagesBtn" onclick="adminMigrateLegacyImagesUI()">▶️ Migrate all images to inline storage</button>
+        <div class="admin-status" id="adminMigrateImagesStatus"></div>
+      </div>
+      <div style="border:1.5px solid #ccc;border-radius:10px;padding:12px;">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">Step 2 — Clean up old storage</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:10px;">
+          ⚠️ Only run this after Step 1 shows nothing left to migrate. Permanently deletes every old separately-hosted
+          image file and its tracking record — there's no undo. Anything not yet migrated will lose its image.
+        </div>
+        <button class="admin-assign-btn" id="adminSweepImagesBtn" onclick="adminSweepLegacyImagesUI()" style="background:#b23b3b;">🧹 Delete old image storage</button>
+        <div class="admin-status" id="adminSweepImagesStatus"></div>
+      </div>` : ''}
     </div>`;
+}
+
+const _MAINT_WORKER_BASE = 'https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev';
+
+/**
+ * Walks every published curriculum lecture and every community quiz,
+ * fetching each one's content fresh (not the local IndexedDB cache — this
+ * needs the real current state) and inlining any question still pointing
+ * at a legacy separately-hosted image (see ensureInlineImages() in
+ * firebase-storage.js). Only re-saves an item if it actually had
+ * something to inline; already-migrated content (the common case, going
+ * forward) is skipped with no write at all. Safe to run repeatedly.
+ */
+async function adminMigrateLegacyImagesUI() {
+  const statusEl = document.getElementById('adminMigrateImagesStatus');
+  const btn = document.getElementById('adminMigrateImagesBtn');
+  if (btn) btn.disabled = true;
+
+  let scanned = 0, migrated = 0, failed = 0;
+  try {
+    const { fetchCurriculumManifest, fetchCommunityManifest, putContentItem } = await import('./content-client.js');
+
+    const currManifest = await fetchCurriculumManifest();
+    for (const subject of Object.keys(currManifest)) {
+      for (const lectureId of Object.keys(currManifest[subject] || {})) {
+        scanned++;
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status info">⏳ Curriculum: ${scanned} scanned, ${migrated} migrated…</div>`;
+        try {
+          const resp = await fetch(`${_MAINT_WORKER_BASE}/curriculum/${subject}/${lectureId}.json`);
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          const hadRemote = (data.questions || []).some(q => q.image && /^https?:\/\//i.test(q.image));
+          if (!hadRemote) continue; // already inline — nothing to do
+          await ensureInlineImages(data.questions);
+          await putContentItem('curriculum', subject, lectureId, data);
+          migrated++;
+        } catch (e) {
+          console.warn(`Legacy-image migration failed for curriculum/${subject}/${lectureId}:`, e);
+          failed++;
+        }
+      }
+    }
+
+    const commManifest = await fetchCommunityManifest();
+    for (const quizId of Object.keys(commManifest)) {
+      scanned++;
+      if (statusEl) statusEl.innerHTML = `<div class="cq-status info">⏳ Community: ${scanned} scanned, ${migrated} migrated…</div>`;
+      try {
+        const resp = await fetch(`${_MAINT_WORKER_BASE}/community/${quizId}.json`);
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        const hadRemote = (data.questions || []).some(q => q.image && /^https?:\/\//i.test(q.image));
+        if (!hadRemote) continue;
+        await ensureInlineImages(data.questions);
+        await putContentItem('community', null, quizId, data);
+        migrated++;
+      } catch (e) {
+        console.warn(`Legacy-image migration failed for community/${quizId}:`, e);
+        failed++;
+      }
+    }
+
+    if (statusEl) {
+      statusEl.innerHTML = migrated
+        ? `<div class="cq-status success">✅ Done — ${scanned} scanned, ${migrated} migrated to inline storage${failed ? `, ⚠️ ${failed} failed (see browser console)` : ''}.</div>`
+        : `<div class="cq-status success">✅ Done — ${scanned} scanned, nothing left to migrate${failed ? `, ⚠️ ${failed} failed (see browser console)` : ''}.</div>`;
+    }
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(e.message || String(e))}</div>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * Permanently deletes every leftover pre-inline-image R2 object and its
+ * imageRefcounts/{hash} tracking doc (see the Worker's
+ * /_admin/sweep-legacy-images endpoint). Destructive and irreversible —
+ * only meaningful once Step 1 above has confirmed nothing is left
+ * depending on those old files.
+ */
+async function adminSweepLegacyImagesUI() {
+  if (!confirm("This permanently deletes every old separately-hosted image file and its tracking record — there's no undo, and anything not yet migrated will lose its image. Continue?")) return;
+  if (!confirm('Please confirm once more: have you already run Step 1 (Migrate) and confirmed it found nothing left to migrate?')) return;
+
+  const statusEl = document.getElementById('adminSweepImagesStatus');
+  const btn = document.getElementById('adminSweepImagesBtn');
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status info">⏳ Sweeping old image storage…</div>`;
+
+  try {
+    const idToken = await window._currentUser.getIdToken();
+    const resp = await fetch(`${_MAINT_WORKER_BASE}/_admin/sweep-legacy-images`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${idToken}` }
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const result = await resp.json();
+    const ownerNote = result.docsWithNoKnownOwner
+      ? ` (${result.docsWithNoKnownOwner} record${result.docsWithNoKnownOwner === 1 ? '' : 's'} had no recoverable file location and were only cleared)`
+      : '';
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Swept ${result.refcountDocsSwept} record${result.refcountDocsSwept === 1 ? '' : 's'} — deleted ${result.objectsDeleted} old image file${result.objectsDeleted === 1 ? '' : 's'}${ownerNote}.</div>`;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(e.message || String(e))}</div>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function adminAssignAdminUI() {

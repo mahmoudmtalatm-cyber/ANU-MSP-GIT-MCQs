@@ -236,7 +236,7 @@ async function _backupDoExport() {
  * never the place responsible for making sure images are actually local.
  * A question can still end up with a remote (`http(s)://`) `q.image`
  * at export OR import time in a couple of ways — a transient network
- * failure the one time `downloadRemoteQuizImages()` tried to pull it
+ * failure the one time `ensureInlineImages()` tried to pull it
  * down after a "Save to Mine" / merge (see #91/#92; failures there are
  * intentionally silent + best-effort, not retried), a quiz saved before
  * those fixes existed at all, or an incoming backup file that was itself
@@ -258,7 +258,7 @@ async function _backupHealQuizImages(quizzes) {
     (q.questions || []).some(question => question.image && /^https?:\/\//i.test(question.image))
   );
   for (const quiz of needsHealing) {
-    await downloadRemoteQuizImages(quiz.questions);
+    await ensureInlineImages(quiz.questions);
     await saveCustomQuiz(quiz);
   }
   return needsHealing.length;

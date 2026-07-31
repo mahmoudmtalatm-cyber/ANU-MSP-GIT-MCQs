@@ -49,11 +49,6 @@ export async function fetchCommunityManifest() {
 function r2Key(category, subject, itemId) {
   return category === 'curriculum' ? `curriculum/${subject}/${itemId}.json` : `community/${itemId}.json`;
 }
-function r2ImageUploadUrl(category, subject, itemId) {
-  return category === 'curriculum'
-    ? `${WORKER_BASE_URL}/curriculum/${subject}/${itemId}/images/new.jpg`
-    : `${WORKER_BASE_URL}/community/${itemId}/images/new.jpg`;
-}
 
 /**
  * Fetches one curriculum lecture's content, using the local IndexedDB
@@ -110,65 +105,20 @@ export async function getCommunityQuiz(quizId, { skipThrottle = false } = {}) {
 }
 
 /**
- * Writes a lecture or quiz's content. Images (data URLs in
- * content.questions[i].image) are uploaded individually first, each
- * becoming a permanent R2 URL. An image that's already hosted on OUR OWN
- * server (e.g. an admin publishing a community quiz's image straight to
- * a curriculum lecture) is linked by hash alone instead — the Worker
- * already dedupes by content hash server-side, so there's no need to
- * have the browser download those bytes and re-upload them just to end
- * up back where they started; see the X-Reference-Hash handling in
- * worker-index.js. Any other already-resolved URL (in practice this
- * shouldn't occur — every image in this app is either a local data: URL
- * or one this server already hosts) is left untouched rather than
- * guessed at.
- * `content.questions[i].__previousImageUrl` (if present) lets the Worker
- * safely release the old image via refcount instead of an unconditional delete.
+ * Writes a lecture or quiz's content as-is. Images live INLINE on each
+ * question (content.questions[i].image, a data: URL) — there's no
+ * separate per-image upload step here at all; it's just a field in the
+ * JSON, same as the question text. The caller is responsible for making
+ * sure every image is already inlined before calling this — see
+ * ensureInlineImages() in firebase-storage.js, which every save/share/
+ * publish path runs first.
  */
 export async function putContentItem(category, subject, itemId, content) {
   const idToken = await window._currentUser.getIdToken();
-  const authHeader = { Authorization: `Bearer ${idToken}` };
-
-  for (const q of content.questions || []) {
-    if (!q.image) continue;
-    const previousHash = q.__previousImageUrl ? q.__previousImageUrl.split('/images/')[1]?.split('.')[0] || '' : '';
-
-    if (q.image.startsWith('data:')) {
-      // Genuinely new bytes the server has never seen — an actual upload.
-      const bytes = await (await fetch(q.image)).blob();
-      const uploadResp = await fetch(r2ImageUploadUrl(category, subject, itemId), {
-        method: 'PUT',
-        headers: { ...authHeader, 'Content-Type': bytes.type || 'image/jpeg', 'X-Previous-Image-Hash': previousHash },
-        body: bytes
-      });
-      if (!uploadResp.ok) throw new Error(`Image upload failed: ${await uploadResp.text()}`);
-      const { key } = await uploadResp.json();
-      q.image = `${WORKER_BASE_URL}/${key}`;
-      delete q.__previousImageUrl;
-    } else if (q.image.startsWith(`${WORKER_BASE_URL}/`) && q.image.includes('/images/')) {
-      // Already hosted by us somewhere (this item's own prior image, or a
-      // different item's — e.g. the community quiz this is being
-      // published from). Send the hash alone; no bytes over the wire.
-      const hash = q.image.split('/images/')[1]?.split('.')[0];
-      if (hash) {
-        const refResp = await fetch(r2ImageUploadUrl(category, subject, itemId), {
-          method: 'PUT',
-          headers: { ...authHeader, 'X-Reference-Hash': hash, 'X-Previous-Image-Hash': previousHash }
-        });
-        if (!refResp.ok) throw new Error(`Image reference failed: ${await refResp.text()}`);
-        const { key } = await refResp.json();
-        q.image = `${WORKER_BASE_URL}/${key}`;
-        delete q.__previousImageUrl;
-      }
-    }
-    // Any other value (a foreign, non-data:, non-self-hosted URL) is left
-    // exactly as-is — there's nothing safe to do with it here, and this
-    // shouldn't arise in practice given how images enter this app.
-  }
 
   const putResp = await fetch(`${WORKER_BASE_URL}/${r2Key(category, subject, itemId)}`, {
     method: 'PUT',
-    headers: { ...authHeader, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(content)
   });
   if (!putResp.ok) throw new Error(`Content write failed: ${await putResp.text()}`);

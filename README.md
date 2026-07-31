@@ -799,6 +799,74 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **97 — Replaced the entire hash-addressed R2 image system (#91–#96)
+  with inline images: every question's image now lives directly inside
+  its own quiz/lecture JSON, as a `data:` URL, exactly like any other
+  field.** No more separate image objects, no content hashing, no
+  refcounting, no dedup, no reference-linking — an image is just part of
+  the content it belongs to, saved and deleted along with it. This
+  removes an entire class of bug this session kept finding new instances
+  of (#91, #92, #95's leak, #96's redundant round-trip): a "saved"/
+  "published" copy secretly still depending on some other item's storage
+  staying alive. That dependency can no longer exist, by construction.
+  - **`worker-index.js`**: removed `incrementImageRefcount()`,
+    `decrementImageRefcountAndMaybeDelete()`, `sha256Hex()`, the entire
+    image-hash PUT branch, and the DELETE handler's per-image release
+    logic. PUT now just writes whatever JSON the client sends; DELETE
+    just deletes it. ~30% shorter. Also fixed a real (previously latent)
+    bug surfaced while building the migration tool below: the community
+    write path unconditionally stamped `authorUid` to whoever's currently
+    writing — harmless while only an author could ever rewrite their own
+    quiz, but it would have silently reassigned authorship to whichever
+    admin ran a bulk migration. `authorUid` is now only set on a
+    genuinely new quiz; an existing quiz's authorship is preserved
+    regardless of who (author or admin) is currently writing to it.
+  - **`content-client.js`**: `putContentItem()` is now a plain write —
+    removed all per-image upload/reference logic and `r2ImageUploadUrl()`.
+  - **`firebase-storage.js`**: renamed `downloadRemoteQuizImages()` →
+    `ensureInlineImages()` — the one canonical "make sure every image is
+    a local `data:` URL" step, now called before every write path in the
+    app (save, merge, share, publish, rename, swap order, split, move)
+    rather than just "Save to Mine"/merge. The old legacy Firestore-
+    subcollection custom-quiz image code (`hydrateQuizImages`'s sentinel
+    resolution, already-dead `uploadQuizImagesToStorage`) is untouched —
+    a separate, already-obsolete system from before local custom quizzes
+    moved to IndexedDB, unrelated to this conversion.
+  - **`user-profile.js`**: deleted the dead, already-unused legacy
+    `uploadImageToR2`/`uploadSharedQuizImages`/`deleteSharedQuizImages`/
+    `uploadPublishedLectureImages`/`deletePublishedLectureImages`
+    functions (superseded by `content-client.js` well before this session).
+  - **`sharing.js`, `community-quizzes.js`, `quiz-editor.js`,
+    `curriculum-admin.js`, `split-quiz.js`, `backup-transfer-ui.js`**:
+    every write path updated to call `ensureInlineImages()` first and to
+    stop referencing the removed refcount/reference-hash machinery in
+    comments. Stripped the now-meaningless `__previousImageUrl`
+    bookkeeping from `quiz-editor.js`'s published-lecture edit flow —
+    replacing an image is just overwriting a field now, nothing to release.
+  - **Migration tool** (new, in `js/admin-panel.js`'s "👑 Manage Admins"
+    tab, super-admin only): "▶️ Migrate all images to inline storage"
+    walks every published curriculum lecture and every community quiz,
+    inlines any question still pointing at an old separately-hosted
+    image, and re-saves only the ones that needed it. Safe to re-run —
+    already-migrated content is skipped with no write. This is what
+    makes existing content actually use the new system, not just new
+    writes going forward.
+  - **Cleanup tool** (new: `POST /_admin/sweep-legacy-images` in
+    `worker-index.js`, plus `firestoreListCollection()` in
+    `lib/firebaseAdmin.js` to support it, plus a "🧹 Delete old image
+    storage" button in the same admin panel): once migration confirms
+    nothing depends on the old system anymore, permanently deletes every
+    leftover `imageRefcounts/{hash}` doc and its R2 object. Destructive,
+    irreversible, and deliberately gated to the super-admin account
+    specifically (not the broader admin roster) — double-confirmed on
+    the client before it's ever called.
+  - **Tradeoff, stated plainly**: inline images can no longer be
+    deduplicated across different quizzes/lectures (the whole point of
+    #95's dedup was cross-item sharing) — the exact same image used in
+    two places now costs storage twice. In exchange, the entire
+    orphan-leak/duplicate-storage/reference-linking bug class this
+    session kept encountering is structurally impossible from here on.
+
 - **96 — Closed the follow-up flagged in #95: publishing a community quiz
   to curriculum no longer downloads and re-uploads the image over the
   network at all.** #95 made the Worker dedupe by content hash, so a

@@ -5,8 +5,13 @@
 //      this project (student or admin), before allowing any write.
 //   2. Serve objects from R2 for reads (public — curriculum & community
 //      content is meant to be readable by anyone using the app).
-//   3. Accept content-hash-keyed uploads for writes, so identical image
-//      bytes always land at the identical key (dedup is automatic).
+//   3. Accept a quiz/lecture's JSON content and write it as-is. Images live
+//      INLINE inside that JSON (as data: URLs on each question), not as
+//      separate R2 objects — so there's no upload-then-reference dance, no
+//      content hashing, and no refcounting for this Worker to manage at
+//      all: an image is just a field on a question, exactly like the
+//      question text, and it's deleted the same way the question is —
+//      by deleting the JSON document that contains it.
 //
 // Per-role authorization (only a 'curriculum' admin — whose recorded scope
 // covers the target subject — may write under curriculum/; only a quiz's
@@ -26,7 +31,7 @@
 // "no manifest entry" as "doesn't exist."
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc, firestoreSetNestedField } from './lib/firebaseAdmin.js';
+import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc, firestoreSetNestedField, firestoreListCollection } from './lib/firebaseAdmin.js';
 
 /* =============================================================================
    CORS
@@ -48,8 +53,8 @@ import { firestoreGetDoc, firestorePatchDoc, firestoreDeleteDoc, firestoreSetNes
    ============================================================================= */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Previous-Image-Hash',
+  'Access-Control-Allow-Methods': 'GET, PUT, DELETE, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
   'Access-Control-Max-Age': '86400'
 };
 
@@ -150,67 +155,6 @@ async function isCommunityQuizAuthor(env, uid, communityQuizId) {
 }
 
 /**
- * Bumps (or creates) the refcount for an image hash. Called whenever a
- * question starts using this hash — whether that's the first time this
- * hash has ever been seen (a brand-new upload) or a different, unrelated
- * item choosing to reference bytes that already exist somewhere in the
- * bucket (deduped — see the PUT handler below).
- *
- * `ownerKey` is the R2 object key that PHYSICALLY holds this hash's bytes
- * right now. It's recorded once, on the doc's first write, and never
- * overwritten afterward — every later reference just bumps `count`.
- * This is what lets `decrementImageRefcountAndMaybeDelete()` always clean
- * up the correct object, regardless of which item (or how many different
- * items) ever referenced this hash, or which one happens to be the last
- * to release it.
- */
-async function incrementImageRefcount(env, hash, ownerKey) {
-  const existing = await firestoreGetDoc(env, `imageRefcounts/${hash}`);
-  const next = (existing?.count || 0) + 1;
-  const patch = { count: next };
-  if (!existing?.ownerKey) patch.ownerKey = ownerKey;
-  await firestorePatchDoc(env, `imageRefcounts/${hash}`, patch);
-}
-
-/**
- * Decrements the refcount for an image hash. If it hits zero, deletes both
- * the R2 object and the refcount record itself — from the doc's recorded
- * `ownerKey`, i.e. wherever the bytes actually live, NOT from whichever
- * item happens to be triggering this particular decrement. Two different
- * items can reference the identical hash (e.g. an admin publishing a
- * community quiz to curriculum, which intentionally reuses the source
- * image's bytes rather than storing a second copy — see the PUT handler);
- * assuming "the caller's own prefix is where the object lives" would be
- * wrong for whichever of them ISN'T the physical owner, either leaking
- * the real object forever (if the non-owner's delete no-ops on a path
- * that was never used) or, if it happened to derive the same key by
- * coincidence, deleting a live object out from under a different owner
- * entirely — the whole point of `ownerKey` is to make this unambiguous.
- *
- * `r2KeyPrefix` is used only as a fallback for refcount docs written
- * before `ownerKey` existed (i.e. every hash that predates cross-item
- * image reuse) — for those, the caller's own prefix genuinely is correct,
- * since no hash was ever shared across items until this change shipped.
- */
-async function decrementImageRefcountAndMaybeDelete(env, hash, r2KeyPrefix) {
-  const existing = await firestoreGetDoc(env, `imageRefcounts/${hash}`);
-  if (!existing) return; // nothing to decrement — already gone or never tracked
-  const next = existing.count - 1;
-  if (next <= 0) {
-    await firestoreDeleteDoc(env, `imageRefcounts/${hash}`);
-    if (existing.ownerKey) {
-      await env.CONTENT_BUCKET.delete(existing.ownerKey).catch(() => {});
-    } else {
-      // Legacy doc from before ownerKey tracking existed.
-      await env.CONTENT_BUCKET.delete(`${r2KeyPrefix}/images/${hash}.jpg`).catch(() => {});
-      await env.CONTENT_BUCKET.delete(`${r2KeyPrefix}/images/${hash}.png`).catch(() => {});
-    }
-  } else {
-    await firestorePatchDoc(env, `imageRefcounts/${hash}`, { count: next });
-  }
-}
-
-/**
  * Where a content key's version marker lives in Firestore — shared by the
  * manifest-bump-on-write and manifest-clear-on-delete logic below, so the
  * two paths can never disagree with each other about the doc/field shape.
@@ -274,12 +218,6 @@ async function verifyFirebaseToken(request, projectId) {
   return payload; // payload.sub is the Firebase UID
 }
 
-/** Computes a SHA-256 hex hash of the given bytes — used as the R2 key for images. */
-async function sha256Hex(arrayBuffer) {
-  const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export default {
   async fetch(request, env) {
     // ---- CORS preflight ----
@@ -327,7 +265,55 @@ async function handleRequest(request, env) {
     return withCors(new Response(object.body, { headers }));
   }
 
-  // ---- WRITES: require a verified Firebase identity, then a role check ----
+  // ---- MAINTENANCE: one-time cleanup of the pre-inline-image storage
+  // system's leftovers. Every image is now written inline (a data: URL
+  // right on its question) — nothing in the app's normal read/write path
+  // creates or reads an `imageRefcounts/{hash}` doc, or a separately-
+  // hosted `.../images/{hash}.*` R2 object, anymore. This sweep exists
+  // purely to reclaim the R2 storage those old objects still occupy,
+  // once every quiz/lecture that used to reference them has been
+  // migrated to inline storage (see js/admin-panel.js's migration tool).
+  // Deliberately gated to the single super-admin account, not the
+  // broader curriculum/community admin roster — this deletes storage
+  // with no undo, and running it before migration is complete would
+  // permanently break any not-yet-migrated quiz/lecture still pointing
+  // at one of these objects.
+  if (request.method === 'POST' && url.pathname === '/_admin/sweep-legacy-images') {
+    let email;
+    try {
+      const payload = await verifyFirebaseToken(request, env.FIREBASE_PROJECT_ID);
+      email = payload.email || null;
+    } catch (err) {
+      return withCors(new Response(`Unauthorized: ${err.message}`, { status: 401 }));
+    }
+    if (!isSuperAdmin(email)) {
+      return withCors(new Response('Forbidden: legacy-image cleanup is restricted to the super-admin account', { status: 403 }));
+    }
+
+    const refcountDocs = await firestoreListCollection(env, 'imageRefcounts');
+    let objectsDeleted = 0, docsWithNoKnownOwner = 0;
+    for (const doc of refcountDocs) {
+      if (doc.ownerKey) {
+        await env.CONTENT_BUCKET.delete(doc.ownerKey).catch(() => {});
+        objectsDeleted++;
+      } else {
+        // A refcount doc from before ownerKey tracking existed (see the
+        // #95-era history in the README) — there's no reliable way to
+        // derive its physical R2 key from the doc alone, so it's left in
+        // place; only the now-meaningless counter is cleared below.
+        docsWithNoKnownOwner++;
+      }
+      await firestoreDeleteDoc(env, `imageRefcounts/${doc.id}`);
+    }
+
+    return withCors(new Response(JSON.stringify({
+      refcountDocsSwept: refcountDocs.length,
+      objectsDeleted,
+      docsWithNoKnownOwner
+    }), { headers: { 'Content-Type': 'application/json' } }));
+  }
+
+
   // verifyFirebaseToken() only confirms "this is some real, signed-in
   // Firebase user" — the isCurriculumAdmin()/isCommunityAdmin()/
   // isCommunityQuizAuthor() checks right below decide whether *this*
@@ -344,6 +330,7 @@ async function handleRequest(request, env) {
 
     // Per-role authorization: check who's allowed to write to this key
     // BEFORE touching R2 at all.
+    let existingCommunityObject = null; // set below, only for community/ writes; reused after auth to decide whether to preserve the existing authorUid
     if (key.startsWith('curriculum/')) {
       // Key shape: curriculum/{subject}/{lectureId}.json (see r2Key() in
       // js/content-client.js) — the subject is what curriculum SCOPE is
@@ -362,8 +349,8 @@ async function handleRequest(request, env) {
       // quiz at all (isCommunityAdmin() is only ever true for roster admins
       // — see below). Only an *existing* quiz's author/admin gate applies
       // once there's actually a prior version to protect.
-      const existingObject = await env.CONTENT_BUCKET.get(key);
-      const authorized = !existingObject
+      existingCommunityObject = await env.CONTENT_BUCKET.get(key);
+      const authorized = !existingCommunityObject
         || (await isCommunityAdmin(env, email))
         || (await isCommunityQuizAuthor(env, uid, communityQuizId));
       if (!authorized) {
@@ -377,116 +364,46 @@ async function handleRequest(request, env) {
       return withCors(new Response('Forbidden: unrecognized content path', { status: 403 }));
     }
 
-    // If this write is replacing a previous image on the same question,
-    // the client includes the old hash so we can safely decrement/clean
-    // up its refcount — never an unconditional delete (see plan §4).
-    const previousHash = request.headers.get('X-Previous-Image-Hash');
-    // If this write is just LINKING to an image that already lives on
-    // this server (see js/content-client.js's putContentItem — used when
-    // e.g. publishing a community quiz's image straight to a curriculum
-    // lecture), the client sends the hash alone instead of the bytes —
-    // no need to have the browser download and re-upload something the
-    // server already has.
-    const referenceHash = request.headers.get('X-Reference-Hash');
-    const r2KeyPrefix = key.split('/images/')[0];
-
-    // Images are content-hash-addressed: the actual storage key is derived
-    // from the bytes themselves (or, for a reference-only request, from
-    // the claimed hash), ignoring whatever key the client asked for in
-    // the URL, for the image sub-path specifically.
-    let finalKey = key;
-    if (key.includes('/images/')) {
-      let hash, deduped;
-
-      if (referenceHash) {
-        // Only ever allowed for a hash that's already a real, tracked
-        // image with a known physical owner — never accepts an arbitrary
-        // claimed hash with no backing object, which would otherwise let
-        // a client inflate a refcount for bytes nobody ever actually
-        // uploaded to this server.
-        if (!/^[0-9a-f]{64}$/i.test(referenceHash)) {
-          return withCors(new Response('Bad request: malformed reference hash', { status: 400 }));
-        }
-        const refDoc = await firestoreGetDoc(env, `imageRefcounts/${referenceHash}`);
-        if (!refDoc?.ownerKey) {
-          return withCors(new Response('Bad request: referenced image does not exist', { status: 400 }));
-        }
-        hash = referenceHash;
-        finalKey = refDoc.ownerKey;
-        deduped = true;
-      } else {
-        const bodyBuffer = await request.arrayBuffer();
-        hash = await sha256Hex(bodyBuffer);
-        const ext = key.split('.').pop();
-        const ownKey = key.replace(/images\/[^/]+$/, `images/${hash}.${ext}`);
-
-        // Ask the refcount doc (not just this item's own path) whether
-        // this exact hash's bytes already live SOMEWHERE in the bucket.
-        // Two different items with byte-identical images should share
-        // one physical object, not each get their own copy.
-        const refDoc = await firestoreGetDoc(env, `imageRefcounts/${hash}`);
-        if (refDoc?.ownerKey) {
-          // Already stored (by this item or a different one entirely) —
-          // just point at it. No bytes written.
-          finalKey = refDoc.ownerKey;
-          deduped = true;
-        } else {
-          // No tracked owner yet: either a genuinely new hash, or a
-          // legacy refcount doc from before owner-tracking existed.
-          // Check this item's own path first — the only place
-          // pre-migration code ever wrote to — before assuming a write
-          // is actually needed.
-          const alreadyAtOwnPath = await env.CONTENT_BUCKET.head(ownKey);
-          if (!alreadyAtOwnPath) {
-            await env.CONTENT_BUCKET.put(ownKey, bodyBuffer, {
-              httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
-            });
-          }
-          finalKey = ownKey;
-          deduped = !!alreadyAtOwnPath;
-        }
-      }
-
-      await incrementImageRefcount(env, hash, finalKey);
-
-      // Only now, after the new hash is safely referenced, release the
-      // old one — never delete before the replacement is confirmed in place.
-      if (previousHash && previousHash !== hash) {
-        await decrementImageRefcountAndMaybeDelete(env, previousHash, r2KeyPrefix);
-      }
-
-      return withCors(new Response(JSON.stringify({ key: finalKey, deduped }), {
-        headers: { 'Content-Type': 'application/json' }
-      }));
-    }
-
-    // Non-image writes (quiz/lecture text JSON) — no hashing, no refcount,
-    // just a straightforward authorized write, followed by the manifest
-    // bump every manifest-gated reader (getCurriculumLecture/
-    // getCommunityQuiz/ensureSharedQuizzesLoaded) needs to actually see it.
+    // Images live inline in the JSON body now (a data: URL on each
+    // question) — there's no separate image sub-path, no hashing, no
+    // refcounting. Just write whatever content the client sent.
     const bodyBuffer = await request.arrayBuffer();
     let finalBody = bodyBuffer;
     if (key.startsWith('community/')) {
-      // authorUid must reflect who's actually making this request, not
-      // whatever the client happened to send — otherwise the "any signed-in
-      // user may create a new community quiz" rule above would let someone
-      // claim authorship (and therefore future edit/delete rights) under a
-      // different uid. Re-serializing here is the one place that's true
-      // for every community write, regardless of client version.
+      // authorUid must reflect the ORIGINAL author, not whoever happens to
+      // be making this particular write. For a brand-new quiz (no prior
+      // object — see existingCommunityObject above) that's necessarily
+      // the current requester, and must be forced server-side so the "any
+      // signed-in user may create a new community quiz" rule above can't
+      // be used to claim authorship under a different uid. For an
+      // ALREADY-EXISTING quiz, the authorization check above already
+      // restricts who's allowed to write here (the original author, or an
+      // admin) regardless of who's currently writing — so the existing
+      // document's authorUid is preserved untouched here, never
+      // overwritten with the current writer's uid. This matters
+      // concretely whenever an admin writes to a quiz they didn't
+      // author — e.g. the legacy-image migration tool touching every
+      // community quiz in bulk — which must never reassign authorship
+      // (and therefore future edit/delete rights) to the admin running it.
       try {
         const content = JSON.parse(new TextDecoder().decode(bodyBuffer));
-        content.authorUid = uid;
+        if (existingCommunityObject) {
+          const existingContent = await existingCommunityObject.json();
+          content.authorUid = existingContent.authorUid;
+        } else {
+          content.authorUid = uid;
+        }
         finalBody = new TextEncoder().encode(JSON.stringify(content));
       } catch (err) {
         return withCors(new Response(`Bad request: quiz content isn't valid JSON: ${err.message}`, { status: 400 }));
       }
     }
-    await env.CONTENT_BUCKET.put(finalKey, finalBody, {
-      httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
+    await env.CONTENT_BUCKET.put(key, finalBody, {
+      httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/json' }
     });
-    await bumpManifestVersion(env, finalKey);
+    await bumpManifestVersion(env, key);
 
-    return withCors(new Response(JSON.stringify({ key: finalKey, deduped: false }), {
+    return withCors(new Response(JSON.stringify({ key }), {
       headers: { 'Content-Type': 'application/json' }
     }));
   }
@@ -518,33 +435,9 @@ async function handleRequest(request, env) {
       return withCors(new Response('Forbidden: unrecognized content path', { status: 403 }));
     }
 
-    // Release any images this content referenced before removing it, so
-    // refcounts stay accurate — mirrors the PUT path's replace-image
-    // handling (see decrementImageRefcountAndMaybeDelete above). The
-    // content's own image prefix is derived the same way r2ImageUploadUrl()
-    // in js/content-client.js builds it: strip the trailing ".json".
-    const r2KeyPrefix = key.replace(/\.json$/, '');
-    const existingObject = await env.CONTENT_BUCKET.get(key);
-    if (existingObject) {
-      try {
-        const content = await existingObject.json();
-        const hashes = new Set();
-        for (const q of content.questions || []) {
-          if (typeof q.image === 'string' && q.image.includes('/images/')) {
-            const hash = q.image.split('/images/')[1]?.split('.')[0];
-            if (hash) hashes.add(hash);
-          }
-        }
-        for (const hash of hashes) {
-          await decrementImageRefcountAndMaybeDelete(env, hash, r2KeyPrefix);
-        }
-      } catch (err) {
-        // A malformed/unparsable existing object shouldn't block the
-        // delete itself — the content is removed below regardless.
-        console.error(`Failed to release images for ${key} before delete:`, err);
-      }
-    }
-
+    // Images are inline inside this JSON document (see the PUT handler
+    // above) — deleting the document deletes them with it. No separate
+    // R2 objects or refcounts to release.
     await env.CONTENT_BUCKET.delete(key);
     await clearManifestVersion(env, key);
 

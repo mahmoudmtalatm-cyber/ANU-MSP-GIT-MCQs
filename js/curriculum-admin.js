@@ -596,9 +596,11 @@ async function adminExecMoveQuiz(andDelete) {
     const srcData = await srcResp.json();
 
     const questions = JSON.parse(JSON.stringify(srcData.questions || []));
-    // Images are already permanent R2 URLs — left as-is even across the
-    // move (content-hash addressing means they're valid forever regardless
-    // of which subject folder they were originally uploaded under).
+    // Images are inline data: URLs on each question — copying/moving to a
+    // different subject doesn't affect them at all, they're just part of
+    // the JSON. Opportunistic migration: inline any legacy remote image
+    // reference while we're touching this lecture anyway.
+    await ensureInlineImages(questions);
 
     const newId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const publishedAt = Date.now();

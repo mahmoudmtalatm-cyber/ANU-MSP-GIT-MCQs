@@ -95,26 +95,29 @@ async function _urlToDataUrl(url) {
   });
 }
 
-/** Pulls every still-remote `q.image` (an http(s) URL — e.g. a community
- *  quiz's R2-hosted image, still pointing at the original share) down into
- *  a real local data URL, in place. Used when saving a community quiz to
- *  "Your Custom Quizzes": that quiz's images live under the *community*
- *  post's own storage and are only kept alive by that post's image
- *  refcount, so deleting the original share later would otherwise take a
- *  saved copy's images down with it. Pairs with uploadQuizImagesToStorage()
- *  right after, which persists the now-local data URL into this user's own
- *  per-quiz Firestore image storage — the same place every other custom
- *  quiz's images already live — making the saved copy genuinely
- *  independent of the community post it came from. Failures are left as
- *  the original URL (best-effort: an image that fails to download here is
- *  no worse off than before this fix, just not yet "owned" locally). */
-async function downloadRemoteQuizImages(questions) {
+/** The single canonical "make sure every image is inline" step. Pulls
+ *  every still-remote `q.image` (an http(s) URL) down into a real local
+ *  data: URL, in place. There are two reasons a question could still have
+ *  a remote URL at this point:
+ *   1. It's a genuinely old community/curriculum item from before this
+ *      app moved to inline-only image storage — its JSON still has a URL
+ *      pointing at a separately-hosted image object.
+ *   2. It's mid-flow — e.g. a community quiz just fetched for "Save to
+ *      Mine", still carrying the URL it was fetched with.
+ *  Call this before ANY write that includes questions (save, merge,
+ *  share, publish, swap/rename/split, migration) — putContentItem()
+ *  (content-client.js) does no image handling of its own anymore; images
+ *  are just an ordinary field on the question, written and deleted along
+ *  with everything else in the JSON. Failures are left as the original
+ *  URL (best-effort: an image that fails to download here is no worse
+ *  off than before this fix, just not yet inlined). */
+async function ensureInlineImages(questions) {
   await Promise.all((questions || []).map(async (q) => {
     if (!q.image || !/^https?:\/\//i.test(q.image)) return; // not a remote URL — nothing to pull down
     try {
       q.image = await _urlToDataUrl(q.image);
     } catch (e) {
-      console.warn('Failed to download remote quiz image for local save', q.image, e);
+      console.warn('Failed to inline remote quiz image', q.image, e);
     }
   }));
 }

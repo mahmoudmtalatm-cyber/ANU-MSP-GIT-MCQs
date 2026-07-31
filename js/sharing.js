@@ -30,6 +30,7 @@ async function shareCustomQuiz(id) {
       if (q.imageUrl && q.imageUrl.startsWith('firestore://')) delete q.imageUrl;
       return q;
     });
+    await ensureInlineImages(questionsForUpload); // no-op in practice — local custom quizzes are already inline
 
     const { putContentItem } = await import('./content-client.js');
     await putContentItem('community', null, sharedId, {
@@ -444,20 +445,18 @@ async function importCommunityQuiz(sharedId) {
     if (alreadyExists) { alert('You already have this quiz saved.'); return; }
 
     const importedQuestions = restoreOptionsOrder(q.questions);
-    await hydrateQuizImages(importedQuestions); // resolves any legacy Storage-URL images only; R2 images are already real URLs
+    await hydrateQuizImages(importedQuestions); // resolves any legacy Storage-URL images only; new images are already inline
 
-    // A community quiz's images live at community/{sharedId}/images/... in
-    // R2, kept alive only by that share's own image refcount — if the
-    // original share is later deleted, that refcount drops to zero and the
-    // image is deleted for good, breaking any saved copy still pointing at
-    // it. So this isn't a fully independent copy just because the question
-    // text has been cloned into this user's own quiz list: the images
-    // still point straight back at the community post. Pull every
-    // still-remote image down into a real local data URL first, exactly
-    // like any other custom-quiz question image (inline in IndexedDB, never
-    // a remote reference) — that's what actually makes this copy survive
-    // the original share being edited or deleted later.
-    await downloadRemoteQuizImages(importedQuestions);
+    // Under the current architecture, a community quiz's images are
+    // written INLINE (a data: URL right on the question) — so in the
+    // normal case there's nothing left to do here. This only does real
+    // work for a quiz that predates that change and still has a question
+    // pointing at a separately-hosted image URL; pulling that down into a
+    // real local data URL now (same as any other custom-quiz question
+    // image — inline in IndexedDB, never a remote reference) is what
+    // makes this saved copy independent of wherever that old URL pointed,
+    // in case it's ever removed.
+    await ensureInlineImages(importedQuestions);
 
     quizzes.unshift({
       id: 'cq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -485,11 +484,8 @@ async function deleteCommunityQuiz(sharedId) {
       alert('You can only remove your own shared quizzes.');
       return;
     }
-    // Deletes the content AND releases its images' refcounts (deleting the
-    // actual R2 image only if nothing else — e.g. a student's already-saved
-    // custom-quiz copy — still needs it; but per the design, saved copies
-    // are full independent copies, so this only ever protects against a
-    // rare identical-image-reused-elsewhere case, same as curriculum).
+    // Deletes the content — its images are inline in the JSON itself, so
+    // they're removed along with everything else, nothing separate to clean up.
     await deleteContentItem('community', null, sharedId);
 
     // Clear sharedAt from local quiz cache

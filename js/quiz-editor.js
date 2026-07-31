@@ -742,7 +742,10 @@ async function adminSwapLectureOrder(lectureId, direction) {
 
     // Each write here is a normal authorized content write — updates that
     // one lecture's `order` field and (server-side, in the Worker) bumps
-    // just its own manifest entry, same as any other edit.
+    // just its own manifest entry, same as any other edit. Opportunistic
+    // migration: inline any legacy remote image while we're touching it anyway.
+    await ensureInlineImages(a.questions);
+    await ensureInlineImages(b.questions);
     await putContentItem('curriculum', subj, a.id, { ...a, order: bOrder });
     await putContentItem('curriculum', subj, b.id, { ...b, order: aOrder });
 
@@ -920,8 +923,9 @@ function adminJumpToCurriculumQuizzes() {
 }
 
 /* Opens the Split Quiz panel for a published curriculum lecture.
-   Hydrates its images first (published lectures store images in a
-   separate Firestore subcollection) so the split-off quizzes keep them. */
+   hydratePublishedLectureImages() is a no-op under the current inline-
+   image architecture (kept only for call-site compatibility) — a
+   published lecture's images are already part of its own JSON. */
 async function openAdminSplitPanel(lectureId) {
   const entry = adminAssignedEntries.find(x => x.id === lectureId);
   if (!entry) return;
@@ -943,11 +947,9 @@ async function adminEditPublished(lectureId) {
     adminEditingPublishedId   = lectureId;
     adminEditingPublishedName = data.lectureName || lectureId;
     adminEditQuestions = JSON.parse(JSON.stringify(data.questions || []));
-    // Images are already resolved, permanent R2 URLs — no hydrate step needed.
-    // Each question's __previousImageUrl is set here so that IF the admin
-    // changes its image, the save step below can tell the Worker which old
-    // hash to safely release (refcount-checked, never an unconditional delete).
-    adminEditQuestions.forEach(q => { if (q.image) q.__previousImageUrl = q.image; });
+    // Images are already inline (data: URLs) right on each question —
+    // no hydrate step needed, and replacing one is just overwriting the
+    // field like any other edit; there's no separate object to release.
     _questionEditDirty = false;
 
     renderAdminAssignedList();
@@ -982,6 +984,10 @@ async function adminRenamePublished(lectureId) {
     if (!resp.ok) { alert('Could not find this lecture.'); return; }
     const data = await resp.json();
     const updatedAt = Date.now();
+    // Opportunistic migration: if this lecture predates inline image
+    // storage and still has a question pointing at a separately-hosted
+    // image, inline it now rather than just passing it through unchanged.
+    await ensureInlineImages(data.questions);
     const { putContentItem } = await import('./content-client.js');
     await putContentItem('curriculum', adminTargetSubject, lectureId, { ...data, lectureName: trimmed, updatedAt });
 
@@ -1075,7 +1081,11 @@ async function adminSavePublishedEdits() {
       return q;
     });
 
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Uploading images…</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Saving…</div>`;
+
+    // In the normal case every image is already inline; this only does
+    // real work if this lecture predates inline image storage.
+    await ensureInlineImages(cleanQuestions);
 
     // Fetch the existing record first (for fields we want to preserve —
     // publishedAt, order, sourceTitle/sourceType) rather than a Firestore getDoc.
@@ -1088,7 +1098,7 @@ async function adminSavePublishedEdits() {
       ...existing,
       id: lectureId,
       lectureName: adminEditingPublishedName,
-      questions: cleanQuestions, // changed images (data URLs) get uploaded to R2 in-place; each q.__previousImageUrl (set in adminEditPublished) lets the Worker safely release the old one via refcount
+      questions: cleanQuestions, // images are inline data: URLs — a changed image is just an overwritten field, nothing separate to release
       publishedBy: window._currentUser ? window._currentUser.uid : null,
       publishedAt: existing.publishedAt || updatedAt,
       updatedAt,
@@ -1187,22 +1197,14 @@ async function adminPublishQuiz() {
       }
     }
 
-    // adminSelectedQuiz always comes from a CUSTOM or COMMUNITY source here
-    // (see adminSelectQuiz) — never an already-published curriculum lecture
-    // — so any question still pointing at a remote http(s) image URL at
-    // this point is, by definition, a community post's own R2 object
-    // (community/{sharedId}/images/{hash}.*), kept alive only by that
-    // post's own image refcount (see #91). That's true whether "✏️ Edit
-    // Before Publishing" was used or not — adminEditQuestions is just a
-    // working-copy clone of the same source questions. Nothing needs to
-    // be downloaded here, though: putContentItem() (content-client.js)
-    // detects an already-self-hosted image URL and sends the Worker a
-    // hash-only reference request instead of re-uploading bytes — the
-    // Worker links to the existing object (see #95) and bumps its
-    // refcount, so the published lecture stays live even if the original
-    // community post is later edited or deleted, without the browser
-    // ever having to download and re-upload the image at all. Already-
-    // local (data:) images are uploaded there the normal way.
+    // Images are stored INLINE in the published lecture's JSON now (a
+    // data: URL right on the question) — so every question needs its
+    // image actually inlined before this gets written. In the normal
+    // case (a fresh custom quiz, or a community quiz shared after this
+    // change) that's already true and this is a no-op; it only does real
+    // work for an older, not-yet-migrated community quiz still pointing
+    // at a separately-hosted image URL.
+    await ensureInlineImages(questions);
 
     // Deep-clone + strip source-specific sentinels so each question is clean.
     // Assign a STABLE id to every question that doesn't already have one —
@@ -1264,7 +1266,7 @@ async function adminPublishQuiz() {
     await putContentItem('curriculum', targetSubject, lectureId, {
       id: lectureId,
       lectureName,
-      questions: cleanQuestions, // images (data URLs) get uploaded to R2 in-place by putContentItem, becoming permanent URLs
+      questions: cleanQuestions, // images are inline data: URLs, already baked into the JSON — nothing further happens to them here
       sourceTitle: adminSelectedQuiz.title,
       sourceType: adminSelectedQuiz.sourceType,
       publishedBy: window._currentUser ? window._currentUser.uid : null,

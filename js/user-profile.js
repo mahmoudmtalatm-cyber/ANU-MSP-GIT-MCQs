@@ -79,74 +79,18 @@ function cleanForFirestore(obj) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   IMAGE UPLOAD — now via the Cloudflare Worker/R2, content-hash
-   addressed. Images stored in R2 are PERMANENT URLs, not sentinels —
-   once uploaded, q.image is set to the real R2 URL directly, so there
-   is no separate "hydrate" step needed anymore: fetching a lecture's
-   or quiz's content JSON from R2 (see js/content-client.js) already
-   returns fully-resolved image URLs, ready to use as-is.
+   IMAGES — now written INLINE as part of a quiz/lecture's own JSON
+   content (a data: URL directly on the question), via putContentItem()
+   in content-client.js. There's no separate per-image upload step, no
+   R2 image sub-path, and no refcount to release on delete — an image is
+   just a field on the question, saved and deleted along with it. The
+   functions below are kept only as no-ops for call-site compatibility.
 ══════════════════════════════════════════════════════════ */
 
-const WORKER_BASE_URL = 'https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev';
-
-/** Uploads one image (a data URL) for a given content item, returning its permanent R2 URL. */
-async function uploadImageToR2(category, subject, itemId, dataUrl, previousR2Url) {
-  const idToken = await window._currentUser.getIdToken();
-  const bytes = await (await fetch(dataUrl)).blob();
-  const previousHash = previousR2Url ? previousR2Url.split('/images/')[1]?.split('.')[0] || '' : '';
-  const uploadUrl = category === 'curriculum'
-    ? `${WORKER_BASE_URL}/curriculum/${subject}/${itemId}/images/new.jpg`
-    : `${WORKER_BASE_URL}/community/${itemId}/images/new.jpg`;
-
-  const resp = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-      'Content-Type': bytes.type || 'image/jpeg',
-      'X-Previous-Image-Hash': previousHash
-    },
-    body: bytes
-  });
-  if (!resp.ok) throw new Error(`Image upload failed: ${await resp.text()}`);
-  const { key } = await resp.json();
-  return `${WORKER_BASE_URL}/${key}`;
-}
-
-/** Uploads any not-yet-uploaded (data URL) images for a shared/community quiz, mutating questions in place. */
-async function uploadSharedQuizImages(sharedId, questions) {
-  for (const q of questions) {
-    if (!q.image || !q.image.startsWith('data:')) continue; // already a real URL, or no image
-    try {
-      q.image = await uploadImageToR2('community', null, sharedId, q.image, q.__previousImageUrl);
-      delete q.__previousImageUrl;
-    } catch (e) {
-      console.warn('Shared image upload failed:', e);
-    }
-  }
-}
-
-/** No-op under the new architecture — R2-fetched content already has resolved image URLs. Kept for call-site compatibility. */
+/** No-op — an inline image needs no separate hydration step; it's already part of the fetched content. Kept for call-site compatibility. */
 async function hydrateSharedQuizImages(_sharedId, _questions) { /* nothing to do — see comment above */ }
 
-/** Images live at community/{sharedId}/images/{hash}.* in R2 — deletion is handled by the Worker's DELETE endpoint's refcount cleanup, not a separate call. Kept for call-site compatibility. */
-async function deleteSharedQuizImages(_sharedId) { /* handled by the Worker on content delete, via image refcounts */ }
-
-/** Uploads any not-yet-uploaded (data URL) images for a published lecture, mutating questions in place. */
-async function uploadPublishedLectureImages(subject, lectureId, questions) {
-  for (const q of questions) {
-    if (!q.image || !q.image.startsWith('data:')) continue;
-    try {
-      q.image = await uploadImageToR2('curriculum', subject, lectureId, q.image, q.__previousImageUrl);
-      delete q.__previousImageUrl;
-    } catch (e) {
-      console.warn('Published image upload failed:', e);
-    }
-  }
-}
-
-/** No-op under the new architecture — see hydrateSharedQuizImages above. Kept for call-site compatibility. */
+/** No-op — an inline image needs no separate hydration step; it's already part of the fetched content. Kept for call-site compatibility. */
 async function hydratePublishedLectureImages(_subject, _lectureId, _questions) { /* nothing to do */ }
 
-/** Kept for call-site compatibility — deletion + refcount cleanup now handled by the Worker's DELETE endpoint. */
-async function deletePublishedLectureImages(_subject, _lectureId) { /* handled by the Worker on content delete */ }
 

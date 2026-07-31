@@ -460,10 +460,10 @@ function mergeToggleCurriculum(key, checked) {
    sub-cases nested inside it — from one merged-in quiz can never collide
    with one from another, and stripping legacy image sentinels that only
    resolve against their original source collection. By the time this runs,
-   the caller has already downloaded any still-remote (community R2) image
-   into a real local data URL via downloadRemoteQuizImages(), so q.image
-   here is a genuinely independent copy, not a live reference back to the
-   source quiz. */
+   the caller has already made sure any still-remote image is pulled down
+   into a real local data URL via ensureInlineImages(), so q.image here is
+   a genuinely independent copy, not a live reference back to the source
+   quiz. */
 function _mergeCloneQuestions(rawQuestions, namespace, sourceLabel) {
   const qs = JSON.parse(JSON.stringify(rawQuestions || []));
   qs.forEach(q => {
@@ -525,12 +525,14 @@ async function confirmMergeSelectedQuizzes() {
       const restored = restoreOptionsOrder(JSON.parse(JSON.stringify(item.questions)));
       await hydrateSharedQuizImages(id, restored);
       await hydrateQuizImages(restored);
-      // Still-remote (R2) images need to be pulled down into a real local
-      // data URL here too — a merged-in question is just as much a
-      // permanent local copy as anything from "Save to Mine", so it can't
-      // be left depending on the source community quiz's images still
-      // existing after this merge is saved.
-      await downloadRemoteQuizImages(restored);
+      // A community quiz's images are inline by default now, so in the
+      // normal case there's nothing left to pull down here — but a
+      // merged-in question is just as much a permanent local copy as
+      // anything from "Save to Mine", so any question from an older,
+      // not-yet-migrated quiz still pointing at a remote image gets
+      // inlined here too, rather than being left depending on that
+      // source quiz's images still existing after this merge is saved.
+      await ensureInlineImages(restored);
       appended = appended.concat(_mergeCloneQuestions(restored, 'comm_' + id, item.title || 'Community quiz'));
     }
 
@@ -542,14 +544,18 @@ async function confirmMergeSelectedQuizzes() {
       appended = appended.concat(_mergeCloneQuestions(quiz.questions, quiz.id, quiz.title || 'Custom quiz'));
     });
 
-    // Curriculum lectures are already hydrated in memory.
-    mergeSelectedCurriculum.forEach(key => {
+    // Curriculum lectures are already hydrated in memory; still runs
+    // ensureInlineImages defensively in case an older, not-yet-migrated
+    // lecture still has a remote image reference.
+    for (const key of mergeSelectedCurriculum) {
       const sep = key.indexOf('::');
       const subjectKey = key.slice(0, sep), lectureName = key.slice(sep + 2);
       const qs = subjects[subjectKey] && subjects[subjectKey].lectures && subjects[subjectKey].lectures[lectureName];
-      if (!qs) return;
-      appended = appended.concat(_mergeCloneQuestions(qs, 'curr_' + key, lectureName || 'Lecture'));
-    });
+      if (!qs) continue;
+      const restoredCurr = JSON.parse(JSON.stringify(qs));
+      await ensureInlineImages(restoredCurr);
+      appended = appended.concat(_mergeCloneQuestions(restoredCurr, 'curr_' + key, lectureName || 'Lecture'));
+    }
 
     target.push(...appended);
     closeMergePicker();

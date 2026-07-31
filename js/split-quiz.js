@@ -484,6 +484,10 @@ async function executeSplitQuiz(targetMode) {
           : `${baseTitle} — Part ${i + 1} (Q${c.start}–Q${Math.min(c.end, total)})`;
         const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + i;
 
+        // Opportunistic migration: inline any legacy remote image before
+        // writing this new lecture — in the normal case this is a no-op.
+        await ensureInlineImages(partQuestions);
+
         const { putContentItem } = await import('./content-client.js');
         await putContentItem('curriculum', subject, lectureId, {
           id: lectureId,
@@ -617,10 +621,8 @@ async function deleteCustomQuiz(id) {
 /* Quick standalone rename for a saved custom quiz — just its title, no
    need to open the full question editor for that. Reuses the same
    saveCustomQuizzesList() round-trip deleteCustomQuiz above already uses;
-   that's safe/cheap here too since every question's image is already
-   hydrated to an `imageUrl` pointer by this point (uploadQuizImagesToStorage
-   only re-uploads when raw base64 `image` data is present — see
-   js/firebase-storage.js), so re-saving the list doesn't re-upload anything. */
+   a custom quiz's images are stored inline (as data: URLs, right in
+   IndexedDB) so a rename-only re-save doesn't need to touch them at all. */
 async function renameCustomQuiz(id) {
   const quizzes = loadCustomQuizzes();
   const quiz = quizzes.find(q => q.id === id);
