@@ -658,6 +658,7 @@ function renderCqApiKeyBadge() {
 }
 
 function renderCustomQuizModal() {
+  cqCollectionsHost = 'custom'; // this modal owns the shared collections tree/breadcrumb UI while it's open
   const body       = document.getElementById('customQuizBody');
   const quizzes    = loadCustomQuizzes();
   const collections = loadQuizCollections();

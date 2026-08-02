@@ -27,29 +27,6 @@ let adminPublishInsertPosition = null;
 let adminCommunityCache = null;
 let adminBusy = false;
 
-// #98 — Collections filter for the "🤖 My Custom Quizzes" source list: lets
-// an admin narrow the publish-source list down to one folder (including its
-// nested subfolders) the same way the main Custom Quizzes page does, instead
-// of always scrolling one long flat list. null = All Quizzes; CQ_UNCATEGORIZED
-// = only quizzes with no folder; otherwise a collection id. Entirely separate
-// from cqActiveCollectionId so it never affects, or is affected by, whatever
-// folder the admin has open on their own Custom Quizzes page.
-let adminCustomCollectionFilter = null;
-
-// #98 — Multi-select / bulk publish: when on, clicking a quiz in either
-// source list toggles it in/out of adminSelectedQuizIds instead of opening
-// the single-quiz "edit before publishing" flow, and the assign area below
-// switches to the bulk publish form (adminRenderBulkAssignForm) so several
-// lectures can be published into the same subject in one action. Keys are
-// "sourceType:sourceId" so ids from 'custom' and 'community' never collide.
-let adminMultiSelectMode = false;
-let adminSelectedQuizIds = new Set();
-// Lecture-name text the admin has typed into the bulk form, keyed by
-// "sourceType:sourceId" — kept separate from the quiz's own title so it
-// survives the form being rebuilt (e.g. picking a different destination
-// subject) instead of snapping back to the default every keystroke.
-let adminBulkNameOverrides = {};
-
 // Search/filter state for the "🌐 Community Quizzes" source list in the
 // Publish tab — mirrors communitySearchQuery/Year/Module/SubjectFilter/Sort
 // from the student-facing Community Quizzes browse overlay, kept as its
@@ -173,10 +150,6 @@ function openAdminPanel() {
   commManageModuleFilter  = '';
   commManageSubjectFilter = '';
   commManageSort          = 'newest';
-  adminCustomCollectionFilter = null;
-  adminMultiSelectMode   = false;
-  adminSelectedQuizIds   = new Set();
-  adminBulkNameOverrides = {};
   resetAdminNewAdminFormState();
   const defaultTab = adminDefaultTab();
   if (!defaultTab) {
@@ -491,97 +464,7 @@ function adminSetSourceTab(tab) {
   adminCommModuleFilter  = '';
   adminCommSubjectFilter = '';
   adminCommSort          = 'newest';
-  adminCustomCollectionFilter = null;
-  adminMultiSelectMode   = false;
-  adminSelectedQuizIds   = new Set();
-  adminBulkNameOverrides = {};
   renderAdminPanel();
-}
-
-/* #98 — Toggle bulk/multi-select mode for the publish source list. Turning
-   it on clears any single-quiz selection (and closes edit-before-publish,
-   which only makes sense for one quiz at a time); turning it off clears the
-   bulk selection so switching back to single-pick mode starts clean. */
-function adminToggleMultiSelectMode() {
-  adminMultiSelectMode = !adminMultiSelectMode;
-  adminSelectedQuizIds = new Set();
-  adminBulkNameOverrides = {};
-  if (adminMultiSelectMode) {
-    adminSelectedQuiz = null;
-    adminEditMode = null;
-    adminEditQuestions = null;
-  }
-  renderAdminPanel();
-}
-
-/* #98 — Toggle one quiz's membership in the bulk-publish selection. */
-function adminToggleQuizSelected(sourceType, sourceId) {
-  const key = sourceType + ':' + sourceId;
-  if (adminSelectedQuizIds.has(key)) adminSelectedQuizIds.delete(key);
-  else adminSelectedQuizIds.add(key);
-  renderAdminPanel();
-}
-
-/* #98 — Folder filter for the "My Custom Quizzes" source list. */
-function adminSetCustomCollectionFilter(val) {
-  adminCustomCollectionFilter = val || null;
-  renderAdminPanel();
-}
-
-/* #98 — Shared row renderer for both source lists ("My Custom Quizzes" and
-   "Community Quizzes"). In normal mode, clicking a row opens it for
-   single-quiz publish (adminSelectQuiz) exactly as before. In bulk mode, the
-   whole row instead toggles a checkbox into/out of the multi-select set. */
-function adminQuizItemHtml(sourceType, id, title, metaHtml) {
-  const key = sourceType + ':' + id;
-  if (adminMultiSelectMode) {
-    const checked = adminSelectedQuizIds.has(key);
-    return `
-      <div class="admin-quiz-item admin-quiz-item-bulk ${checked ? 'selected' : ''}" onclick="adminToggleQuizSelected('${sourceType}','${id}')">
-        <div class="admin-quiz-item-checkbox">${checked ? '☑️' : '⬜'}</div>
-        <div class="admin-quiz-item-info">
-          <div class="admin-quiz-item-title">${escapeHtml(title || 'Untitled Quiz')}</div>
-          <div class="admin-quiz-item-meta">${metaHtml}</div>
-        </div>
-      </div>`;
-  }
-  const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === sourceType && adminSelectedQuiz.sourceId === id;
-  return `
-    <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('${sourceType}','${id}')">
-      <div class="admin-quiz-item-info">
-        <div class="admin-quiz-item-title">${escapeHtml(title || 'Untitled Quiz')}</div>
-        <div class="admin-quiz-item-meta">${metaHtml}</div>
-      </div>
-      <div class="admin-quiz-item-check">✓</div>
-    </div>`;
-}
-
-/* #98 — Renders the "📁 Folder" filter dropdown for the "My Custom Quizzes"
-   source list, letting an admin narrow it to one collection (folder) —
-   including everything nested inside it — instead of always scrolling one
-   flat list of every custom quiz on the account. Mirrors the plain <select>
-   filter style already used by the Community Quizzes filter bar. */
-function adminCustomCollectionFilterHtml(allQuizzes, collections) {
-  if (!collections.length) return ''; // nothing to filter by — skip the control entirely
-  const flat = _flattenCollectionsTree(collections);
-  const uncatCount = allQuizzes.filter(q => {
-    const liveIds = new Set(collections.map(c => c.id));
-    return !q.collectionId || !liveIds.has(q.collectionId);
-  }).length;
-  return `
-    <div class="admin-coll-filter-bar">
-      <span class="admin-coll-filter-icon">📁</span>
-      <select class="admin-coll-filter-select" id="adminCustomCollFilterSelect"
-              onchange="adminSetCustomCollectionFilter(this.value)">
-        <option value="" ${!adminCustomCollectionFilter ? 'selected' : ''}>All Quizzes (${allQuizzes.length})</option>
-        <option value="${CQ_UNCATEGORIZED}" ${adminCustomCollectionFilter === CQ_UNCATEGORIZED ? 'selected' : ''}>— Uncategorized (${uncatCount})</option>
-        ${flat.map(c => {
-          const count = _quizCountForCollection(allQuizzes, collections, c.id);
-          const indent = '&nbsp;&nbsp;'.repeat(c.depth);
-          return `<option value="${c.id}" ${adminCustomCollectionFilter === c.id ? 'selected' : ''}>${indent}${escapeHtml(c.icon || '📁')} ${escapeHtml(c.name)} (${count})</option>`;
-        }).join('')}
-      </select>
-    </div>`;
 }
 
 function adminCommOnSearchInput(val) {
@@ -610,42 +493,82 @@ async function renderAdminPanel() {
   // using a community quiz as a publish source here.
   if (!canCurriculum) adminSourceTab = 'custom'; // shouldn't happen (Publish tab itself requires 'curriculum'), but guard anyway
 
+  // This panel and js/firebase-storage.js's student-facing Custom Quizzes
+  // modal share one folder-tree UI (js/quiz-collections.js) and its
+  // underlying state (active folder, expanded nodes, open popovers, etc).
+  // Marking this panel as the "host" every time it renders means any
+  // folder click / drag / rename fired from in here re-renders THIS panel
+  // instead of the (hidden) student-facing modal. See cqCollectionsHost
+  // in quiz-collections.js for the full explanation.
+  cqCollectionsHost = 'admin';
+
   let listHtml = '';
-  let collFilterHtml = '';
+  let listWrapClass = 'admin-quiz-list'; // scrollable flat list (community tab, or no custom quizzes yet)
   if (adminSourceTab === 'custom') {
-    const allQuizzes = loadCustomQuizzes();
+    const quizzes     = loadCustomQuizzes();
     const collections = loadQuizCollections();
-    collFilterHtml = adminCustomCollectionFilterHtml(allQuizzes, collections);
-    const quizzes = _quizzesInCollectionScope(allQuizzes, collections, adminCustomCollectionFilter);
-    if (!allQuizzes.length) {
+    if (!quizzes.length) {
       listHtml = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">No custom quizzes found for your account.</div>`;
-    } else if (!quizzes.length) {
-      listHtml = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">No quizzes in this folder.</div>`;
     } else {
-      listHtml = quizzes.map(q => adminQuizItemHtml(
-        'custom', q.id, q.title,
-        `${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}`
-      )).join('');
+      // Same folder tree + breadcrumb + filtered list as the "🤖 Custom
+      // Quizzes" modal (see renderCustomQuizModal in firebase-storage.js),
+      // just with admin-style quiz cards (click-to-select + ✓ check)
+      // swapped in for the student-facing Start/Edit/Share/Delete ones.
+      // Dragging a card onto a folder, or its own 📁 Move button, files it
+      // into a collection exactly like it does over there — it's the same
+      // underlying data, just browsed from a different screen.
+      listWrapClass = 'admin-quiz-list-collections'; // layout owns its own sizing; no extra scroll box needed
+      const visibleQuizzes = _filterQuizzesByActiveCollection(quizzes, collections);
+      const itemsHtml = visibleQuizzes.length ? visibleQuizzes.map(q => {
+        const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'custom' && adminSelectedQuiz.sourceId === q.id;
+        const moveOpen = cqCollectionMoveMenuFor === q.id;
+        const chip = _quizCollectionChipHTML(q, collections);
+        return `
+          <div class="admin-quiz-item ${sel ? 'selected' : ''}" draggable="true"
+               ondragstart="cqQuizDragStart(event,'${q.id}')" ondragend="cqQuizDragEnd(event)"
+               onclick="adminSelectQuiz('custom','${q.id}')">
+            <span class="cq-drag-handle" onclick="event.stopPropagation()" title="Drag to a folder">⠿</span>
+            <div class="admin-quiz-item-info">
+              <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
+              <div class="admin-quiz-item-meta">${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
+              ${chip ? `<div style="margin-top:5px;">${chip}</div>` : ''}
+            </div>
+            <div class="cq-move-wrap">
+              <button class="admin-quiz-move-btn" data-move-btn="${q.id}"
+                      onclick="event.stopPropagation(); cqToggleQuizMoveMenu('${q.id}')" title="Move to a folder">📁</button>
+              ${moveOpen ? _renderQuizMoveMenuHTML(q) : ''}
+            </div>
+            <div class="admin-quiz-item-check">✓</div>
+          </div>`;
+      }).join('') : `
+        <div class="empty-state" style="padding:16px 12px;">
+          <div class="empty-icon">📁</div>
+          No quizzes in this folder yet — drag a quiz here, or use its 📁 Move button.
+        </div>`;
+
+      listHtml = `<div class="cq-coll-layout ${cqSidebarCollapsed ? 'cq-coll-sidebar-collapsed' : ''}">
+        ${renderCqCollectionsSidebarHTML(quizzes, collections)}
+        <div class="cq-coll-main">
+          ${renderCqBreadcrumbHTML(collections)}
+          <div class="cq-coll-quiz-list">${itemsHtml}</div>
+        </div>
+      </div>`;
     }
   } else {
     listHtml = `<div style="text-align:center;padding:20px;color:var(--text-muted);">⏳ Loading community quizzes…</div>`;
   }
 
-  const selectedCount = adminSelectedQuizIds.size;
   const sourceTabsHtml = `
     <div class="admin-quiz-source-tabs">
       ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'custom' ? 'active' : ''}" onclick="adminSetSourceTab('custom')">🤖 My Custom Quizzes</button>` : ''}
       ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
-      ${canCurriculum ? `<button class="admin-source-tab admin-multiselect-toggle ${adminMultiSelectMode ? 'active' : ''}" onclick="adminToggleMultiSelectMode()">
-        ${adminMultiSelectMode ? `☑️ Selecting${selectedCount ? ` (${selectedCount})` : ''}` : '📚 Publish Multiple'}
-      </button>` : ''}
     </div>`;
 
   body.innerHTML = `
     ${sourceTabsHtml}
     <div id="adminCommSectionTabs"></div>
-    <div id="adminCommFilterBar">${collFilterHtml}</div>
-    <div class="admin-quiz-list" id="adminQuizList">${listHtml}</div>
+    <div id="adminCommFilterBar"></div>
+    <div class="${listWrapClass}" id="adminQuizList">${listHtml}</div>
     <div id="adminAssignArea"></div>
   `;
 
@@ -791,10 +714,17 @@ async function renderAdminPanel() {
       list.innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;padding:10px;">${emptyMsg}</div>`;
       return;
     }
-    list.innerHTML = shared.map(q => adminQuizItemHtml(
-      'community', q.id, q.title,
-      `by ${escapeHtml(q.authorName || 'Unknown')} · ${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}`
-    )).join('');
+    list.innerHTML = shared.map(q => {
+      const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'community' && adminSelectedQuiz.sourceId === q.id;
+      return `
+        <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('community','${q.id}')">
+          <div class="admin-quiz-item-info">
+            <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
+            <div class="admin-quiz-item-meta">by ${escapeHtml(q.authorName || 'Unknown')} · ${(q.questions || []).length} question${(q.questions||[]).length !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="admin-quiz-item-check">✓</div>
+        </div>`;
+    }).join('');
   }
 }
 
@@ -1151,84 +1081,9 @@ function adminOnSubjectChange(val) {
   renderAdminAssignForm();
 }
 
-/* #98 — Resolves { sourceType, sourceId, title, questions } for every quiz
-   currently checked in adminSelectedQuizIds, pulling from whichever cache
-   (custom or community) that source type's list is currently backed by. A
-   selection made in one source tab survives switching tabs (the keys stay
-   in the Set regardless), so this always re-resolves fresh titles/question
-   counts rather than trusting anything cached at click-time. */
-function adminGetSelectedQuizzesMeta() {
-  const customQuizzes = loadCustomQuizzes();
-  const out = [];
-  adminSelectedQuizIds.forEach(key => {
-    const sep = key.indexOf(':');
-    const sourceType = key.slice(0, sep);
-    const sourceId   = key.slice(sep + 1);
-    const quiz = sourceType === 'custom'
-      ? customQuizzes.find(q => q.id === sourceId)
-      : (adminCommunityCache || []).find(q => q.id === sourceId);
-    if (quiz) out.push({ sourceType, sourceId, title: quiz.title || 'Untitled Quiz', questions: quiz.questions || [] });
-  });
-  return out;
-}
-
-/* #98 — Bulk publish form: same visual destination picker as the single-quiz
-   form, plus one row per selected quiz with an editable lecture name
-   (defaulting to the quiz's own title) so several lectures can be created
-   in the same subject in one action. */
-function adminRenderBulkAssignForm() {
-  const area = document.getElementById('adminAssignArea');
-  if (!area) return;
-
-  const selected = adminGetSelectedQuizzesMeta();
-  if (!selected.length) {
-    area.innerHTML = `<div class="admin-bulk-empty-hint">☝️ Tap quizzes above to select them, then publish them all at once.</div>`;
-    return;
-  }
-
-  const totalQ = selected.reduce((sum, s) => sum + s.questions.length, 0);
-
-  area.innerHTML = `
-    <div class="admin-assign-form admin-bulk-assign-form">
-      <div class="admin-assign-title">
-        <span>📚 Publish ${selected.length} Selected Quiz${selected.length !== 1 ? 'zes' : ''} (${totalQ} q total) to:</span>
-      </div>
-
-      ${adminPublishTargetPickerHtml()}
-
-      <div class="admin-bulk-list" id="adminBulkList">
-        ${selected.map(s => {
-          const key = s.sourceType + ':' + s.sourceId;
-          const nameVal = adminBulkNameOverrides[key] !== undefined ? adminBulkNameOverrides[key] : s.title;
-          return `
-            <div class="admin-bulk-item">
-              <span class="admin-bulk-item-icon">${s.sourceType === 'community' ? '🌐' : '🤖'}</span>
-              <input type="text" class="admin-bulk-lecture-name" id="adminBulkName_${escapeHtml(key)}"
-                     data-key="${escapeHtml(key)}" value="${escapeHtml(nameVal)}"
-                     oninput="adminBulkNameOverrides[this.dataset.key]=this.value"
-                     placeholder="Lecture / Topic Name" />
-              <span class="admin-bulk-item-qcount">${s.questions.length} q</span>
-              <button class="admin-bulk-item-remove" title="Remove from selection" onclick="adminToggleQuizSelected('${s.sourceType}','${s.sourceId}')">✕</button>
-            </div>`;
-        }).join('')}
-      </div>
-
-      <button class="admin-assign-btn" id="adminBulkPublishBtn" onclick="adminBulkPublishQuizzes()" style="margin-top:14px;"
-        ${(!adminPubTargetYear || !adminPubTargetModule || !adminPubTargetSubject) ? 'disabled' : ''}>
-        📤 Publish ${selected.length} Quiz${selected.length !== 1 ? 'zes' : ''} to Question Bank
-      </button>
-      <div class="admin-status" id="adminBulkStatus"></div>
-    </div>`;
-}
-
 function renderAdminAssignForm() {
   const area = document.getElementById('adminAssignArea');
   if (!area) return;
-
-  if (adminMultiSelectMode) {
-    adminRenderBulkAssignForm();
-    return;
-  }
 
   if (!adminSelectedQuiz) {
     area.innerHTML = '';

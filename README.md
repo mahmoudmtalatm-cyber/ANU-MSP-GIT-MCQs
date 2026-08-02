@@ -29,9 +29,10 @@ else is plain HTML/CSS/JavaScript.
     quiz card onto a folder in the sidebar to file it, or use its 📁 Move
     button/the bulk "Move to…" action for a non-drag alternative; drag
     folders themselves onto each other to re-nest or reorder them. See
-    changelog **#85**. Admins can also filter by folder — and publish
-    several quizzes from any folder at once — right from the "📤 Publish
-    Quizzes" tab. See changelog **#98**.
+    changelog **#85**. The same folder browser is also available to
+    admins in the "📤 Publish Quizzes" tab's "🤖 My Custom Quizzes" source
+    picker, so publishing into the curriculum can be filtered by folder
+    too — see changelog **#98**.
 - **Community quizzes** — browse, take, and share quizzes made by other
   students; merge questions from one quiz into another.
 - **AI tools** (Gemini, bring-your-own API key) — extract questions from
@@ -240,11 +241,9 @@ else is plain HTML/CSS/JavaScript.
     complaint, only to force you to add a second option the next time you
     opened it for editing; now that's caught immediately on the review
     screen, right after extraction, while it's easy to fix.
-- **Admin panel** — publish quizzes into the official bank (filterable by
-  Collections folder, and multiple quizzes at once — see changelog
-  **#98**), manage the curriculum tree (years/modules/subjects), manage
-  other admins and their permissions, and edit/split/reorder published
-  lectures.
+- **Admin panel** — publish quizzes into the official bank, manage the
+  curriculum tree (years/modules/subjects), manage other admins and their
+  permissions, and edit/split/reorder published lectures.
 - **Scoped curriculum permissions** — an `admins`-permission holder can
   grant the `curriculum` permission for the whole curriculum, or narrow it
   to specific Year(s), Module(s), or Subject(s) via the same
@@ -803,71 +802,41 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
-- **98 — Admin "📤 Publish Quizzes" tab: added a Collections folder filter
-  to the "🤖 My Custom Quizzes" source list, and a "📚 Publish Multiple"
-  bulk mode that publishes several quizzes into the same subject as
-  separate lectures in one action.** Previously the source list was
-  always one flat, unfiled list of every custom quiz on the account, and
-  only one quiz could be picked and published at a time — an admin
-  clearing out a big batch of prepared quizzes had to repeat the whole
-  pick → choose destination → name → publish cycle once per quiz.
-  - **Collections filter** (`js/quiz-collections.js`, `js/admin-panel.js`):
-    `_filterQuizzesByActiveCollection()` was refactored into a
-    parameterized `_quizzesInCollectionScope(quizzes, collections, id)`,
-    so the existing folder-narrowing logic used by the main Custom
-    Quizzes page can be reused with an entirely separate "currently
-    browsing" id (`adminCustomCollectionFilter`) instead of the page's
-    own `cqActiveCollectionId` — picking a folder here never disturbs,
-    and is never disturbed by, whatever folder the admin has open
-    elsewhere. A new `_flattenCollectionsTree()` helper turns the nested
-    folder tree into a flat, indented list for a plain `<select>`
-    dropdown (styled to match the existing Community Quizzes filter
-    bar) — deliberately not the full drag-and-drop sidebar tree, which
-    carries reordering/renaming affordances that don't apply to a
-    read-only source picker. Each option shows a live quiz count
-    (`_quizCountForCollection`, including nested subfolders), plus an
-    "Uncategorized" option for quizzes with no folder.
-  - **Bulk multi-select + publish** (`js/admin-panel.js`,
-    `js/quiz-editor.js`): a new "📚 Publish Multiple" toggle sits beside
-    the two source tabs. Once on, tapping a quiz row (in either the
-    Custom or Community list) checks it into `adminSelectedQuizIds`
-    instead of opening it for single-quiz publish — the shared row
-    renderer (`adminQuizItemHtml`) now branches between the two modes so
-    both source lists stay in sync with no duplicated markup. The assign
-    area below switches to a bulk form (`adminRenderBulkAssignForm`): the
-    same visual Year → Module → Subject destination picker as the
-    single-quiz flow, followed by one row per selected quiz with an
-    editable lecture name (defaulting to the quiz's own title). Typed
-    names are kept in `adminBulkNameOverrides`, keyed by
-    `sourceType:sourceId`, specifically so they survive the form being
-    rebuilt when the admin changes the destination subject rather than
-    resetting on every re-render.
-  - **`adminBulkPublishQuizzes()`** (`js/quiz-editor.js`) runs the same
-    per-quiz pipeline `adminPublishQuiz()` already used — image
-    hydration/inlining (`ensureInlineImages`, `hydrateQuizImages`,
-    `restoreOptionsOrder` for community sources), stable question ids,
-    case-group normalization, and a `putContentItem()` write — once per
-    selected quiz, sequentially (so several large image-inlining
-    payloads never overlap), reporting live "Publishing 2 of 5…"
-    progress. There's no "edit before publishing" step in bulk mode —
-    that only makes sense for one quiz at a time and stays available via
-    the regular single-quiz picker — and no before/after insert-position
-    picker; bulk-published lectures are simply appended after whatever's
-    already in the subject, in the order they were selected. A partial
-    failure (e.g. one quiz's images fail to inline) doesn't lose the rest
-    of the batch: each quiz publishes independently, the status line
-    reports exactly which titles failed and why, and only the
-    successfully-published quizzes are cleared from the selection —
-    failed ones stay checked, with their typed names intact, ready to
-    retry.
-  - **Styling** (`css/styles.css`): new rules for the folder filter bar,
-    the checkbox row state, and the bulk lecture-name list, matching the
-    admin panel's existing card/pill/accent-color language. All of it
-    uses the same `flex-wrap` pattern as the rest of the admin panel, plus
-    a dedicated `≤640px` breakpoint that stacks the source tabs and turns
-    each bulk-item row from a single line into a vertical card, so the
-    bulk publish form stays fully usable on a phone-width screen instead
-    of forcing horizontal scrolling.
+- **98 — Admin Publish tab now browses Collections, not just a flat
+  list.** The "📤 Publish Quizzes" tab's "🤖 My Custom Quizzes" source
+  picker reuses the exact same folder tree/breadcrumb UI as the
+  student-facing "🤖 Custom Quizzes" modal (see **Collections**,
+  changelog **#85**) — same sidebar with nested folders, same drag-a-card-
+  onto-a-folder or 📁 Move-button filing, same folder create/rename/
+  recolor/re-icon/delete menu — so an admin can find and file a quiz to
+  publish exactly the way they'd browse it as a student, instead of
+  scrolling one long flat list.
+  - **`js/quiz-collections.js`**: this file's entire folder tree UI was
+    written assuming a single caller (`renderCustomQuizModal()`). It's now
+    shared by two hosts, so every internal re-render call goes through a
+    new `_cqRerenderCollectionsUI()` indirection instead of calling
+    `renderCustomQuizModal()` directly; a `cqCollectionsHost` flag
+    (`'custom'` | `'admin'`), set at the top of each host's own render
+    function every time it runs, decides which one actually gets
+    re-rendered. No other behavior changed — folders, drag/drop, the
+    delete-folder modal, etc. all work identically from either screen.
+  - **`js/admin-panel.js`**: `renderAdminPanel()`'s "custom" source branch
+    now renders `renderCqCollectionsSidebarHTML()` +
+    `renderCqBreadcrumbHTML()` + the folder-filtered quiz list (via
+    `_filterQuizzesByActiveCollection()`) instead of a flat
+    `loadCustomQuizzes()` map. Each admin quiz card keeps its original
+    click-to-select + ✓ check (that part of the workflow — picking which
+    quiz to publish — didn't change), and gained a drag handle and a
+    compact 📁 move button reusing `_renderQuizMoveMenuHTML()`.
+  - **`css/styles.css`**: widened `.admin-modal` (640px → 820px) to give
+    the folder sidebar + quiz list room to sit side by side the way they
+    do in the wider Custom Quizzes modal — it still stacks into a
+    full-width drawer below 720px, same responsive breakpoint the
+    Collections layout already used. Added `.admin-quiz-list-collections`
+    (the folder layout owns its own height/scrolling, so the old fixed
+    240px scroll box is dropped only for this view) and a compact
+    icon-only `.admin-quiz-move-btn` sized to match the existing card
+    design instead of reusing the modal's larger labeled Move button.
 
 - **97 — Replaced the entire hash-addressed R2 image system (#91–#96)
   with inline images: every question's image now lives directly inside

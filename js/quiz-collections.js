@@ -45,6 +45,23 @@ let cqBulkMoveMenuOpen = false;
 let cqSidebarMobileOpen = false;         // mobile (<720px): drawer hidden by default
 let cqSidebarCollapsed = _cqReadCollapsedFromStorage(); // desktop (≥720px): sidebar shown by default, collapsible via header button
 
+// This same folder tree/breadcrumb/quiz-list UI is now rendered from two
+// different hosts: the student-facing "🤖 Custom Quizzes" modal
+// (js/firebase-storage.js → renderCustomQuizModal) AND the admin panel's
+// "📤 Publish Quizzes" source picker (js/admin-panel.js → renderAdminPanel,
+// "🤖 My Custom Quizzes" tab). Every action in this file (selecting a
+// folder, renaming, dragging a quiz, etc.) needs to re-render whichever of
+// those two is actually on screen — cqCollectionsHost tracks that, and is
+// set to 'custom' / 'admin' at the top of each host's own render function
+// every time it runs, so it always reflects whichever modal was rendered
+// (and therefore is the one currently visible) most recently.
+let cqCollectionsHost = 'custom'; // 'custom' | 'admin'
+
+function _cqRerenderCollectionsUI() {
+  if (cqCollectionsHost === 'admin' && typeof renderAdminPanel === 'function') renderAdminPanel();
+  else if (typeof renderCustomQuizModal === 'function') renderCustomQuizModal();
+}
+
 // Delete-collection confirmation modal state (see cqDeleteCollection() below).
 let _cqDeleteModalEl = null;
 let _cqDeleteModalCollId = null;
@@ -136,41 +153,15 @@ function _quizCountForCollection(quizzes, collections, id) {
 }
 
 function _filterQuizzesByActiveCollection(quizzes, collections) {
-  return _quizzesInCollectionScope(quizzes, collections, cqActiveCollectionId);
-}
-
-/** Same narrowing logic as _filterQuizzesByActiveCollection, but parameterized
- *  on an explicit folder id instead of always reading the global
- *  cqActiveCollectionId — lets other screens (e.g. the admin Publish Quizzes
- *  source picker, #98) filter by folder with their own, independent
- *  "currently browsing" state, without disturbing whatever folder the user
- *  has open on the main Custom Quizzes page. */
-function _quizzesInCollectionScope(quizzes, collections, activeId) {
-  if (activeId == null) return quizzes;
-  if (activeId === CQ_UNCATEGORIZED) {
+  if (cqActiveCollectionId == null) return quizzes;
+  if (cqActiveCollectionId === CQ_UNCATEGORIZED) {
     // Also catches a quiz whose folder was deleted through some other path
     // and left a dangling collectionId, so it never silently disappears.
     const liveIds = new Set(collections.map(c => c.id));
     return quizzes.filter(q => !q.collectionId || !liveIds.has(q.collectionId));
   }
-  const ids = new Set(_collectionDescendantIds(collections, activeId));
+  const ids = new Set(_collectionDescendantIds(collections, cqActiveCollectionId));
   return quizzes.filter(q => q.collectionId && ids.has(q.collectionId));
-}
-
-/** Flattens the collection tree into a depth-first, indentation-ready list
- *  — [{ id, name, icon, depth }, …] — for simple linear pickers (a <select>
- *  or a compact chip list) that don't need the full drag-and-drop sidebar
- *  tree (renderCqCollectionsSidebarHTML). Root-level folders first, each
- *  followed immediately by its own descendants. */
-function _flattenCollectionsTree(collections, parentId, depth) {
-  parentId = parentId || null;
-  depth = depth || 0;
-  const out = [];
-  _collectionChildren(collections, parentId).forEach(c => {
-    out.push({ id: c.id, name: c.name, icon: c.icon, color: c.color, depth });
-    out.push(..._flattenCollectionsTree(collections, c.id, depth + 1));
-  });
-  return out;
 }
 
 /** Resolves the folder a newly-created quiz should land in: the source
@@ -367,18 +358,18 @@ function cqSelectCollection(id) {
     _collectionPath(loadQuizCollections(), id).forEach(c => cqExpandedCollections.add(c.id));
     _cqPersistExpanded();
   }
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 function cqToggleCollectionExpand(id) {
   if (cqExpandedCollections.has(id)) cqExpandedCollections.delete(id); else cqExpandedCollections.add(id);
   _cqPersistExpanded();
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 function cqToggleSidebarMobile() {
   cqSidebarMobileOpen = !cqSidebarMobileOpen;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 /** Desktop (≥720px) equivalent of cqToggleSidebarMobile() — collapses the
@@ -388,7 +379,7 @@ function cqToggleSidebarMobile() {
 function cqToggleSidebarCollapsed() {
   cqSidebarCollapsed = !cqSidebarCollapsed;
   _cqPersistCollapsed();
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 // ---------------------------------------------------------------------------
@@ -399,13 +390,13 @@ function cqStartNewCollection(parentId) {
   cqNewCollectionParentId = parentId === undefined ? null : parentId;
   cqCollectionMenuOpenFor = null;
   if (parentId) { cqExpandedCollections.add(parentId); _cqPersistExpanded(); }
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
   setTimeout(() => { const el = document.getElementById('cqNewCollNameInput'); if (el) el.focus(); }, 30);
 }
 
 function cqCancelNewCollection() {
   cqNewCollectionParentId = undefined;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 async function cqCommitNewCollection(parentId, name) {
@@ -421,19 +412,19 @@ async function cqCommitNewCollection(parentId, name) {
   saveQuizCollectionsList([...collections, saved]);
   cqNewCollectionParentId = undefined;
   cqActiveCollectionId = saved.id;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 function cqRenameCollectionStart(id) {
   cqEditingCollectionId = id;
   cqCollectionMenuOpenFor = null;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
   setTimeout(() => { const el = document.getElementById('cqCollRename_' + id); if (el) { el.focus(); el.select(); } }, 30);
 }
 
 function cqRenameCollectionCancel() {
   cqEditingCollectionId = null;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 async function cqRenameCollectionCommit(id, name) {
@@ -442,12 +433,12 @@ async function cqRenameCollectionCommit(id, name) {
   const trimmed = (name || '').trim();
   const collections = loadQuizCollections();
   const col = collections.find(c => c.id === id);
-  if (!col || !trimmed || trimmed === col.name) { renderCustomQuizModal(); return; }
+  if (!col || !trimmed || trimmed === col.name) { _cqRerenderCollectionsUI(); return; }
   col.name = trimmed;
   const { saveQuizCollection } = await import('./local-store.js');
   await saveQuizCollection(col);
   saveQuizCollectionsList(collections);
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 async function cqSetCollectionColor(id, color) {
@@ -458,7 +449,7 @@ async function cqSetCollectionColor(id, color) {
   const { saveQuizCollection } = await import('./local-store.js');
   await saveQuizCollection(col);
   saveQuizCollectionsList(collections);
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 async function cqSetCollectionIcon(id, icon) {
@@ -469,7 +460,7 @@ async function cqSetCollectionIcon(id, icon) {
   const { saveQuizCollection } = await import('./local-store.js');
   await saveQuizCollection(col);
   saveQuizCollectionsList(collections);
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 /** Gathers the numbers the delete-collection modal needs: how many
@@ -498,7 +489,7 @@ function cqDeleteCollection(id) {
   const { col } = _cqCollectionDeleteStats(id);
   if (!col) return;
   cqCollectionMenuOpenFor = null;
-  renderCustomQuizModal(); // close the ⋮ popover behind the modal
+  _cqRerenderCollectionsUI(); // close the ⋮ popover behind the modal
   _cqDeleteModalCollId = id;
   _cqDeleteModalStep = 1;
   const el = document.createElement('div');
@@ -618,7 +609,7 @@ async function _cqDeleteCollectionExecute(mode) {
   }
 
   _cqPersistExpanded();
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 async function cqReparentCollection(id, newParentId) {
@@ -630,7 +621,7 @@ async function cqReparentCollection(id, newParentId) {
   await saveQuizCollection(col);
   saveQuizCollectionsList(collections);
   if (newParentId) { cqExpandedCollections.add(newParentId); _cqPersistExpanded(); }
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 // ---------------------------------------------------------------------------
@@ -644,19 +635,19 @@ async function cqMoveQuizToCollection(quizId, collectionId) {
   quiz.collectionId = collectionId || null;
   await saveCustomQuizzesList(quizzes);
   cqCollectionMoveMenuFor = null;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 function cqToggleQuizMoveMenu(quizId) {
   cqCollectionMoveMenuFor = cqCollectionMoveMenuFor === quizId ? null : quizId;
   cqBulkMoveMenuOpen = false;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 function cqToggleBulkMoveMenu() {
   cqBulkMoveMenuOpen = !cqBulkMoveMenuOpen;
   cqCollectionMoveMenuFor = null;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 async function cqMoveMultipleToCollection(collectionId) {
@@ -669,7 +660,7 @@ async function cqMoveMultipleToCollection(collectionId) {
   });
   if (changed) await saveCustomQuizzesList(quizzes);
   cqBulkMoveMenuOpen = false;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 // ---------------------------------------------------------------------------
@@ -762,7 +753,7 @@ async function cqUncatDrop(e) {
 function cqToggleCollectionMenu(id) {
   cqCollectionMenuOpenFor = cqCollectionMenuOpenFor === id ? null : id;
   cqNewCollectionParentId = undefined;
-  renderCustomQuizModal();
+  _cqRerenderCollectionsUI();
 }
 
 // Close any open ⋮/📁 popover on an outside click — mirrors the pattern
@@ -773,7 +764,7 @@ document.addEventListener('click', (e) => {
     const btn = document.querySelector(`[data-coll-menu-btn="${cqCollectionMenuOpenFor}"]`);
     if (!(menu && menu.contains(e.target)) && !(btn && btn.contains(e.target))) {
       cqCollectionMenuOpenFor = null;
-      if (document.getElementById('customQuizBody')) renderCustomQuizModal();
+      _cqRerenderCollectionsUI();
     }
   }
   if (cqCollectionMoveMenuFor) {
@@ -781,7 +772,7 @@ document.addEventListener('click', (e) => {
     const btn = document.querySelector(`[data-move-btn="${cqCollectionMoveMenuFor}"]`);
     if (!(menu && menu.contains(e.target)) && !(btn && btn.contains(e.target))) {
       cqCollectionMoveMenuFor = null;
-      if (document.getElementById('customQuizBody')) renderCustomQuizModal();
+      _cqRerenderCollectionsUI();
     }
   }
   if (cqBulkMoveMenuOpen) {
@@ -789,7 +780,7 @@ document.addEventListener('click', (e) => {
     const btn = document.getElementById('cqBulkMoveBtn');
     if (!(menu && menu.contains(e.target)) && !(btn && btn.contains(e.target))) {
       cqBulkMoveMenuOpen = false;
-      if (document.getElementById('customQuizBody')) renderCustomQuizModal();
+      if (document.getElementById('customQuizBody')) _cqRerenderCollectionsUI();
     }
   }
 });
