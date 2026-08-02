@@ -136,15 +136,41 @@ function _quizCountForCollection(quizzes, collections, id) {
 }
 
 function _filterQuizzesByActiveCollection(quizzes, collections) {
-  if (cqActiveCollectionId == null) return quizzes;
-  if (cqActiveCollectionId === CQ_UNCATEGORIZED) {
+  return _quizzesInCollectionScope(quizzes, collections, cqActiveCollectionId);
+}
+
+/** Same narrowing logic as _filterQuizzesByActiveCollection, but parameterized
+ *  on an explicit folder id instead of always reading the global
+ *  cqActiveCollectionId — lets other screens (e.g. the admin Publish Quizzes
+ *  source picker, #98) filter by folder with their own, independent
+ *  "currently browsing" state, without disturbing whatever folder the user
+ *  has open on the main Custom Quizzes page. */
+function _quizzesInCollectionScope(quizzes, collections, activeId) {
+  if (activeId == null) return quizzes;
+  if (activeId === CQ_UNCATEGORIZED) {
     // Also catches a quiz whose folder was deleted through some other path
     // and left a dangling collectionId, so it never silently disappears.
     const liveIds = new Set(collections.map(c => c.id));
     return quizzes.filter(q => !q.collectionId || !liveIds.has(q.collectionId));
   }
-  const ids = new Set(_collectionDescendantIds(collections, cqActiveCollectionId));
+  const ids = new Set(_collectionDescendantIds(collections, activeId));
   return quizzes.filter(q => q.collectionId && ids.has(q.collectionId));
+}
+
+/** Flattens the collection tree into a depth-first, indentation-ready list
+ *  — [{ id, name, icon, depth }, …] — for simple linear pickers (a <select>
+ *  or a compact chip list) that don't need the full drag-and-drop sidebar
+ *  tree (renderCqCollectionsSidebarHTML). Root-level folders first, each
+ *  followed immediately by its own descendants. */
+function _flattenCollectionsTree(collections, parentId, depth) {
+  parentId = parentId || null;
+  depth = depth || 0;
+  const out = [];
+  _collectionChildren(collections, parentId).forEach(c => {
+    out.push({ id: c.id, name: c.name, icon: c.icon, color: c.color, depth });
+    out.push(..._flattenCollectionsTree(collections, c.id, depth + 1));
+  });
+  return out;
 }
 
 /** Resolves the folder a newly-created quiz should land in: the source
