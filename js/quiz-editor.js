@@ -1164,151 +1164,227 @@ async function adminRemovePublished(lectureId) {
   }
 }
 
+/**
+ * Publishes ONE quiz into `targetSubject` under `lectureName`, using
+ * `questionsOverride` (an admin-edited working copy) if given, otherwise
+ * the quiz's own stored questions. This is the single unit of work shared
+ * by both the single-quiz and multi-quiz batch paths in adminPublishQuiz()
+ * below — it does not touch the DOM or any adminSelected* state, so it's
+ * safe to call in a loop. Reads `adminPublishInsertPosition` for
+ * before/after placement, exactly as the original single-publish flow did.
+ * Returns the new lectureId on success; throws on failure.
+ */
+async function _adminPublishOneQuiz(quizObj, targetSubject, lectureName, questionsOverride) {
+  let questions;
+  if (questionsOverride) {
+    // Use the admin-edited working copy as-is
+    _cqNormalizeCaseGroups(questionsOverride);
+    _stripEditorTransientFields(questionsOverride);
+    questions = questionsOverride;
+  } else {
+    // Restore options order if this quiz came from a shared/community doc
+    questions = quizObj.questions;
+    if (quizObj.sourceType === 'community') {
+      questions = restoreOptionsOrder(questions);
+    } else {
+      // Make sure custom-quiz images are hydrated too
+      await hydrateQuizImages(questions);
+    }
+  }
+
+  // Images are stored INLINE in the published lecture's JSON now (a
+  // data: URL right on the question) — so every question needs its
+  // image actually inlined before this gets written. In the normal
+  // case (a fresh custom quiz, or a community quiz shared after this
+  // change) that's already true and this is a no-op; it only does real
+  // work for an older, not-yet-migrated community quiz still pointing
+  // at a separately-hosted image URL.
+  await ensureInlineImages(questions);
+
+  // Deep-clone + strip source-specific sentinels so each question is clean.
+  // Assign a STABLE id to every question that doesn't already have one —
+  // this must survive community -> publish -> later-edit unchanged, since
+  // it's what image references and (if ever needed) retake snapshots key
+  // off, instead of array position (which breaks silently on reorder).
+  const cleanQuestions = JSON.parse(JSON.stringify(questions)).map(q => {
+    delete q.imageUrl;
+    delete q.sharedImageIdx;
+    delete q.pubImageIdx;
+    if (!q.qid) q.qid = 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    return q;
+  });
+
+  const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const publishedAt = Date.now();
+
+  // Work out where in the list this new quiz should sit. Default: newest
+  // goes last (order = publishedAt, the largest of all existing values).
+  // If the admin picked a before/after spot in the picker, compute an
+  // order value that slots it exactly there — midpoint between the two
+  // neighboring order values (or one below/above the first/last entry).
+  // Content now lives in R2, not a queryable Firestore collection, so
+  // existing lectures' order/publishedAt are read from R2 directly here
+  // (admin-only, infrequent action — the cost of a few extra reads is
+  // fine for this, unlike the student-facing hot paths elsewhere).
+  let order = publishedAt;
+  const pos = adminPublishInsertPosition;
+  if (pos) {
+    try {
+      const { fetchCurriculumManifest } = await import('./content-client.js');
+      const manifest = await fetchCurriculumManifest();
+      const lecIds = Object.keys(manifest[targetSubject] || {});
+      const existing = [];
+      for (const lecId of lecIds) {
+        const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${targetSubject}/${lecId}.json`);
+        if (resp.ok) existing.push({ id: lecId, ...(await resp.json()) });
+      }
+      existing.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
+      const idx = existing.findIndex(e => e.id === pos.lectureId);
+      if (idx !== -1) {
+        const targetOrder = existing[idx].order ?? existing[idx].publishedAt ?? 0;
+        if (pos.position === 'before') {
+          const prev = existing[idx - 1];
+          order = prev ? ((prev.order ?? prev.publishedAt ?? 0) + targetOrder) / 2 : targetOrder - 1;
+        } else {
+          const next = existing[idx + 1];
+          order = next ? (targetOrder + (next.order ?? next.publishedAt ?? 0)) / 2 : targetOrder + 1;
+        }
+      }
+    } catch (e) {
+      // If this lookup fails for any reason, just fall back to appending at the end.
+    }
+  }
+
+  const { putContentItem } = await import('./content-client.js');
+  await putContentItem('curriculum', targetSubject, lectureId, {
+    id: lectureId,
+    lectureName,
+    questions: cleanQuestions, // images are inline data: URLs, already baked into the JSON — nothing further happens to them here
+    sourceTitle: quizObj.title,
+    sourceType: quizObj.sourceType,
+    publishedBy: window._currentUser ? window._currentUser.uid : null,
+    publishedAt,
+    order
+  });
+  // Manifest bump (appConfig/publishedManifest) happens server-side in the
+  // Worker, right after putContentItem's write succeeds above.
+
+  // Merge into the in-memory subject so it's usable immediately —
+  // cleanQuestions already has real, resolved R2 image URLs at this
+  // point (putContentItem mutates them in place during upload), so no
+  // separate hydrate step is needed.
+  if (!subjects[targetSubject].lectures) subjects[targetSubject].lectures = {};
+  subjects[targetSubject].lectures[lectureName] = cleanQuestions;
+
+  return lectureId;
+}
+
+/**
+ * Publishes everything currently queued in adminSelectedQuizzes into
+ * adminPubTargetSubject. A single queued quiz keeps the original
+ * behavior exactly (stays selected afterward, so it can be re-published
+ * elsewhere under a different name without re-picking it). Two or more
+ * queued quizzes publish SEQUENTIALLY — each one is fully awaited before
+ * the next starts, never in parallel — so writes can't race each other
+ * and a failure partway through only affects the quizzes after it; the
+ * ones that already succeeded are removed from the queue and the ones
+ * that failed stay queued for a retry.
+ */
 async function adminPublishQuiz() {
   if (adminBusy) return;
-  if (!adminSelectedQuiz || !adminPubTargetSubject) return;
+  if (!adminSelectedQuizzes.size || !adminPubTargetSubject) return;
   const targetSubject = adminPubTargetSubject;
-
-  const nameInput = document.getElementById('adminLectureName');
-  let lectureName = (nameInput?.value || '').trim();
-  if (!lectureName) lectureName = adminSelectedQuiz.title;
-
   const statusEl = document.getElementById('adminStatus');
+
   adminBusy = true;
   const btn = document.getElementById('adminPublishBtn');
   if (btn) btn.disabled = true;
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Publishing…</div>`;
+
+  const entries = Array.from(adminSelectedQuizzes.entries());
 
   try {
-    let questions;
-    if (adminEditMode === 'publish' && adminEditQuestions) {
-      // Use the admin-edited working copy as-is
-      _cqNormalizeCaseGroups(adminEditQuestions);
-      _stripEditorTransientFields(adminEditQuestions);
-      questions = adminEditQuestions;
-    } else {
-      // Restore options order if this quiz came from a shared/community doc
-      questions = adminSelectedQuiz.questions;
-      if (adminSelectedQuiz.sourceType === 'community') {
-        questions = restoreOptionsOrder(questions);
-      } else {
-        // Make sure custom-quiz images are hydrated too
-        await hydrateQuizImages(questions);
+    if (entries.length === 1) {
+      const [, quizObj] = entries[0];
+      const nameInput = document.getElementById('adminLectureName');
+      let lectureName = (nameInput?.value || '').trim();
+      if (!lectureName) lectureName = quizObj.title;
+
+      if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Publishing…</div>`;
+      try {
+        const questionsOverride = (adminEditMode === 'publish' && adminEditQuestions) ? adminEditQuestions : null;
+        await _adminPublishOneQuiz(quizObj, targetSubject, lectureName, questionsOverride);
+
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
+        if (nameInput) nameInput.value = '';
+
+        // Close the editor after a successful publish
+        adminEditMode = null;
+        adminEditQuestions = null;
+        const editorArea = document.getElementById('adminEditorArea');
+        if (editorArea) editorArea.innerHTML = '';
+
+        // Reset the insert-position picker for next time
+        adminPublishInsertPosition = null;
+
+        if (selectedSubject === targetSubject) selectSubject(targetSubject);
+        renderAdminAssignedList();
+      } catch (e) {
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ Failed: ${escapeHtml(e.message || String(e))}</div>`;
       }
+      return;
     }
 
-    // Images are stored INLINE in the published lecture's JSON now (a
-    // data: URL right on the question) — so every question needs its
-    // image actually inlined before this gets written. In the normal
-    // case (a fresh custom quiz, or a community quiz shared after this
-    // change) that's already true and this is a no-op; it only does real
-    // work for an older, not-yet-migrated community quiz still pointing
-    // at a separately-hosted image URL.
-    await ensureInlineImages(questions);
+    // ── Batch publish: 2+ quizzes queued ──
+    const total = entries.length;
+    let publishedCount = 0;
+    const failures = [];
 
-    // Deep-clone + strip source-specific sentinels so each question is clean.
-    // Assign a STABLE id to every question that doesn't already have one —
-    // this must survive community -> publish -> later-edit unchanged, since
-    // it's what image references and (if ever needed) retake snapshots key
-    // off, instead of array position (which breaks silently on reorder).
-    const cleanQuestions = JSON.parse(JSON.stringify(questions)).map(q => {
-      delete q.imageUrl;
-      delete q.sharedImageIdx;
-      delete q.pubImageIdx;
-      if (!q.qid) q.qid = 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      return q;
-    });
+    // If the admin picked a "before/after this lecture" insert spot, chain
+    // subsequent "after X" publishes off the quiz just published (instead
+    // of re-targeting the original anchor every time) — otherwise each new
+    // "after X" insert would land right next to X again, reversing the
+    // batch's order. "before X" already chains correctly with no
+    // adjustment needed, since each new insert naturally lands the
+    // closest to X so far.
+    let chainPos = adminPublishInsertPosition ? { ...adminPublishInsertPosition } : null;
 
-    const lectureId = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    for (let i = 0; i < total; i++) {
+      const [key, quizObj] = entries[i];
+      if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Publishing ${i + 1}/${total}: "${escapeHtml(quizObj.title)}"…</div>`;
 
-    const publishedAt = Date.now();
-
-    // Work out where in the list this new quiz should sit. Default: newest
-    // goes last (order = publishedAt, the largest of all existing values).
-    // If the admin picked a before/after spot in the picker, compute an
-    // order value that slots it exactly there — midpoint between the two
-    // neighboring order values (or one below/above the first/last entry).
-    // Content now lives in R2, not a queryable Firestore collection, so
-    // existing lectures' order/publishedAt are read from R2 directly here
-    // (admin-only, infrequent action — the cost of a few extra reads is
-    // fine for this, unlike the student-facing hot paths elsewhere).
-    let order = publishedAt;
-    const pos = adminPublishInsertPosition;
-    if (pos) {
+      adminPublishInsertPosition = chainPos;
       try {
-        const { fetchCurriculumManifest } = await import('./content-client.js');
-        const manifest = await fetchCurriculumManifest();
-        const lecIds = Object.keys(manifest[targetSubject] || {});
-        const existing = [];
-        for (const lecId of lecIds) {
-          const resp = await fetch(`https://anu-msp-question-bank-worker.mahmoudmtalat.workers.dev/curriculum/${targetSubject}/${lecId}.json`);
-          if (resp.ok) existing.push({ id: lecId, ...(await resp.json()) });
-        }
-        existing.sort((a, b) => (a.order ?? a.publishedAt ?? 0) - (b.order ?? b.publishedAt ?? 0));
-        const idx = existing.findIndex(e => e.id === pos.lectureId);
-        if (idx !== -1) {
-          const targetOrder = existing[idx].order ?? existing[idx].publishedAt ?? 0;
-          if (pos.position === 'before') {
-            const prev = existing[idx - 1];
-            order = prev ? ((prev.order ?? prev.publishedAt ?? 0) + targetOrder) / 2 : targetOrder - 1;
-          } else {
-            const next = existing[idx + 1];
-            order = next ? (targetOrder + (next.order ?? next.publishedAt ?? 0)) / 2 : targetOrder + 1;
-          }
+        const lectureId = await _adminPublishOneQuiz(quizObj, targetSubject, quizObj.title, null);
+        publishedCount++;
+        adminSelectedQuizzes.delete(key);
+        if (chainPos && chainPos.position === 'after') {
+          chainPos = { lectureId, position: 'after' };
         }
       } catch (e) {
-        // If this lookup fails for any reason, just fall back to appending at the end.
+        console.warn(`Publish failed for "${quizObj.title}":`, e);
+        failures.push({ title: quizObj.title, message: e.message || String(e) });
       }
     }
 
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Uploading images…</div>`;
-    const { putContentItem } = await import('./content-client.js');
-    await putContentItem('curriculum', targetSubject, lectureId, {
-      id: lectureId,
-      lectureName,
-      questions: cleanQuestions, // images are inline data: URLs, already baked into the JSON — nothing further happens to them here
-      sourceTitle: adminSelectedQuiz.title,
-      sourceType: adminSelectedQuiz.sourceType,
-      publishedBy: window._currentUser ? window._currentUser.uid : null,
-      publishedAt,
-      order
-    });
-
-    // Merge into the in-memory subject so it's usable immediately —
-    // cleanQuestions already has real, resolved R2 image URLs at this
-    // point (putContentItem mutates them in place during upload), so no
-    // separate hydrate step is needed.
-    if (!subjects[targetSubject].lectures) subjects[targetSubject].lectures = {};
-    subjects[targetSubject].lectures[lectureName] = cleanQuestions;
-
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
-    if (nameInput) nameInput.value = '';
-
-    // Manifest bump (appConfig/publishedManifest) happens server-side in the
-    // Worker, right after putContentItem's write succeeds above — the
-    // separate _updatePublishedManifest() call this function used to also
-    // make here was a redundant second write to the same doc (the sibling
-    // adminSavePublishedEdits() below already had this same call removed;
-    // this was the one remaining spot that still had it).
-
-    // Close the editor after a successful publish
+    adminPublishInsertPosition = null;
     adminEditMode = null;
     adminEditQuestions = null;
-    const editorArea = document.getElementById('adminEditorArea');
-    if (editorArea) editorArea.innerHTML = '';
 
-    // Reset the insert-position picker for next time
-    adminPublishInsertPosition = null;
-
-    // Refresh subject view if currently open
     if (selectedSubject === targetSubject) selectSubject(targetSubject);
-
     renderAdminAssignedList();
-  } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ Failed: ${escapeHtml(e.message || String(e))}</div>`;
+
+    const resultHtml = failures.length
+      ? `<div class="cq-status ${publishedCount ? '' : 'error'}">${publishedCount ? '⚠️' : '❌'} Published ${publishedCount}/${total}. Failed: ${failures.map(f => `"${escapeHtml(f.title)}" — ${escapeHtml(f.message)}`).join('; ')}</div>`
+      : `<div class="cq-status success">✅ Published all ${publishedCount} quizzes to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
+
+    adminLastPublishResult = resultHtml;
+    renderAdminAssignForm();
+    const freshStatus = document.getElementById('adminStatus');
+    if (freshStatus) freshStatus.innerHTML = resultHtml;
   } finally {
     adminBusy = false;
-    if (btn) btn.disabled = false;
+    const freshBtn = document.getElementById('adminPublishBtn');
+    if (freshBtn) freshBtn.disabled = false;
   }
 }
 

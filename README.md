@@ -802,6 +802,58 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **99 — Publish Quizzes tab now supports multi-select, sequential batch
+  publishing.** The "📤 Publish Quizzes" source picker (both "🤖 My Custom
+  Quizzes" and "🌐 Community Quizzes") now lets an admin check any number
+  of quiz cards — clicking a card toggles it in/out of the batch, other
+  already-checked cards are untouched, and a card stays checked across a
+  source-tab switch, so a batch can mix custom and community quizzes
+  together. A "✓ N quizzes selected" bar (with a 🗑 Clear All) sits above
+  the source list whenever anything's queued.
+  - **`js/admin-panel.js`**: `adminSelectedQuiz` (a single quiz object) is
+    replaced by `adminSelectedQuizzes`, a `Map` keyed by
+    `${sourceType}:${sourceId}` (`_adminQuizKey()`) so selection order is
+    preserved and a custom/community id collision is impossible.
+    `adminSelectQuiz()` now toggles a key in/out of the map instead of
+    always replacing it; `adminRemoveSelectedQuiz()` and
+    `adminClearSelectedQuizzes()` cover the per-row ✕ and the bulk clear.
+    `renderAdminAssignForm()` branches on selection size: exactly one
+    queued quiz keeps the original single-quiz form (title, "✏️ Edit
+    Before Publishing", editable Lecture Name field) completely
+    unchanged; two or more render a batch summary listing each queued
+    quiz with its own ✕, a total question count, and a note that each
+    publishes under its own title. "Edit Before Publishing" is
+    unavailable once 2+ quizzes are queued (editing only ever applied to
+    one quiz at a time) and closes automatically the moment a second quiz
+    gets checked.
+  - **`js/quiz-editor.js`**: `adminPublishQuiz()`'s original single-quiz
+    publish body was extracted into `_adminPublishOneQuiz()`, a pure
+    "publish this one quiz object" helper with no DOM/selection-state
+    dependency, so it can be called safely in a loop. `adminPublishQuiz()`
+    itself now branches on how many quizzes are queued: exactly one keeps
+    the exact original behavior (stays selected after a successful
+    publish, so it can be republished elsewhere immediately). Two or more
+    publish **sequentially** — each quiz is fully awaited before the next
+    one starts, never in parallel, so writes can't race each other or the
+    shared curriculum-order lookup. Progress shows "Publishing i/N:
+    'title'…"; a quiz is only removed from the queue once its own publish
+    succeeds, so a mid-batch failure leaves just the not-yet-attempted and
+    failed quizzes still checked (ready to retry) while everything before
+    it is already safely published, and the final status line reports
+    exactly how many of the batch succeeded plus which ones failed and
+    why. When the admin picked a "publish before/after this lecture"
+    insert spot, an `"after X"` placement chains off the quiz just
+    published (instead of re-targeting `X` every time), so a multi-quiz
+    batch lands in the exact order it was selected in rather than
+    reversing; `"before X"` already chained correctly with no change
+    needed.
+  - **`css/styles.css`**: added `.admin-selection-bar` (the persistent
+    "N selected" bar) and `.admin-multi-quiz-list`/`-row`/`-info`/`-title`/
+    `-meta`/`-remove` (the batch summary rows), reusing the existing
+    admin-panel color tokens and the same `flex-wrap` responsive pattern
+    already used by `.admin-quiz-item`, so both scale down cleanly on
+    narrow screens without a dedicated media query.
+
 - **98 — Admin Publish tab now browses Collections, not just a flat
   list.** The "📤 Publish Quizzes" tab's "🤖 My Custom Quizzes" source
   picker reuses the exact same folder tree/breadcrumb UI as the

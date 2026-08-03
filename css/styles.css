@@ -2490,6 +2490,33 @@
 }
 .admin-source-tab.active { border-color: var(--accent-dark); background: var(--accent-dark); color: #fff; }
 
+/* Persistent "N quizzes selected" bar shown above the source list whenever
+   the multi-select publish queue is non-empty — visible from either
+   source tab so an admin always knows what's queued while browsing. */
+.admin-selection-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  background: #EBF4FA; border: 1.5px solid var(--accent-dark); border-radius: 8px;
+  padding: 8px 12px; font-size: .82rem; font-weight: 700; color: var(--accent-dark);
+}
+
+/* Rows in the "queued to publish" batch summary (2+ quizzes selected),
+   shown inside the assign form in place of the single-quiz header. */
+.admin-multi-quiz-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.admin-multi-quiz-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border-soft-2); border-radius: 7px;
+  padding: 7px 10px;
+}
+.admin-multi-quiz-info { flex: 1; min-width: 120px; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 1px; }
+.admin-multi-quiz-title { font-weight: 700; font-size: .84rem; color: var(--text-main); }
+.admin-multi-quiz-meta { font-size: .72rem; color: var(--text-muted); }
+.admin-multi-quiz-remove {
+  width: 24px; height: 24px; flex-shrink: 0; border: 1px solid var(--red-soft-border);
+  border-radius: 6px; background: var(--wrong-bg); color: var(--wrong-fg);
+  font-size: .8rem; font-weight: 700; cursor: pointer; transition: background .15s;
+}
+.admin-multi-quiz-remove:hover { background: var(--red-pale); }
+
 .admin-quiz-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
 /* "🤖 My Custom Quizzes" — the collections folder tree (.cq-coll-layout) owns
    its own height/scrolling (sidebar is sticky+scrollable, the quiz list just

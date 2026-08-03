@@ -3,7 +3,28 @@
    the official question bank under a chosen Module/Subject.
 ══════════════════════════════════════════════════════════ */
 let adminSourceTab   = 'custom';   // 'custom' | 'community'
-let adminSelectedQuiz = null;      // { title, questions, sourceType, sourceId }
+
+// Multiple quizzes can be queued for publishing at once. Keyed by
+// `${sourceType}:${sourceId}` (see _adminQuizKey) so a custom quiz and a
+// community quiz can never collide, a Map preserves the order quizzes were
+// picked in, and toggling the same card again cleanly drops it back out.
+// A quiz stays selectable across both source tabs at once — an admin can
+// queue some custom quizzes AND some community quizzes together and
+// publish the whole batch in one go. Publishing always walks this in
+// order and awaits each one before starting the next — see
+// adminPublishQuiz() in quiz-editor.js — never in parallel, so a batch
+// publish can't race on the shared curriculum-order lookup or the
+// in-memory `subjects` cache.
+let adminSelectedQuizzes = new Map(); // key -> { title, questions, sourceType, sourceId }
+
+// The result banner of the most recent publish (single or batch), kept
+// around so it's still visible even if the whole selection just emptied
+// out (e.g. every queued quiz published successfully) and the assign area
+// would otherwise have nothing left to show. Cleared the moment a new
+// quiz gets selected.
+let adminLastPublishResult = null;
+
+function _adminQuizKey(sourceType, sourceId) { return sourceType + ':' + sourceId; }
 // NOTE: adminTargetYear/Module/Subject below are used EXCLUSIVELY by the
 // "📚 Manage Curriculum" tab's own drill-down navigation (adminCurrNavLevel
 // etc.) — they track where the admin is browsing *in that tab*.
@@ -127,7 +148,8 @@ function openAdminPanel() {
     return;
   }
   adminSourceTab    = 'custom'; // Publish tab is curriculum-only now, so this is always the sensible start
-  adminSelectedQuiz = null;
+  adminSelectedQuizzes = new Map();
+  adminLastPublishResult = null;
   if (cqEditorContext === 'admin') { cqEditorContext = 'quiz'; cqEditingQuizId = null; cqEditQuestions = null; _questionEditDirty = false; }
   adminTargetYear   = '';
   adminTargetModule = '';
@@ -456,7 +478,10 @@ async function adminRemoveAdminUI(email) {
 
 function adminSetSourceTab(tab) {
   adminSourceTab = tab;
-  adminSelectedQuiz = null;
+  // Selections are intentionally NOT cleared here — a queued custom quiz
+  // and a queued community quiz can both stay checked while browsing
+  // between tabs, so an admin can build one mixed batch out of both
+  // sources before publishing.
   if (cqEditorContext === 'admin') { cqEditorContext = 'quiz'; cqEditingQuizId = null; cqEditQuestions = null; _questionEditDirty = false; }
   adminCommTab           = 'browse';
   adminCommSearchQuery   = '';
@@ -520,7 +545,7 @@ async function renderAdminPanel() {
       listWrapClass = 'admin-quiz-list-collections'; // layout owns its own sizing; no extra scroll box needed
       const visibleQuizzes = _filterQuizzesByActiveCollection(quizzes, collections);
       const itemsHtml = visibleQuizzes.length ? visibleQuizzes.map(q => {
-        const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'custom' && adminSelectedQuiz.sourceId === q.id;
+        const sel = adminSelectedQuizzes.has(_adminQuizKey('custom', q.id));
         const moveOpen = cqCollectionMoveMenuFor === q.id;
         const chip = _quizCollectionChipHTML(q, collections);
         return `
@@ -564,8 +589,16 @@ async function renderAdminPanel() {
       ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">🌐 Community Quizzes</button>` : ''}
     </div>`;
 
+  const selCount = adminSelectedQuizzes.size;
+  const selectionBarHtml = selCount ? `
+    <div class="admin-selection-bar">
+      <span>✓ ${selCount} quiz${selCount !== 1 ? 'zes' : ''} selected to publish</span>
+      <button class="admin-remove-btn" onclick="adminClearSelectedQuizzes()">🗑 Clear All</button>
+    </div>` : '';
+
   body.innerHTML = `
     ${sourceTabsHtml}
+    ${selectionBarHtml}
     <div id="adminCommSectionTabs"></div>
     <div id="adminCommFilterBar"></div>
     <div class="${listWrapClass}" id="adminQuizList">${listHtml}</div>
@@ -715,7 +748,7 @@ async function renderAdminPanel() {
       return;
     }
     list.innerHTML = shared.map(q => {
-      const sel = adminSelectedQuiz && adminSelectedQuiz.sourceType === 'community' && adminSelectedQuiz.sourceId === q.id;
+      const sel = adminSelectedQuizzes.has(_adminQuizKey('community', q.id));
       return `
         <div class="admin-quiz-item ${sel ? 'selected' : ''}" onclick="adminSelectQuiz('community','${q.id}')">
           <div class="admin-quiz-item-info">
@@ -728,24 +761,61 @@ async function renderAdminPanel() {
   }
 }
 
+/* Toggles one quiz card in/out of the publish batch. Clicking an
+   already-selected card removes it (the multi-select equivalent of
+   unchecking a box); clicking an unselected one adds it, leaving every
+   other currently-checked card untouched. */
 function adminSelectQuiz(sourceType, sourceId) {
-  let quiz = null;
-  if (sourceType === 'custom') {
-    quiz = loadCustomQuizzes().find(q => q.id === sourceId);
+  const key = _adminQuizKey(sourceType, sourceId);
+  adminLastPublishResult = null;
+
+  if (adminSelectedQuizzes.has(key)) {
+    adminSelectedQuizzes.delete(key);
   } else {
-    quiz = (adminCommunityCache || []).find(q => q.id === sourceId);
+    let quiz = null;
+    if (sourceType === 'custom') {
+      quiz = loadCustomQuizzes().find(q => q.id === sourceId);
+    } else {
+      quiz = (adminCommunityCache || []).find(q => q.id === sourceId);
+    }
+    if (!quiz) return;
+
+    adminSelectedQuizzes.set(key, {
+      sourceType,
+      sourceId,
+      title: quiz.title || 'Untitled Quiz',
+      questions: quiz.questions || []
+    });
   }
-  if (!quiz) return;
 
-  adminSelectedQuiz = {
-    sourceType,
-    sourceId,
-    title: quiz.title || 'Untitled Quiz',
-    questions: quiz.questions || []
-  };
+  // "Edit Before Publishing" only makes sense for exactly one quiz at a
+  // time — close it the moment the selection stops being a single quiz,
+  // so a stale editor can never linger into a batch publish.
+  if (adminSelectedQuizzes.size !== 1 && adminEditMode === 'publish') {
+    adminEditQuestions = null;
+    adminEditMode = null;
+  }
+
+  renderAdminPanel();
+}
+
+/* Removes one quiz from the batch via the ✕ on its row in the "queued to
+   publish" summary (used once 2+ quizzes are selected). */
+function adminRemoveSelectedQuiz(key) {
+  adminSelectedQuizzes.delete(key);
+  if (adminSelectedQuizzes.size !== 1 && adminEditMode === 'publish') {
+    adminEditQuestions = null;
+    adminEditMode = null;
+  }
+  renderAdminPanel();
+}
+
+function adminClearSelectedQuizzes() {
+  if (!adminSelectedQuizzes.size) return;
+  adminSelectedQuizzes.clear();
   adminEditQuestions = null;
-  adminEditMode      = null;
-
+  adminEditMode = null;
+  adminLastPublishResult = null;
   renderAdminPanel();
 }
 
@@ -767,10 +837,13 @@ async function adminDeleteSourceQuiz(sourceId) {
     adminCommunityCache = (adminCommunityCache || []).filter(q => q.id !== sourceId);
     _allSharedQuizzes = [];
 
-    if (adminSelectedQuiz && adminSelectedQuiz.sourceType === 'community' && adminSelectedQuiz.sourceId === sourceId) {
-      adminSelectedQuiz = null;
-      adminEditQuestions = null;
-      adminEditMode = null;
+    const deletedKey = _adminQuizKey('community', sourceId);
+    if (adminSelectedQuizzes.has(deletedKey)) {
+      adminSelectedQuizzes.delete(deletedKey);
+      if (adminSelectedQuizzes.size !== 1 && adminEditMode === 'publish') {
+        adminEditQuestions = null;
+        adminEditMode = null;
+      }
     }
     if (adminActiveTab === 'commManage') renderAdminManageCommunityPanel();
     else renderAdminPanel();
@@ -1085,48 +1158,85 @@ function renderAdminAssignForm() {
   const area = document.getElementById('adminAssignArea');
   if (!area) return;
 
-  if (!adminSelectedQuiz) {
-    area.innerHTML = '';
+  const count = adminSelectedQuizzes.size;
+
+  if (!count) {
+    // Nothing queued — but if a publish (single or batch) just finished
+    // and emptied the queue, keep its result banner visible instead of
+    // going blank.
+    area.innerHTML = adminLastPublishResult
+      ? `<div class="admin-status" id="adminStatus">${adminLastPublishResult}</div>`
+      : '';
     return;
   }
 
-  const qCount = (adminEditMode === 'publish' && adminEditQuestions) ? adminEditQuestions.length : adminSelectedQuiz.questions.length;
+  const selected = Array.from(adminSelectedQuizzes.values());
+  const single = count === 1 ? selected[0] : null;
 
-  area.innerHTML = `
-    <div class="admin-assign-form">
+  let headerHtml;
+  if (single) {
+    const qCount = (adminEditMode === 'publish' && adminEditQuestions) ? adminEditQuestions.length : single.questions.length;
+    headerHtml = `
       <div class="admin-assign-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-        <span>Publish "${escapeHtml(adminSelectedQuiz.title)}" (${qCount} q) to:</span>
+        <span>Publish "${escapeHtml(single.title)}" (${qCount} q) to:</span>
         <button class="admin-remove-btn" style="background:var(--violet-pale);color:var(--violet-dark);border:1.5px solid var(--violet-mid-border);"
           onclick="adminToggleEditBeforePublish()">
           ${adminEditMode === 'publish' ? '✖ Close Editor' : '✏️ Edit Before Publishing'}
         </button>
       </div>
+      <div id="adminEditorArea"></div>`;
+  } else {
+    const totalQ = selected.reduce((sum, q) => sum + (q.questions ? q.questions.length : 0), 0);
+    headerHtml = `
+      <div class="admin-assign-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <span>Publish ${count} Quizzes (${totalQ} q total) to:</span>
+        <button class="admin-remove-btn" onclick="adminClearSelectedQuizzes()">🗑 Clear All</button>
+      </div>
+      <div class="admin-multi-quiz-list">
+        ${selected.map(q => `
+          <div class="admin-multi-quiz-row">
+            <div class="admin-multi-quiz-info">
+              <span class="admin-multi-quiz-title">${escapeHtml(q.title)}</span>
+              <span class="admin-multi-quiz-meta">${(q.questions || []).length} q · ${q.sourceType === 'custom' ? '🤖 custom' : '🌐 community'}</span>
+            </div>
+            <button class="admin-multi-quiz-remove" title="Remove from batch"
+              onclick="adminRemoveSelectedQuiz('${_adminQuizKey(q.sourceType, q.sourceId)}')">✕</button>
+          </div>`).join('')}
+      </div>
+      <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:2px;">
+        Each quiz publishes under its own title, one after another (not in parallel).
+      </div>`;
+  }
 
-      <div id="adminEditorArea"></div>
+  area.innerHTML = `
+    <div class="admin-assign-form">
+      ${headerHtml}
 
       ${adminPublishTargetPickerHtml()}
 
+      ${single ? `
       <div class="admin-field">
         <label>Lecture / Topic Name</label>
         <input type="text" id="adminLectureName" placeholder="e.g. Quiz: Liver Pathology (uploaded)" />
-      </div>
+      </div>` : ''}
 
       <div class="admin-assigned-section" id="adminAssignedSection"></div>
 
       <button class="admin-assign-btn" id="adminPublishBtn" onclick="adminPublishQuiz()" style="margin-top:14px;"
         ${(!adminPubTargetYear || !adminPubTargetModule || !adminPubTargetSubject) ? 'disabled' : ''}>
-        📤 Publish to Question Bank
+        📤 Publish ${count > 1 ? count + ' Quizzes' : ''} to Question Bank
       </button>
       <div class="admin-status" id="adminStatus"></div>
     </div>
   `;
 
-  if (adminEditMode === 'publish') renderAdminQuestionEditor('adminEditorArea');
+  if (single && adminEditMode === 'publish') renderAdminQuestionEditor('adminEditorArea');
 
   if (adminPubTargetSubject) renderAdminAssignedList();
 }
 
 function adminToggleEditBeforePublish() {
+  if (adminSelectedQuizzes.size !== 1) return; // only meaningful for a single queued quiz
   if (adminEditMode === 'publish') {
     _guardedClose(() => {
       adminEditMode = null;
@@ -1135,8 +1245,9 @@ function adminToggleEditBeforePublish() {
     });
     return;
   }
+  const single = Array.from(adminSelectedQuizzes.values())[0];
   adminEditMode = 'publish';
-  adminEditQuestions = JSON.parse(JSON.stringify(adminSelectedQuiz.questions));
+  adminEditQuestions = JSON.parse(JSON.stringify(single.questions));
   _questionEditDirty = false;
   renderAdminAssignForm();
 }
