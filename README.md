@@ -35,6 +35,12 @@ else is plain HTML/CSS/JavaScript.
     too — see changelog **#98**.
 - **Community quizzes** — browse, take, and share quizzes made by other
   students; merge questions from one quiz into another.
+- **Backup & Transfer** — export your custom quizzes/stats to a JSON file
+  (and re-import it anywhere), or **export a designed PDF study booklet**
+  from any mix of curriculum lectures, community quizzes, and your own
+  custom quizzes — cover page, book-style chapters, resizable text/images,
+  a colour theme, questions only (no answers shown), and a full answer key
+  at the end. See changelog **#100**.
 - **AI tools** (Gemini, bring-your-own API key) — extract questions from
   slides/PDFs, generate new questions, auto-answer, refine question
   wording, fill in missing choices, and produce step-by-step explanations
@@ -265,6 +271,9 @@ else is plain HTML/CSS/JavaScript.
 - [Google Gemini API](https://ai.google.dev/) — optional, powers all AI
   features; each user supplies their own API key, stored locally in
   their browser
+- [jsPDF](https://github.com/parallax/jsPDF) — lazy-loaded from cdnjs the
+  first time someone actually presses "Generate PDF" in **Export to
+  PDF**; nothing is downloaded on page load. See changelog **#100**.
 
 ## Project structure
 
@@ -313,13 +322,17 @@ anu-msp-question-bank/
 │   │                              #   + stats/history — all local (IndexedDB),
 │   │                              #   never Firestore; export/import payload
 │   │                              #   + merge-vs-replace import logic lives here
-│   ├── p2p-transfer.js           # Direct device-to-device transfer (WebRTC
-│   │                              #   data channel, Firestore only for the
-│   │                              #   brief connection handshake)
 │   ├── backup-transfer-ui.js     # Backup & Transfer modal: file export/
-│   │                              #   import (with a merge/replace choice
-│   │                              #   and a custom file name) and the P2P
-│   │                              #   send/receive UI (manual transfer code)
+│   │                              #   import (merge/replace choice, custom
+│   │                              #   file name) and the entry point for
+│   │                              #   PDF export (see pdf-export.js)
+│   ├── pdf-export.js             # 🖨️ Export to PDF — source picker
+│   │                              #   (curriculum/community/custom), text/
+│   │                              #   image size + colour theme controls,
+│   │                              #   live decoy preview, and the jsPDF-
+│   │                              #   based generation engine (cover,
+│   │                              #   contents, chapters, answer key,
+│   │                              #   closing QR page)
 │   ├── icon-picker.js            # Icon library + reusable icon-picker widget
 │   ├── admin-panel.js            # Publish flow, manage admins, manage
 │   │                              #   community submissions
@@ -329,6 +342,9 @@ anu-msp-question-bank/
 │   │                              #   Subject(s); the Add-Admin scope picker
 │   ├── quiz-editor.js            # Inline editors for published & custom quizzes
 │   └── curriculum-admin.js       # Admin curriculum tree management
+├── assets/
+│   └── qr-code.png               # Site QR code, stamped on the closing
+│                                  #   page of every PDF export
 ├── firestore.rules               # Firestore security rules (owner-only data,
 │                                  #   public reads, roster-based admin perms)
 ├── package.json                  # Convenience scripts for a local dev server
@@ -801,6 +817,82 @@ Firestore-side curriculum/community data.
 
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
+
+- **100 — 💾 Backup tab can now export a designed PDF study booklet.** A
+  third card, "🖨️ Export to PDF", sits below Export/Import and Community
+  Quizzes/curriculum browsing in the Backup & Transfer modal. It opens a
+  dedicated picker where a student can multi-select any mix of official
+  curriculum lectures (whole years, whole modules, whole subjects, or
+  individual lectures), community quizzes, and their own custom quizzes,
+  choose a text size, an image size, and one of five colour themes with a
+  live "decoy" preview (a mock sample page, not real content, that updates
+  instantly as settings change), then generate a single PDF. The PDF
+  itself is deliberately book-like: a full-bleed cover page (logo + site
+  name + a summary of what's inside), a "What's inside" contents overview,
+  and then Part/Chapter/Section/Sub-section dividers — curriculum picks
+  are organized Year → Module → Subject → Lecture exactly the same way
+  whether the person picked a whole year or a single lecture; community
+  picks are grouped by year/module/subject when known (else by category);
+  custom quizzes are grouped by their folder path (see **Collections**
+  below). Every question shows its text, its image (if any) sized per the
+  chosen setting, and its A–D options — **never the answer**. A single,
+  colour-matched Answer Key section at the very end lists every answer
+  grouped by the same chapter path the questions used, and the booklet
+  always closes with a page carrying the site's QR code (scan to open the
+  live app) beneath the logo. Every content page (except the cover and
+  the closing QR page) carries a slim running header (logo mark, site
+  name, current chapter breadcrumb) and footer (page number, a reminder
+  that answers are at the end), stamped in one finishing pass once the
+  full page count is known.
+  - **`js/pdf-export.js`** *(new file)*: owns the entire feature —
+    picker state (`_pdxSelCurriculum`/`_pdxSelCommunity`/`_pdxSelCustom`,
+    all `Set`s), the Year/Module/Subject drilldown (mirrors the existing
+    Merge-picker dropdown pattern in `community-quizzes.js`, plus "＋
+    Whole Year/Module/Subject" one-click shortcuts that queue every
+    lecture underneath instantly), the Community and Custom tabs (reusing
+    `_allSharedQuizzes`/`ensureSharedQuizzesLoaded`, `loadCustomQuizzes`,
+    `loadQuizCollections`/`_collectionPath`/`_quizCollectionChipHTML` —
+    zero new data-layer code, 100% reuse of what backup-transfer-ui.js
+    and community-quizzes.js already keep warm), the Look & Feel panel
+    (text size / image size / theme swatches) with its live decoy
+    preview, and the actual generation engine. The engine lazy-loads
+    **jsPDF 2.5.1 from cdnjs** on first use — the exact same "only touch
+    the network when the feature is actually used" pattern `pdf.js`
+    already uses in `gemini-uploads.js` — so nothing is downloaded until
+    someone presses "Generate PDF". Every question image (already a
+    `data:` URL in the vast majority of cases thanks to `ensureInlineImages`,
+    reused as-is here) is normalized through an offscreen canvas into a
+    PNG before `addImage()`, sidestepping jsPDF's format-sniffing for
+    PNG/JPEG/WEBP/GIF uniformly; any image that fails to load (bad URL,
+    CORS, timeout) is silently skipped rather than failing the whole
+    export, matching the app's existing best-effort image-healing
+    philosophy. The brand mark is rasterized once at runtime from the
+    exact same inline SVG markup already used for the favicon/header
+    `.brand-mark`, so the logo can never drift out of sync with the rest
+    of the site. Colour theming pulls five curated palettes straight from
+    `css/styles.css`'s own design tokens (teal/violet/gold/forest/berry)
+    — the person's chosen theme leads the cover and running header, and
+    the remaining four automatically colour-code separate top-level
+    sections (e.g. Year 1 vs. Year 2, or Curriculum vs. Community vs.
+    Custom) so a large multi-source export reads as organized rather than
+    one long grey wall of text.
+  - **`js/backup-transfer-ui.js`**: added the "🖨️ Export to PDF" card
+    (`openPdfExport()`) inside `renderBackupTransferModal()`; no other
+    logic in this file changed.
+  - **`index.html`**: added the `#pdfExportOverlay` modal shell (mirrors
+    the existing `#backupOverlay`/`#mergeQuizOverlay` markup pattern) and
+    the `<script src="js/pdf-export.js">` include, right after
+    `backup-transfer-ui.js`.
+  - **`css/styles.css`**: added the `.pdx-*` block — a responsive
+    two-column layout (source picker left, settings + live preview right)
+    that collapses to a single stacked column under 760px, reusing
+    existing tokens/components wherever one already fit (`.admin-field`,
+    `.comm-*` search/list classes, `.cq-quiz-item`, `.backup-quiz-row`,
+    `.cq-btn`) so the new UI matches the rest of the app instead of
+    introducing a parallel design language.
+  - **`assets/qr-code.png`** *(new file)*: the site's QR code (scans to
+    the live GitHub Pages URL), stamped on the closing page of every
+    generated PDF.
 
 - **99 — Publish Quizzes tab now supports multi-select, sequential batch
   publishing.** The "📤 Publish Quizzes" source picker (both "🤖 My Custom

@@ -82,6 +82,15 @@
      (`_backupToggleAllQuizzes`, `_backupQuizItemChanged`) — this is
      purely a visual pass.
 
+   Drop #100 — "Export to PDF" card added:
+   - A third `.backup-card` ("🖨️ Export to PDF") sits below Export/Import,
+     opening the new `pdfExportOverlay` modal (see js/pdf-export.js) — a
+     full source picker (curriculum lectures, community quizzes, custom
+     quizzes) plus text/image size + colour theme controls, a live decoy
+     preview, and the actual PDF generation engine. This file only owns
+     the entry point; everything else lives in pdf-export.js so this
+     module's own scope (file export/import) stays untouched.
+
    Build 77 — P2P direct-device transfer removed entirely:
    - Removed the whole "Direct device-to-device transfer" card and its
      four handler functions (`_backupStartP2PSend`, `_backupCopyP2PCode`,
@@ -160,6 +169,27 @@ async function renderBackupTransferModal() {
           <input type="file" id="backupImportFileInput" accept="application/json" style="display:none" onchange="_backupDoImport(this.files[0])">
         </div>
         <div id="backupFileStatus" class="backup-status-area"></div>
+      </div>
+    </div>
+
+    <div class="backup-card">
+      <div class="backup-card-header">
+        <span class="backup-card-icon">🖨️</span>
+        <div>
+          <div class="backup-card-title">Export to PDF</div>
+          <div class="backup-card-subtitle">A stylish printable booklet — pick any curriculum lectures, community quizzes, or custom quizzes</div>
+        </div>
+      </div>
+      <div class="backup-card-body">
+        <div class="backup-field-label" style="font-weight:500;color:var(--text-muted);">
+          Build a colourful, book-style PDF with a cover page, chapters organized by
+          Year / Module / Subject (or by folder for your own quizzes), questions with
+          images, and a full answer key at the end — never with the answers shown
+          next to the questions.
+        </div>
+        <div class="backup-actions">
+          <button class="stats-open-btn" onclick="openPdfExport()">🎨 Build a PDF Export</button>
+        </div>
       </div>
     </div>
   `;

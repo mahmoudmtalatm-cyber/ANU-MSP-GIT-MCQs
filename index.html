@@ -127,6 +127,17 @@
     </div>
   </div>
 
+<!-- PDF EXPORT MODAL -->
+  <div id="pdfExportOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closePdfExport()">
+    <div class="stats-modal pdx-modal">
+      <div class="stats-modal-header">
+        <h2>🖨️&nbsp; Export to PDF</h2>
+        <button class="stats-close-btn" onclick="closePdfExport()">✕</button>
+      </div>
+      <div class="stats-body" id="pdfExportBody"></div>
+    </div>
+  </div>
+
 <!-- MERGE QUIZZES PICKER MODAL -->
   <div id="mergeQuizOverlay" class="stats-overlay hidden" onclick="if(event.target===this)closeMergePicker()">
     <div class="stats-modal" style="max-width:720px;">
@@ -384,6 +395,7 @@
 <script src="js/icon-picker.js"></script>
 <script src="js/curriculum-admin.js"></script>
 <script src="js/backup-transfer-ui.js"></script>
+<script src="js/pdf-export.js"></script>
 <script src="js/firebase-init.js" type="module"></script>
 <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "f4142a9a44aa49c6a67437c3b8932b61"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
