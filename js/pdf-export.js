@@ -27,6 +27,54 @@
    a single finishing pass once the full page count is known.
    ============================================================================= */
 
+/* ── PDF text safety ──
+   jsPDF's built-in fonts (Helvetica/Times/Courier — the only ones used
+   here, deliberately, to avoid shipping a multi-hundred-KB embedded font)
+   only support the WinAnsi/Latin-1 character set. Emoji, most curly
+   punctuation, Greek letters, and many math symbols fall outside that and
+   render as garbled boxes/junk glyphs instead of failing loudly — so
+   every single string that reaches doc.text()/splitTextToSize() (both
+   the PDF's own chrome AND real question/quiz content, which can contain
+   any of the above) is routed through this sanitizer first. Common
+   symbols are transliterated to a clean ASCII equivalent; anything left
+   over that still can't be represented is dropped rather than printed as
+   garbage. The on-screen picker UI/live preview are untouched — browsers
+   render Unicode and emoji fine, this only applies to text drawn INTO
+   the actual PDF. */
+const PDX_SYMBOL_MAP = {
+  '—': '-', '–': '-', '‑': '-', '‒': '-', '―': '-',
+  '…': '...', '·': '.', '•': '*', '∙': '*',
+  '‘': "'", '’': "'", '‚': "'", '“': '"', '”': '"', '„': '"',
+  '‹': '<', '›': '>', '«': '<<', '»': '>>',
+  '＋': '+', '×': 'x', '÷': '/', '±': '+/-',
+  '≤': '<=', '≥': '>=', '≈': '~', '≠': '!=',
+  '→': '->', '←': '<-', '↔': '<->', '∞': 'inf', '°': ' deg',
+  'µ': 'u', 'μ': 'u', 'Ω': 'Ohm',
+  'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta', 'ε': 'epsilon',
+  'θ': 'theta', 'λ': 'lambda', 'π': 'pi', 'ρ': 'rho', 'σ': 'sigma',
+  'τ': 'tau', 'φ': 'phi', 'ω': 'omega', 'Δ': 'Delta', 'Σ': 'Sum',
+  '\u00A0': ' ', '\u202F': ' ', '\u2009': ' ', '\u200B': '',
+};
+function _pdxSafeText(input) {
+  if (input == null) return '';
+  const out = [];
+  for (const ch of String(input)) {
+    if (Object.prototype.hasOwnProperty.call(PDX_SYMBOL_MAP, ch)) { out.push(PDX_SYMBOL_MAP[ch]); continue; }
+    if (ch.codePointAt(0) <= 0xFF) { out.push(ch); continue; }
+    // Emoji, CJK/other scripts, and any other symbol without a mapping
+    // above simply can't be drawn by a core PDF font — drop, don't garble.
+  }
+  return out.join('').replace(/[ \t]{2,}/g, ' ').trim();
+}
+/* Formats a Date without relying on toLocaleDateString — some locales
+   insert a narrow no-break space or other non-Latin1 punctuation between
+   parts, which is exactly the kind of thing this whole sanitizer exists
+   to avoid needing to clean up after the fact. */
+function _pdxFormatDate(d) {
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
 /* ── Curated colour palette ──
    Five book-style "part" colours pulled straight from the app's own design
    tokens (css/styles.css :root) so the PDF always feels like a natural
@@ -473,12 +521,12 @@ async function pdxGenerate() {
     const years = Object.keys(curTree);
     for (const year of years) {
       const color = nextColor();
-      _pdxDrawPartDivider(ctx, year, `Curriculum · ${Object.keys(curTree[year]).length} module${Object.keys(curTree[year]).length !== 1 ? 's' : ''}`, '🏛️', color);
+      _pdxDrawPartDivider(ctx, year, `Curriculum - ${Object.keys(curTree[year]).length} module${Object.keys(curTree[year]).length !== 1 ? 's' : ''}`, color);
       for (const mod of Object.keys(curTree[year])) {
         _pdxDrawBanner(ctx, mod, 1, color, [year]);
         for (const subjKey of Object.keys(curTree[year][mod])) {
           const subj = subjects[subjKey] || { label: subjKey, icon: '📘' };
-          _pdxDrawBanner(ctx, `${subj.icon || '📘'} ${subj.label || subjKey}`, 2, color, [year, mod]);
+          _pdxDrawBanner(ctx, subj.label || subjKey, 2, color, [year, mod]);
           for (const lecName of curTree[year][mod][subjKey]) {
             _pdxDrawBanner(ctx, lecName, 3, color, [year, mod, subj.label || subjKey]);
             const questions = (subjects[subjKey].lectures[lecName] || []);
@@ -493,11 +541,11 @@ async function pdxGenerate() {
     // ── Community quizzes: grouped by category label
     if (dataset.community.groups.length) {
       const color = nextColor();
-      _pdxDrawPartDivider(ctx, 'Community Quizzes', `${dataset.community.total} quiz${dataset.community.total !== 1 ? 'zes' : ''} shared by fellow students`, '🌐', color);
+      _pdxDrawPartDivider(ctx, 'Community Quizzes', `${dataset.community.total} quiz${dataset.community.total !== 1 ? 'zes' : ''} shared by fellow students`, color);
       for (const group of dataset.community.groups) {
         _pdxDrawBanner(ctx, group.label, 1, color, ['Community Quizzes']);
         for (const quiz of group.quizzes) {
-          _pdxDrawBanner(ctx, `${quiz.title}${quiz.authorName ? ` — by ${quiz.authorName}` : ''}`, 2, color, ['Community Quizzes', group.label]);
+          _pdxDrawBanner(ctx, `${quiz.title}${quiz.authorName ? ` (by ${quiz.authorName})` : ''}`, 2, color, ['Community Quizzes', group.label]);
           for (const q of quiz.questions) {
             qNum = await _pdxDrawQuestion(ctx, q, qNum, color, ['Community Quizzes', group.label, quiz.title], answerKey);
           }
@@ -508,7 +556,7 @@ async function pdxGenerate() {
     // ── Custom quizzes: grouped by folder path
     if (dataset.custom.groups.length) {
       const color = nextColor();
-      _pdxDrawPartDivider(ctx, 'My Custom Quizzes', `${dataset.custom.total} quiz${dataset.custom.total !== 1 ? 'zes' : ''} you created`, '🤖', color);
+      _pdxDrawPartDivider(ctx, 'My Custom Quizzes', `${dataset.custom.total} quiz${dataset.custom.total !== 1 ? 'zes' : ''} you created`, color);
       for (const group of dataset.custom.groups) {
         _pdxDrawBanner(ctx, group.label, 1, color, ['My Custom Quizzes']);
         for (const quiz of group.quizzes) {
@@ -776,7 +824,7 @@ function _pdxEnsureSpace(ctx, needed, breadcrumb, color) {
 function _pdxWrap(ctx, text, maxWidth, size, font, style) {
   ctx.doc.setFont(font, style);
   ctx.doc.setFontSize(size);
-  return ctx.doc.splitTextToSize(String(text == null ? '' : text), maxWidth);
+  return ctx.doc.splitTextToSize(_pdxSafeText(text), maxWidth);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -806,17 +854,17 @@ async function _pdxDrawCover(ctx, dataset) {
 
   const items = [];
   const curYears = Object.keys(dataset.curriculum);
-  if (curYears.length) items.push(`🏛️ ${curYears.length} curriculum year${curYears.length !== 1 ? 's' : ''}`);
-  if (dataset.community.total) items.push(`🌐 ${dataset.community.total} community quiz${dataset.community.total !== 1 ? 'zes' : ''}`);
-  if (dataset.custom.total) items.push(`🤖 ${dataset.custom.total} custom quiz${dataset.custom.total !== 1 ? 'zes' : ''}`);
+  if (curYears.length) items.push(`${curYears.length} curriculum year${curYears.length !== 1 ? 's' : ''}`);
+  if (dataset.community.total) items.push(`${dataset.community.total} community quiz${dataset.community.total !== 1 ? 'zes' : ''}`);
+  if (dataset.custom.total) items.push(`${dataset.custom.total} custom quiz${dataset.custom.total !== 1 ? 'zes' : ''}`);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11.5);
   items.forEach((line, i) => doc.text(line, pageW / 2, 270 + i * 18, { align: 'center' }));
 
   doc.setFontSize(9.5);
   doc.setTextColor(255, 255, 255);
-  doc.text(`Generated ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`, pageW / 2, pageH * 0.62 + 30, { align: 'center' });
+  doc.text(`Generated ${_pdxFormatDate(new Date())}`, pageW / 2, pageH * 0.62 + 30, { align: 'center' });
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
-  doc.text('Questions only inside — full answer key at the very end', pageW / 2, pageH * 0.62 + 52, { align: 'center' });
+  doc.text('Questions only inside - full answer key at the very end', pageW / 2, pageH * 0.62 + 52, { align: 'center' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
   doc.text('Free, community-built ANU MSP question bank', pageW / 2, pageH - 34, { align: 'center' });
 
@@ -847,7 +895,7 @@ function _pdxDrawContentsPage(ctx) {
     _pdxEnsureSpace(ctx, size + 8, ['Contents'], theme);
     doc.setFont('helvetica', style); doc.setFontSize(size);
     doc.setTextColor(entry.level === 0 ? theme.dark : '#3A4653');
-    const lines = doc.splitTextToSize(entry.text, ctx.contentW - indent);
+    const lines = doc.splitTextToSize(_pdxSafeText(entry.text), ctx.contentW - indent);
     doc.text(lines, ctx.margin + indent, ctx.y);
     ctx.y += lines.length * (size + 4) + (entry.level === 0 ? 4 : 1);
   });
@@ -857,22 +905,26 @@ function _pdxDrawContentsPage(ctx) {
    PART DIVIDER — one full page per top-level group (a curriculum
    Year, "Community Quizzes", or "My Custom Quizzes").
 ══════════════════════════════════════════════════════════ */
-function _pdxDrawPartDivider(ctx, title, subtitle, icon, color) {
+function _pdxDrawPartDivider(ctx, title, subtitle, color) {
   const { doc, pageW, pageH } = ctx;
   _pdxNewPage(ctx, [title], color);
   doc.setFillColor(color.pale);
   doc.rect(0, 0, pageW, pageH, 'F');
   doc.setFillColor(color.dark);
   doc.rect(0, pageH / 2 - 70, pageW, 140, 'F');
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(30);
-  doc.setTextColor(255, 255, 255);
-  doc.text(icon || '📘', pageW / 2, pageH / 2 - 24, { align: 'center' });
+
+  // A simple rule-and-title motif instead of an emoji icon — guaranteed to
+  // render cleanly with the PDF's built-in fonts on every platform/viewer.
+  doc.setDrawColor(255, 255, 255); doc.setLineWidth(1);
+  doc.line(pageW / 2 - 46, pageH / 2 - 34, pageW / 2 + 46, pageH / 2 - 34);
   doc.setFont('times', 'bold'); doc.setFontSize(24);
-  doc.text(title, pageW / 2, pageH / 2 + 14, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.text(_pdxSafeText(title), pageW / 2, pageH / 2 + 14, { align: 'center' });
+  doc.line(pageW / 2 - 46, pageH / 2 + 34, pageW / 2 + 46, pageH / 2 + 34);
   if (subtitle) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
     doc.setTextColor(color.dark);
-    doc.text(subtitle, pageW / 2, pageH / 2 + 96, { align: 'center' });
+    doc.text(_pdxSafeText(subtitle), pageW / 2, pageH / 2 + 96, { align: 'center' });
   }
   ctx.y = ctx.bottom + 1; // force the next drawn element onto a fresh page
 }
@@ -905,7 +957,9 @@ function _pdxDrawBanner(ctx, title, level, color, breadcrumb) {
   d.setFont(level === 1 ? 'times' : 'helvetica', 'bold');
   d.setFontSize(sizes[level]);
   const textY = ctx.y + h / 2 + sizes[level] / 3;
-  d.text(title, margin + (level === 3 ? 0 : 14), level === 3 ? ctx.y + 12 : textY);
+  const safeTitle = _pdxSafeText(title);
+  const fitted = d.splitTextToSize(safeTitle, contentW - (level === 3 ? 30 : 28))[0] || safeTitle;
+  d.text(fitted, margin + (level === 3 ? 0 : 14), level === 3 ? ctx.y + 12 : textY);
   ctx.y += h + (level === 3 ? 10 : 16);
   ctx.pageMeta[ctx.doc.getNumberOfPages()] = { breadcrumb: breadcrumb.concat(level === 3 ? [] : title), color };
 }
@@ -955,7 +1009,7 @@ async function _pdxDrawQuestion(ctx, q, num, color, breadcrumb, answerKey) {
     _pdxEnsureSpace(ctx, h, breadcrumb, color);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(textSizes.opt);
     doc.setTextColor(color.dark);
-    doc.text(`${o.key}`, margin + 4, ctx.y);
+    doc.text(_pdxSafeText(o.key), margin + 4, ctx.y);
     doc.setFont('helvetica', 'normal'); doc.setTextColor('#2A3541');
     doc.text(o.lines, margin + 22, ctx.y);
     ctx.y += h;
@@ -977,12 +1031,12 @@ function _pdxDrawAnswerKey(ctx, entries) {
   _pdxNewPage(ctx, ['Answer Key'], theme);
   doc.setFont('times', 'bold'); doc.setFontSize(20);
   doc.setTextColor(theme.dark);
-  doc.text('📋 Answer Key', ctx.margin, ctx.y);
+  doc.text('Answer Key', ctx.margin, ctx.y);
   ctx.y += 28;
 
   const groups = new Map();
   entries.forEach(e => {
-    const label = e.breadcrumb.join(' › ');
+    const label = e.breadcrumb.join(' > ');
     if (!groups.has(label)) groups.set(label, { color: e.color, items: [] });
     groups.get(label).items.push(e);
   });
@@ -996,7 +1050,8 @@ function _pdxDrawAnswerKey(ctx, entries) {
     doc.line(ctx.margin, ctx.y, ctx.margin, ctx.y + headerH);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
     doc.setTextColor(group.color.dark);
-    doc.text(label, ctx.margin + 8, ctx.y + 15);
+    const fittedLabel = doc.splitTextToSize(_pdxSafeText(label), ctx.contentW - 16)[0] || '';
+    doc.text(fittedLabel, ctx.margin + 8, ctx.y + 15);
     ctx.y += headerH + 8;
 
     const perRow = 8;
@@ -1009,7 +1064,7 @@ function _pdxDrawAnswerKey(ctx, entries) {
       doc.setFont('helvetica', 'bold'); doc.setTextColor(group.color.base);
       doc.text(`Q${item.num}`, x, ctx.y);
       doc.setFont('helvetica', 'normal'); doc.setTextColor('#2A3541');
-      doc.text(String(item.answer), x + cellW - 14, ctx.y);
+      doc.text(_pdxSafeText(item.answer), x + cellW - 14, ctx.y);
       col++;
       if (col >= perRow) { col = 0; ctx.y += 17; }
     });
@@ -1055,7 +1110,7 @@ async function _pdxDrawClosingPage(ctx) {
   doc.text('ANU MSP Question Bank', pageW / 2, pageH - 56, { align: 'center' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
   doc.setTextColor(255, 255, 255);
-  doc.text('Free & community-built · made with 💙 by Mahmoud Talat', pageW / 2, pageH - 40, { align: 'center' });
+  doc.text('Free and community-built - made with care by Mahmoud Talat', pageW / 2, pageH - 40, { align: 'center' });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1083,7 +1138,7 @@ function _pdxFinishHeadersFooters(ctx) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
     doc.setTextColor(color.dark);
     doc.text('ANU MSP Question Bank', margin + (_pdxAssetCache.logo ? 20 : 0), margin);
-    const crumb = (meta.breadcrumb || []).filter(Boolean).join(' › ');
+    const crumb = _pdxSafeText((meta.breadcrumb || []).filter(Boolean).join(' > '));
     if (crumb) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
       doc.setTextColor('#6B7A88');
@@ -1096,7 +1151,7 @@ function _pdxFinishHeadersFooters(ctx) {
     doc.line(margin, pageH - margin - 12, pageW - margin, pageH - margin - 12);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
     doc.setTextColor('#8496A6');
-    doc.text('Questions only — full answer key at the end', margin, pageH - margin);
+    doc.text('Questions only - full answer key at the end', margin, pageH - margin);
     doc.text(`Page ${p} of ${total}`, pageW - margin, pageH - margin, { align: 'right' });
   }
 }
