@@ -130,9 +130,9 @@ async function renderPdfExportModal() {
     <div class="pdx-layout">
       <div class="pdx-picker-col">
         <div class="community-section-tabs pdx-source-tabs">
-          <button class="community-tab-btn ${_pdxTab === 'curriculum' ? 'active' : ''}" onclick="pdxSetTab('curriculum')">🏛️ Curriculum ${_pdxSelCurriculum.size ? `(${_pdxSelCurriculum.size})` : ''}</button>
-          <button class="community-tab-btn ${_pdxTab === 'community'  ? 'active' : ''}" onclick="pdxSetTab('community')">🌐 Community ${_pdxSelCommunity.size ? `(${_pdxSelCommunity.size})` : ''}</button>
-          <button class="community-tab-btn ${_pdxTab === 'custom'     ? 'active' : ''}" onclick="pdxSetTab('custom')">🤖 My Custom Quizzes ${_pdxSelCustom.size ? `(${_pdxSelCustom.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'curriculum' ? 'active' : ''}" data-tab="curriculum" onclick="pdxSetTab('curriculum')">🏛️ Curriculum ${_pdxSelCurriculum.size ? `(${_pdxSelCurriculum.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'community'  ? 'active' : ''}" data-tab="community" onclick="pdxSetTab('community')">🌐 Community ${_pdxSelCommunity.size ? `(${_pdxSelCommunity.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'custom'     ? 'active' : ''}" data-tab="custom" onclick="pdxSetTab('custom')">🤖 My Custom Quizzes ${_pdxSelCustom.size ? `(${_pdxSelCustom.size})` : ''}</button>
         </div>
         <div id="pdxTabContent" class="pdx-tab-content"></div>
 
@@ -195,10 +195,20 @@ function _pdxRefreshChrome() {
   if (countEl) countEl.textContent = `${_pdxTotalSelected()} item${_pdxTotalSelected() === 1 ? '' : 's'} selected`;
   const btn = document.getElementById('pdxGenerateBtn');
   if (btn) btn.disabled = !_pdxTotalSelected();
-  document.querySelectorAll('.pdx-source-tabs .community-tab-btn').forEach((btn, i) => {
-    const counts = [_pdxSelCurriculum.size, _pdxSelCommunity.size, _pdxSelCustom.size];
-    const labels = ['🏛️ Curriculum', '🌐 Community', '🤖 My Custom Quizzes'];
-    btn.textContent = `${labels[i]} ${counts[i] ? `(${counts[i]})` : ''}`.trim();
+  _pdxSyncTabButtons();
+}
+/* Keeps the tab bar's active highlight AND its "(N)" counts in sync with
+   state, independent of whichever tab's content last got re-rendered —
+   called both on selection changes and on every tab switch, since
+   switching tabs never re-renders the tab bar markup itself. */
+function _pdxSyncTabButtons() {
+  const counts = { curriculum: _pdxSelCurriculum.size, community: _pdxSelCommunity.size, custom: _pdxSelCustom.size };
+  const labels = { curriculum: '🏛️ Curriculum', community: '🌐 Community', custom: '🤖 My Custom Quizzes' };
+  document.querySelectorAll('.pdx-source-tabs .community-tab-btn').forEach(btn => {
+    const tab = btn.dataset.tab;
+    if (!tab) return;
+    btn.classList.toggle('active', tab === _pdxTab);
+    btn.textContent = `${labels[tab]} ${counts[tab] ? `(${counts[tab]})` : ''}`.trim();
   });
 }
 function pdxClearAll() {
@@ -211,6 +221,7 @@ function pdxClearAll() {
 
 function pdxSetTab(tab) {
   _pdxTab = tab;
+  _pdxSyncTabButtons();
   pdxRenderTabContent();
 }
 function pdxRenderTabContent() {
