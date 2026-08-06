@@ -1325,40 +1325,41 @@
    screens — same responsive philosophy as the rest of the app: flexbox +
    wrap, one breakpoint, no fixed pixel widths that could overflow a small
    viewport. */
-#pdfExportOverlay .pdx-modal { max-width: 980px; }
+#pdfExportOverlay .pdx-modal { max-width: 1080px; }
 .pdx-intro {
   background: var(--surface-2); border: 1px solid var(--border-soft);
   border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
   font-size: .85rem; line-height: 1.55; color: var(--text-muted);
 }
 .pdx-layout { display: flex; gap: 18px; align-items: flex-start; }
-.pdx-picker-col { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.pdx-settings-col { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.pdx-picker-col { flex: 1 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.pdx-settings-col { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 
 .pdx-source-tabs { margin-bottom: 2px; }
 .pdx-tab-content {
   border: 1px solid var(--border-soft); border-radius: 12px;
   background: var(--bg-card); padding: 14px; min-height: 220px;
-  max-height: 420px; overflow-y: auto;
+  max-height: 540px; overflow-y: auto;
 }
-.pdx-drill-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-.pdx-drill-row .admin-field { flex: 1 1 180px; min-width: 0; }
-.pdx-whole-btn {
-  flex-shrink: 0; white-space: nowrap;
-  background: var(--accent-soft); color: var(--accent-dark);
-  border: 1.5px solid var(--accent); border-radius: 8px;
-  padding: 8px 12px; font-size: .78rem; font-weight: 700; cursor: pointer;
-  transition: background .15s, transform .12s;
+/* Curriculum tab reuses the admin "📤 Publish Quizzes" destination
+   picker's own .curr-section/.curr-item-row/.curr-breadcrumb components
+   (see adminPublishTargetPickerHtml in js/admin-panel.js) — stripped of
+   its own boxed background/border/padding here since .pdx-tab-content
+   already provides that framing, so the two don't double up. */
+.pdx-tab-content .curr-section { background: none; border: none; padding: 0; margin: 0; }
+.pdx-row-check { width: 17px; height: 17px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+.pdx-curr-click {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; cursor: pointer;
 }
-.pdx-whole-btn:hover:not(:disabled) { background: var(--accent); color: white; transform: translateY(-1px); }
-.pdx-whole-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pdx-curr-click:hover .curr-item-arrow { color: var(--accent); }
 
 .pdx-lecture-list-header {
   display: flex; align-items: center; gap: 8px;
   font-size: .8rem; font-weight: 700; color: var(--text-main);
   margin: 10px 0 6px;
 }
-.pdx-lecture-list { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.pdx-lecture-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
 .pdx-qcount { font-style: normal; color: var(--accent-dark); font-weight: 700; opacity: .8; }
 
 .pdx-selection-bar {
@@ -1455,8 +1456,6 @@
   .pdx-preview-page { max-width: 320px; margin: 0 auto; }
 }
 @media (max-width: 480px) {
-  .pdx-drill-row { flex-direction: column; align-items: stretch; }
-  .pdx-whole-btn { width: 100%; }
   .pdx-footer { flex-direction: column; align-items: stretch; }
   .pdx-footer-actions { flex-direction: column; }
   .pdx-footer-actions .cq-btn { width: 100%; }

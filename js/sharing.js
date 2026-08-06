@@ -196,6 +196,52 @@ function communityOnSearchInput(val) {
   renderCommunityQuizzes();
 }
 
+/* Pure filter + sort + derived-filter-options computation, shared between
+   the main "🌐 Community Quizzes" screen (renderCommunityQuizzes, right
+   below) and the 🖨️ Export to PDF picker's Community tab
+   (js/pdf-export.js) — both browse the exact same underlying
+   _allSharedQuizzes cache with the exact same search/year/module/subject/
+   sort behavior; only the per-item action buttons differ (Start/Save/
+   Unshare over there vs. a select-for-export checkbox here), so only the
+   markup for those buttons is duplicated, never the filtering logic
+   itself. No DOM access, no state mutation — safe to call from anywhere. */
+function _communityComputeView({ scope, search, yearFilter, moduleFilter, subjectFilter, sort }) {
+  const myUid = window._currentUser ? window._currentUser.uid : null;
+  const shared = _allSharedQuizzes;
+  const myShared = shared.filter(q => q.authorUid === myUid);
+
+  let pool = scope === 'mine' ? myShared : shared;
+
+  const q = (search || '').toLowerCase().trim();
+  if (q) {
+    pool = pool.filter(item => {
+      const inTitle  = (item.title || '').toLowerCase().includes(q);
+      const inAuthor = (item.authorName || '').toLowerCase().includes(q);
+      const inCat    = (item.category || '').toLowerCase().includes(q);
+      const inTags   = (item.tags || []).some(t => t.includes(q));
+      return inTitle || inAuthor || inCat || inTags;
+    });
+  }
+  if (yearFilter)    pool = pool.filter(item => (item.year || '') === yearFilter);
+  if (moduleFilter)  pool = pool.filter(item => (item.module || '') === moduleFilter);
+  if (subjectFilter) pool = pool.filter(item => (item.subjectKey || '') === subjectFilter);
+
+  if (sort === 'newest') pool = [...pool].sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
+  else if (sort === 'oldest') pool = [...pool].sort((a, b) => (a.sharedAt || 0) - (b.sharedAt || 0));
+  else if (sort === 'az') pool = [...pool].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  else if (sort === 'questions') pool = [...pool].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0));
+
+  const allYears = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
+  const allModules = yearFilter
+    ? Object.keys(curriculum[yearFilter] || {})
+    : [...new Set(shared.map(i => i.module).filter(Boolean))].sort();
+  const allSubjects = (yearFilter && moduleFilter)
+    ? (curriculum[yearFilter][moduleFilter] || []).filter(k => subjects[k])
+    : [...new Set(shared.map(i => i.subjectKey).filter(Boolean))];
+
+  return { pool, shared, myShared, allYears, allModules, allSubjects };
+}
+
 async function renderCommunityQuizzes(forceReload) {
   const body = document.getElementById('communityQuizBody');
 
@@ -217,54 +263,11 @@ async function renderCommunityQuizzes(forceReload) {
   }
 
   const myUid = window._currentUser ? window._currentUser.uid : null;
-  const shared = _allSharedQuizzes;
-  const myShared = shared.filter(q => q.authorUid === myUid);
-
-  // --- Filtering ---
-  let pool = communityTab === 'mine' ? myShared : shared;
-
-  // Search
-  const q = communitySearchQuery.toLowerCase().trim();
-  if (q) {
-    pool = pool.filter(item => {
-      const inTitle  = (item.title || '').toLowerCase().includes(q);
-      const inAuthor = (item.authorName || '').toLowerCase().includes(q);
-      const inCat   = (item.category || '').toLowerCase().includes(q);
-      const inTags  = (item.tags || []).some(t => t.includes(q));
-      return inTitle || inAuthor || inCat || inTags;
-    });
-  }
-
-  // Hierarchical curriculum filter
-  if (communityYearFilter) {
-    pool = pool.filter(item => (item.year || '') === communityYearFilter);
-  }
-  if (communityModuleFilter) {
-    pool = pool.filter(item => (item.module || '') === communityModuleFilter);
-  }
-  if (communitySubjectFilter) {
-    pool = pool.filter(item => (item.subjectKey || '') === communitySubjectFilter);
-  }
-
-  // Sorting
-  if (communitySort === 'newest') {
-    pool = [...pool].sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0));
-  } else if (communitySort === 'oldest') {
-    pool = [...pool].sort((a, b) => (a.sharedAt || 0) - (b.sharedAt || 0));
-  } else if (communitySort === 'az') {
-    pool = [...pool].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-  } else if (communitySort === 'questions') {
-    pool = [...pool].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0));
-  }
-
-  // Build cascading filter options from live curriculum + shared quiz metadata
-  const allYears   = Object.keys(curriculum).filter(y => Object.keys(curriculum[y] || {}).length > 0);
-  const allModules = communityYearFilter
-    ? Object.keys(curriculum[communityYearFilter] || {})
-    : [...new Set(shared.map(i => i.module).filter(Boolean))].sort();
-  const allSubjects = (communityYearFilter && communityModuleFilter)
-    ? (curriculum[communityYearFilter][communityModuleFilter] || []).filter(k => subjects[k])
-    : [...new Set(shared.map(i => i.subjectKey).filter(Boolean))];
+  const { pool, shared, myShared, allYears, allModules, allSubjects } = _communityComputeView({
+    scope: communityTab, search: communitySearchQuery,
+    yearFilter: communityYearFilter, moduleFilter: communityModuleFilter, subjectFilter: communitySubjectFilter,
+    sort: communitySort,
+  });
 
   // --- Build HTML ---
   const searchVal = escapeHtml(communitySearchQuery);

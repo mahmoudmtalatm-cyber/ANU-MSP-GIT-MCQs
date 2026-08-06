@@ -45,20 +45,23 @@ let cqBulkMoveMenuOpen = false;
 let cqSidebarMobileOpen = false;         // mobile (<720px): drawer hidden by default
 let cqSidebarCollapsed = _cqReadCollapsedFromStorage(); // desktop (≥720px): sidebar shown by default, collapsible via header button
 
-// This same folder tree/breadcrumb/quiz-list UI is now rendered from two
+// This same folder tree/breadcrumb/quiz-list UI is now rendered from three
 // different hosts: the student-facing "🤖 Custom Quizzes" modal
-// (js/firebase-storage.js → renderCustomQuizModal) AND the admin panel's
+// (js/firebase-storage.js → renderCustomQuizModal), the admin panel's
 // "📤 Publish Quizzes" source picker (js/admin-panel.js → renderAdminPanel,
-// "🤖 My Custom Quizzes" tab). Every action in this file (selecting a
-// folder, renaming, dragging a quiz, etc.) needs to re-render whichever of
-// those two is actually on screen — cqCollectionsHost tracks that, and is
-// set to 'custom' / 'admin' at the top of each host's own render function
-// every time it runs, so it always reflects whichever modal was rendered
-// (and therefore is the one currently visible) most recently.
-let cqCollectionsHost = 'custom'; // 'custom' | 'admin'
+// "🤖 My Custom Quizzes" tab), and the 🖨️ Export to PDF picker's Custom
+// tab (js/pdf-export.js → _pdxRenderCustomTab). Every action in this file
+// (selecting a folder, renaming, dragging a quiz, etc.) needs to re-render
+// whichever of those three is actually on screen — cqCollectionsHost
+// tracks that, and is set to 'custom' / 'admin' / 'pdfExport' at the top
+// of each host's own render function every time it runs, so it always
+// reflects whichever screen was rendered (and therefore is the one
+// currently visible) most recently.
+let cqCollectionsHost = 'custom'; // 'custom' | 'admin' | 'pdfExport'
 
 function _cqRerenderCollectionsUI() {
   if (cqCollectionsHost === 'admin' && typeof renderAdminPanel === 'function') renderAdminPanel();
+  else if (cqCollectionsHost === 'pdfExport' && typeof _pdxRenderCustomTab === 'function') _pdxRenderCustomTab();
   else if (typeof renderCustomQuizModal === 'function') renderCustomQuizModal();
 }
 

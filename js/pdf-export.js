@@ -103,7 +103,11 @@ let _pdxCurrYear       = '';
 let _pdxCurrModule     = '';
 let _pdxCurrSubject    = '';
 let _pdxCommSearch     = '';
-let _pdxCustomSearch   = '';
+let _pdxCommScope       = 'browse'; // 'browse' | 'mine' — mirrors communityTab on the real screen
+let _pdxCommYearFilter  = '';
+let _pdxCommModuleFilter = '';
+let _pdxCommSubjectFilter = '';
+let _pdxCommSort        = 'newest';
 let _pdxSettings       = { textSize: 'medium', imageSize: 'medium', theme: 'teal' };
 let _pdxAssetCache     = { logo: null, qr: null };
 
@@ -255,19 +259,16 @@ function _pdxAllLecturesUnder(year, mod, subjectKey) {
   });
   return out;
 }
-function pdxAddWholeYear() {
-  if (!_pdxCurrYear) return;
-  _pdxAllLecturesUnder(_pdxCurrYear).forEach(k => _pdxSelCurriculum.add(k));
+function pdxToggleWholeYear(year, checked) {
+  _pdxAllLecturesUnder(year).forEach(k => checked ? _pdxSelCurriculum.add(k) : _pdxSelCurriculum.delete(k));
   _pdxRenderCurriculumTab(); _pdxRefreshChrome();
 }
-function pdxAddWholeModule() {
-  if (!_pdxCurrYear || !_pdxCurrModule) return;
-  _pdxAllLecturesUnder(_pdxCurrYear, _pdxCurrModule).forEach(k => _pdxSelCurriculum.add(k));
+function pdxToggleWholeModule(year, mod, checked) {
+  _pdxAllLecturesUnder(year, mod).forEach(k => checked ? _pdxSelCurriculum.add(k) : _pdxSelCurriculum.delete(k));
   _pdxRenderCurriculumTab(); _pdxRefreshChrome();
 }
-function pdxAddWholeSubject() {
-  if (!_pdxCurrSubject) return;
-  _pdxAllLecturesUnder(_pdxCurrYear, _pdxCurrModule, _pdxCurrSubject).forEach(k => _pdxSelCurriculum.add(k));
+function pdxToggleWholeSubject(year, mod, subjKey, checked) {
+  _pdxAllLecturesUnder(year, mod, subjKey).forEach(k => checked ? _pdxSelCurriculum.add(k) : _pdxSelCurriculum.delete(k));
   _pdxRenderCurriculumTab(); _pdxRefreshChrome();
 }
 function pdxToggleLecture(key, checked) {
@@ -277,51 +278,107 @@ function pdxToggleLecture(key, checked) {
   if (badge) badge.textContent = _pdxAllLecturesUnder(_pdxCurrYear, _pdxCurrModule, _pdxCurrSubject).filter(k => _pdxSelCurriculum.has(k)).length;
 }
 
+/* Same breadcrumb pattern as the admin "📤 Publish Quizzes" destination
+   picker (js/admin-panel.js → adminAssignBreadcrumbHtml). */
+function _pdxCurrBreadcrumbHtml() {
+  let html = `<div class="curr-breadcrumb">`;
+  html += `<span class="curr-crumb ${!_pdxCurrYear ? 'active' : ''}" onclick="pdxOnYearChange('')">📅 Years</span>`;
+  if (_pdxCurrYear) html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${!_pdxCurrModule ? 'active' : ''}" onclick="pdxOnModuleChange('')">${escapeHtml(_pdxCurrYear)}</span>`;
+  if (_pdxCurrModule) html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${!_pdxCurrSubject ? 'active' : ''}" onclick="pdxOnSubjectChange('')">${escapeHtml(_pdxCurrModule)}</span>`;
+  if (_pdxCurrSubject) html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb active">${escapeHtml((subjects[_pdxCurrSubject] && subjects[_pdxCurrSubject].label) || _pdxCurrSubject)}</span>`;
+  html += `</div>`;
+  return html;
+}
+
+/* Reuses the exact same card/breadcrumb drilldown as the admin "📤 Publish
+   Quizzes" destination picker (adminPublishTargetPickerHtml in
+   js/admin-panel.js) — same .curr-section/.curr-item-row/.curr-breadcrumb
+   classes — extended one level further to Lecture, and with a "select
+   this whole thing" checkbox on every row instead of a single-destination
+   pick, so a whole year/module/subject can be queued in one click. */
 function _pdxRenderCurriculumTab() {
   const el = document.getElementById('pdxTabContent');
   if (!el) return;
-  const years   = Object.keys(curriculum);
-  const modules = _pdxCurrYear ? Object.keys(curriculum[_pdxCurrYear] || {}) : [];
-  const subs    = (_pdxCurrYear && _pdxCurrModule) ? (curriculum[_pdxCurrYear][_pdxCurrModule] || []).filter(k => subjects[k]) : [];
 
-  let html = `
-    <div class="pdx-drill-row">
-      <div class="admin-field">
-        <label>Year</label>
-        <select onchange="pdxOnYearChange(this.value)">
-          <option value="">— Select year —</option>
-          ${years.map(y => `<option value="${escapeHtml(y)}" ${_pdxCurrYear === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
-        </select>
-      </div>
-      <button type="button" class="pdx-whole-btn" ${!_pdxCurrYear ? 'disabled' : ''} onclick="pdxAddWholeYear()">＋ Whole Year</button>
-    </div>
-    <div class="pdx-drill-row">
-      <div class="admin-field">
-        <label>Module</label>
-        <select onchange="pdxOnModuleChange(this.value)" ${!_pdxCurrYear ? 'disabled' : ''}>
-          <option value="">— Select module —</option>
-          ${modules.map(m => `<option value="${escapeHtml(m)}" ${_pdxCurrModule === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
-        </select>
-      </div>
-      <button type="button" class="pdx-whole-btn" ${!_pdxCurrModule ? 'disabled' : ''} onclick="pdxAddWholeModule()">＋ Whole Module</button>
-    </div>
-    <div class="pdx-drill-row">
-      <div class="admin-field">
-        <label>Subject</label>
-        <select onchange="pdxOnSubjectChange(this.value)" ${!_pdxCurrModule ? 'disabled' : ''}>
-          <option value="">— Select subject —</option>
-          ${subs.map(s => `<option value="${escapeHtml(s)}" ${_pdxCurrSubject === s ? 'selected' : ''}>${escapeHtml(subjects[s].label || s)}</option>`).join('')}
-        </select>
-      </div>
-      <button type="button" class="pdx-whole-btn" ${!_pdxCurrSubject ? 'disabled' : ''} onclick="pdxAddWholeSubject()">＋ Whole Subject</button>
-    </div>`;
+  let html = `<div class="curr-section pdx-curr-section">`;
+  html += _pdxCurrBreadcrumbHtml();
 
-  if (_pdxCurrSubject && subjects[_pdxCurrSubject]) {
-    const lectures = Object.keys(subjects[_pdxCurrSubject].lectures || {});
-    const selectedHere = lectures.filter(l => _pdxSelCurriculum.has(`${_pdxCurrSubject}::${l}`)).length;
+  if (_pdxCurrSubject)      html += `<button class="curr-back-btn" onclick="pdxOnSubjectChange('')">← Back to Subjects</button>`;
+  else if (_pdxCurrModule)  html += `<button class="curr-back-btn" onclick="pdxOnModuleChange('')">← Back to Modules</button>`;
+  else if (_pdxCurrYear)    html += `<button class="curr-back-btn" onclick="pdxOnYearChange('')">← Back to Years</button>`;
+
+  html += `<div style="margin-top:9px;display:flex;flex-direction:column;gap:6px;">`;
+
+  if (!_pdxCurrYear) {
+    const years = Object.keys(curriculum);
+    if (!years.length) {
+      html += `<div class="community-empty"><div class="ce-icon">📭</div>No curriculum published yet.</div>`;
+    } else {
+      years.forEach(y => {
+        const all = _pdxAllLecturesUnder(y);
+        const sel = all.filter(k => _pdxSelCurriculum.has(k)).length;
+        html += `<div class="curr-item-row">
+          <input type="checkbox" class="pdx-row-check" ${all.length && sel === all.length ? 'checked' : ''}
+            onchange="pdxToggleWholeYear('${escapeHtml(y)}', this.checked)" title="Select this whole year" />
+          <div class="pdx-curr-click" onclick="pdxOnYearChange('${escapeHtml(y)}')">
+            <div>
+              <div class="curr-item-name">📅 ${escapeHtml(y)}</div>
+              <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)${sel ? ` · ${sel}/${all.length} lecture(s) selected` : ''}</div>
+            </div>
+            <span class="curr-item-arrow">▶</span>
+          </div>
+        </div>`;
+      });
+    }
+  } else if (!_pdxCurrModule) {
+    const mods = Object.keys(curriculum[_pdxCurrYear] || {});
+    if (!mods.length) {
+      html += `<div class="community-empty"><div class="ce-icon">📭</div>No modules in ${escapeHtml(_pdxCurrYear)} yet.</div>`;
+    } else {
+      mods.forEach(m => {
+        const all = _pdxAllLecturesUnder(_pdxCurrYear, m);
+        const sel = all.filter(k => _pdxSelCurriculum.has(k)).length;
+        const subCount = (curriculum[_pdxCurrYear][m] || []).filter(k => subjects[k]).length;
+        html += `<div class="curr-item-row">
+          <input type="checkbox" class="pdx-row-check" ${all.length && sel === all.length ? 'checked' : ''}
+            onchange="pdxToggleWholeModule('${escapeHtml(_pdxCurrYear)}', '${escapeHtml(m)}', this.checked)" title="Select this whole module" />
+          <div class="pdx-curr-click" onclick="pdxOnModuleChange('${escapeHtml(m)}')">
+            <div>
+              <div class="curr-item-name">${escapeHtml(_moduleIcon(_pdxCurrYear, m))} ${escapeHtml(m)}</div>
+              <div class="curr-item-sub">${subCount} subject(s)${sel ? ` · ${sel}/${all.length} lecture(s) selected` : ''}</div>
+            </div>
+            <span class="curr-item-arrow">▶</span>
+          </div>
+        </div>`;
+      });
+    }
+  } else if (!_pdxCurrSubject) {
+    const subs = (curriculum[_pdxCurrYear][_pdxCurrModule] || []).filter(k => subjects[k]);
+    if (!subs.length) {
+      html += `<div class="community-empty"><div class="ce-icon">📭</div>No subjects in ${escapeHtml(_pdxCurrModule)} yet.</div>`;
+    } else {
+      subs.forEach(s => {
+        const all = _pdxAllLecturesUnder(_pdxCurrYear, _pdxCurrModule, s);
+        const sel = all.filter(k => _pdxSelCurriculum.has(k)).length;
+        html += `<div class="curr-item-row">
+          <input type="checkbox" class="pdx-row-check" ${all.length && sel === all.length ? 'checked' : ''}
+            onchange="pdxToggleWholeSubject('${escapeHtml(_pdxCurrYear)}', '${escapeHtml(_pdxCurrModule)}', '${escapeHtml(s)}', this.checked)" title="Select this whole subject" />
+          <div class="pdx-curr-click" onclick="pdxOnSubjectChange('${escapeHtml(s)}')">
+            <div>
+              <div class="curr-item-name">${escapeHtml(subjects[s].icon || '📘')} ${escapeHtml(subjects[s].label || s)}</div>
+              <div class="curr-item-sub">${all.length} lecture(s)${sel ? ` · ${sel} selected` : ''}</div>
+            </div>
+            <span class="curr-item-arrow">▶</span>
+          </div>
+        </div>`;
+      });
+    }
+  } else {
+    const lectures = Object.keys((subjects[_pdxCurrSubject] || {}).lectures || {});
     if (!lectures.length) {
       html += `<div class="community-empty"><div class="ce-icon">📭</div>No lectures in this subject yet.</div>`;
     } else {
+      const selectedHere = lectures.filter(l => _pdxSelCurriculum.has(`${_pdxCurrSubject}::${l}`)).length;
       html += `<div class="pdx-lecture-list-header">Lectures <span class="backup-quiz-count" id="pdxSubjectSelectedBadge">${selectedHere}</span></div>
       <div class="pdx-lecture-list">`;
       lectures.forEach(lname => {
@@ -335,10 +392,9 @@ function _pdxRenderCurriculumTab() {
       });
       html += `</div>`;
     }
-  } else {
-    html += `<div class="community-empty"><div class="ce-icon">🏥</div>Select a year, module and subject to see its lectures — or use a "＋ Whole …" button above to queue a bigger chunk at once.</div>`;
   }
 
+  html += `</div></div>`;
   el.innerHTML = html;
 }
 
@@ -354,98 +410,203 @@ async function _pdxRenderCommunityTab() {
     return;
   }
   if (!_allSharedQuizzes.length) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);"><div style="font-size:1.6rem;margin-bottom:8px;">⏳</div>Loading community quizzes…</div>`;
+  // The exact same loader the real "🌐 Community Quizzes" screen calls
+  // (js/sharing.js → renderCommunityQuizzes → js/community-quizzes.js →
+  // ensureSharedQuizzesLoaded) — same cache, same 60s throttle window, so
+  // opening this tab counts as "having opened Community Quizzes" for
+  // caching purposes; it never triggers a second, separate version check.
   const ok = await ensureSharedQuizzesLoaded(false);
   if (_pdxTab !== 'community') return;
   if (!ok) { el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--wrong-fg);">❌ Failed to load community quizzes.</div>`; return; }
   _pdxDrawCommunityList();
 }
-function pdxCommSearchInput(v) { _pdxCommSearch = v; _pdxDrawCommunityList(); }
+
+/* Same filter bar (search + cascading Year/Module/Subject + sort) and the
+   same Browse All/My Shared split as the real Community Quizzes screen —
+   built on the shared _communityComputeView() (js/sharing.js) so both
+   screens filter/sort identically. Only the per-item action differs: a
+   select-for-export checkbox here instead of Start/Save/Unshare there. */
 function _pdxDrawCommunityList() {
   const el = document.getElementById('pdxTabContent');
   if (!el) return;
-  const q = _pdxCommSearch.toLowerCase().trim();
-  let pool = _allSharedQuizzes;
-  if (q) pool = pool.filter(item => (item.title || '').toLowerCase().includes(q) || (item.authorName || '').toLowerCase().includes(q));
+  const { pool, shared, myShared, allYears, allModules, allSubjects } = _communityComputeView({
+    scope: _pdxCommScope, search: _pdxCommSearch,
+    yearFilter: _pdxCommYearFilter, moduleFilter: _pdxCommModuleFilter, subjectFilter: _pdxCommSubjectFilter,
+    sort: _pdxCommSort,
+  });
 
-  let html = `<div class="comm-filter-bar">
+  const searchVal = escapeHtml(_pdxCommSearch);
+  const clearStyle = _pdxCommSearch ? 'display:block' : 'display:none';
+
+  let html = `
+    <div class="community-section-tabs">
+      <button class="community-tab-btn ${_pdxCommScope === 'browse' ? 'active' : ''}" onclick="pdxCommSetScope('browse')">🌐 Browse All (${shared.length})</button>
+      <button class="community-tab-btn ${_pdxCommScope === 'mine' ? 'active' : ''}" onclick="pdxCommSetScope('mine')">👤 My Shared (${myShared.length})</button>
+    </div>
+
+    <div class="comm-filter-bar">
       <div class="comm-search-wrap">
         <span class="comm-search-icon">🔍</span>
-        <input class="comm-search-input" type="text" placeholder="Search community quizzes…" value="${escapeHtml(_pdxCommSearch)}" oninput="pdxCommSearchInput(this.value)" />
+        <input class="comm-search-input" id="pdxCommSearchInput" type="text"
+               placeholder="Search by title, author, category or tag…"
+               value="${searchVal}" oninput="pdxCommSearchInput(this.value)" />
+        <button class="comm-search-clear" style="${clearStyle}" onclick="pdxCommSearchInput('')">✕</button>
+      </div>
+      <div class="comm-filter-row">
+        <select class="comm-filter-select" onchange="pdxCommSetYearFilter(this.value)">
+          <option value="">All Years</option>
+          ${allYears.map(y => `<option value="${escapeHtml(y)}" ${_pdxCommYearFilter === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" onchange="pdxCommSetModuleFilter(this.value)" ${!_pdxCommYearFilter ? 'disabled' : ''}>
+          <option value="">All Modules</option>
+          ${allModules.map(m => `<option value="${escapeHtml(m)}" ${_pdxCommModuleFilter === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+        </select>
+        <select class="comm-filter-select" onchange="pdxCommSetSubjectFilter(this.value)" ${!_pdxCommModuleFilter ? 'disabled' : ''}>
+          <option value="">All Subjects</option>
+          ${allSubjects.map(k => {
+            const lbl = (subjects[k] && (subjects[k].label || k)) || k;
+            const ico = (subjects[k] && subjects[k].icon) || '';
+            return `<option value="${escapeHtml(k)}" ${_pdxCommSubjectFilter === k ? 'selected' : ''}>${ico} ${escapeHtml(lbl)}</option>`;
+          }).join('')}
+        </select>
+        <select class="comm-filter-select" onchange="pdxCommSetSort(this.value)">
+          <option value="newest" ${_pdxCommSort === 'newest' ? 'selected' : ''}>🕐 Newest</option>
+          <option value="oldest" ${_pdxCommSort === 'oldest' ? 'selected' : ''}>🕐 Oldest</option>
+          <option value="az" ${_pdxCommSort === 'az' ? 'selected' : ''}>🔤 A → Z</option>
+          <option value="questions" ${_pdxCommSort === 'questions' ? 'selected' : ''}>📝 Most Questions</option>
+        </select>
       </div>
       <div class="comm-results-count">${pool.length} quiz${pool.length !== 1 ? 'zes' : ''} shown</div>
     </div>`;
 
   if (!pool.length) {
-    html += `<div class="community-empty"><div class="ce-icon">🌐</div>No quizzes match.</div>`;
+    html += `<div class="community-empty"><div class="ce-icon">🔍</div>No quizzes match your search/filters.</div>`;
   } else {
     pool.forEach(item => {
       const checked = _pdxSelCommunity.has(item.id);
+      const qCount = Number.isFinite(item.questionCount) ? item.questionCount : (Array.isArray(item.questions) ? item.questions.length : 0);
       const catBadge = (item.year || item.subjectLabel)
         ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
         : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
+      const tagsHtml = (item.tags && item.tags.length)
+        ? `<div class="comm-tags-row">${item.tags.map(t => `<span class="comm-tag" onclick="pdxCommSearchInput('${escapeHtml(t)}')" title="Filter by tag">#${escapeHtml(t)}</span>`).join('')}</div>` : '';
       html += `<div class="community-quiz-item">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
           <input type="checkbox" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
             ${checked ? 'checked' : ''} onchange="pdxToggleCommunity('${escapeHtml(item.id)}', this.checked)" />
           <div style="flex:1;min-width:0;">
             <div class="community-quiz-title">${escapeHtml(item.title)}</div>
-            <div class="community-quiz-meta">${catBadge} ${item.questionCount} question${item.questionCount !== 1 ? 's' : ''} &nbsp;·&nbsp; 👤 ${escapeHtml(item.authorName)}</div>
+            <div class="community-quiz-meta">${catBadge} ${qCount} question${qCount !== 1 ? 's' : ''} &nbsp;·&nbsp; 👤 ${escapeHtml(item.authorName)} &nbsp;·&nbsp; 📅 ${new Date(item.sharedAt).toLocaleDateString()}</div>
+            ${tagsHtml}
           </div>
         </label>
       </div>`;
     });
   }
   el.innerHTML = html;
+
+  const searchEl = document.getElementById('pdxCommSearchInput');
+  if (searchEl && document.activeElement !== searchEl && window._pdxCommSearchFocused) {
+    const pos = window._pdxCommSearchPos || searchEl.value.length;
+    searchEl.focus();
+    try { searchEl.setSelectionRange(pos, pos); } catch (e) {}
+    window._pdxCommSearchFocused = false;
+  }
 }
+function pdxCommSetScope(scope) {
+  _pdxCommScope = scope; _pdxCommSearch = ''; _pdxCommYearFilter = ''; _pdxCommModuleFilter = ''; _pdxCommSubjectFilter = '';
+  _pdxDrawCommunityList();
+}
+function pdxCommSearchInput(v) {
+  _pdxCommSearch = v;
+  window._pdxCommSearchFocused = true;
+  const el = document.getElementById('pdxCommSearchInput');
+  window._pdxCommSearchPos = el ? el.selectionStart : null;
+  _pdxDrawCommunityList();
+}
+function pdxCommSetYearFilter(v)    { _pdxCommYearFilter = v; _pdxCommModuleFilter = ''; _pdxCommSubjectFilter = ''; _pdxDrawCommunityList(); }
+function pdxCommSetModuleFilter(v)  { _pdxCommModuleFilter = v; _pdxCommSubjectFilter = ''; _pdxDrawCommunityList(); }
+function pdxCommSetSubjectFilter(v) { _pdxCommSubjectFilter = v; _pdxDrawCommunityList(); }
+function pdxCommSetSort(v)          { _pdxCommSort = v; _pdxDrawCommunityList(); }
 function pdxToggleCommunity(id, checked) {
   if (checked) _pdxSelCommunity.add(id); else _pdxSelCommunity.delete(id);
   _pdxRefreshChrome();
 }
 
 /* ══════════════════════════════════════════════════════════
-   CUSTOM QUIZZES TAB
+   CUSTOM QUIZZES TAB — reuses the exact same folder-tree
+   sidebar/breadcrumb/filtered-list as the student-facing "🤖
+   Custom Quizzes" modal and the admin Publish picker
+   (js/quiz-collections.js), just with a select-for-export card
+   swapped in for the Start/Edit/Share/Delete/Move actions —
+   only what's actually needed here. Registers itself as the
+   'pdfExport' host so folder clicks/drags/renames re-render this
+   tab instead of one of the other two screens; see
+   cqCollectionsHost in js/quiz-collections.js.
 ══════════════════════════════════════════════════════════ */
 async function _pdxRenderCustomTab() {
   const el = document.getElementById('pdxTabContent');
   if (!el) return;
-  let quizzes = loadCustomQuizzes().filter(q => (q.questions || []).length);
-  const s = _pdxCustomSearch.toLowerCase().trim();
-  if (s) quizzes = quizzes.filter(q => (q.title || '').toLowerCase().includes(s));
+  cqCollectionsHost = 'pdfExport';
+
+  const quizzes = loadCustomQuizzes().filter(q => (q.questions || []).length);
   const collections = loadQuizCollections();
 
-  let html = `<div class="comm-filter-bar">
-    <div class="comm-search-wrap">
-      <span class="comm-search-icon">🔍</span>
-      <input class="comm-search-input" type="text" placeholder="Search your custom quizzes…" value="${escapeHtml(_pdxCustomSearch)}" oninput="pdxCustomSearchInput(this.value)" />
+  if (!quizzes.length) {
+    el.innerHTML = `<div class="community-empty"><div class="ce-icon">📭</div>No custom quizzes to export yet.</div>`;
+    return;
+  }
+
+  // Preserve the folder sidebar's scroll position across re-renders —
+  // same reasoning/pattern as renderCustomQuizModal() in firebase-storage.js.
+  const prevSidebar = el.querySelector('.cq-coll-sidebar');
+  const prevScrollTop = prevSidebar ? prevSidebar.scrollTop : null;
+
+  const visibleQuizzes = _filterQuizzesByActiveCollection(quizzes, collections);
+  const itemsHtml = visibleQuizzes.length ? visibleQuizzes.map(q => {
+    const sel = _pdxSelCustom.has(q.id);
+    const moveOpen = cqCollectionMoveMenuFor === q.id;
+    const chip = _quizCollectionChipHTML(q, collections);
+    return `
+      <div class="admin-quiz-item ${sel ? 'selected' : ''}" draggable="true"
+           ondragstart="cqQuizDragStart(event,'${q.id}')" ondragend="cqQuizDragEnd(event)"
+           onclick="pdxToggleCustom('${escapeHtml(q.id)}', ${sel ? 'false' : 'true'})">
+        <span class="cq-drag-handle" onclick="event.stopPropagation()" title="Drag to a folder">⠿</span>
+        <div class="admin-quiz-item-info">
+          <div class="admin-quiz-item-title">${escapeHtml(q.title || 'Untitled Quiz')}</div>
+          <div class="admin-quiz-item-meta">${(q.questions || []).length} question${(q.questions || []).length !== 1 ? 's' : ''}</div>
+          ${chip ? `<div style="margin-top:5px;">${chip}</div>` : ''}
+        </div>
+        <div class="cq-move-wrap">
+          <button class="admin-quiz-move-btn" data-move-btn="${q.id}"
+                  onclick="event.stopPropagation(); cqToggleQuizMoveMenu('${q.id}')" title="Move to a folder">📁</button>
+          ${moveOpen ? _renderQuizMoveMenuHTML(q) : ''}
+        </div>
+        <div class="admin-quiz-item-check">✓</div>
+      </div>`;
+  }).join('') : `
+    <div class="empty-state" style="padding:16px 12px;">
+      <div class="empty-icon">📁</div>
+      No quizzes in this folder yet.
+    </div>`;
+
+  el.innerHTML = `<div class="cq-coll-layout ${cqSidebarCollapsed ? 'cq-coll-sidebar-collapsed' : ''}">
+    ${renderCqCollectionsSidebarHTML(quizzes, collections)}
+    <div class="cq-coll-main">
+      ${renderCqBreadcrumbHTML(collections)}
+      <div class="cq-coll-quiz-list">${itemsHtml}</div>
     </div>
-    <div class="comm-results-count">${quizzes.length} quiz${quizzes.length !== 1 ? 'zes' : ''} shown</div>
   </div>`;
 
-  if (!quizzes.length) {
-    html += `<div class="community-empty"><div class="ce-icon">📭</div>No custom quizzes to export yet.</div>`;
-  } else {
-    quizzes.forEach(q => {
-      const checked = _pdxSelCustom.has(q.id);
-      const chip = typeof _quizCollectionChipHTML === 'function' ? _quizCollectionChipHTML(q, collections) : '';
-      html += `<div class="cq-quiz-item">
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;flex:1;">
-          <input type="checkbox" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
-            ${checked ? 'checked' : ''} onchange="pdxToggleCustom('${escapeHtml(q.id)}', this.checked)" />
-          <div>
-            <div class="cq-quiz-name">${escapeHtml(q.title)}</div>
-            <div class="cq-quiz-meta">${(q.questions || []).length} question${(q.questions || []).length !== 1 ? 's' : ''}</div>
-            ${chip ? `<div style="margin-top:4px;">${chip}</div>` : ''}
-          </div>
-        </label>
-      </div>`;
-    });
+  if (prevScrollTop != null) {
+    const sidebar = el.querySelector('.cq-coll-sidebar');
+    if (sidebar) sidebar.scrollTop = prevScrollTop;
   }
-  el.innerHTML = html;
 }
-function pdxCustomSearchInput(v) { _pdxCustomSearch = v; _pdxRenderCustomTab(); }
 function pdxToggleCustom(id, checked) {
   if (checked) _pdxSelCustom.add(id); else _pdxSelCustom.delete(id);
   _pdxRefreshChrome();
+  _pdxRenderCustomTab();
 }
 
 /* ══════════════════════════════════════════════════════════
