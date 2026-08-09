@@ -445,6 +445,36 @@ const CQ_RESPONSE_SCHEMA = {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   PAGE-BOUNDARY VERIFICATION PASS — a second, targeted request that
+   re-checks the just-extracted draft against the source document for
+   exactly the two cross-page failure patterns rule 9 above exists to
+   prevent. This exists because rule 9 is a prompting instruction, not a
+   code-level guarantee — Gemini can still occasionally miss a page-break
+   merge on the first pass. This is a FIXED cost (exactly one extra
+   request per uploaded file, regardless of how many pages it has — see
+   _verifyExtractionPageBoundaries in ai-solve.js), not a per-page or
+   per-question chunking scheme, so it doesn't scale with document size
+   and stays governed by the same GEMINI_MIN_REQUEST_SPACING_MS pacing
+   gate as every other request (see callGeminiWithRetry → _geminiRateGate
+   above — nothing extra to opt into, it's automatic for any call through
+   that function). If this call fails, times out, or comes back
+   unusable, the caller silently keeps the original extraction result —
+   verification is a best-effort improvement, never a blocker. */
+const CQ_VERIFICATION_PROMPT_HEADER = `You already extracted the multiple-choice questions below from the attached document. Your ONLY job now is to re-check them against the document for content lost or wrongly split at page breaks — nothing else.
+
+Re-read the ENTIRE attached document, then re-check every page boundary for these two exact problems:
+   - PATTERN A — a question's stem and SOME of its choices end at the bottom of one page, and its REMAINING choice(s) are at the top of the next page, but the draft below only has the choices that were on the first page. Fix: add the missing choice(s) from the top of the next page into that question's "options", in their correct A/B/C/D/E order.
+   - PATTERN B — a question's stem ends at the bottom of one page with ALL of its choices at the top of the next page, but the draft below is MISSING that question entirely. Fix: insert the complete question (stem + all its choices) at the correct position in the array, in the same document reading order it appears in.
+   - Also check: an indicated correct answer split from its question across a page break (e.g. the answer marking is on the next page from the stem/choices), or an answer-key section anywhere in the document (even far from the questions) whose entries weren't matched to their question by number — fix "answer" for any question this applies to.
+
+STRICT: this is a correction pass, not a rewrite. If a question already has all its choices and nothing is missing, leave it EXACTLY as given below — same wording, same order, same case_group/case_is_core/case_link_id/case_parent_id, same has_image, same answer. Only touch a question if you find one of the exact problems above. Do not reorder, reword, merge, split, or drop anything that isn't affected. If the draft below is already complete and correct, return it back unchanged.
+
+Return ONLY the corrected JSON array in the exact same schema as the draft — no markdown fences, no commentary, no explanation of what you changed.
+
+Draft extracted so far:
+`;
+
 /* ── Shared request pacing (prevents hitting Gemini's free-tier RPM cap) ──
    Google's free tier caps Gemini 2.5 Flash at roughly 10–15 requests per
    minute *per project* (see https://ai.google.dev/gemini-api/docs/rate-limits) —

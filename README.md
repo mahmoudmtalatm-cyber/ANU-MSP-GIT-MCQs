@@ -819,34 +819,51 @@ Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
 - **103 — AI extraction: fixed questions/choices being dropped at page
-  breaks.** Rule 9 (CROSS-PAGE CONTINUATIONS) in `CQ_EXTRACTION_PROMPT`
-  already told Gemini that page breaks carry no semantic meaning, but two
-  concrete failure patterns were still slipping through in practice: (a) a
-  question whose stem and *some* choices end at the bottom of one page,
-  with its *remaining* choices at the top of the next, coming back with
-  only the choices that happened to be on the first page; and (b) a
-  question whose stem is at the bottom of one page with *all* of its
-  choices at the top of the next, getting dropped entirely because no
-  single page showed a complete question. Rule 9 now names both patterns
-  explicitly (as Pattern A and Pattern B) with the exact wrong-vs-correct
-  behavior for each, adds an instruction to mentally stitch the bottom
-  portion of every page directly onto the top portion of the next and read
-  that as one uninterrupted block *before* extracting — not just for
-  pages that already look cut off, but for every page transition in the
-  document — and closes with an explicit final verification pass:
-  re-check every page boundary for an orphaned stem (choices missing/
-  incomplete) or orphaned choices (no stem above them) and merge before
-  finalizing the output.
-  - **`js/gemini-uploads.js`**: rewrote rule 9 inside `CQ_EXTRACTION_PROMPT`
-    (used by `_extractQuestionsFromFile` in `js/ai-solve.js`, the only
-    place this prompt is sent) — prompt-only change, no code paths, no
-    response schema changes.
-  - This is a prompt-engineering fix: extraction is still a single Gemini
-    request per uploaded file (see "Extraction sends the whole source PDF
-    to Gemini in a single request" above), so there's no page-by-page
-    chunking step in the app itself to patch — the fix is making the
-    model's own page-boundary handling more explicit and harder to skip.
-    As with any LLM-based extraction, this improves reliability but isn't
+  breaks.** Two changes, both aimed at the same failure: (a) a question
+  whose stem and *some* choices end at the bottom of one page, with its
+  *remaining* choices at the top of the next, coming back with only the
+  choices that happened to be on the first page; and (b) a question whose
+  stem is at the bottom of one page with *all* of its choices at the top
+  of the next, getting dropped entirely because no single page showed a
+  complete question.
+  - **Stronger extraction prompt.** Rule 9 (CROSS-PAGE CONTINUATIONS) in
+    `CQ_EXTRACTION_PROMPT` already told Gemini that page breaks carry no
+    semantic meaning, but was too general to reliably catch either
+    pattern in practice. It now names both explicitly (as Pattern A and
+    Pattern B) with the exact wrong-vs-correct behavior for each, adds an
+    instruction to mentally stitch the bottom portion of every page
+    directly onto the top portion of the next and read that as one
+    uninterrupted block *before* extracting — not just for pages that
+    already look cut off, but for every page transition in the document —
+    and closes with an explicit final verification pass the model runs on
+    itself: re-check every page boundary for an orphaned stem (choices
+    missing/incomplete) or orphaned choices (no stem above them) and
+    merge before finalizing the output.
+    (`js/gemini-uploads.js`, used by `_extractQuestionsFromFile` in
+    `js/ai-solve.js`) — prompt-only, no code paths or schema changed.
+  - **A second, independent verification pass.** Because the prompt fix
+    above is instruction-following, not a hard guarantee, extraction now
+    makes one additional Gemini request per uploaded file: the freshly
+    extracted draft is sent back alongside the source document with a
+    narrowly-scoped instruction (`CQ_VERIFICATION_PROMPT_HEADER` in
+    `js/gemini-uploads.js`) to fix *only* Pattern A/B issues and leave
+    everything else byte-for-byte unchanged. This is a **fixed cost —
+    exactly one extra request per file, not one per page** — so it
+    doesn't scale with document length and stays governed by the same
+    shared rate-limit pacing gate (`GEMINI_MIN_REQUEST_SPACING_MS`) as
+    every other request; it does **not** turn extraction into a chunking
+    or per-page pipeline. Skipped automatically when the initial response
+    was already cut off by the output-token cap (`truncated`), since a
+    verification request carrying that same large draft back would be
+    likely to hit the same cap rather than help. Fully best-effort: if
+    the verification request errors, times out, or its response looks
+    suspicious (fewer questions than the draft already had, which a
+    legitimate correction should never produce), the original draft is
+    kept silently and extraction proceeds exactly as before — this pass
+    can only help, never break, an extraction run.
+    (new `_verifyExtractionPageBoundaries()` in `js/ai-solve.js`, called
+    from `_extractQuestionsFromFile()` right after the initial parse)
+  - As with any LLM-based extraction, this improves reliability but isn't
     a hard guarantee; always skim the extraction review screen before
     saving, especially around page breaks in the source file.
 

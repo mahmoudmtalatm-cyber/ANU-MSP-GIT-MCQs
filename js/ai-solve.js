@@ -317,6 +317,67 @@ async function aiSolveQuestion(editorKey, i) {
 }
 
 
+/* Page-boundary verification pass for _extractQuestionsFromFile below.
+   Sends the same source file back to Gemini together with the draft array
+   it just extracted, and asks it to fix ONLY the two cross-page drop
+   patterns named in CQ_VERIFICATION_PROMPT_HEADER (gemini-uploads.js) —
+   a missing choice pulled onto the next page, or a whole question missed
+   because its stem and choices landed on different pages. Exactly one
+   request, regardless of document length — not a per-page loop — so it
+   adds a small fixed cost to every extraction rather than scaling with
+   page count. Every failure mode here is non-fatal: if the request
+   errors, times out, or the response can't be trusted, this silently
+   returns the original unmodified draft rather than risk losing anything
+   that was already extracted successfully. Returns
+   { parsed, apiKey, filePart } — apiKey/filePart are only set if a rate
+   limit forced a rotation mid-call, same convention as the extraction
+   call in _extractQuestionsFromFile. */
+async function _verifyExtractionPageBoundaries(filePart, url, draftParsed, apiKey, cancelToken, pauseCheck, file) {
+  const fallback = { parsed: draftParsed, apiKey: null, filePart: null };
+  try {
+    const data = await callGeminiWithRetry(url, {
+      contents: [{
+        parts: [
+          filePart,
+          { text: CQ_VERIFICATION_PROMPT_HEADER + JSON.stringify(draftParsed) }
+        ]
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: CQ_RESPONSE_SCHEMA,
+        maxOutputTokens: 65536,
+        temperature: 0
+      }
+    }, { pauseCheck, cancelToken, apiKey, fileForReupload: { file, mimeType: filePart.inline_data ? filePart.inline_data.mime_type : (filePart.file_data && filePart.file_data.mime_type) } });
+
+    const candidate = data && data.candidates && data.candidates[0];
+    const textOut = candidate && (candidate.content && candidate.content.parts || [])
+      .map(p => p.text || '').join('');
+    if (!textOut || !textOut.trim()) return fallback;
+
+    const { data: verifiedParsed } = parseGeminiJsonArray(textOut);
+    // Sanity check: a legitimate correction can only ADD a missed question
+    // (Pattern B) or fill in a missed choice — it should never end up with
+    // FEWER questions than the draft already had. If it does, something
+    // went wrong on Gemini's side of this pass (e.g. it "rewrote" instead
+    // of "corrected") — trust the original draft over a shrinking result.
+    if (!Array.isArray(verifiedParsed) || verifiedParsed.length < draftParsed.length) return fallback;
+
+    return {
+      parsed: verifiedParsed,
+      apiKey: data.__rotatedApiKey || null,
+      filePart: data.__rotatedFilePart || null
+    };
+  } catch (e) {
+    // Cancellation should still propagate so ⏹ Stop works mid-verification;
+    // any other failure (network, rate limit exhaustion, bad JSON) is
+    // swallowed and the original draft is used as-is.
+    if (e && e._cancelled) throw e;
+    console.warn(`Page-boundary verification skipped for "${file.name}":`, e);
+    return fallback;
+  }
+}
+
 /* Extracts questions from a single file — used once per file when the user
    stages multiple images/PDFs to extract from in one go. Returns
    { cleaned, finishReason }. Each returned question is tagged with the File
@@ -325,8 +386,10 @@ async function aiSolveQuestion(editorKey, i) {
 
    onProgress(frac, label): frac is 0–1 progress *within this one file*,
    reported at checkpoints tied to steps that already happen (start of the
-   extraction call, after it returns, before/after the image-crop pass) —
-   never from a dedicated "progress" AI call, so this adds zero extra load. */
+   extraction call, after it returns, the page-boundary verification pass,
+   before/after the image-crop pass) — never from a dedicated "progress" AI
+   call, so this adds zero extra load beyond the one verification request
+   above. */
 async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   const report = (frac, label) => { if (onProgress) onProgress(frac, label); };
 
@@ -381,13 +444,39 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   // even if the response was cut off mid-array (large document hit
   // maxOutputTokens) — previously any truncation lost the WHOLE file's
   // questions, not just the last incomplete one.
-  const { data: parsed, truncated } = parseGeminiJsonArray(textOut);
+  const { data: rawParsed, truncated } = parseGeminiJsonArray(textOut);
   if (truncated) finishReason = 'MAX_TOKENS';
 
-  if (!Array.isArray(parsed) || !parsed.length) {
+  if (!Array.isArray(rawParsed) || !rawParsed.length) {
     throw new Error(truncated
       ? `Gemini's response for "${file.name}" was cut off before any complete question came through — try splitting this file into smaller sections.`
       : `No questions could be detected in "${file.name}".`);
+  }
+
+  // Page-boundary verification pass — one extra, fixed-cost request (not
+  // one per page) that re-checks this draft against the source document
+  // specifically for the two cross-page drop patterns CQ_EXTRACTION_PROMPT's
+  // rule 9 targets. Best-effort: any failure here just falls back to the
+  // original draft, it never blocks or fails the extraction itself. See
+  // CQ_VERIFICATION_PROMPT_HEADER in gemini-uploads.js for the full
+  // rationale and cost tradeoff.
+  //
+  // Skipped when the initial response was already truncated: that document
+  // is large enough to have hit the 65536-token output cap on a plain
+  // extraction pass, so a verification request carrying the same draft
+  // back (plus the whole file again) is very likely to hit the same cap
+  // rather than help — better to spend that request budget letting the
+  // person re-run extraction on a smaller split of the file instead (the
+  // error message above already suggests this).
+  let parsed = rawParsed;
+  if (!truncated) {
+    report(0.35, `Checking "${escapeHtml(file.name)}" for content split across page breaks…`);
+    const verified = await _verifyExtractionPageBoundaries(
+      filePart, url, rawParsed, apiKey, cqCancelToken, () => cqPauseRequested, file
+    );
+    parsed = verified.parsed;
+    if (verified.apiKey)   apiKey   = verified.apiKey;
+    if (verified.filePart) filePart = verified.filePart;
   }
 
   report(0.6, `Processing questions from "${escapeHtml(file.name)}"…`);
