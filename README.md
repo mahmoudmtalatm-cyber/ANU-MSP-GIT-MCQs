@@ -818,6 +818,38 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **103 — AI extraction: fixed questions/choices being dropped at page
+  breaks.** Rule 9 (CROSS-PAGE CONTINUATIONS) in `CQ_EXTRACTION_PROMPT`
+  already told Gemini that page breaks carry no semantic meaning, but two
+  concrete failure patterns were still slipping through in practice: (a) a
+  question whose stem and *some* choices end at the bottom of one page,
+  with its *remaining* choices at the top of the next, coming back with
+  only the choices that happened to be on the first page; and (b) a
+  question whose stem is at the bottom of one page with *all* of its
+  choices at the top of the next, getting dropped entirely because no
+  single page showed a complete question. Rule 9 now names both patterns
+  explicitly (as Pattern A and Pattern B) with the exact wrong-vs-correct
+  behavior for each, adds an instruction to mentally stitch the bottom
+  portion of every page directly onto the top portion of the next and read
+  that as one uninterrupted block *before* extracting — not just for
+  pages that already look cut off, but for every page transition in the
+  document — and closes with an explicit final verification pass:
+  re-check every page boundary for an orphaned stem (choices missing/
+  incomplete) or orphaned choices (no stem above them) and merge before
+  finalizing the output.
+  - **`js/gemini-uploads.js`**: rewrote rule 9 inside `CQ_EXTRACTION_PROMPT`
+    (used by `_extractQuestionsFromFile` in `js/ai-solve.js`, the only
+    place this prompt is sent) — prompt-only change, no code paths, no
+    response schema changes.
+  - This is a prompt-engineering fix: extraction is still a single Gemini
+    request per uploaded file (see "Extraction sends the whole source PDF
+    to Gemini in a single request" above), so there's no page-by-page
+    chunking step in the app itself to patch — the fix is making the
+    model's own page-boundary handling more explicit and harder to skip.
+    As with any LLM-based extraction, this improves reliability but isn't
+    a hard guarantee; always skim the extraction review screen before
+    saving, especially around page breaks in the source file.
+
 - **100 — 💾 Backup tab can now export a designed PDF study booklet.** A
   third card, "🖨️ Export to PDF", sits below Export/Import and Community
   Quizzes/curriculum browsing in the Backup & Transfer modal. It opens a
