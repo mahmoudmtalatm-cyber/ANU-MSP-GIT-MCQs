@@ -45,7 +45,10 @@ function setSplitMode(mode) {
     if (!cqSplitState.visualCuts) cqSplitState.visualCuts = new Set();
     if (!cqSplitState.visualPartLabels) cqSplitState.visualPartLabels = {};
   }
-  _rerenderSplitOwner();
+  // In-place: swaps only the split panel's own markup, so the surrounding
+  // modal/list is never touched and the page doesn't jump (see
+  // _rerenderSplitPanelInPlace for why a full owner re-render would).
+  _rerenderSplitPanelInPlace();
 }
 
 function toggleVisualCut(afterIndex) {
@@ -130,7 +133,7 @@ function _buildVisualSplitHTML(questions) {
 
   // Hint
   html += `<div style="font-size:.75rem;color:var(--violet-dark);font-weight:700;margin-bottom:8px;line-height:1.5;">
-    Click ✂️ between questions to mark a split point. Click again to remove it.
+    Click <svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> between questions to mark a split point. Click again to remove it.
     ${cuts.size === 0 ? '<span style="color:var(--unanswered-fg);"> — No cuts yet.</span>' : `<span style="color:var(--correct-fg);"> — ${cuts.size} cut${cuts.size !== 1 ? 's' : ''} = ${chunks.length} quizzes.</span>`}
   </div>`;
 
@@ -153,7 +156,7 @@ function _buildVisualSplitHTML(questions) {
       const partColor = SPLIT_PART_COLORS[partIdx % SPLIT_PART_COLORS.length];
       html += `<div class="cq-split-part-header" style="background:${partColor.bg};border:1.5px solid ${partColor.border};">
         <span style="font-size:.72rem;font-weight:800;color:${partColor.text};">
-          📋 Quiz ${partIdx + 1}
+          <svg class="sicon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Quiz ${partIdx + 1}
         </span>
         <input type="text" class="cq-split-part-title-input" placeholder="Optional title for Quiz ${partIdx + 1}…"
           value="${escapeHtml(labelVal)}"
@@ -175,7 +178,7 @@ function _buildVisualSplitHTML(questions) {
       const isCut = cuts.has(i);
       html += `<div class="cq-scissors-row${isCut ? ' cut' : ''}" onclick="toggleVisualCut(${i})" title="${isCut ? 'Remove cut here' : 'Cut here — split into separate quiz'}">
         <div class="cq-scissors-line"></div>
-        <button class="cq-scissors-btn" type="button">✂️</button>
+        <button class="cq-scissors-btn" type="button"><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>
         <div class="cq-scissors-line"></div>
         ${isCut ? `<span style="position:absolute;left:50%;transform:translateX(-50%) translateX(22px);font-size:.68rem;font-weight:800;color:var(--violet-darkest);white-space:nowrap;pointer-events:none;">— split here —</span>` : ''}
       </div>`;
@@ -204,20 +207,29 @@ function updateVisualPartLabel(key, val) {
 function setSplitChunkSize(val) {
   if (!cqSplitState) return;
   cqSplitState.chunkSize = parseInt(val, 10) || 10;
-  _rerenderSplitOwner();
+  const panelKey = cqSplitState.quizId || 'preview';
+  const total = (_getSplitSourceQuestions() || []).length;
+  // Targeted DOM updates only — fires on every keystroke, so re-rendering
+  // the whole panel (let alone the whole modal) here would tear down and
+  // recreate the number input the user is actively typing into, stealing
+  // focus/cursor position after each digit and jumping the page's scroll.
+  const countEl = document.getElementById('cqSplitChunkCount_' + panelKey);
+  if (countEl) countEl.textContent = _buildChunkCountLabel(total, cqSplitState.chunkSize);
+  const summaryEl = document.getElementById('cqSplitSummary_' + panelKey);
+  if (summaryEl) summaryEl.innerHTML = _buildSplitSummaryHTML(total);
 }
 
 function addSplitRange() {
   if (!cqSplitState) return;
   cqSplitState.ranges.push({ start: '', end: '', label: '' });
-  _rerenderSplitOwner();
+  _rerenderSplitPanelInPlace();
 }
 
 function removeSplitRange(idx) {
   if (!cqSplitState) return;
   cqSplitState.ranges.splice(idx, 1);
   if (!cqSplitState.ranges.length) cqSplitState.ranges.push({ start: '', end: '', label: '' });
-  _rerenderSplitOwner();
+  _rerenderSplitPanelInPlace();
 }
 
 function updateSplitRange(idx, field, val) {
@@ -234,6 +246,37 @@ function _rerenderSplitOwner() {
   if (cqSplitState.context === 'preview') renderCQPreview();
   else if (cqSplitState.context === 'adminPublished') _renderAdminAssignedListHTML();
   else renderCustomQuizModal();
+}
+
+// Re-renders ONLY the split panel's own DOM node in place, leaving every
+// other part of the owning modal/list untouched.
+//
+// Why this exists: the owner render functions (renderCQPreview,
+// renderCustomQuizModal, _renderAdminAssignedListHTML) rebuild their
+// entire container's innerHTML from scratch. That container is nested
+// inside the scrollable overlay the split panel lives in, and replacing
+// all of its content resets that overlay's scroll position back to the
+// top — so every click on a split-mode tab, or Add/Remove Range, used to
+// yank the user's scroll position away from the very panel they were
+// interacting with. Swapping just the panel's own element via
+// replaceChild leaves everything above and below it completely
+// undisturbed, so the enclosing scroll position never moves.
+function _rerenderSplitPanelInPlace() {
+  if (!cqSplitState) return;
+  const panelKey = cqSplitState.quizId || 'preview';
+  const el = document.getElementById('cqSplitPanel_' + panelKey);
+  if (!el || !el.parentNode) {
+    // Panel not found in the DOM (shouldn't normally happen while a split
+    // is open) — fall back to a full owner re-render so the UI still ends
+    // up correct even though scroll position may shift in this edge case.
+    _rerenderSplitOwner();
+    return;
+  }
+  const total = (_getSplitSourceQuestions() || []).length;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderSplitPanel(cqSplitState.context, cqSplitState.quizId, total);
+  const newEl = tmp.firstElementChild;
+  if (newEl) el.parentNode.replaceChild(newEl, el);
 }
 
 function _getSplitSourceQuestions() {
@@ -259,6 +302,15 @@ function _computeEqualChunks(total, chunkSize) {
     chunks.push({ start: s, end: Math.min(s + chunkSize - 1, total) });
   }
   return chunks;
+}
+
+// Small "(N total → M quizzes)" text shown next to the Equal Chunks input.
+// Pulled out into its own helper so it can be reused both when the split
+// panel is first rendered and when it's live-updated on every keystroke
+// (see setSplitChunkSize), without duplicating the pluralization logic.
+function _buildChunkCountLabel(total, chunkSize) {
+  const n = _computeEqualChunks(total, chunkSize).length;
+  return `(${total} total \u2192 ${n} quiz${n !== 1 ? 'zes' : ''})`;
 }
 
 function _computeCustomChunks() {
@@ -287,7 +339,7 @@ function _buildSplitSummaryHTML(total) {
   } else {
     chunks = _computeCustomChunks();
   }
-  if (!chunks.length) return `<span style="color:var(--unanswered-fg);font-size:.78rem;font-weight:700;">⚠️ No valid ranges defined yet.</span>`;
+  if (!chunks.length) return `<span style="color:var(--unanswered-fg);font-size:.78rem;font-weight:700;"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No valid ranges defined yet.</span>`;
   const coveredSet = new Set();
   chunks.forEach(c => { for (let i = c.start; i <= Math.min(c.end, total); i++) coveredSet.add(i); });
   const uncovered = total - coveredSet.size;
@@ -299,7 +351,7 @@ function _buildSplitSummaryHTML(total) {
     </span>`;
   });
   if (uncovered > 0 && cqSplitState.mode === 'custom') {
-    html += `<span class="cq-split-chip warn">⚠️ ${uncovered} question${uncovered !== 1 ? 's' : ''} not covered</span>`;
+    html += `<span class="cq-split-chip warn"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${uncovered} question${uncovered !== 1 ? 's' : ''} not covered</span>`;
   }
   return html;
 }
@@ -319,13 +371,13 @@ function renderSplitPanel(context, quizId, totalQuestions) {
 
   let html = `<div class="cq-split-panel" id="${panelId}">
     <div class="cq-split-panel-title">
-      <span>✂️ Split into Multiple Quizzes</span>
+      <span><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Split into Multiple Quizzes</span>
       <button class="cq-btn cq-btn-secondary" onclick="closeSplitPanel()" style="padding:4px 10px;font-size:.75rem;">✕ Cancel</button>
     </div>
     <div class="cq-split-mode-tabs">
-      <button class="cq-split-mode-btn${isEqual ? ' active' : ''}" onclick="setSplitMode('equal')">📐 Equal Chunks</button>
-      <button class="cq-split-mode-btn${isCustom ? ' active' : ''}" onclick="setSplitMode('custom')">✏️ Custom Ranges</button>
-      <button class="cq-split-mode-btn${isVisual ? ' active' : ''}" onclick="setSplitMode('visual')">✂️ Visual Split</button>
+      <button class="cq-split-mode-btn${isEqual ? ' active' : ''}" onclick="setSplitMode('equal')"><svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Equal Chunks</button>
+      <button class="cq-split-mode-btn${isCustom ? ' active' : ''}" onclick="setSplitMode('custom')"><svg class="sicon" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Custom Ranges</button>
+      <button class="cq-split-mode-btn${isVisual ? ' active' : ''}" onclick="setSplitMode('visual')"><svg class="sicon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Visual Split</button>
     </div>`;
 
   if (isEqual) {
@@ -333,9 +385,7 @@ function renderSplitPanel(context, quizId, totalQuestions) {
       <label>Questions per quiz:</label>
       <input type="number" min="1" max="${total}" value="${cqSplitState.chunkSize}"
         oninput="setSplitChunkSize(this.value)" />
-      <span style="font-size:.78rem;color:var(--violet-dark);font-weight:600;">
-        (${total} total → ${_computeEqualChunks(total, cqSplitState.chunkSize).length} quiz${_computeEqualChunks(total, cqSplitState.chunkSize).length !== 1 ? 'zes' : ''})
-      </span>
+      <span id="cqSplitChunkCount_${panelKey}" style="font-size:.78rem;color:var(--violet-dark);font-weight:600;">${_buildChunkCountLabel(total, cqSplitState.chunkSize)}</span>
     </div>`;
   } else if (isCustom) {
     html += `<div style="font-size:.76rem;color:var(--violet-dark);font-weight:700;margin-bottom:8px;">
@@ -366,12 +416,12 @@ function renderSplitPanel(context, quizId, totalQuestions) {
   if (context === 'adminPublished') {
     html += `<button class="cq-btn" id="cqSplitExecPublishBtn_${panelKey}" onclick="executeSplitQuiz('publish')"
         title="Publish the split parts as new curriculum lectures and remove the original lecture">
-        🚀 Split &amp; Publish to Curriculum</button>
+        <svg class="sicon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Split &amp; Publish to Curriculum</button>
       <button class="cq-btn cq-btn-secondary" id="cqSplitExecCustomBtn_${panelKey}" onclick="executeSplitQuiz('custom')"
         style="background:var(--violet);color:#fff;" title="Save the split parts as custom quizzes — the curriculum lecture stays untouched">
-        📄 Split to Custom Quizzes</button>`;
+        <svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Split to Custom Quizzes</button>`;
   } else {
-    html += `<button class="cq-btn" id="cqSplitExecBtn_${panelKey}" onclick="executeSplitQuiz()">✂️ Create Split Quizzes</button>`;
+    html += `<button class="cq-btn" id="cqSplitExecBtn_${panelKey}" onclick="executeSplitQuiz()"><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M20 4L8.12 15.88M20 20L14 14"/></svg> Create Split Quizzes</button>`;
   }
   html += `<button class="cq-btn cq-btn-secondary" id="cqSplitCancelBtn_${panelKey}" onclick="closeSplitPanel()">Cancel</button>
   </div>`;
@@ -411,7 +461,7 @@ async function executeSplitQuiz(targetMode) {
     chunks = _computeEqualChunks(total, cqSplitState.chunkSize);
   } else if (cqSplitState.mode === 'visual') {
     const rawChunks = _getVisualChunksFromCuts(total); // 0-based inclusive
-    if (!rawChunks.length) { alert('No cuts defined yet. Click the ✂️ scissors between questions to split.'); return; }
+    if (!rawChunks.length) { alert('No cuts defined yet. Click the scissors between questions to split.'); return; }
     const labels = cqSplitState.visualPartLabels || {};
     chunks = rawChunks.map(c => ({
       start: c.start + 1,
@@ -458,12 +508,12 @@ async function executeSplitQuiz(targetMode) {
   _setSplitPanelBusy(panelKey, true, isCurriculumPublish ? 'Splitting & publishing…' : 'Splitting…');
 
   // ── Admin-published curriculum lectures: the admin chooses between two
-  //    pathways —
-  //    'publish' (normal pathway): the split parts REPLACE the original
-  //    lecture as new published curriculum lectures — live for all users.
-  //    'custom': the split parts go into the admin's own Custom Quizzes
-  //    instead, leaving the original curriculum lecture untouched, so the
-  //    admin can review/edit each part before publishing it themselves. ──
+  // pathways —
+  // 'publish' (normal pathway): the split parts REPLACE the original
+  // lecture as new published curriculum lectures — live for all users.
+  // 'custom': the split parts go into the admin's own Custom Quizzes
+  // instead, leaving the original curriculum lecture untouched, so the
+  // admin can review/edit each part before publishing it themselves. ──
   if (isCurriculumPublish) {
     const origLectureId = cqSplitState.quizId;
     const subject = adminTargetSubject;
@@ -529,7 +579,7 @@ async function executeSplitQuiz(targetMode) {
       cqSplitState = null;
       renderAdminAssignedList();
       if (selectedSubject === subject) selectSubject(subject);
-      alert(`✅ Published ${newLectures.length} new lecture${newLectures.length !== 1 ? 's' : ''} from "${baseTitle}" to ${subjects[subject].label || subject}, replacing the original lecture.`);
+      alert(`Published ${newLectures.length} new lecture${newLectures.length !== 1 ? 's' : ''} from "${baseTitle}" to ${subjects[subject].label || subject}, replacing the original lecture.`);
     } catch (e) {
       _setSplitPanelBusy(panelKey, false);
       alert('Failed to split & publish: ' + (e.message || e));
@@ -566,7 +616,7 @@ async function executeSplitQuiz(targetMode) {
 
     cqSplitState = null;
     _renderAdminAssignedListHTML();
-    alert(`✅ Created ${newCustomQuizzes.length} split quiz${newCustomQuizzes.length !== 1 ? 'zes' : ''} from "${baseTitle}".\n\nThese were NOT published directly to students — they've been added to your Custom Quizzes, where you can review and publish each one individually when ready.`);
+    alert(`Created ${newCustomQuizzes.length} split quiz${newCustomQuizzes.length !== 1 ? 'zes' : ''} from "${baseTitle}".\n\nThese were NOT published directly to students — they've been added to your Custom Quizzes, where you can review and publish each one individually when ready.`);
     return;
   }
 
@@ -604,7 +654,7 @@ async function executeSplitQuiz(targetMode) {
   cqSplitState = null;
   renderCustomQuizModal();
   const statusEl = document.getElementById('cqStatus');
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Created ${newQuizzes.length} split quiz${newQuizzes.length !== 1 ? 'zes' : ''} from "${escapeHtml(baseTitle)}"!</div>`;
 }
 
 async function deleteCustomQuiz(id) {
@@ -642,8 +692,8 @@ function startCustomQuiz(id) {
   const quiz = quizzes.find(q => q.id === id);
   if (!quiz || !quiz.questions || !quiz.questions.length) return;
 
-  const minsInput     = document.getElementById('cqMins_' + id);
-  const shuffleInput  = document.getElementById('cqShuffle_' + id);
+  const minsInput = document.getElementById('cqMins_' + id);
+  const shuffleInput = document.getElementById('cqShuffle_' + id);
   let mins = minsInput ? parseInt(minsInput.value, 10) : NaN;
   if (!mins || mins <= 0) mins = Math.max(5, quiz.questions.length);
   const shuffle = shuffleInput ? shuffleInput.checked : false;
@@ -653,8 +703,8 @@ function startCustomQuiz(id) {
   // in app-core.js's startQuiz() for why this runs even when shuffle is off.
   combined = _cqGroupAwareOrder(combined, shuffle);
 
-  selectedSubject  = 'Custom Quizzes';
-  currentLecture   = quiz.title;
+  selectedSubject = 'Custom Quizzes';
+  currentLecture = quiz.title;
   currentQuestions = combined;
   currentIndex = 0; userAnswers = {}; markedSet = new Set();
   questionTimes = {}; correctToWrong = 0; wrongToCorrect = 0; changeLog = [];
@@ -684,11 +734,11 @@ function clearCqMultiSelect() {
 }
 
 function startCustomQuizzesMulti() {
-  const quizzes  = loadCustomQuizzes();
+  const quizzes = loadCustomQuizzes();
   const selected = quizzes.filter(q => cqMultiSelected.has(q.id));
   if (!selected.length) return;
 
-  const minsInput    = document.getElementById('cqMultiMins');
+  const minsInput = document.getElementById('cqMultiMins');
   const shuffleInput = document.getElementById('cqMultiShuffle');
   const totalQs = selected.reduce((sum, q) => sum + q.questions.length, 0);
   let mins = minsInput ? parseInt(minsInput.value, 10) : NaN;
@@ -723,8 +773,8 @@ function startCustomQuizzesMulti() {
   // in app-core.js's startQuiz() for why this runs even when shuffle is off.
   combined = _cqGroupAwareOrder(combined, shuffle);
 
-  selectedSubject  = 'Custom Quizzes';
-  currentLecture   = selected.length === 1
+  selectedSubject = 'Custom Quizzes';
+  currentLecture = selected.length === 1
     ? selected[0].title
     : `${selected.length} quizzes (${selected.map(q => q.title).join(', ')})`;
   currentQuestions = combined;

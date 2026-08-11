@@ -1,7 +1,7 @@
 /* =============================================================================
    pdf-export.js
 
-   Drop #100 — "Export to PDF" inside the 💾 Backup & Transfer modal.
+   Drop #100 — "Export to PDF" inside the <svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Backup & Transfer modal.
 
    Lets a signed-in student (or admin) turn any mix of Curriculum lectures,
    Community quizzes and their own Custom quizzes into a single, elegantly
@@ -85,31 +85,31 @@ function _pdxFormatDate(d) {
    a big multi-source export reads as organised and colourful rather than
    one long grey wall of text. */
 const PDX_PALETTE = {
-  teal:   { name: '🟦 Teal (default)', base: '#0E6E82', dark: '#0A3F52', light: '#29C2D9', pale: '#E4F3F6' },
-  violet: { name: '🟪 Violet',         base: '#6B4FA0', dark: '#4E3878', light: '#7E57C2', pale: '#EFEAF8' },
-  gold:   { name: '🟧 Gold',           base: '#C98D1F', dark: '#8A5E12', light: '#E7B65C', pale: '#FBF1DE' },
-  forest: { name: '🟩 Forest',         base: '#2E7A4F', dark: '#1F5C3B', light: '#4C9A6B', pale: '#E5F3EC' },
-  berry:  { name: '🟥 Berry',          base: '#B23A3A', dark: '#8F2A2A', light: '#D97A7A', pale: '#F8DADA' },
+  teal:   { name: '🟦 Teal (default)', base: '#0E6E82', dark: '#0A3F52', light: '#29C2D9', pale: '#E4F3F6' },
+  violet: { name: '🟪 Violet',         base: '#6B4FA0', dark: '#4E3878', light: '#7E57C2', pale: '#EFEAF8' },
+  gold:   { name: '🟧 Gold',           base: '#C98D1F', dark: '#8A5E12', light: '#E7B65C', pale: '#FBF1DE' },
+  forest: { name: '🟩 Forest',         base: '#2E7A4F', dark: '#1F5C3B', light: '#4C9A6B', pale: '#E5F3EC' },
+  berry:  { name: '🟥 Berry',          base: '#B23A3A', dark: '#8F2A2A', light: '#D97A7A', pale: '#F8DADA' },
 };
-const PDX_TEXT_SIZES  = { small: { q: 10.5, opt: 9.5,  label: 8.5  }, medium: { q: 12, opt: 10.5, label: 9.5 }, large: { q: 13.5, opt: 12, label: 10.5 } };
+const PDX_TEXT_SIZES = { small: { q: 10.5, opt: 9.5, label: 8.5 }, medium: { q: 12, opt: 10.5, label: 9.5 }, large: { q: 13.5, opt: 12, label: 10.5 } };
 const PDX_IMAGE_SIZES = { small: 90, medium: 160, large: 230 }; // max image height, in pt
 
 /* ── Selection & UI state ── */
-let _pdxTab            = 'curriculum'; // 'curriculum' | 'community' | 'custom'
-let _pdxSelCurriculum  = new Set();    // "subjectKey::lectureName"
-let _pdxSelCommunity   = new Set();    // shared quiz ids
-let _pdxSelCustom      = new Set();    // custom quiz ids
-let _pdxCurrYear       = '';
-let _pdxCurrModule     = '';
-let _pdxCurrSubject    = '';
-let _pdxCommSearch     = '';
-let _pdxCommScope       = 'browse'; // 'browse' | 'mine' — mirrors communityTab on the real screen
-let _pdxCommYearFilter  = '';
+let _pdxTab = 'curriculum'; // 'curriculum' | 'community' | 'custom'
+let _pdxSelCurriculum = new Set(); // "subjectKey::lectureName"
+let _pdxSelCommunity = new Set(); // shared quiz ids
+let _pdxSelCustom = new Set(); // custom quiz ids
+let _pdxCurrYear = '';
+let _pdxCurrModule = '';
+let _pdxCurrSubject = '';
+let _pdxCommSearch = '';
+let _pdxCommScope = 'browse'; // 'browse' | 'mine' — mirrors communityTab on the real screen
+let _pdxCommYearFilter = '';
 let _pdxCommModuleFilter = '';
 let _pdxCommSubjectFilter = '';
-let _pdxCommSort        = 'newest';
-let _pdxSettings       = { textSize: 'medium', imageSize: 'medium', theme: 'teal' };
-let _pdxAssetCache     = { logo: null, qr: null };
+let _pdxCommSort = 'newest';
+let _pdxSettings = { textSize: 'medium', imageSize: 'medium', theme: 'teal' };
+let _pdxAssetCache = { logo: null, qr: null };
 
 /* ══════════════════════════════════════════════════════════
    OPEN / CLOSE
@@ -134,21 +134,21 @@ async function renderPdfExportModal() {
     <div class="pdx-layout">
       <div class="pdx-picker-col">
         <div class="community-section-tabs pdx-source-tabs">
-          <button class="community-tab-btn ${_pdxTab === 'curriculum' ? 'active' : ''}" data-tab="curriculum" onclick="pdxSetTab('curriculum')">🏛️ Curriculum ${_pdxSelCurriculum.size ? `(${_pdxSelCurriculum.size})` : ''}</button>
-          <button class="community-tab-btn ${_pdxTab === 'community'  ? 'active' : ''}" data-tab="community" onclick="pdxSetTab('community')">🌐 Community ${_pdxSelCommunity.size ? `(${_pdxSelCommunity.size})` : ''}</button>
-          <button class="community-tab-btn ${_pdxTab === 'custom'     ? 'active' : ''}" data-tab="custom" onclick="pdxSetTab('custom')">🤖 My Custom Quizzes ${_pdxSelCustom.size ? `(${_pdxSelCustom.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'curriculum' ? 'active' : ''}" data-tab="curriculum" onclick="pdxSetTab('curriculum')"><svg class="sicon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Curriculum ${_pdxSelCurriculum.size ? `(${_pdxSelCurriculum.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'community' ? 'active' : ''}" data-tab="community" onclick="pdxSetTab('community')"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community ${_pdxSelCommunity.size ? `(${_pdxSelCommunity.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'custom' ? 'active' : ''}" data-tab="custom" onclick="pdxSetTab('custom')"><svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg> My Custom Quizzes ${_pdxSelCustom.size ? `(${_pdxSelCustom.size})` : ''}</button>
         </div>
         <div id="pdxTabContent" class="pdx-tab-content"></div>
 
         <div class="pdx-selection-bar">
           <span id="pdxSelectionCount">${_pdxTotalSelected()} item${_pdxTotalSelected() === 1 ? '' : 's'} selected</span>
-          <button class="pdx-clear-btn" onclick="pdxClearAll()">🗑 Clear All</button>
+          <button class="pdx-clear-btn" onclick="pdxClearAll()"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Clear All</button>
         </div>
       </div>
 
       <div class="pdx-settings-col">
         <div class="pdx-settings-card">
-          <div class="pdx-settings-title">🎨 Look &amp; Feel</div>
+          <div class="pdx-settings-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.3c1.9 0 3.5-1.6 3.5-3.5C21 6.9 17 2 12 2z"/><circle cx="6.5" cy="11.5" r="1.5"/><circle cx="9.5" cy="7.5" r="1.5"/><circle cx="14.5" cy="7.5" r="1.5"/><circle cx="17.5" cy="11.5" r="1.5"/></svg> Look &amp; Feel</div>
 
           <div class="pdx-field-label">Text size</div>
           <div class="pdx-segmented" id="pdxTextSizeGroup">
@@ -170,7 +170,7 @@ async function renderPdfExportModal() {
         </div>
 
         <div class="pdx-preview-card">
-          <div class="pdx-settings-title">👁️ Live Preview <span class="pdx-preview-tag">sample page — not real content</span></div>
+          <div class="pdx-settings-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Live Preview <span class="pdx-preview-tag">sample page — not real content</span></div>
           <div id="pdxPreview" class="pdx-preview-page"></div>
         </div>
       </div>
@@ -180,7 +180,7 @@ async function renderPdfExportModal() {
       <div id="pdxGenStatus" class="backup-status-area"></div>
       <div class="pdx-footer-actions">
         <button class="cq-btn cq-btn-secondary" onclick="closePdfExport()">✖ Close</button>
-        <button class="cq-btn" id="pdxGenerateBtn" onclick="pdxGenerate()" ${_pdxTotalSelected() ? '' : 'disabled'}>⬇️ Generate PDF</button>
+        <button class="cq-btn" id="pdxGenerateBtn" onclick="pdxGenerate()" ${_pdxTotalSelected() ? '' : 'disabled'}><svg class="sicon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate PDF</button>
       </div>
     </div>
   `;
@@ -207,7 +207,7 @@ function _pdxRefreshChrome() {
    switching tabs never re-renders the tab bar markup itself. */
 function _pdxSyncTabButtons() {
   const counts = { curriculum: _pdxSelCurriculum.size, community: _pdxSelCommunity.size, custom: _pdxSelCustom.size };
-  const labels = { curriculum: '🏛️ Curriculum', community: '🌐 Community', custom: '🤖 My Custom Quizzes' };
+  const labels = { curriculum: '<svg class="sicon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Curriculum', community: '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community', custom: '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> My Custom Quizzes' };
   document.querySelectorAll('.pdx-source-tabs .community-tab-btn').forEach(btn => {
     const tab = btn.dataset.tab;
     if (!tab) return;
@@ -217,8 +217,8 @@ function _pdxSyncTabButtons() {
 }
 function pdxClearAll() {
   _pdxSelCurriculum = new Set();
-  _pdxSelCommunity  = new Set();
-  _pdxSelCustom     = new Set();
+  _pdxSelCommunity = new Set();
+  _pdxSelCustom = new Set();
   pdxRenderTabContent();
   _pdxRefreshChrome();
 }
@@ -229,9 +229,9 @@ function pdxSetTab(tab) {
   pdxRenderTabContent();
 }
 function pdxRenderTabContent() {
-  if (_pdxTab === 'curriculum')      _pdxRenderCurriculumTab();
-  else if (_pdxTab === 'community')  _pdxRenderCommunityTab();
-  else                                _pdxRenderCustomTab();
+  if (_pdxTab === 'curriculum') _pdxRenderCurriculumTab();
+  else if (_pdxTab === 'community') _pdxRenderCommunityTab();
+  else _pdxRenderCustomTab();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -241,13 +241,13 @@ function pdxRenderTabContent() {
    module, or subject can be queued in one click instead of
    checking every lecture by hand.
 ══════════════════════════════════════════════════════════ */
-function pdxOnYearChange(v)    { _pdxCurrYear = v; _pdxCurrModule = ''; _pdxCurrSubject = ''; _pdxRenderCurriculumTab(); }
-function pdxOnModuleChange(v)  { _pdxCurrModule = v; _pdxCurrSubject = ''; _pdxRenderCurriculumTab(); }
+function pdxOnYearChange(v) { _pdxCurrYear = v; _pdxCurrModule = ''; _pdxCurrSubject = ''; _pdxRenderCurriculumTab(); }
+function pdxOnModuleChange(v) { _pdxCurrModule = v; _pdxCurrSubject = ''; _pdxRenderCurriculumTab(); }
 function pdxOnSubjectChange(v) { _pdxCurrSubject = v; _pdxRenderCurriculumTab(); }
 
 function _pdxAllLecturesUnder(year, mod, subjectKey) {
   const out = [];
-  const years   = year   ? [year]   : Object.keys(curriculum);
+  const years = year ? [year] : Object.keys(curriculum);
   years.forEach(y => {
     const mods = mod ? [mod] : Object.keys(curriculum[y] || {});
     mods.forEach(m => {
@@ -278,11 +278,11 @@ function pdxToggleLecture(key, checked) {
   if (badge) badge.textContent = _pdxAllLecturesUnder(_pdxCurrYear, _pdxCurrModule, _pdxCurrSubject).filter(k => _pdxSelCurriculum.has(k)).length;
 }
 
-/* Same breadcrumb pattern as the admin "📤 Publish Quizzes" destination
+/* Same breadcrumb pattern as the admin " Publish Quizzes" destination
    picker (js/admin-panel.js → adminAssignBreadcrumbHtml). */
 function _pdxCurrBreadcrumbHtml() {
   let html = `<div class="curr-breadcrumb">`;
-  html += `<span class="curr-crumb ${!_pdxCurrYear ? 'active' : ''}" onclick="pdxOnYearChange('')">📅 Years</span>`;
+  html += `<span class="curr-crumb ${!_pdxCurrYear ? 'active' : ''}" onclick="pdxOnYearChange('')"> Years</span>`;
   if (_pdxCurrYear) html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${!_pdxCurrModule ? 'active' : ''}" onclick="pdxOnModuleChange('')">${escapeHtml(_pdxCurrYear)}</span>`;
   if (_pdxCurrModule) html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${!_pdxCurrSubject ? 'active' : ''}" onclick="pdxOnSubjectChange('')">${escapeHtml(_pdxCurrModule)}</span>`;
   if (_pdxCurrSubject) html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb active">${escapeHtml((subjects[_pdxCurrSubject] && subjects[_pdxCurrSubject].label) || _pdxCurrSubject)}</span>`;
@@ -290,7 +290,7 @@ function _pdxCurrBreadcrumbHtml() {
   return html;
 }
 
-/* Reuses the exact same card/breadcrumb drilldown as the admin "📤 Publish
+/* Reuses the exact same card/breadcrumb drilldown as the admin " Publish
    Quizzes" destination picker (adminPublishTargetPickerHtml in
    js/admin-panel.js) — same .curr-section/.curr-item-row/.curr-breadcrumb
    classes — extended one level further to Lecture, and with a "select
@@ -303,16 +303,16 @@ function _pdxRenderCurriculumTab() {
   let html = `<div class="curr-section pdx-curr-section">`;
   html += _pdxCurrBreadcrumbHtml();
 
-  if (_pdxCurrSubject)      html += `<button class="curr-back-btn" onclick="pdxOnSubjectChange('')">← Back to Subjects</button>`;
-  else if (_pdxCurrModule)  html += `<button class="curr-back-btn" onclick="pdxOnModuleChange('')">← Back to Modules</button>`;
-  else if (_pdxCurrYear)    html += `<button class="curr-back-btn" onclick="pdxOnYearChange('')">← Back to Years</button>`;
+  if (_pdxCurrSubject) html += `<button class="curr-back-btn" onclick="pdxOnSubjectChange('')">← Back to Subjects</button>`;
+  else if (_pdxCurrModule) html += `<button class="curr-back-btn" onclick="pdxOnModuleChange('')">← Back to Modules</button>`;
+  else if (_pdxCurrYear) html += `<button class="curr-back-btn" onclick="pdxOnYearChange('')">← Back to Years</button>`;
 
   html += `<div style="margin-top:9px;display:flex;flex-direction:column;gap:6px;">`;
 
   if (!_pdxCurrYear) {
     const years = Object.keys(curriculum);
     if (!years.length) {
-      html += `<div class="community-empty"><div class="ce-icon">📭</div>No curriculum published yet.</div>`;
+      html += `<div class="community-empty"><div class="ce-icon"></div>No curriculum published yet.</div>`;
     } else {
       years.forEach(y => {
         const all = _pdxAllLecturesUnder(y);
@@ -322,7 +322,7 @@ function _pdxRenderCurriculumTab() {
             onchange="pdxToggleWholeYear('${escapeHtml(y)}', this.checked)" title="Select this whole year" />
           <div class="pdx-curr-click" onclick="pdxOnYearChange('${escapeHtml(y)}')">
             <div>
-              <div class="curr-item-name">📅 ${escapeHtml(y)}</div>
+              <div class="curr-item-name"> ${escapeHtml(y)}</div>
               <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)${sel ? ` · ${sel}/${all.length} lecture(s) selected` : ''}</div>
             </div>
             <span class="curr-item-arrow">▶</span>
@@ -333,7 +333,7 @@ function _pdxRenderCurriculumTab() {
   } else if (!_pdxCurrModule) {
     const mods = Object.keys(curriculum[_pdxCurrYear] || {});
     if (!mods.length) {
-      html += `<div class="community-empty"><div class="ce-icon">📭</div>No modules in ${escapeHtml(_pdxCurrYear)} yet.</div>`;
+      html += `<div class="community-empty"><div class="ce-icon"></div>No modules in ${escapeHtml(_pdxCurrYear)} yet.</div>`;
     } else {
       mods.forEach(m => {
         const all = _pdxAllLecturesUnder(_pdxCurrYear, m);
@@ -355,7 +355,7 @@ function _pdxRenderCurriculumTab() {
   } else if (!_pdxCurrSubject) {
     const subs = (curriculum[_pdxCurrYear][_pdxCurrModule] || []).filter(k => subjects[k]);
     if (!subs.length) {
-      html += `<div class="community-empty"><div class="ce-icon">📭</div>No subjects in ${escapeHtml(_pdxCurrModule)} yet.</div>`;
+      html += `<div class="community-empty"><div class="ce-icon"></div>No subjects in ${escapeHtml(_pdxCurrModule)} yet.</div>`;
     } else {
       subs.forEach(s => {
         const all = _pdxAllLecturesUnder(_pdxCurrYear, _pdxCurrModule, s);
@@ -365,7 +365,7 @@ function _pdxRenderCurriculumTab() {
             onchange="pdxToggleWholeSubject('${escapeHtml(_pdxCurrYear)}', '${escapeHtml(_pdxCurrModule)}', '${escapeHtml(s)}', this.checked)" title="Select this whole subject" />
           <div class="pdx-curr-click" onclick="pdxOnSubjectChange('${escapeHtml(s)}')">
             <div>
-              <div class="curr-item-name">${escapeHtml(subjects[s].icon || '📘')} ${escapeHtml(subjects[s].label || s)}</div>
+              <div class="curr-item-name">${escapeHtml(subjects[s].icon || '')} ${escapeHtml(subjects[s].label || s)}</div>
               <div class="curr-item-sub">${all.length} lecture(s)${sel ? ` · ${sel} selected` : ''}</div>
             </div>
             <span class="curr-item-arrow">▶</span>
@@ -376,10 +376,14 @@ function _pdxRenderCurriculumTab() {
   } else {
     const lectures = Object.keys((subjects[_pdxCurrSubject] || {}).lectures || {});
     if (!lectures.length) {
-      html += `<div class="community-empty"><div class="ce-icon">📭</div>No lectures in this subject yet.</div>`;
+      html += `<div class="community-empty"><div class="ce-icon"><svg class="hicon" style="width:40px;height:40px;" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>No lectures in this subject yet.</div>`;
     } else {
       const selectedHere = lectures.filter(l => _pdxSelCurriculum.has(`${_pdxCurrSubject}::${l}`)).length;
       html += `<div class="pdx-lecture-list-header">Lectures <span class="backup-quiz-count" id="pdxSubjectSelectedBadge">${selectedHere}</span></div>
+      <div style="display:flex;gap:8px;margin:6px 0 8px;">
+        <button type="button" style="flex:1;padding:6px;border-radius:6px;border:1.5px solid var(--accent);background:var(--surface-2-hover);color:var(--accent);font-weight:700;cursor:pointer;font-size:.8rem;" onclick="pdxToggleWholeSubject('${escapeHtml(_pdxCurrYear)}', '${escapeHtml(_pdxCurrModule)}', '${escapeHtml(_pdxCurrSubject)}', true)">☑ Select All</button>
+        <button type="button" style="flex:1;padding:6px;border-radius:6px;border:1.5px solid var(--border-soft);background:var(--surface-2);color:var(--text-muted);font-weight:700;cursor:pointer;font-size:.8rem;" onclick="pdxToggleWholeSubject('${escapeHtml(_pdxCurrYear)}', '${escapeHtml(_pdxCurrModule)}', '${escapeHtml(_pdxCurrSubject)}', false)">☐ Clear All</button>
+      </div>
       <div class="pdx-lecture-list">`;
       lectures.forEach(lname => {
         const qCount = subjects[_pdxCurrSubject].lectures[lname].length;
@@ -409,15 +413,15 @@ async function _pdxRenderCommunityTab() {
     el.innerHTML = `<div class="community-empty">Please sign in to browse community quizzes.</div>`;
     return;
   }
-  if (!_allSharedQuizzes.length) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);"><div style="font-size:1.6rem;margin-bottom:8px;">⏳</div>Loading community quizzes…</div>`;
-  // The exact same loader the real "🌐 Community Quizzes" screen calls
+  if (!_allSharedQuizzes.length) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);"><div style="margin-bottom:8px;display:flex;justify-content:center;color:var(--text-muted);"><svg style="width:28px;height:28px;" class="hicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg></div>Loading community quizzes…</div>`;
+  // The exact same loader the real " Community Quizzes" screen calls
   // (js/sharing.js → renderCommunityQuizzes → js/community-quizzes.js →
   // ensureSharedQuizzesLoaded) — same cache, same 60s throttle window, so
   // opening this tab counts as "having opened Community Quizzes" for
   // caching purposes; it never triggers a second, separate version check.
   const ok = await ensureSharedQuizzesLoaded(false);
   if (_pdxTab !== 'community') return;
-  if (!ok) { el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--wrong-fg);">❌ Failed to load community quizzes.</div>`; return; }
+  if (!ok) { el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--wrong-fg);"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Failed to load community quizzes.</div>`; return; }
   _pdxDrawCommunityList();
 }
 
@@ -426,6 +430,51 @@ async function _pdxRenderCommunityTab() {
    built on the shared _communityComputeView() (js/sharing.js) so both
    screens filter/sort identically. Only the per-item action differs: a
    select-for-export checkbox here instead of Start/Save/Unshare there. */
+function _pdxCommBuildListHtml(pool) {
+  if (!pool.length) {
+    return `<div class="community-empty"><div class="ce-icon"><svg class="hicon" style="width:40px;height:40px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg></div>No quizzes match.</div>`;
+  }
+  let html = '';
+  pool.forEach(item => {
+    const checked = _pdxSelCommunity.has(item.id);
+    const qCount = Number.isFinite(item.questionCount) ? item.questionCount : (Array.isArray(item.questions) ? item.questions.length : 0);
+    const catBadge = (item.year || item.subjectLabel)
+      ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
+      : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
+    const tagsHtml = (item.tags && item.tags.length)
+      ? `<div class="comm-tags-row">${item.tags.map(t => `<span class="comm-tag" onclick="pdxCommSetSearch('${escapeHtml(t)}')" title="Filter by tag">#${escapeHtml(t)}</span>`).join('')}</div>` : '';
+    html += `<div class="community-quiz-item">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+        <input type="checkbox" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
+          ${checked ? 'checked' : ''} onchange="pdxToggleCommunity('${escapeHtml(item.id)}', this.checked)" />
+        <div style="flex:1;min-width:0;">
+          <div class="community-quiz-title">${escapeHtml(item.title)}</div>
+          <div class="community-quiz-meta">${catBadge} ${qCount} question${qCount !== 1 ? 's' : ''} &nbsp;·&nbsp; ${escapeHtml(item.authorName)} &nbsp;·&nbsp; ${new Date(item.sharedAt).toLocaleDateString()}</div>
+          ${tagsHtml}
+        </div>
+      </label>
+    </div>`;
+  });
+  return html;
+}
+
+// Light path: recomputes the pool and rewrites only the results list +
+// count. Used for every search keystroke — the filter bar (including the
+// search <input> itself) is left completely alone.
+function _pdxDrawCommunityResultsOnly() {
+  const { pool } = _communityComputeView({
+    scope: _pdxCommScope, search: _pdxCommSearch,
+    yearFilter: _pdxCommYearFilter, moduleFilter: _pdxCommModuleFilter, subjectFilter: _pdxCommSubjectFilter,
+    sort: _pdxCommSort,
+  });
+  _commRenderResults({
+    idPrefix: 'pdxComm',
+    listContainerId: 'pdxCommQuizList',
+    resultCount: pool.length,
+    listHtml: _pdxCommBuildListHtml(pool),
+  });
+}
+
 function _pdxDrawCommunityList() {
   const el = document.getElementById('pdxTabContent');
   if (!el) return;
@@ -435,99 +484,62 @@ function _pdxDrawCommunityList() {
     sort: _pdxCommSort,
   });
 
-  const searchVal = escapeHtml(_pdxCommSearch);
-  const clearStyle = _pdxCommSearch ? 'display:block' : 'display:none';
-
-  let html = `
+  // Full chrome rebuild — tabs + filter bar + a stable list container.
+  // Only runs on structural changes (scope/dropdown changes), never on a
+  // search keystroke (see pdxCommSearchInput above), so the search
+  // <input> stays alive and focused while someone types into it.
+  el.innerHTML = `
     <div class="community-section-tabs">
-      <button class="community-tab-btn ${_pdxCommScope === 'browse' ? 'active' : ''}" onclick="pdxCommSetScope('browse')">🌐 Browse All (${shared.length})</button>
-      <button class="community-tab-btn ${_pdxCommScope === 'mine' ? 'active' : ''}" onclick="pdxCommSetScope('mine')">👤 My Shared (${myShared.length})</button>
+      <button class="community-tab-btn ${_pdxCommScope === 'browse' ? 'active' : ''}" onclick="pdxCommSetScope('browse')"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Browse All (${shared.length})</button>
+      <button class="community-tab-btn ${_pdxCommScope === 'mine' ? 'active' : ''}" onclick="pdxCommSetScope('mine')"><svg class="sicon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> My Shared (${myShared.length})</button>
     </div>
-
-    <div class="comm-filter-bar">
-      <div class="comm-search-wrap">
-        <span class="comm-search-icon">🔍</span>
-        <input class="comm-search-input" id="pdxCommSearchInput" type="text"
-               placeholder="Search by title, author, category or tag…"
-               value="${searchVal}" oninput="pdxCommSearchInput(this.value)" />
-        <button class="comm-search-clear" style="${clearStyle}" onclick="pdxCommSearchInput('')">✕</button>
-      </div>
-      <div class="comm-filter-row">
-        <select class="comm-filter-select" onchange="pdxCommSetYearFilter(this.value)">
-          <option value="">All Years</option>
-          ${allYears.map(y => `<option value="${escapeHtml(y)}" ${_pdxCommYearFilter === y ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}
-        </select>
-        <select class="comm-filter-select" onchange="pdxCommSetModuleFilter(this.value)" ${!_pdxCommYearFilter ? 'disabled' : ''}>
-          <option value="">All Modules</option>
-          ${allModules.map(m => `<option value="${escapeHtml(m)}" ${_pdxCommModuleFilter === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
-        </select>
-        <select class="comm-filter-select" onchange="pdxCommSetSubjectFilter(this.value)" ${!_pdxCommModuleFilter ? 'disabled' : ''}>
-          <option value="">All Subjects</option>
-          ${allSubjects.map(k => {
-            const lbl = (subjects[k] && (subjects[k].label || k)) || k;
-            const ico = (subjects[k] && subjects[k].icon) || '';
-            return `<option value="${escapeHtml(k)}" ${_pdxCommSubjectFilter === k ? 'selected' : ''}>${ico} ${escapeHtml(lbl)}</option>`;
-          }).join('')}
-        </select>
-        <select class="comm-filter-select" onchange="pdxCommSetSort(this.value)">
-          <option value="newest" ${_pdxCommSort === 'newest' ? 'selected' : ''}>🕐 Newest</option>
-          <option value="oldest" ${_pdxCommSort === 'oldest' ? 'selected' : ''}>🕐 Oldest</option>
-          <option value="az" ${_pdxCommSort === 'az' ? 'selected' : ''}>🔤 A → Z</option>
-          <option value="questions" ${_pdxCommSort === 'questions' ? 'selected' : ''}>📝 Most Questions</option>
-        </select>
-      </div>
-      <div class="comm-results-count">${pool.length} quiz${pool.length !== 1 ? 'zes' : ''} shown</div>
-    </div>`;
-
-  if (!pool.length) {
-    html += `<div class="community-empty"><div class="ce-icon">🔍</div>No quizzes match your search/filters.</div>`;
-  } else {
-    pool.forEach(item => {
-      const checked = _pdxSelCommunity.has(item.id);
-      const qCount = Number.isFinite(item.questionCount) ? item.questionCount : (Array.isArray(item.questions) ? item.questions.length : 0);
-      const catBadge = (item.year || item.subjectLabel)
-        ? `<span class="comm-cat-badge">${[item.year, item.module, item.subjectLabel].filter(Boolean).map(escapeHtml).join(' › ')}</span>`
-        : (item.category ? `<span class="comm-cat-badge">${escapeHtml(item.category)}</span>` : '');
-      const tagsHtml = (item.tags && item.tags.length)
-        ? `<div class="comm-tags-row">${item.tags.map(t => `<span class="comm-tag" onclick="pdxCommSearchInput('${escapeHtml(t)}')" title="Filter by tag">#${escapeHtml(t)}</span>`).join('')}</div>` : '';
-      html += `<div class="community-quiz-item">
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
-          <input type="checkbox" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;"
-            ${checked ? 'checked' : ''} onchange="pdxToggleCommunity('${escapeHtml(item.id)}', this.checked)" />
-          <div style="flex:1;min-width:0;">
-            <div class="community-quiz-title">${escapeHtml(item.title)}</div>
-            <div class="community-quiz-meta">${catBadge} ${qCount} question${qCount !== 1 ? 's' : ''} &nbsp;·&nbsp; 👤 ${escapeHtml(item.authorName)} &nbsp;·&nbsp; 📅 ${new Date(item.sharedAt).toLocaleDateString()}</div>
-            ${tagsHtml}
-          </div>
-        </label>
-      </div>`;
-    });
-  }
-  el.innerHTML = html;
-
-  const searchEl = document.getElementById('pdxCommSearchInput');
-  if (searchEl && document.activeElement !== searchEl && window._pdxCommSearchFocused) {
-    const pos = window._pdxCommSearchPos || searchEl.value.length;
-    searchEl.focus();
-    try { searchEl.setSelectionRange(pos, pos); } catch (e) {}
-    window._pdxCommSearchFocused = false;
-  }
+    ${_buildCommFilterBarHTML({
+      idPrefix: 'pdxComm',
+      searchVal: _pdxCommSearch,
+      searchOninput: 'pdxCommSearchInput(this.value)',
+      clearOnclick: "pdxCommSetSearch('')",
+      yearVal: _pdxCommYearFilter,
+      yearOnchange: 'pdxCommSetYearFilter(this.value)',
+      allYears,
+      moduleVal: _pdxCommModuleFilter,
+      moduleOnchange: 'pdxCommSetModuleFilter(this.value)',
+      moduleDisabled: !_pdxCommYearFilter,
+      allModules,
+      subjectVal: _pdxCommSubjectFilter,
+      subjectOnchange: 'pdxCommSetSubjectFilter(this.value)',
+      subjectDisabled: !_pdxCommModuleFilter,
+      allSubjects,
+      sortVal: _pdxCommSort,
+      sortOnchange: 'pdxCommSetSort(this.value)',
+      resultCount: pool.length
+    })}
+    <div id="pdxCommQuizList">${_pdxCommBuildListHtml(pool)}</div>`;
 }
 function pdxCommSetScope(scope) {
   _pdxCommScope = scope; _pdxCommSearch = ''; _pdxCommYearFilter = ''; _pdxCommModuleFilter = ''; _pdxCommSubjectFilter = '';
   _pdxDrawCommunityList();
 }
+// Live typing — only the results list + count get touched (see
+// _pdxDrawCommunityResultsOnly below and the matching comment on
+// communityOnSearchInput in js/sharing.js). The search <input> is left
+// alone, so it never loses focus mid-keystroke.
 function pdxCommSearchInput(v) {
   _pdxCommSearch = v;
-  window._pdxCommSearchFocused = true;
-  const el = document.getElementById('pdxCommSearchInput');
-  window._pdxCommSearchPos = el ? el.selectionStart : null;
-  _pdxDrawCommunityList();
+  _pdxDrawCommunityResultsOnly();
 }
-function pdxCommSetYearFilter(v)    { _pdxCommYearFilter = v; _pdxCommModuleFilter = ''; _pdxCommSubjectFilter = ''; _pdxDrawCommunityList(); }
-function pdxCommSetModuleFilter(v)  { _pdxCommModuleFilter = v; _pdxCommSubjectFilter = ''; _pdxDrawCommunityList(); }
+
+// Programmatic search changes (clear button, tag click) — also syncs the
+// input's own value, since no keystroke is doing that for us here.
+function pdxCommSetSearch(v) {
+  _pdxCommSearch = v;
+  const input = document.getElementById('pdxCommSearchInput');
+  if (input) input.value = v;
+  _pdxDrawCommunityResultsOnly();
+}
+function pdxCommSetYearFilter(v) { _pdxCommYearFilter = v; _pdxCommModuleFilter = ''; _pdxCommSubjectFilter = ''; _pdxDrawCommunityList(); }
+function pdxCommSetModuleFilter(v) { _pdxCommModuleFilter = v; _pdxCommSubjectFilter = ''; _pdxDrawCommunityList(); }
 function pdxCommSetSubjectFilter(v) { _pdxCommSubjectFilter = v; _pdxDrawCommunityList(); }
-function pdxCommSetSort(v)          { _pdxCommSort = v; _pdxDrawCommunityList(); }
+function pdxCommSetSort(v) { _pdxCommSort = v; _pdxDrawCommunityList(); }
 function pdxToggleCommunity(id, checked) {
   if (checked) _pdxSelCommunity.add(id); else _pdxSelCommunity.delete(id);
   _pdxRefreshChrome();
@@ -535,7 +547,7 @@ function pdxToggleCommunity(id, checked) {
 
 /* ══════════════════════════════════════════════════════════
    CUSTOM QUIZZES TAB — reuses the exact same folder-tree
-   sidebar/breadcrumb/filtered-list as the student-facing "🤖
+   sidebar/breadcrumb/filtered-list as the student-facing "
    Custom Quizzes" modal and the admin Publish picker
    (js/quiz-collections.js), just with a select-for-export card
    swapped in for the Start/Edit/Share/Delete/Move actions —
@@ -553,7 +565,7 @@ async function _pdxRenderCustomTab() {
   const collections = loadQuizCollections();
 
   if (!quizzes.length) {
-    el.innerHTML = `<div class="community-empty"><div class="ce-icon">📭</div>No custom quizzes to export yet.</div>`;
+    el.innerHTML = `<div class="community-empty"><div class="ce-icon"></div>No custom quizzes to export yet.</div>`;
     return;
   }
 
@@ -579,14 +591,14 @@ async function _pdxRenderCustomTab() {
         </div>
         <div class="cq-move-wrap">
           <button class="admin-quiz-move-btn" data-move-btn="${q.id}"
-                  onclick="event.stopPropagation(); cqToggleQuizMoveMenu('${q.id}')" title="Move to a folder">📁</button>
+                  onclick="event.stopPropagation(); cqToggleQuizMoveMenu('${q.id}')" title="Move to a folder"></button>
           ${moveOpen ? _renderQuizMoveMenuHTML(q) : ''}
         </div>
         <div class="admin-quiz-item-check">✓</div>
       </div>`;
   }).join('') : `
     <div class="empty-state" style="padding:16px 12px;">
-      <div class="empty-icon">📁</div>
+      <div class="empty-icon"></div>
       No quizzes in this folder yet.
     </div>`;
 
@@ -615,9 +627,9 @@ function pdxToggleCustom(id, checked) {
    so it updates instantly as sliders/swatches change. It uses placeholder
    sample text/an illustrative image block, never real question content.
 ══════════════════════════════════════════════════════════ */
-function pdxSetTextSize(v)  { _pdxSettings.textSize = v; _pdxSyncSettingsUI(); pdxRenderPreview(); }
+function pdxSetTextSize(v) { _pdxSettings.textSize = v; _pdxSyncSettingsUI(); pdxRenderPreview(); }
 function pdxSetImageSize(v) { _pdxSettings.imageSize = v; _pdxSyncSettingsUI(); pdxRenderPreview(); }
-function pdxSetTheme(v)     { _pdxSettings.theme = v; _pdxSyncSettingsUI(); pdxRenderPreview(); }
+function pdxSetTheme(v) { _pdxSettings.theme = v; _pdxSyncSettingsUI(); pdxRenderPreview(); }
 function _pdxSyncSettingsUI() {
   document.querySelectorAll('#pdxTextSizeGroup .pdx-seg-btn').forEach((b, i) => b.classList.toggle('active', ['small','medium','large'][i] === _pdxSettings.textSize));
   document.querySelectorAll('#pdxImageSizeGroup .pdx-seg-btn').forEach((b, i) => b.classList.toggle('active', ['small','medium','large'][i] === _pdxSettings.imageSize));
@@ -638,7 +650,7 @@ function pdxRenderPreview() {
     </div>
     <div class="pdx-pv-crumb" style="color:var(--pdx-base);">Year 1 › Cardiovascular Module › Anatomy</div>
     <div class="pdx-pv-q" style="font-size:${tSize.q}px;">7. Which chamber of the heart receives oxygenated blood from the lungs?</div>
-    <div class="pdx-pv-img" style="width:${imgPx}px;height:${imgPx}px;">🖼️</div>
+    <div class="pdx-pv-img" style="width:${imgPx}px;height:${imgPx}px;"><svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
     <div class="pdx-pv-opts" style="font-size:${tSize.opt}px;">
       <div class="pdx-pv-opt"><b style="color:var(--pdx-base);">A</b> Right atrium</div>
       <div class="pdx-pv-opt"><b style="color:var(--pdx-base);">B</b> Left atrium</div>
@@ -659,7 +671,7 @@ function _pdxProgressHTML(message) {
   </div>`;
 }
 function _pdxResultHTML(ok, message) {
-  return `<div class="backup-result-bar ${ok ? 'ok' : 'fail'}"><span class="backup-result-icon">${ok ? '✅' : '❌'}</span><span class="backup-result-msg">${message}</span></div>`;
+  return `<div class="backup-result-bar ${ok ? 'ok' : 'fail'}"><span class="backup-result-icon">${ok ? '<svg class="hicon" style="width:17px;height:17px;" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' : '<svg class="hicon" style="width:17px;height:17px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'}</span><span class="backup-result-msg">${message}</span></div>`;
 }
 
 async function pdxGenerate() {
@@ -841,9 +853,9 @@ async function _pdxCollectDataset() {
 function _pdxBuildOutline(dataset) {
   const out = [];
   for (const year of Object.keys(dataset.curriculum)) {
-    out.push({ level: 0, text: `📅 ${year}` });
+    out.push({ level: 0, text: `<svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${year}` });
     for (const mod of Object.keys(dataset.curriculum[year])) {
-      out.push({ level: 1, text: `📦 ${mod}` });
+      out.push({ level: 1, text: `<svg class="sicon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> ${mod}` });
       for (const subjKey of Object.keys(dataset.curriculum[year][mod])) {
         const subj = subjects[subjKey] || { label: subjKey, icon: '📘' };
         out.push({ level: 2, text: `${subj.icon || '📘'} ${subj.label || subjKey}` });
@@ -852,16 +864,16 @@ function _pdxBuildOutline(dataset) {
     }
   }
   if (dataset.community.groups.length) {
-    out.push({ level: 0, text: '🌐 Community Quizzes' });
+    out.push({ level: 0, text: '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community Quizzes' });
     dataset.community.groups.forEach(group => {
-      out.push({ level: 1, text: `📂 ${group.label}` });
+      out.push({ level: 1, text: `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${group.label}` });
       group.quizzes.forEach(quiz => out.push({ level: 2, text: quiz.title }));
     });
   }
   if (dataset.custom.groups.length) {
-    out.push({ level: 0, text: '🤖 My Custom Quizzes' });
+    out.push({ level: 0, text: '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> My Custom Quizzes' });
     dataset.custom.groups.forEach(group => {
-      out.push({ level: 1, text: `📁 ${group.label}` });
+      out.push({ level: 1, text: `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${group.label}` });
       group.quizzes.forEach(quiz => out.push({ level: 2, text: quiz.title }));
     });
   }
@@ -882,16 +894,22 @@ function _pdxLoadJsPDF() {
   });
 }
 
-/* Same badge markup/colours as the favicon, header .brand-mark and the
-   intro-screen sigil (index.html) — rasterized once to a PNG data URL so
-   jsPDF can draw it, then cached for the rest of this export. */
-const PDX_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="22" fill="#0A3F52"/>
-  <circle cx="36" cy="54" r="16" fill="none" stroke="#6FE3F0" stroke-width="11"/>
-  <path d="M46 65 L58 78" fill="none" stroke="#6FE3F0" stroke-width="11" stroke-linecap="round"/>
-  <path d="M66 30 L66 74" fill="none" stroke="#6FE3F0" stroke-width="11" stroke-linecap="round"/>
-  <path d="M66 30 L78 30 A11 10 0 0 1 78 50 L66 50" fill="none" stroke="#6FE3F0" stroke-width="11"/>
-  <path d="M66 50 L80 50 A12 12 0 0 1 80 74 L66 74" fill="none" stroke="#6FE3F0" stroke-width="11"/>
+/* Same badge markup/colours as the favicon (assets/brand/logo-mark.svg),
+   the header .brand-mark and the intro-screen sigil (index.html) —
+   rasterized once to a PNG data URL so jsPDF can draw it, then cached for
+   the rest of this export. Built from the same pixel-accurate vector
+   trace of the source logo artwork; a PDF page is static, so it's just
+   the plain badge with no animation. */
+const PDX_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 523 523">
+  <g transform="translate(0,523) scale(0.1,-0.1)" fill="#152B55">
+    <path d="M1248 5139 c-506 -59 -940 -415 -1099 -902 -67 -205 -64 -130 -64 -1627 0 -1256 1 -1362 18 -1449 96 -509 471 -914 967 -1047 157 -42 208 -44 1543 -44 846 0 1310 4 1374 11 578 64 1040 499 1151 1083 16 83 17 204 17 1451 0 1266 -1 1366 -18 1448 -96 470 -404 839 -837 1000 -53 20 -141 46 -195 58 l-100 23 -1340 2 c-737 1 -1374 -2 -1417 -7z"/>
+  </g>
+  <g transform="translate(0,523) scale(0.1,-0.1)" fill="#1AD6E5">
+    <path d="M1248 5139 c-506 -59 -940 -415 -1099 -902 -67 -205 -64 -130 -64 -1627 0 -1256 1 -1362 18 -1449 96 -509 471 -914 967 -1047 157 -42 208 -44 1543 -44 846 0 1310 4 1374 11 578 64 1040 499 1151 1083 16 83 17 204 17 1451 0 1266 -1 1366 -18 1448 -96 470 -404 839 -837 1000 -53 20 -141 46 -195 58 l-100 23 -1340 2 c-737 1 -1374 -2 -1417 -7z m2698 -189 c258 -23 499 -135 684 -319 159 -158 252 -325 311 -561 l24 -95 0 -1350 c0 -1104 -3 -1363 -14 -1420 -52 -267 -190 -508 -383 -670 -184 -155 -377 -238 -613 -265 -120 -13 -2536 -13 -2665 0 -239 25 -434 109 -619 265 -192 162 -319 379 -378 647 -17 78 -18 163 -18 1428 0 1272 1 1350 19 1430 70 322 251 583 520 750 141 88 312 146 471 160 126 11 2534 11 2661 0z"/>
+    <path d="M3382 2722 c-17 -37 -43 -87 -58 -111 -15 -24 -22 -41 -16 -37 6 3 12 3 14 -1 1 -5 38 -26 82 -47 195 -97 326 -316 326 -546 0 -234 -131 -450 -332 -550 -134 -65 -170 -70 -610 -70 l-388 0 -1 373 c-1 204 -1 375 0 380 0 4 -17 7 -38 7 -22 0 -72 7 -111 15 -40 8 -76 13 -81 9 -5 -3 -9 -198 -9 -463 l0 -458 23 -34 c48 -72 33 -70 592 -66 552 4 542 3 692 72 171 79 305 203 398 369 137 246 141 562 9 816 -92 175 -238 312 -415 388 l-47 20 -30 -66z"/>
+    <path d="M2258 4084 c-298 -54 -568 -271 -689 -554 -54 -128 -73 -220 -72 -365 0 -238 61 -409 212 -599 l49 -62 -35 -52 c-21 -32 -47 -58 -68 -66 -19 -8 -50 -37 -72 -68 -191 -257 -422 -577 -432 -595 -6 -12 -11 -38 -11 -58 0 -100 101 -172 196 -139 22 8 40 14 41 14 4 0 462 628 472 647 6 12 11 31 11 43 0 24 69 120 86 120 7 0 50 -18 96 -40 138 -65 229 -85 398 -84 119 0 160 4 229 23 197 53 380 174 507 334 226 286 263 671 97 1002 -98 197 -285 368 -494 452 -146 59 -353 78 -521 47z m377 -254 c119 -37 202 -87 290 -175 213 -211 268 -523 141 -790 -198 -416 -731 -529 -1087 -230 -219 184 -300 482 -205 754 36 102 89 185 171 266 100 100 233 170 368 195 83 15 242 5 322 -20z"/>
+    <path d="M2393 3708 c-33 -16 -48 -61 -33 -97 14 -34 44 -47 123 -55 170 -15 325 -165 343 -332 9 -86 21 -120 50 -133 38 -17 62 -13 89 14 20 19 25 34 25 77 0 240 -194 472 -437 523 -79 17 -129 18 -160 3z"/>
+  </g>
 </svg>`;
 
 function _pdxRasterizeSvg(svgText, px) {
@@ -970,14 +988,14 @@ function _pdxNewCtx(doc) {
   return {
     doc, pageW, pageH, margin,
     contentW: pageW - margin * 2,
-    top: margin + 30,     // leaves room for the running header band
+    top: margin + 30, // leaves room for the running header band
     bottom: pageH - margin - 24, // leaves room for the running footer
     y: margin + 30,
     settings: _pdxSettings,
     textSizes: PDX_TEXT_SIZES[_pdxSettings.textSize],
     imageMax: PDX_IMAGE_SIZES[_pdxSettings.imageSize],
-    outline: [],       // [{level, text}] for the Contents page
-    pageMeta: {},       // pageNumber -> { breadcrumb, color } for the finishing pass
+    outline: [], // [{level, text}] for the Contents page
+    pageMeta: {}, // pageNumber -> { breadcrumb, color } for the finishing pass
     contentStartPage: 2, // set once the cover is drawn
   };
 }
@@ -1107,7 +1125,7 @@ function _pdxDrawPartDivider(ctx, title, subtitle, color) {
 function _pdxDrawBanner(ctx, title, level, color, breadcrumb) {
   const { doc } = ctx;
   const heights = { 1: 40, 2: 30, 3: 22 };
-  const sizes   = { 1: 14.5, 2: 12, 3: 10.5 };
+  const sizes = { 1: 14.5, 2: 12, 3: 10.5 };
   const h = heights[level];
   if (level === 1) _pdxNewPage(ctx, breadcrumb.concat(title), color); // chapters always start a fresh page
   else _pdxEnsureSpace(ctx, h + 14, breadcrumb.concat(title), color);

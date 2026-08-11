@@ -15,8 +15,8 @@ const SUPER_ADMIN_EMAIL = "mahmoudmtalatm@gmail.com";
 const ADMIN_PERMISSIONS = ['curriculum', 'community', 'admins'];
 const ADMIN_PERMISSION_LABELS = {
   curriculum: 'Manage Curriculum & Publish Quizzes',
-  community:  'Manage Community Quizzes',
-  admins:     'Assign / Remove Admins'
+  community: 'Manage Community Quizzes',
+  admins: 'Assign / Remove Admins'
 };
 
 // In-memory copy of the Firestore admin roster, populated by loadAdminRoster().
@@ -149,8 +149,8 @@ async function assignAdmin(actingUser, targetEmail, permissions, curriculumScope
    them, or whoever assigned that person, and so on — regardless of
    permissions, so authority can only flow downward. */
 function getAdminAssignerChain(emailLower) {
-  const roster  = window._adminRoster || {};
-  const chain   = [];
+  const roster = window._adminRoster || {};
+  const chain = [];
   const visited = new Set([emailLower]);
   let current = emailLower;
   while (true) {
@@ -234,35 +234,25 @@ function updateAuthUI(user) {
   if (adminBtn) adminBtn.classList.toggle('hidden', !isAdminUser(user));
 
   if (user) {
-    // Logged-in state
+    // Logged-in state. Markup relies on the .auth-* classes in
+    // css/styles.css (rather than inline styles) so the responsive rules
+    // that compact this control on small screens live in one place.
+    const firstName = user.displayName ? user.displayName.split(' ')[0] : 'User';
     const loggedInHTML = `
-      <div style="display:flex;align-items:center;gap:8px;">
-        <img src="${user.photoURL}"
-             style="width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.6);"
+      <div class="auth-signedin">
+        <img class="auth-avatar" src="${user.photoURL}" alt=""
              onerror="this.style.display='none'" />
-        <span style="color:white;font-size:.85rem;font-weight:700;">
-          ${user.displayName ? user.displayName.split(' ')[0] : 'User'}
-        </span>
-        <button onclick="fbSignOut()"
-                style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);
-                       color:white;padding:5px 12px;border-radius:6px;cursor:pointer;
-                       font-weight:700;font-size:.78rem;font-family:var(--font);">
-          Sign out
-        </button>
+        <span class="auth-name" title="${firstName}">${firstName}</span>
+        <button class="auth-signout-btn" onclick="fbSignOut()">Sign out</button>
       </div>`;
     if (homeArea) homeArea.innerHTML = loggedInHTML;
     if (quizArea) quizArea.innerHTML = loggedInHTML;
   } else {
     // Logged-out state
     const signInHTML = `
-      <button onclick="fbSignIn()"
-              style="background:white;color:var(--accent);border:none;padding:8px 16px;
-                     border-radius:8px;cursor:pointer;font-weight:800;font-size:.85rem;
-                     display:flex;align-items:center;gap:7px;font-family:var(--font);
-                     box-shadow:0 2px 8px rgba(0,0,0,.15);">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-             style="width:17px;height:17px;" />
-        Sign in with Google
+      <button class="auth-signin-btn" onclick="fbSignIn()" aria-label="Sign in with Google">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+        <span class="auth-signin-text">Sign in with Google</span>
       </button>`;
     if (homeArea) homeArea.innerHTML = signInHTML;
     if (quizArea) quizArea.innerHTML = signInHTML;
@@ -283,13 +273,13 @@ async function fbSignIn() {
 async function fbSignOut() {
   if (!confirm('Sign out of your account?')) return;
   await window._signOut(window._auth);
-  window._currentUser  = null;
-  window._cachedStats  = null;
+  window._currentUser = null;
+  window._cachedStats = null;
   updateAuthUI(null);
 }
   function updateSubjectButtonStates() {
   document.querySelectorAll('.subject-btn').forEach(btn => {
-    const name  = btn.dataset.subject;
+    const name = btn.dataset.subject;
     const count = selectedLectures[name]?.size || 0;
     btn.classList.toggle('has-selection', count > 0 && name !== selectedSubject);
   });
@@ -305,9 +295,9 @@ async function fbSignOut() {
    Question object structure:
    {
      question: "The question text",
-     image: "https://example.com/image.png",   ← OPTIONAL: URL or base64 data URI
+     image: "https://example.com/image.png", ← OPTIONAL: URL or base64 data URI
      options: { A: "...", B: "...", C: "...", D: "..." },
-     answer: "A"   ← must match one of the option keys
+     answer: "A" ← must match one of the option keys
    }
 
    Example with image:
@@ -325,28 +315,28 @@ const subjects = {};
 const curriculum = {};
 // year -> icon override, set via the icon picker in Manage Curriculum.
 // Years without an explicit icon fall back to an auto-numbered emoji
-// (1️⃣, 2️⃣, 3️⃣, … 🔟, 1️⃣1️⃣, …) based on their position — see _yearIcon().
+// (1️⃣, 2️⃣, 3️⃣, … , 1️⃣1️⃣, …) based on their position — see _yearIcon().
 let yearIconMap = {};
 
 /* ══════════════════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════════════════ */
 let currentQuestions = [];
-let currentIndex     = 0;
-let userAnswers      = {};
-let markedSet        = new Set();
-let timeLeft         = 0;
-let timerInterval    = null;
-let selectedSubject  = '';
-let selectedYear     = '';
-let selectedModule   = '';
-let questionTimes    = {};
-let questionStart    = 0;
-let currentLecture   = '';
-let changeLog        = [];
+let currentIndex = 0;
+let userAnswers = {};
+let markedSet = new Set();
+let timeLeft = 0;
+let timerInterval = null;
+let selectedSubject = '';
+let selectedYear = '';
+let selectedModule = '';
+let questionTimes = {};
+let questionStart = 0;
+let currentLecture = '';
+let changeLog = [];
 let selectedLectures = {}; // { subjectName: Set of lecture names }
-let correctToWrong   = 0;
-let wrongToCorrect   = 0;
+let correctToWrong = 0;
+let wrongToCorrect = 0;
 let currentQuizSource = 'curriculum'; // 'curriculum' | 'custom' | 'community' | 'retake'
 
 /* Curriculum context for the quiz currently in progress — snapshotted the
@@ -362,8 +352,8 @@ let currentQuizSource = 'curriculum'; // 'curriculum' | 'custom' | 'community' |
    that have no Year/Module (custom quizzes, community quizzes) — those are
    grouped under their own labelled bucket instead; see subjectDisplayName()
    and buildCurriculumStatsTree() below. */
-let currentQuizYear       = '';
-let currentQuizModule     = '';
+let currentQuizYear = '';
+let currentQuizModule = '';
 let currentQuizComponents = null; // [{ subject, lectures: [...] }] | null
 
 /* ══════════════════════════════════════════════════════════
@@ -412,7 +402,7 @@ function buildYearGrid() {
   });
 }
 
-/* Keycap-digit emoji for a position, e.g. 1 → "1️⃣", 10 → "🔟", 11 → "1️⃣1️⃣".
+/* Keycap-digit emoji for a position, e.g. 1 → "1️⃣", 10 → "", 11 → "1️⃣1️⃣".
    Used as the default year icon until an admin picks a custom one. */
 function _numberEmoji(n) {
   if (n === 10) return '🔟';
@@ -430,10 +420,10 @@ function _yearIcon(year, position) {
    something whose data hasn't finished loading yet.
 ══════════════════════════════════════════════════════════ */
 const _fsReady = {
-  curriculum:    false,
-  published:     false,
-  stats:         true,   // true until a signed-in user triggers a load
-  customQuizzes: true,   // true until a signed-in user triggers a load
+  curriculum: false,
+  published: false,
+  stats: true, // true until a signed-in user triggers a load
+  customQuizzes: true, // true until a signed-in user triggers a load
 };
 
 function fsLoadingShow(msg) {
@@ -468,17 +458,17 @@ buildYearGrid();
 ══════════════════════════════════════════════════════════ */
 function selectYear(year) {
   fsAwaitIfNeeded('curriculum', 'Loading curriculum…');
-  selectedYear    = year;
-  selectedModule  = '';
+  selectedYear = year;
+  selectedModule = '';
   selectedSubject = '';
   selectedLectures = {};
 
   document.querySelectorAll('.year-btn').forEach(b => b.classList.toggle('active', b.dataset.year === year));
 
-  const moduleSection  = document.getElementById('moduleSection');
+  const moduleSection = document.getElementById('moduleSection');
   const subjectSection = document.getElementById('subjectSection');
-  document.getElementById('moduleGrid').innerHTML   = '';
-  document.getElementById('subjectGrid').innerHTML  = '';
+  document.getElementById('moduleGrid').innerHTML = '';
+  document.getElementById('subjectGrid').innerHTML = '';
   document.getElementById('lectureCheckList').innerHTML =
     '<div style="color:var(--text-muted);font-size:.9rem;padding:8px;">— Choose a subject first —</div>';
   document.getElementById('qCountBadge').classList.add('hidden');
@@ -505,7 +495,7 @@ function selectYear(year) {
 }
 
 function selectModule(mod) {
-  selectedModule  = mod;
+  selectedModule = mod;
   selectedSubject = '';
   selectedLectures = {};
 
@@ -556,9 +546,9 @@ function selectSubject(name) {
   if (!selectedLectures[name]) selectedLectures[name] = new Set();
 
   lectures.forEach(lname => {
-    const qCount   = subjects[name].lectures[lname].length;
+    const qCount = subjects[name].lectures[lname].length;
     const isChecked = selectedLectures[name].has(lname);
-    const label    = document.createElement('label');
+    const label = document.createElement('label');
     label.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 4px;border-radius:6px;';
     label.innerHTML = `
       <input type="checkbox" value="${lname}" ${isChecked ? 'checked' : ''}
@@ -577,7 +567,7 @@ function selectSubject(name) {
 
   updateLectureCount();
 }
-function onLectureChange() { updateLectureCount(); }  // kept for safety
+function onLectureChange() { updateLectureCount(); } // kept for safety
 
 function updateLectureCount() {
   let total = 0;
@@ -588,7 +578,7 @@ function updateLectureCount() {
     });
   });
   const badge = document.getElementById('qCountBadge');
-  const btn   = document.getElementById('startBtn');
+  const btn = document.getElementById('startBtn');
   if (total === 0) { badge.classList.add('hidden'); btn.disabled = true; }
   else {
     document.getElementById('qCountText').textContent = `${total} question${total !== 1 ? 's' : ''}`;
@@ -629,33 +619,49 @@ function startRetakeQuiz(questionsArray, ctx) {
     return alert('No wrong questions found to retake.');
   }
   currentQuestions = questionsArray;
-  selectedSubject  = (ctx && ctx.subject) || selectedSubject || 'Retake';
-  currentLecture   = 'Retake — Wrong Questions';
+  selectedSubject = (ctx && ctx.subject) || selectedSubject || 'Retake';
+  currentLecture = 'Retake — Wrong Questions';
   // A single-quiz retake (ctx supplied by retakeSingleQuiz) inherits that
   // quiz's own Year/Module/components, so it still groups correctly in
   // Statistics. A combined retake across several original quizzes has no
   // single Year/Module to inherit, so it's explicitly left blank and lands
   // in its own "Retake" bucket instead — see buildCurriculumStatsTree().
-  currentQuizYear       = (ctx && ctx.year)   || '';
-  currentQuizModule     = (ctx && ctx.module) || '';
+  currentQuizYear = (ctx && ctx.year) || '';
+  currentQuizModule = (ctx && ctx.module) || '';
   currentQuizComponents = (ctx && ctx.components) || null;
-  currentQuizSource     = 'retake';
-  currentIndex     = 0;
-  userAnswers      = {};
-  markedSet        = new Set();
-  questionTimes    = {};
-  correctToWrong   = 0;
-  wrongToCorrect   = 0;
-  changeLog        = [];
-  timeLeft         = Math.max(questionsArray.length * 60, 120);
+  currentQuizSource = 'retake';
+  currentIndex = 0;
+  userAnswers = {};
+  markedSet = new Set();
+  questionTimes = {};
+  correctToWrong = 0;
+  wrongToCorrect = 0;
+  changeLog = [];
+  timeLeft = Math.max(questionsArray.length * 60, 120);
   showScreen('quiz');
   renderQuestion();
   startTimer();
 }
 
+// Toggle button for "Shuffle questions" (Step 5 of the quiz builder). A
+// real <button> — not a checkbox — so it can sit flush inside a
+// button-styled box the same height as the Minutes input; state is tracked
+// via aria-checked/aria-pressed (see isShuffleEnabled()) rather than
+// .checked, since it isn't a form control.
+function toggleShuffle() {
+  const btn = document.getElementById('shuffleToggle');
+  if (!btn) return;
+  const next = btn.getAttribute('aria-checked') !== 'true';
+  btn.setAttribute('aria-checked', String(next));
+}
+function isShuffleEnabled() {
+  const btn = document.getElementById('shuffleToggle');
+  return !!btn && btn.getAttribute('aria-checked') === 'true';
+}
+
 function startQuiz() {
-  const mins    = parseInt(document.getElementById('timeInput').value, 10);
-  const shuffle = document.getElementById('shuffleToggle').checked;
+  const mins = parseInt(document.getElementById('timeInput').value, 10);
+  const shuffle = isShuffleEnabled();
 
   let combined = [], totalLecCount = 0;
   const involvedSubjects = [];
@@ -668,7 +674,7 @@ function startQuiz() {
     });
   });
 
-  if (!combined.length)   return alert('Please select at least one lecture.');
+  if (!combined.length) return alert('Please select at least one lecture.');
   if (!mins || mins <= 0) return alert('Please enter a valid duration in minutes.');
 
   // Always pass through the group-aware layout, shuffled or not — this
@@ -677,8 +683,8 @@ function startQuiz() {
   // "normal" mode, not just when Shuffle is on. See _cqGroupAwareOrder.
   combined = _cqGroupAwareOrder(combined, shuffle);
 
-  selectedSubject  = involvedSubjects.length === 1 ? involvedSubjects[0] : involvedSubjects.join(' + ');
-  currentLecture   = totalLecCount === 1
+  selectedSubject = involvedSubjects.length === 1 ? involvedSubjects[0] : involvedSubjects.join(' + ');
+  currentLecture = totalLecCount === 1
     ? [...selectedLectures[involvedSubjects[0]]][0]
     : `${totalLecCount} lectures (${involvedSubjects.map(subjectDisplayName).join(', ')})`;
   currentQuestions = combined;
@@ -692,10 +698,10 @@ function startQuiz() {
   // whole quiz. Per-subject lecture lists are kept too (currentQuizComponents)
   // so Statistics can still show each subject's own lecture titles even
   // inside a combined multi-subject quiz.
-  currentQuizYear   = selectedYear;
+  currentQuizYear = selectedYear;
   currentQuizModule = selectedModule;
   currentQuizComponents = involvedSubjects.map(subj => ({
-    subject:  subj,
+    subject: subj,
     lectures: [...selectedLectures[subj]]
   }));
 
@@ -768,15 +774,15 @@ function relabelOptionsSequentially(q) {
 ══════════════════════════════════════════════════════════ */
 function renderQuestion() {
   questionStart = Date.now();
-  const q     = currentQuestions[currentIndex];
+  const q = currentQuestions[currentIndex];
   const total = currentQuestions.length;
 
   document.getElementById('qNumber').textContent = `Q${currentIndex+1} / ${total}`;
-  document.getElementById('qText').textContent   = q.question;
+  document.getElementById('qText').textContent = q.question;
 
   // Optional image
   const imgWrap = document.getElementById('qImageWrap');
-  const imgEl   = document.getElementById('qImage');
+  const imgEl = document.getElementById('qImage');
   if (q.image) {
     imgEl.src = q.image;
     imgWrap.classList.remove('hidden');
@@ -806,18 +812,18 @@ function renderQuestion() {
 }
 
 function selectAnswer(key) {
-  const prev    = userAnswers[currentIndex] || '';
+  const prev = userAnswers[currentIndex] || '';
   const correct = currentQuestions[currentIndex].answer;
   if (prev && prev !== key) {
-    if (prev === correct)   correctToWrong++;
+    if (prev === correct) correctToWrong++;
     else if (key === correct) wrongToCorrect++;
-    const _q    = currentQuestions[currentIndex];
+    const _q = currentQuestions[currentIndex];
     const _type = prev === correct ? 'c2w' : key === correct ? 'w2c' : 'w2w';
     changeLog.push({
-      qIndex:   currentIndex,
-      fromKey:  prev,       fromText: _q.options[prev],
-      toKey:    key,        toText:   _q.options[key],
-      type:     _type
+      qIndex: currentIndex,
+      fromKey: prev, fromText: _q.options[prev],
+      toKey: key, toText: _q.options[key],
+      type: _type
     });
   }
   userAnswers[currentIndex] = key;
@@ -843,9 +849,9 @@ function renderNavigator() {
   });
 }
 function navState(i) {
-  if (i === currentIndex)  return 'state-current';
-  if (markedSet.has(i))    return 'state-marked';
-  if (userAnswers[i])      return 'state-answered';
+  if (i === currentIndex) return 'state-current';
+  if (markedSet.has(i)) return 'state-marked';
+  if (userAnswers[i]) return 'state-answered';
   return 'state-default';
 }
 
@@ -858,8 +864,8 @@ function goTo(i) {
   currentIndex = i;
   renderQuestion();
 }
-function prevQ()  { if (currentIndex > 0) goTo(currentIndex - 1); }
-function nextQ()  { if (currentIndex < currentQuestions.length - 1) goTo(currentIndex + 1); }
+function prevQ() { if (currentIndex > 0) goTo(currentIndex - 1); }
+function nextQ() { if (currentIndex < currentQuestions.length - 1) goTo(currentIndex + 1); }
 
 /* ══════════════════════════════════════════════════════════
    MARK
@@ -873,7 +879,7 @@ function toggleMark() {
 function updateMarkBtn() {
   const btn = document.getElementById('markBtn');
   btn.classList.toggle('is-marked', markedSet.has(currentIndex));
-  btn.textContent = markedSet.has(currentIndex) ? '🔴 Unmark' : '🔴 Mark / Unmark';
+  btn.innerHTML = markedSet.has(currentIndex) ? '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill:currentColor;stroke:none;"/></svg> Unmark' : '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill:currentColor;stroke:none;"/></svg> Mark / Unmark';
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -897,25 +903,25 @@ function submitQuiz() {
     if (userAnswers[i] === q.answer) score++;
   });
 
-  const pct   = Math.round(score / total * 100);
-  const emoji = pct === 100 ? '🏆' : pct >= 70 ? '🎉' : '📝';
+  const pct = Math.round(score / total * 100);
+  const emoji = pct === 100 ? '<svg class="micon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>' : pct >= 70 ? '<svg class="micon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>' : '<svg class="micon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg>';
   if (pct === 100) launchConfetti();
 
-  document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results`;
+  document.getElementById('resultsTitle').innerHTML = `${emoji} Quiz Results`;
   const totalTime = Object.values(questionTimes).reduce((a,b) => a+b, 0);
-  const answered  = Object.keys(questionTimes).length || 1;
-  const avgTime   = Math.round(totalTime / answered);
-  const avgMins   = Math.floor(avgTime / 60);
-  const avgSecs   = String(avgTime % 60).padStart(2,'0');
-  const avgLabel  = avgMins > 0 ? `${avgMins}m ${avgSecs}s` : `${avgSecs}s`;
-  document.getElementById('resultsTitle').textContent = `${emoji}  Quiz Results  ·  ⏱ avg ${avgLabel}/question`;
+  const answered = Object.keys(questionTimes).length || 1;
+  const avgTime = Math.round(totalTime / answered);
+  const avgMins = Math.floor(avgTime / 60);
+  const avgSecs = String(avgTime % 60).padStart(2,'0');
+  const avgLabel = avgMins > 0 ? `${avgMins}m ${avgSecs}s` : `${avgSecs}s`;
+  document.getElementById('resultsTitle').innerHTML = `${emoji} Quiz Results · <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M12 2v3"/></svg> avg ${avgLabel}/question`;
   const badge = document.getElementById('scoreBadge');
-  badge.textContent  = `${score} / ${total}  (${pct}%)`;
+  badge.textContent = `${score} / ${total} (${pct}%)`;
   badge.style.background = pct >= 70 ? 'var(--green-pale-border)' : 'var(--red-pale)';
-  const _totalSecs  = Object.values(questionTimes).reduce((a,b)=>a+b,0);
-  const _timedQs    = Object.keys(questionTimes).length;
+  const _totalSecs = Object.values(questionTimes).reduce((a,b)=>a+b,0);
+  const _timedQs = Object.keys(questionTimes).length;
   const _unanswered = currentQuestions.length - Object.keys(userAnswers).length;
-  const _wrong      = currentQuestions.length - score - _unanswered;
+  const _wrong = currentQuestions.length - score - _unanswered;
   saveQuizStats(score, currentQuestions.length, _wrong, _unanswered, _totalSecs, _timedQs, correctToWrong, wrongToCorrect, selectedSubject, currentLecture, currentQuizYear, currentQuizModule, currentQuizComponents, currentQuizSource);
 
   buildResults();
@@ -946,7 +952,7 @@ function buildResults() {
   // Cancel any in-progress explanations from a previous result view
   _cancelAndClearResultsAiState();
   const explainAllBtn = document.getElementById('explainAllBtn');
-  if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '🤖&nbsp; Explain All Questions'; explainAllBtn.onclick = explainAllQuestions; }
+  if (explainAllBtn) { explainAllBtn.disabled = false; explainAllBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg>&nbsp; Explain All Questions'; explainAllBtn.onclick = explainAllQuestions; }
 
   const body = document.getElementById('resultsBody');
   body.innerHTML = '';
@@ -955,7 +961,7 @@ function buildResults() {
     summary.style.cssText = 'background:#fff;border:1px solid var(--border-soft);border-radius:10px;padding:14px 20px;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:4px;';
     summary.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:1.3rem">🔄</span>
+        <span style="font-size:1.3rem"><svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
         <div>
           <div style="font-size:.78rem;font-weight:700;color:#5A7080;text-transform:uppercase;letter-spacing:.8px;">Answer Changes</div>
           <div style="display:flex;gap:16px;margin-top:4px;flex-wrap:wrap;">
@@ -969,7 +975,7 @@ function buildResults() {
 if (changeLog.length > 0) {
     const flowSection = document.createElement('div');
     flowSection.className = 'change-flow-section';
-    flowSection.innerHTML = `<div class="change-flow-title">🔄 Answer Changes Flow — ${changeLog.length} change${changeLog.length!==1?'s':''}</div>`;
+    flowSection.innerHTML = `<div class="change-flow-title"><svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Answer Changes Flow — ${changeLog.length} change${changeLog.length!==1?'s':''}</div>`;
     const flowList = document.createElement('div');
     flowList.className = 'change-flow-list';
     const verdicts = {
@@ -978,12 +984,12 @@ if (changeLog.length > 0) {
       w2w: '↔ You changed from one wrong answer to another'
     };
     changeLog.forEach((ch, idx) => {
-      const q       = currentQuestions[ch.qIndex];
-      const item    = document.createElement('div');
+      const q = currentQuestions[ch.qIndex];
+      const item = document.createElement('div');
       item.className = `change-flow-item ${ch.type}`;
-      const qShort  = q.question.length > 65 ? q.question.substring(0,65)+'…' : q.question;
-      const fShort  = ch.fromText.length > 55 ? ch.fromText.substring(0,55)+'…' : ch.fromText;
-      const tShort  = ch.toText.length   > 55 ? ch.toText.substring(0,55)+'…'   : ch.toText;
+      const qShort = q.question.length > 65 ? q.question.substring(0,65)+'…' : q.question;
+      const fShort = ch.fromText.length > 55 ? ch.fromText.substring(0,55)+'…' : ch.fromText;
+      const tShort = ch.toText.length > 55 ? ch.toText.substring(0,55)+'…' : ch.toText;
       item.innerHTML = `
         <span class="cf-num">Change ${idx+1}</span>
         <div class="cf-body">
@@ -1001,19 +1007,19 @@ if (changeLog.length > 0) {
     body.appendChild(flowSection);
   }
   currentQuestions.forEach((q, i) => {
-    const userAns  = userAnswers[i] || '';
-    const correct  = q.answer;
-    const isOk     = userAns === correct;
+    const userAns = userAnswers[i] || '';
+    const correct = q.answer;
+    const isOk = userAns === correct;
     const isUnansw = userAns === '';
-    const isMark   = markedSet.has(i);
+    const isMark = markedSet.has(i);
 
     let cls, statusText, statusClass, stripColor;
     if (isOk) {
-      cls='correct';    statusText='✔  Correct';       statusClass='correct';    stripColor='var(--correct-fg)';
+      cls='correct'; statusText='✔ Correct'; statusClass='correct'; stripColor='var(--correct-fg)';
     } else if (isUnansw) {
-      cls='unanswered'; statusText='—  Not answered';  statusClass='unanswered'; stripColor='var(--unanswered-fg)';
+      cls='unanswered'; statusText='— Not answered'; statusClass='unanswered'; stripColor='var(--unanswered-fg)';
     } else {
-      cls='wrong';      statusText='✘  Incorrect';     statusClass='wrong';      stripColor='var(--wrong-fg)';
+      cls='wrong'; statusText='✘ Incorrect'; statusClass='wrong'; stripColor='var(--wrong-fg)';
     }
 
     const card = document.createElement('div');
@@ -1029,7 +1035,7 @@ if (changeLog.length > 0) {
         <div class="r-strip" style="background:${stripColor}"></div>
         <div class="r-content">
           <div class="r-card-header">
-            <div class="r-qnum">Q${i+1}${isMark?' &nbsp;🔴 Marked':''}</div>
+            <div class="r-qnum">Q${i+1}${isMark?' &nbsp;<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill:currentColor;stroke:none;"/></svg> Marked':''}</div>
             <div class="r-status ${statusClass}">${statusText}</div>
           </div>
           <div class="r-question">${q.question}</div>
@@ -1042,11 +1048,11 @@ if (changeLog.length > 0) {
     const optsDiv = card.querySelector('.r-options');
     getOptionEntries(q).forEach(([key, val]) => {
       const isCorrectOpt = key === correct;
-      const isUserOpt    = key === userAns;
+      const isUserOpt = key === userAns;
 
       let bg='', fg='', pfx='';
-      if (isCorrectOpt)      { bg='#C8E6C9'; fg='#1B5E20'; pfx='✔'; }
-      else if (isUserOpt)    { bg='var(--red-pale)'; fg='var(--red-deep)'; pfx='✘'; }
+      if (isCorrectOpt) { bg='#C8E6C9'; fg='#1B5E20'; pfx='✔'; }
+      else if (isUserOpt) { bg='var(--red-pale)'; fg='var(--red-deep)'; pfx='✘'; }
 
       const row = document.createElement('div');
       row.className = 'r-option';
@@ -1063,7 +1069,7 @@ if (changeLog.length > 0) {
     const explainBtn = document.createElement('button');
     explainBtn.className = 'ai-explain-btn';
     explainBtn.id = `explainBtn_${i}`;
-    explainBtn.innerHTML = '🤖 Explain';
+    explainBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> Explain';
     explainBtn.onclick = () => explainQuestion(i);
     card.querySelector('.r-content').appendChild(explainBtn);
 
@@ -1076,7 +1082,7 @@ if (changeLog.length > 0) {
     const chatBtn = document.createElement('button');
     chatBtn.className = 'ai-chat-btn';
     chatBtn.id = `chatBtn_${i}`;
-    chatBtn.innerHTML = '💬 Chat';
+    chatBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Chat';
     chatBtn.onclick = () => toggleChatPanel(i);
     card.querySelector('.r-content').appendChild(chatBtn);
 
@@ -1174,7 +1180,7 @@ function defaultStats() {
         `stats/{uid}` document. The per-user cache/version check (see
         _fetchStatsServerVersion in js/firebase-storage.js) skips even
         this small read entirely when nothing's changed since last time.
-     2. PER-QUIZ  — `historyManifest` is just { historyId: timestamp },
+     2. PER-QUIZ — `historyManifest` is just { historyId: timestamp },
         so comparing it against the local IndexedDB-backed cache tells
         us EXACTLY which quizzes are new since last time. Taking one
         more quiz only ever fetches that one new document — every
@@ -1239,27 +1245,27 @@ function subjectDisplayName(raw) {
 }
 
 async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs, c2w, w2c, subject, lecture, year, module, components, source) {
-  const st  = loadStats();
+  const st = loadStats();
   const pct = Math.round(score / total * 100);
 
   st.totalQuizzes++;
-  st.totalQuestions  += total;
-  st.totalCorrect    += score;
-  st.totalWrong      += wrong;
+  st.totalQuestions += total;
+  st.totalCorrect += score;
+  st.totalWrong += wrong;
   st.totalUnanswered += unanswered;
-  st.totalTimeSecs   += timeSecs;
-  st.totalTimedQs    += timedQs;
-  st.correctToWrong  += c2w;
-  st.wrongToCorrect  += w2c;
-  st.totalScorePct   += pct;
-  if (st.bestScore  === null || pct > st.bestScore)  st.bestScore  = pct;
+  st.totalTimeSecs += timeSecs;
+  st.totalTimedQs += timedQs;
+  st.correctToWrong += c2w;
+  st.wrongToCorrect += w2c;
+  st.totalScorePct += pct;
+  if (st.bestScore === null || pct > st.bestScore) st.bestScore = pct;
   if (st.worstScore === null || pct < st.worstScore) st.worstScore = pct;
 
   if (!st.subjectStats[subject])
     st.subjectStats[subject] = { quizzes: 0, correct: 0, total: 0 };
   st.subjectStats[subject].quizzes++;
   st.subjectStats[subject].correct += score;
-  st.subjectStats[subject].total   += total;
+  st.subjectStats[subject].total += total;
 
   const avgTime = timedQs > 0 ? Math.round(timeSecs / timedQs) : 0;
 
@@ -1311,7 +1317,7 @@ function openStats() {
     // Still loading from Firestore — show spinner
     document.getElementById('statsBody').innerHTML = `
       <div style="text-align:center;padding:40px;color:var(--text-muted);">
-        <div style="font-size:2rem;margin-bottom:12px;">⏳</div>
+        <div style="font-size:2rem;margin-bottom:12px;"><svg viewBox="0 0 24 24" style="width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg></div>
         <div style="font-weight:700;">Loading your stats…</div>
       </div>`;
     // Try again shortly
@@ -1365,14 +1371,14 @@ function _makeHistoryItem(h) {
       <div>
         <div class="h-subject">${escapeHtml(subjectDisplayName(h.subject))}</div>
         <div class="h-lecture">${escapeHtml(lecShort)}</div>
-        <div class="h-lecture">⏱ ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
+        <div class="h-lecture"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M12 2v3"/></svg> ${fmtTime(h.avgTime)}/q${changeNote} · ${h.date}</div>
       </div>
       <div class="h-score" style="color:${h.pct >= 70 ? 'var(--correct-fg)' : 'var(--wrong-fg)'}">${h.score}/${h.total}<br><span style="font-size:.8rem">(${h.pct}%)</span></div>
     </div>`;
   const wrongCount = (h.wrongQuestions || []).length;
   const retakeBtn = document.createElement('button');
   retakeBtn.style.cssText = 'display:block;width:100%;padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.8rem;opacity:' + (wrongCount > 0 ? '1' : '.4') + ';';
-  retakeBtn.textContent = `🔄 Retake ${wrongCount} wrong Q${wrongCount !== 1 ? 's' : ''}`;
+  retakeBtn.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Retake ${wrongCount} wrong Q${wrongCount !== 1 ? 's' : ''}`;
   retakeBtn.disabled = wrongCount === 0;
   retakeBtn.onclick = (e) => { e.stopPropagation(); retakeSingleQuiz(h); };
   item.appendChild(retakeBtn);
@@ -1392,16 +1398,40 @@ function _makeHistoryItem(h) {
    components/source fields saveQuizStats() now writes).
 ══════════════════════════════════════════════════════════ */
 
-// Bucket label for anything with no Year/Module: custom quizzes, community
+// Metadata for each "Other Quiz Sources" bucket: custom quizzes, community
 // quizzes, retake sessions with no inherited context, and — for full
 // backward compatibility — any history entry recorded before this feature
-// existed (it simply has no year/module field at all).
-function _otherBucketLabel(h) {
-  if (h.source === 'custom')    return '📝 Custom Quizzes';
-  if (h.source === 'community') return '🌐 Community Quizzes';
-  if (h.source === 'retake')    return '🔄 Retake Sessions';
-  return '📦 Unspecified (older quizzes)';
+// existed (it simply has no year/module field at all). Icon markup is kept
+// separate from the plain-text label: the label doubles as the grouping
+// key in buildCurriculumStatsTree() and is always HTML-escaped at render
+// time, so concatenating raw SVG into it would (and previously did) turn
+// the icon into visible "<svg ...>" text once escaped.
+const _OTHER_BUCKETS = {
+  custom: {
+    label: 'Custom Quizzes',
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg>'
+  },
+  community: {
+    label: 'Community Quizzes',
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg>'
+  },
+  retake: {
+    label: 'Retake Sessions',
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
+  },
+  unspecified: {
+    label: 'Unspecified (older quizzes)',
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'
+  }
+};
+function _otherBucketKind(h) {
+  if (h.source === 'custom')    return 'custom';
+  if (h.source === 'community') return 'community';
+  if (h.source === 'retake')    return 'retake';
+  return 'unspecified';
 }
+function _otherBucketLabel(h) { return _OTHER_BUCKETS[_otherBucketKind(h)].label; }
+function _otherBucketIcon(h)  { return _OTHER_BUCKETS[_otherBucketKind(h)].icon; }
 
 function _pctOf(node) { return node.total > 0 ? Math.round(node.correct / node.total * 100) : 0; }
 
@@ -1412,9 +1442,9 @@ function _perfColor(pct) {
 }
 
 function buildCurriculumStatsTree(history) {
-  const tree  = {}; // year -> { quizzes, correct, total, modules: { module -> { quizzes, correct, total, subjects: { subj -> {quizzes,correct,total,entries[]} } } } }
+  const tree = {}; // year -> { quizzes, correct, total, modules: { module -> { quizzes, correct, total, subjects: { subj -> {quizzes,correct,total,entries[]} } } } }
   const other = {}; // bucketLabel -> { quizzes, correct, total, entries: [] }
-  const bump  = (node, h) => { node.quizzes++; node.correct += h.score; node.total += h.total; };
+  const bump = (node, h) => { node.quizzes++; node.correct += h.score; node.total += h.total; };
 
   history.forEach(h => {
     if (h.year && h.module) {
@@ -1429,7 +1459,7 @@ function buildCurriculumStatsTree(history) {
       subjNode.entries.push(h);
     } else {
       const label = _otherBucketLabel(h);
-      const node = other[label] || (other[label] = { quizzes: 0, correct: 0, total: 0, entries: [] });
+      const node = other[label] || (other[label] = { quizzes: 0, correct: 0, total: 0, entries: [], icon: _otherBucketIcon(h) });
       bump(node, h);
       node.entries.push(h);
     }
@@ -1443,7 +1473,7 @@ function buildCurriculumStatsTree(history) {
 let _statsFlow = { year: null, module: null, openSubject: null, openOther: null };
 
 function _sfSelectYear(year) {
-  _statsFlow.year   = (_statsFlow.year === year) ? null : year;
+  _statsFlow.year = (_statsFlow.year === year) ? null : year;
   _statsFlow.module = null; _statsFlow.openSubject = null;
   renderStatsModal();
 }
@@ -1479,7 +1509,7 @@ function _makeFlowNode(label, statsNode, isSelected, onClick) {
    scores behind it — this is the "toggle menu named by subject and
    module" from the feature request, reused for every subject inside the
    flowchart AND every non-curriculum bucket (Custom/Community/Retake). */
-function _makeQuizToggleCard(label, node, isOpen, onToggle) {
+function _makeQuizToggleCard(label, node, isOpen, onToggle, icon) {
   const wrap = document.createElement('div');
   wrap.className = 'quiz-toggle-group' + (isOpen ? ' is-open' : '');
 
@@ -1487,9 +1517,13 @@ function _makeQuizToggleCard(label, node, isOpen, onToggle) {
   header.type = 'button';
   header.className = 'quiz-toggle-header';
   const pct = _pctOf(node);
+  // `icon` is trusted, static SVG markup defined in this file (never
+  // user-supplied) and is rendered raw; `label` is user/data-derived text
+  // and always goes through escapeHtml() — the two must never be merged
+  // into one string before escaping, or the icon markup gets escaped too.
   header.innerHTML = `
     <span class="qt-chevron">${isOpen ? '▾' : '▸'}</span>
-    <span class="qt-label">${escapeHtml(label)}</span>
+    <span class="qt-label">${icon || ''} ${escapeHtml(label)}</span>
     <span class="qt-meta">${node.quizzes} quiz${node.quizzes !== 1 ? 'zes' : ''} · <span style="color:${_perfColor(pct)}">${pct}%</span></span>`;
   header.onclick = onToggle;
   wrap.appendChild(header);
@@ -1525,7 +1559,7 @@ function _renderCurriculumFlow(container, tree) {
   crumb.className = 'flow-breadcrumb';
   const allLink = document.createElement('span');
   allLink.className = 'flow-crumb' + (!_statsFlow.year ? ' active' : '');
-  allLink.textContent = '📅 All Years';
+  allLink.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> All Years';
   allLink.onclick = () => { _statsFlow.year = null; _statsFlow.module = null; _statsFlow.openSubject = null; renderStatsModal(); };
   crumb.appendChild(allLink);
   if (_statsFlow.year) {
@@ -1620,7 +1654,7 @@ function _renderOtherSources(container, other) {
 
   const sec = document.createElement('div');
   sec.className = 'stats-section';
-  sec.innerHTML = `<div class="stats-section-title">📦 Other Quiz Sources</div>`;
+  sec.innerHTML = `<div class="stats-section-title"><svg class="micon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> Other Quiz Sources</div>`;
   const list = document.createElement('div');
   list.className = 'quiz-toggle-list';
   labels
@@ -1628,35 +1662,35 @@ function _renderOtherSources(container, other) {
     .forEach(label => {
       const node = other[label];
       const isOpen = _statsFlow.openOther === label;
-      list.appendChild(_makeQuizToggleCard(label, node, isOpen, () => _sfToggleOther(label)));
+      list.appendChild(_makeQuizToggleCard(label, node, isOpen, () => _sfToggleOther(label), node.icon));
     });
   sec.appendChild(list);
   container.appendChild(sec);
 }
 
 function renderStatsModal() {
-  const st   = loadStats();
+  const st = loadStats();
   const body = document.getElementById('statsBody');
   body.innerHTML = '';
 
   if (st.totalQuizzes === 0) {
-    body.innerHTML = `<div class="no-stats-box"><div class="ns-icon">📊</div>No data yet — complete a quiz to see your statistics.</div>`;
+    body.innerHTML = `<div class="no-stats-box"><div class="ns-icon"><svg class="hicon" style="width:32px;height:32px;" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>No data yet — complete a quiz to see your statistics.</div>`;
     return;
   }
 
-  const overallAcc  = Math.round(st.totalCorrect / st.totalQuestions * 100);
-  const avgScore    = Math.round(st.totalScorePct / st.totalQuizzes);
-  const avgTime     = st.totalTimedQs > 0 ? Math.round(st.totalTimeSecs / st.totalTimedQs) : 0;
-  const studyMins   = Math.floor(st.totalTimeSecs / 60);
+  const overallAcc = Math.round(st.totalCorrect / st.totalQuestions * 100);
+  const avgScore = Math.round(st.totalScorePct / st.totalQuizzes);
+  const avgTime = st.totalTimedQs > 0 ? Math.round(st.totalTimeSecs / st.totalTimedQs) : 0;
+  const studyMins = Math.floor(st.totalTimeSecs / 60);
   const totalChanges = st.correctToWrong + st.wrongToCorrect;
   const c2wPct = totalChanges > 0 ? Math.round(st.correctToWrong / totalChanges * 100) : 0;
-  const w2cPct = totalChanges > 0 ? Math.round(st.wrongToCorrect  / totalChanges * 100) : 0;
-  const net    = st.wrongToCorrect - st.correctToWrong;
+  const w2cPct = totalChanges > 0 ? Math.round(st.wrongToCorrect / totalChanges * 100) : 0;
+  const net = st.wrongToCorrect - st.correctToWrong;
 
   /* — Overall Performance — */
   const sec1 = document.createElement('div');
   sec1.className = 'stats-section';
-  sec1.innerHTML = `<div class="stats-section-title">📈 Overall Performance</div>`;
+  sec1.innerHTML = `<div class="stats-section-title"><svg class="micon" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Overall Performance</div>`;
   const g1 = document.createElement('div');
   g1.className = 'stats-grid';
   g1.innerHTML = `
@@ -1676,7 +1710,7 @@ function renderStatsModal() {
   /* — Answer Changes — */
   const sec2 = document.createElement('div');
   sec2.className = 'stats-section';
-  sec2.innerHTML = `<div class="stats-section-title">🔄 Answer Changes (All Time) — ${totalChanges} total</div>`;
+  sec2.innerHTML = `<div class="stats-section-title"><svg class="micon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Answer Changes (All Time) — ${totalChanges} total</div>`;
   if (totalChanges === 0) {
     sec2.innerHTML += `<div style="color:var(--text-muted);font-size:.88rem;">No answer changes recorded yet.</div>`;
   } else {
@@ -1698,13 +1732,13 @@ function renderStatsModal() {
     nl.className = 'net-label';
     if (net > 0) {
       nl.style.cssText = 'background:var(--correct-bg);color:var(--correct-fg);border:1px solid var(--green-pale-border)';
-      nl.textContent   = `✔ Net gain: changing answers gave you +${net} extra correct`;
+      nl.textContent = `✔ Net gain: changing answers gave you +${net} extra correct`;
     } else if (net < 0) {
       nl.style.cssText = 'background:var(--wrong-bg);color:var(--wrong-fg);border:1px solid var(--red-soft-border)';
-      nl.textContent   = `✘ Net loss: changing answers cost you ${Math.abs(net)} correct`;
+      nl.textContent = `✘ Net loss: changing answers cost you ${Math.abs(net)} correct`;
     } else {
       nl.style.cssText = 'background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-soft)';
-      nl.textContent   = `Neutral: answer changes had no net effect`;
+      nl.textContent = `Neutral: answer changes had no net effect`;
     }
     sec2.appendChild(nl);
   }
@@ -1715,7 +1749,7 @@ function renderStatsModal() {
   if (Object.keys(tree).length > 0) {
     const sec3 = document.createElement('div');
     sec3.className = 'stats-section';
-    sec3.innerHTML = `<div class="stats-section-title">🗂 Curriculum Breakdown — Year / Module / Subject</div>`;
+    sec3.innerHTML = `<div class="stats-section-title"><svg class="micon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Curriculum Breakdown — Year / Module / Subject</div>`;
     _renderCurriculumFlow(sec3, tree);
     body.appendChild(sec3);
   }
@@ -1725,7 +1759,7 @@ function renderStatsModal() {
   if (st.history.length > 0) {
     const sec4 = document.createElement('div');
     sec4.className = 'stats-section';
-    sec4.innerHTML = `<div class="stats-section-title">🕐 Quiz History</div>`;
+    sec4.innerHTML = `<div class="stats-section-title"><svg class="micon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Quiz History</div>`;
     const hl = document.createElement('div');
     hl.className = 'history-list';
     st.history.forEach(h => hl.appendChild(_makeHistoryItem(h)));
@@ -1736,7 +1770,7 @@ function renderStatsModal() {
   /* — Reset — */
   const rb = document.createElement('button');
   rb.className = 'stats-reset-btn';
-  rb.textContent = '🗑  Reset All Statistics';
+  rb.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>  Reset All Statistics';
   rb.onclick = resetStats;
   body.appendChild(rb);
 }
@@ -1761,12 +1795,12 @@ function closeRetake() {
 }
 
 function renderRetakeSelector() {
-  const st   = loadStats();
+  const st = loadStats();
   const body = document.getElementById('retakeBody');
   body.innerHTML = '';
 
   if (!st.history.length) {
-    body.innerHTML = '<div class="no-stats-box"><div class="ns-icon">📋</div>No quiz history yet. Complete a quiz first.</div>';
+    body.innerHTML = '<div class="no-stats-box"><div class="ns-icon"><svg class="hicon" style="width:32px;height:32px;" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>No quiz history yet. Complete a quiz first.</div>';
     return;
   }
 
@@ -1824,7 +1858,7 @@ function renderRetakeSelector() {
   const retakeBtn = document.createElement('button');
   retakeBtn.className = 'btn btn-primary';
   retakeBtn.style.marginTop = '12px';
-  retakeBtn.textContent = '🔄 Retake Selected Wrong Questions';
+  retakeBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Retake Selected Wrong Questions';
   retakeBtn.onclick = async () => {
     const checked = [...document.querySelectorAll('#retakeBody input[type=checkbox]:checked')];
     if (!checked.length) return alert('Please select at least one quiz.');

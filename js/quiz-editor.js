@@ -17,10 +17,10 @@ function renderAdminQuestionEditor(containerId) {
 
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0 10px;">
     <div style="font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">
-      ✏️ Editing — ${adminEditQuestions.length} question${adminEditQuestions.length !== 1 ? 's' : ''}
+      <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editing — ${adminEditQuestions.length} question${adminEditQuestions.length !== 1 ? 's' : ''}
     </div>
     <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;">
-      🔘 = correct answer &nbsp;·&nbsp; 🔗 = linked case questions
+      <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" style="fill:currentColor;stroke:none;"/></svg> = correct answer &nbsp;·&nbsp; <svg class="sicon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> = linked case questions
     </div>
   </div>`;
   html += _renderBulkAiToolsPanel('admin', adminEditQuestions);
@@ -29,8 +29,8 @@ function renderAdminQuestionEditor(containerId) {
 
   adminEditQuestions.forEach((q, i) => {
     const optEntries = getOptionEntries(q);
-    const usedKeys   = optEntries.map(([k]) => k);
-    const nextKey    = ALL_KEYS.find(k => !usedKeys.includes(k));
+    const usedKeys = optEntries.map(([k]) => k);
+    const nextKey = ALL_KEYS.find(k => !usedKeys.includes(k));
 
     html += `<div class="cq-preview-q cq-editable-q" id="adminEditQ_${i}">`;
 
@@ -42,7 +42,7 @@ function renderAdminQuestionEditor(containerId) {
       ${_renderReorderButtons('admin', i, adminEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="adminEditDeleteQuestion(${i})"
-        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);">🗑 Delete</button>
+        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
     </div>`;
 
     html += `<textarea class="cq-edit-textarea" rows="2"
@@ -62,17 +62,17 @@ function renderAdminQuestionEditor(containerId) {
             style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">
-          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">📷 Question Image</div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;"><svg class="sicon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Question Image</div>
           <label class="cq-img-action-btn" title="Upload a different image">
-            🔄 Change Image
+            <svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Change Image
             <input type="file" accept="image/*" style="display:none;" onchange="adminEditReplaceImage(${i}, event)" />
           </label>
-          <button class="cq-img-action-btn cq-img-remove-btn" onclick="adminEditRemoveImage(${i})" type="button">🗑️ Remove Image</button>
+          <button class="cq-img-action-btn cq-img-remove-btn" onclick="adminEditRemoveImage(${i})" type="button"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Remove Image</button>
         </div>
       </div>`;
     } else {
       html += `<label class="cq-img-upload-label" title="Attach an image to this question">
-        🖼️ Add Image (optional)
+        <svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Add Image (optional)
         <input type="file" accept="image/*" style="display:none;" onchange="adminEditReplaceImage(${i}, event)" />
       </label>`;
     }
@@ -83,7 +83,7 @@ function renderAdminQuestionEditor(containerId) {
 
     html += `<div style="font-size:.72rem;font-weight:700;color:var(--text-muted);
       text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">
-      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with 🔘</span>
+      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" style="fill:currentColor;stroke:none;"/></svg></span>
     </div>`;
 
     html += `<div style="display:flex;flex-direction:column;gap:5px;" id="adminEditOpts_${i}">`;
@@ -129,13 +129,13 @@ function renderAdminQuestionEditor(containerId) {
 
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <button class="cq-btn cq-btn-secondary" onclick="adminEditAddBlankQuestion()" style="background:var(--green-mid);">＋ Add Question</button>
-    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('admin')" style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('admin')" style="background:var(--violet);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg> Merge Quizzes In</button>
     ${adminEditMode === 'published' ? `
       <button class="cq-btn cq-btn-secondary" onclick="openAdminSplitPanel('${adminEditingPublishedId}')"
-        style="background:var(--violet);color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
-      <button class="cq-btn" onclick="adminSavePublishedEdits()" title="Implement these edits on the curriculum lecture">💾 Save Changes</button>
+        style="background:var(--violet);color:#fff;" title="Split into multiple quizzes"><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Split into Multiple</button>
+      <button class="cq-btn" onclick="adminSavePublishedEdits()" title="Implement these edits on the curriculum lecture"><svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes</button>
       <button class="cq-btn cq-btn-secondary" onclick="adminSaveEditsAsCustomQuiz()"
-        style="background:var(--violet);color:#fff;" title="Save these edits as a new custom quiz — the curriculum lecture stays untouched">📄 Save as Custom Quiz</button>
+        style="background:var(--violet);color:#fff;" title="Save these edits as a new custom quiz — the curriculum lecture stays untouched"><svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Save as Custom Quiz</button>
       <button class="cq-btn cq-btn-secondary" onclick="adminCancelEditPublished()">✖ Cancel</button>
     ` : `
       <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;">Edits will be used when you publish below.</div>
@@ -387,10 +387,10 @@ function renderCustomQuizEditor() {
 
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0 10px;">
     <div style="font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">
-      ✏️ ${cqCreatingNew ? 'Writing a new quiz' : 'Editing'} — ${cqEditQuestions.length} question${cqEditQuestions.length !== 1 ? 's' : ''}
+      <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ${cqCreatingNew ? 'Writing a new quiz' : 'Editing'} — ${cqEditQuestions.length} question${cqEditQuestions.length !== 1 ? 's' : ''}
     </div>
     <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;">
-      🔘 = correct answer &nbsp;·&nbsp; 🔗 = linked case questions
+      <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" style="fill:currentColor;stroke:none;"/></svg> = correct answer &nbsp;·&nbsp; <svg class="sicon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> = linked case questions
     </div>
   </div>`;
   html += _renderBulkAiToolsPanel('customQuiz', cqEditQuestions);
@@ -399,8 +399,8 @@ function renderCustomQuizEditor() {
 
   cqEditQuestions.forEach((q, i) => {
     const optEntries = getOptionEntries(q);
-    const usedKeys   = optEntries.map(([k]) => k);
-    const nextKey    = ALL_KEYS.find(k => !usedKeys.includes(k));
+    const usedKeys = optEntries.map(([k]) => k);
+    const nextKey = ALL_KEYS.find(k => !usedKeys.includes(k));
 
     html += `<div class="cq-preview-q cq-editable-q" id="cqCustomEditQ_${i}">`;
 
@@ -412,7 +412,7 @@ function renderCustomQuizEditor() {
       ${_renderReorderButtons('customQuiz', i, cqEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="cqEditDeleteQuestion(${i})"
-        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);">🗑 Delete</button>
+        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
     </div>`;
 
     html += `<textarea class="cq-edit-textarea" rows="2"
@@ -432,17 +432,17 @@ function renderCustomQuizEditor() {
             style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">
-          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">📷 Question Image</div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;"><svg class="sicon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Question Image</div>
           <label class="cq-img-action-btn" title="Upload a different image">
-            🔄 Change Image
+            <svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Change Image
             <input type="file" accept="image/*" style="display:none;" onchange="cqEditReplaceImage(${i}, event)" />
           </label>
-          <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqEditRemoveImage(${i})" type="button">🗑️ Remove Image</button>
+          <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqEditRemoveImage(${i})" type="button"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Remove Image</button>
         </div>
       </div>`;
     } else {
       html += `<label class="cq-img-upload-label" title="Attach an image to this question">
-        🖼️ Add Image (optional)
+        <svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Add Image (optional)
         <input type="file" accept="image/*" style="display:none;" onchange="cqEditReplaceImage(${i}, event)" />
       </label>`;
     }
@@ -453,7 +453,7 @@ function renderCustomQuizEditor() {
 
     html += `<div style="font-size:.72rem;font-weight:700;color:var(--text-muted);
       text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">
-      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with 🔘</span>
+      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" style="fill:currentColor;stroke:none;"/></svg></span>
     </div>`;
 
     html += `<div style="display:flex;flex-direction:column;gap:5px;" id="cqCustomEditOpts_${i}">`;
@@ -499,12 +499,12 @@ function renderCustomQuizEditor() {
 
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <button class="cq-btn cq-btn-secondary" onclick="cqEditAddBlankQuestion()" style="background:var(--green-mid);">＋ Add Question</button>
-    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('customQuiz')" style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
+    <button class="cq-btn cq-btn-secondary" onclick="openMergePicker('customQuiz')" style="background:var(--violet);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg> Merge Quizzes In</button>
     ${!cqCreatingNew ? `
       <button class="cq-btn cq-btn-secondary" onclick="openSplitPanel('saved', '${cqEditingQuizId}')"
-        style="background:var(--violet);color:#fff;" title="Split into multiple quizzes">✂️ Split into Multiple</button>
+        style="background:var(--violet);color:#fff;" title="Split into multiple quizzes"><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Split into Multiple</button>
     ` : ''}
-    <button class="cq-btn" onclick="saveCustomQuizEdits()">💾 Save Changes</button>
+    <button class="cq-btn" onclick="saveCustomQuizEdits()"><svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes</button>
     <button class="cq-btn cq-btn-secondary" onclick="closeCustomQuizEditor()">✖ Cancel</button>
   </div>
   ${!cqCreatingNew ? renderSplitPanel('saved', cqEditingQuizId, cqEditQuestions.length) : ''}
@@ -679,7 +679,7 @@ async function saveCustomQuizEdits() {
   _stripEditorTransientFields(cqEditQuestions);
 
   const statusEl = document.getElementById('cqCustomEditStatus_' + _cqEditorKey());
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status info">💾 Saving…</div>`;
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status info"><svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Saving…</div>`;
 
   const quizzes = loadCustomQuizzes();
 
@@ -708,7 +708,7 @@ async function saveCustomQuizEdits() {
     _questionEditDirty = false;
     if (wasAdmin) { renderAdminPanel(); } else { renderCustomQuizModal(); }
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status warning">⚠️ Save failed: ${escapeHtml(e.message || String(e))}</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Save failed: ${escapeHtml(e.message || String(e))}</div>`;
   }
 }
 
@@ -764,7 +764,7 @@ async function renderAdminAssignedList() {
   if (!sec) return;
   const subj = _pubListSubject();
   if (!subj) { sec.innerHTML = ''; return; }
-  sec.innerHTML = `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
+  sec.innerHTML = `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use <svg class="sicon" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg><svg class="sicon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg> to set the order students see</span></div>`;
 
   let entries = [];
   try {
@@ -806,14 +806,14 @@ function _renderAdminAssignedListHTML() {
   // The "Publish Quizzes" tab only needs a quick read-only glance at what's
   // already there (so the admin doesn't duplicate a lecture by accident) —
   // reordering, editing, copy/move, and delete all live one place now:
-  // the "📚 Manage Curriculum" tab. Showing them here too was redundant
+  // the " Manage Curriculum" tab. Showing them here too was redundant
   // and easy to trigger by mistake mid-publish. It does let the admin pick
   // where the new quiz will land relative to these, via before/after markers.
   const simple = adminActiveTab !== 'curriculum';
 
   sec.innerHTML = simple
-    ? `<div class="admin-assigned-title">Publish Here — "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— tap 📤 Publish Here to choose where the new quiz lands in the list below</span></div>`
-    : `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use ⬆️⬇️ to set the order students see</span></div>`;
+    ? `<div class="admin-assigned-title">Publish Here — "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— tap <svg class="sicon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Publish Here to choose where the new quiz lands in the list below</span></div>`
+    : `<div class="admin-assigned-title">Published lectures in "${escapeHtml(subjects[subj].label || subj)}" <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);">— use <svg class="sicon" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg><svg class="sicon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg> to set the order students see</span></div>`;
 
   if (!entries.length) {
     if (simple) {
@@ -827,7 +827,7 @@ function _renderAdminAssignedListHTML() {
   }
 
   if (simple) {
-    // Renders as ONE column: a "📤 Publish Here" gap marker before each
+    // Renders as ONE column: a " Publish Here" gap marker before each
     // quiz, the quiz itself (read-only, same card style as the quiz-picker
     // list above), then a final gap marker after the last quiz for the
     // default "append at the end" spot — so there's exactly one way to pick
@@ -838,7 +838,7 @@ function _renderAdminAssignedListHTML() {
       return `
         <div class="admin-publish-here-gap ${active ? 'admin-publish-here-active' : ''}" onclick="${onclick}" title="Publish the new quiz here">
           <span class="admin-publish-here-line"></span>
-          <span class="admin-publish-here-btn">${active ? '📍 Publishing Here ✓' : '📤 Publish Here'}</span>
+          <span class="admin-publish-here-btn">${active ? '<svg class="sicon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Publishing Here ✓' : '<svg class="sicon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Publish Here'}</span>
           <span class="admin-publish-here-line"></span>
         </div>`;
     };
@@ -858,7 +858,7 @@ function _renderAdminAssignedListHTML() {
     sec.innerHTML += `
       <div style="font-size:.76rem;color:var(--text-muted);font-weight:600;margin-top:8px;">
         Need to edit, reorder, copy/move, or delete one of these? Head to
-        <span style="color:var(--accent);cursor:pointer;font-weight:800;" onclick="adminJumpToCurriculumQuizzes()">📚 Manage Curriculum</span>.
+        <span style="color:var(--accent);cursor:pointer;font-weight:800;" onclick="adminJumpToCurriculumQuizzes()"><svg class="sicon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Manage Curriculum</span>.
       </div>`;
     return;
   }
@@ -868,21 +868,21 @@ function _renderAdminAssignedListHTML() {
       <div class="admin-assigned-item">
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
           <button class="admin-remove-btn" style="padding:3px 8px;background:var(--surface-2);color:var(--accent);border:1.5px solid var(--border-soft);line-height:1;" title="Move up"
-            onclick="adminSwapLectureOrder('${e.id}','up')" ${idx === 0 ? 'disabled' : ''}>⬆️</button>
+            onclick="adminSwapLectureOrder('${e.id}','up')" ${idx === 0 ? 'disabled' : ''} aria-label="Move up"><svg class="sicon" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
           <button class="admin-remove-btn" style="padding:3px 8px;background:var(--surface-2);color:var(--accent);border:1.5px solid var(--border-soft);line-height:1;" title="Move down"
-            onclick="adminSwapLectureOrder('${e.id}','down')" ${idx === entries.length - 1 ? 'disabled' : ''}>⬇️</button>
+            onclick="adminSwapLectureOrder('${e.id}','down')" ${idx === entries.length - 1 ? 'disabled' : ''} aria-label="Move down"><svg class="sicon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
         </div>
         <div class="admin-assigned-info">
           <div class="admin-assigned-name">${escapeHtml(e.lectureName || e.id)}</div>
           <div class="admin-assigned-path">${(e.questions || []).length} question${(e.questions||[]).length !== 1 ? 's' : ''} · ${escapeHtml(adminTargetYear)} → ${escapeHtml(adminTargetModule)} → ${escapeHtml(subjects[subj].label || subj)}</div>
         </div>
         <button class="admin-remove-btn" style="background:var(--violet-pale);color:var(--violet-dark);border:1.5px solid var(--violet-mid-border);"
-          onclick="adminEditPublished('${e.id}')">✏️ Edit</button>
+          onclick="adminEditPublished('${e.id}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
         <button class="admin-remove-btn" style="background:var(--unanswered-bg);color:var(--unanswered-fg);border:1.5px solid var(--amber-strong);"
-          onclick="adminRenamePublished('${e.id}')">🏷️ Rename</button>
+          onclick="adminRenamePublished('${e.id}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2.83 12.8a2 2 0 0 1 0-2.83L10 2.8a2 2 0 0 1 1.41-.59H19a2 2 0 0 1 2 2v7.59a2 2 0 0 1-.59 1.41z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Rename</button>
         <button class="admin-remove-btn" style="background:var(--chip-blue-bg);color:var(--nav-current);border:1.5px solid var(--nav-default);"
-          onclick="adminOpenMoveQuiz('${e.id}', '${(e.lectureName||e.id).replace(/'/g,"\'")}')">📋 Copy/Move</button>
-        <button class="admin-remove-btn" onclick="adminRemovePublished('${e.id}')">🗑 Delete</button>
+          onclick="adminOpenMoveQuiz('${e.id}', '${(e.lectureName||e.id).replace(/'/g,"\'")}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copy/Move</button>
+        <button class="admin-remove-btn" onclick="adminRemovePublished('${e.id}')"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
       </div>
       <div id="adminPublishedEditorArea_${e.id}"></div>`;
   });
@@ -910,13 +910,13 @@ function adminClearPublishInsertPosition() {
 }
 
 // Shortcut from the simplified "Publish Quizzes" list straight to the same
-// subject's full quiz-management view in "📚 Manage Curriculum". This is a
+// subject's full quiz-management view in " Manage Curriculum". This is a
 // deliberate one-time hand-off — it copies the Publish tab's destination
 // into the Curriculum tab's own (otherwise entirely separate) navigation
 // state, rather than the two tabs sharing state all the time.
 function adminJumpToCurriculumQuizzes() {
-  adminTargetYear    = adminPubTargetYear;
-  adminTargetModule  = adminPubTargetModule;
+  adminTargetYear = adminPubTargetYear;
+  adminTargetModule = adminPubTargetModule;
   adminTargetSubject = adminPubTargetSubject;
   adminCurrNavLevel = 'quizzes';
   adminSwitchTab('curriculum');
@@ -944,7 +944,7 @@ async function adminEditPublished(lectureId) {
     const data = await resp.json();
 
     adminEditMode = 'published';
-    adminEditingPublishedId   = lectureId;
+    adminEditingPublishedId = lectureId;
     adminEditingPublishedName = data.lectureName || lectureId;
     adminEditQuestions = JSON.parse(JSON.stringify(data.questions || []));
     // Images are already inline (data: URLs) right on each question —
@@ -965,7 +965,7 @@ async function adminEditPublished(lectureId) {
 /* Quick standalone rename for an already-published quiz — updates just its
    display name (Firestore's `lectureName` field) without opening the full
    question editor or touching any question/image data. Mirrors the
-   "🎨 Icon" / "✏️ Rename" split used for Years/Modules/Subjects in
+   "<svg class="sicon" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.3c1.9 0 3.5-1.6 3.5-3.5C21 6.9 17 2 12 2z"/><circle cx="6.5" cy="11.5" r="1.5"/><circle cx="9.5" cy="7.5" r="1.5"/><circle cx="14.5" cy="7.5" r="1.5"/><circle cx="17.5" cy="11.5" r="1.5"/></svg> Icon" / "<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Rename" split used for Years/Modules/Subjects in
    js/curriculum-admin.js: changing what something is called shouldn't
    require going through its full edit flow. `subjects[subj].lectures` is
    keyed by lecture NAME (see adminSavePublishedEdits/adminRemovePublished
@@ -999,7 +999,7 @@ async function adminRenamePublished(lectureId) {
     }
     if (entry) entry.lectureName = trimmed;
     // If this same lecture is (or was just) open in the full editor, keep
-    // its editor title in sync too, so ✏️ Edit → 💾 Save Changes below
+    // its editor title in sync too, so Edit → Save Changes below
     // doesn't silently revert the rename.
     if (adminEditingPublishedId === lectureId) adminEditingPublishedName = trimmed;
     // Manifest bump happens server-side in the Worker automatically, as
@@ -1030,7 +1030,7 @@ function adminCancelEditPublished() {
 /* Lets an admin spin off their in-editor changes to a published curriculum
    lecture (e.g. after merging in extra questions) as a brand-new custom
    quiz, WITHOUT touching the published lecture at all. The normal
-   "💾 Save Changes" pathway (adminSavePublishedEdits, below) remains the
+   "<svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes" pathway (adminSavePublishedEdits, below) remains the
    way to actually implement the edits on the curriculum. */
 async function adminSaveEditsAsCustomQuiz() {
   if (!adminEditQuestions || !adminEditQuestions.length) return;
@@ -1040,7 +1040,7 @@ async function adminSaveEditsAsCustomQuiz() {
   const finalTitle = title.trim() || defaultTitle;
 
   const statusEl = document.getElementById('adminEditStatus');
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Saving as custom quiz…</div>`;
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status"><svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Saving as custom quiz…</div>`;
 
   try {
     // Clone before normalizing/stripping so the live working copy — and the
@@ -1058,9 +1058,9 @@ async function adminSaveEditsAsCustomQuiz() {
     });
     await saveCustomQuizzesList(quizzes);
 
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Saved as custom quiz "${escapeHtml(finalTitle)}" — the curriculum lecture was not changed.</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Saved as custom quiz "${escapeHtml(finalTitle)}" — the curriculum lecture was not changed.</div>`;
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ Failed to save: ${escapeHtml(e.message || String(e))}</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Failed to save: ${escapeHtml(e.message || String(e))}</div>`;
   }
 }
 
@@ -1068,7 +1068,7 @@ async function adminSavePublishedEdits() {
   if (!adminEditQuestions || !adminEditingPublishedId) return;
   const lectureId = adminEditingPublishedId;
   const statusEl = document.getElementById('adminEditStatus');
-  if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Saving…</div>`;
+  if (statusEl) statusEl.innerHTML = `<div class="cq-status"><svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Saving…</div>`;
 
   try {
     _cqNormalizeCaseGroups(adminEditQuestions);
@@ -1081,7 +1081,7 @@ async function adminSavePublishedEdits() {
       return q;
     });
 
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Saving…</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status"><svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Saving…</div>`;
 
     // In the normal case every image is already inline; this only does
     // real work if this lecture predates inline image storage.
@@ -1114,7 +1114,7 @@ async function adminSavePublishedEdits() {
     if (!subjects[adminTargetSubject].lectures) subjects[adminTargetSubject].lectures = {};
     subjects[adminTargetSubject].lectures[adminEditingPublishedName] = cleanQuestions;
 
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Changes saved!</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Changes saved!</div>`;
 
     if (selectedSubject === adminTargetSubject) selectSubject(adminTargetSubject);
 
@@ -1128,7 +1128,7 @@ async function adminSavePublishedEdits() {
       renderAdminAssignedList();
     }, 900);
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ Failed: ${escapeHtml(e.message || String(e))}</div>`;
+    if (statusEl) statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Failed: ${escapeHtml(e.message || String(e))}</div>`;
   }
 }
 
@@ -1309,12 +1309,12 @@ async function adminPublishQuiz() {
       let lectureName = (nameInput?.value || '').trim();
       if (!lectureName) lectureName = quizObj.title;
 
-      if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Publishing…</div>`;
+      if (statusEl) statusEl.innerHTML = `<div class="cq-status"><svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Publishing…</div>`;
       try {
         const questionsOverride = (adminEditMode === 'publish' && adminEditQuestions) ? adminEditQuestions : null;
         await _adminPublishOneQuiz(quizObj, targetSubject, lectureName, questionsOverride);
 
-        if (statusEl) statusEl.innerHTML = `<div class="cq-status success">✅ Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Published "${escapeHtml(lectureName)}" to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
         if (nameInput) nameInput.value = '';
 
         // Close the editor after a successful publish
@@ -1329,7 +1329,7 @@ async function adminPublishQuiz() {
         if (selectedSubject === targetSubject) selectSubject(targetSubject);
         renderAdminAssignedList();
       } catch (e) {
-        if (statusEl) statusEl.innerHTML = `<div class="cq-status error">❌ Failed: ${escapeHtml(e.message || String(e))}</div>`;
+        if (statusEl) statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Failed: ${escapeHtml(e.message || String(e))}</div>`;
       }
       return;
     }
@@ -1350,7 +1350,7 @@ async function adminPublishQuiz() {
 
     for (let i = 0; i < total; i++) {
       const [key, quizObj] = entries[i];
-      if (statusEl) statusEl.innerHTML = `<div class="cq-status">⏳ Publishing ${i + 1}/${total}: "${escapeHtml(quizObj.title)}"…</div>`;
+      if (statusEl) statusEl.innerHTML = `<div class="cq-status"><svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Publishing ${i + 1}/${total}: "${escapeHtml(quizObj.title)}"…</div>`;
 
       adminPublishInsertPosition = chainPos;
       try {
@@ -1374,8 +1374,8 @@ async function adminPublishQuiz() {
     renderAdminAssignedList();
 
     const resultHtml = failures.length
-      ? `<div class="cq-status ${publishedCount ? '' : 'error'}">${publishedCount ? '⚠️' : '❌'} Published ${publishedCount}/${total}. Failed: ${failures.map(f => `"${escapeHtml(f.title)}" — ${escapeHtml(f.message)}`).join('; ')}</div>`
-      : `<div class="cq-status success">✅ Published all ${publishedCount} quizzes to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
+      ? `<div class="cq-status ${publishedCount ? '' : 'error'}">${publishedCount ? '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' : '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'} Published ${publishedCount}/${total}. Failed: ${failures.map(f => `"${escapeHtml(f.title)}" — ${escapeHtml(f.message)}`).join('; ')}</div>`
+      : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Published all ${publishedCount} quizzes to ${escapeHtml(subjects[targetSubject].label || targetSubject)}!</div>`;
 
     adminLastPublishResult = resultHtml;
     renderAdminAssignForm();

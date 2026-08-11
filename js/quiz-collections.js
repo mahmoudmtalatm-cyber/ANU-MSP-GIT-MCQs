@@ -191,14 +191,14 @@ function renderCqCollectionsSidebarHTML(quizzes, collections) {
 
   return `
   <button class="cq-coll-mobile-toggle" onclick="cqToggleSidebarMobile()">
-    📁 ${cqSidebarMobileOpen ? 'Hide Folders ✕' : 'Browse Folders ▾'}
+    <svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${cqSidebarMobileOpen ? 'Hide Folders ✕' : 'Browse Folders ▾'}
   </button>
-  <button class="cq-coll-reopen-btn" onclick="cqToggleSidebarCollapsed()" title="Show the folders panel">📁 Show Folders ▸</button>
+  <button class="cq-coll-reopen-btn" onclick="cqToggleSidebarCollapsed()" title="Show the folders panel"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Show Folders ▸</button>
   <div class="cq-coll-sidebar ${cqSidebarMobileOpen ? 'mobile-open' : ''}">
     <div class="cq-coll-sidebar-header">
-      <span>📁 Collections</span>
+      <span><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Collections</span>
       <div class="cq-coll-header-actions">
-        <button class="cq-coll-new-btn" title="New top-level collection" onclick="cqStartNewCollection(null)">➕ New</button>
+        <button class="cq-coll-new-btn" title="New top-level collection" onclick="cqStartNewCollection(null)"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New</button>
         <button class="cq-coll-collapse-btn" title="Hide the folders panel" onclick="cqToggleSidebarCollapsed()">◂</button>
       </div>
     </div>
@@ -206,7 +206,7 @@ function renderCqCollectionsSidebarHTML(quizzes, collections) {
       <div class="cq-coll-row cq-coll-pseudo ${allActive ? 'active' : ''}" onclick="cqSelectCollection(null)"
            ondragover="cqRootDragOver(event)" ondragleave="cqRootDragLeave(event)" ondrop="cqRootDrop(event)">
         <span class="cq-coll-caret empty"></span>
-        <span class="cq-coll-icon">🗂️</span>
+        <span class="cq-coll-icon"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
         <span class="cq-coll-name">All Quizzes</span>
         <span class="cq-coll-count">${quizzes.length}</span>
       </div>
@@ -215,7 +215,7 @@ function renderCqCollectionsSidebarHTML(quizzes, collections) {
       <div class="cq-coll-row cq-coll-pseudo ${uncatActive ? 'active' : ''}" onclick="cqSelectCollection('${CQ_UNCATEGORIZED}')"
            ondragover="cqUncatDragOver(event)" ondragleave="cqUncatDragLeave(event)" ondrop="cqUncatDrop(event)">
         <span class="cq-coll-caret empty"></span>
-        <span class="cq-coll-icon">📭</span>
+        <span class="cq-coll-icon"><svg class="sicon" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
         <span class="cq-coll-name">Uncategorized</span>
         <span class="cq-coll-count">${uncatCount}</span>
       </div>
@@ -263,8 +263,8 @@ function _renderCollectionNode(collections, quizzes, node, depth) {
 
 function _renderCollectionMenuHTML(node) {
   return `<div class="cq-coll-menu" id="cqCollMenu_${node.id}" onclick="event.stopPropagation()">
-    <button onclick="cqStartNewCollection('${node.id}')">➕ New subfolder</button>
-    <button onclick="cqRenameCollectionStart('${node.id}')">✏️ Rename</button>
+    <button onclick="cqStartNewCollection('${node.id}')"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New subfolder</button>
+    <button onclick="cqRenameCollectionStart('${node.id}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Rename</button>
     <div class="cq-coll-menu-label">Color</div>
     <div class="cq-coll-menu-colors">
       ${CQ_COLLECTION_COLORS.map(c => `<span class="cq-coll-swatch ${node.color === c ? 'selected' : ''}" style="background:${c}" onclick="cqSetCollectionColor('${node.id}','${c}')"></span>`).join('')}
@@ -273,7 +273,7 @@ function _renderCollectionMenuHTML(node) {
     <div class="cq-coll-menu-icons">
       ${CQ_COLLECTION_ICONS.map(ic => `<span class="cq-coll-icon-opt ${node.icon === ic ? 'selected' : ''}" onclick="cqSetCollectionIcon('${node.id}','${ic}')">${ic}</span>`).join('')}
     </div>
-    <button class="danger" onclick="cqDeleteCollection('${node.id}')">🗑️ Delete folder</button>
+    <button class="danger" onclick="cqDeleteCollection('${node.id}')"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete folder</button>
   </div>`;
 }
 
@@ -281,7 +281,7 @@ function _renderNewCollectionInlineForm(parentId, depth) {
   return `<div class="cq-coll-node" style="--depth:${depth}">
     <div class="cq-coll-row cq-coll-new-row">
       <span class="cq-coll-caret empty"></span>
-      <span class="cq-coll-icon">📁</span>
+      <span class="cq-coll-icon"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
       <input type="text" class="cq-coll-rename-input" id="cqNewCollNameInput" placeholder="Folder name…"
         onkeydown="if(event.key==='Enter'){cqCommitNewCollection(${parentId === null ? 'null' : `'${parentId}'`}, this.value)} else if(event.key==='Escape'){cqCancelNewCollection()}" />
       <button class="cq-coll-new-confirm" onclick="cqCommitNewCollection(${parentId === null ? 'null' : `'${parentId}'`}, document.getElementById('cqNewCollNameInput').value)">✓</button>
@@ -292,14 +292,14 @@ function _renderNewCollectionInlineForm(parentId, depth) {
 
 function renderCqBreadcrumbHTML(collections) {
   if (cqActiveCollectionId == null) {
-    return `<div class="cq-coll-breadcrumb"><span class="crumb current">🗂️ All Quizzes</span></div>`;
+    return `<div class="cq-coll-breadcrumb"><span class="crumb current"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> All Quizzes</span></div>`;
   }
   if (cqActiveCollectionId === CQ_UNCATEGORIZED) {
-    return `<div class="cq-coll-breadcrumb"><span class="crumb" onclick="cqSelectCollection(null)">🗂️ All Quizzes</span><span class="sep">›</span><span class="crumb current">📭 Uncategorized</span></div>`;
+    return `<div class="cq-coll-breadcrumb"><span class="crumb" onclick="cqSelectCollection(null)"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> All Quizzes</span><span class="sep">›</span><span class="crumb current"><svg class="sicon" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Uncategorized</span></div>`;
   }
   const path = _collectionPath(collections, cqActiveCollectionId);
   if (!path.length) { cqActiveCollectionId = null; return renderCqBreadcrumbHTML(collections); } // folder no longer exists
-  const crumbs = [`<span class="crumb" onclick="cqSelectCollection(null)">🗂️ All Quizzes</span>`];
+  const crumbs = [`<span class="crumb" onclick="cqSelectCollection(null)"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> All Quizzes</span>`];
   path.forEach((c, i) => {
     const isLast = i === path.length - 1;
     crumbs.push(`<span class="sep">›</span><span class="crumb ${isLast ? 'current' : ''}" ${isLast ? '' : `onclick="cqSelectCollection('${c.id}')"`}>${escapeHtml(c.icon || '📁')} ${escapeHtml(c.name)}</span>`);
@@ -323,7 +323,7 @@ function _quizCollectionChipHTML(quiz, collections) {
 /** Flat, indented list of every folder — used inside the 📁 Move
  *  dropdowns (single-quiz and bulk). `currentId` gets a ✓/highlight. */
 function _renderCollectionOptionRows(collections, currentId, onPick) {
-  const rows = [`<button class="${!currentId ? 'current' : ''}" onclick="${onPick(null)}">📭 Uncategorized</button>`];
+  const rows = [`<button class="${!currentId ? 'current' : ''}" onclick="${onPick(null)}"><svg class="sicon" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Uncategorized</button>`];
   const walk = (parentId, depth) => {
     _collectionChildren(collections, parentId).forEach(c => {
       rows.push(`<button class="${currentId === c.id ? 'current' : ''}" style="padding-left:${10 + depth * 14}px" onclick="${onPick(c.id)}">${escapeHtml(c.icon || '📁')} ${escapeHtml(c.name)}</button>`);
@@ -518,23 +518,23 @@ function _cqRenderDeleteCollectionModal() {
   if (_cqDeleteModalStep === 1) {
     _cqDeleteModalEl.innerHTML = `
       <div class="qm-modal">
-        <div class="qm-title">🗑️ Delete "${escapeHtml(col.name)}"</div>
+        <div class="qm-title"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete "${escapeHtml(col.name)}"</div>
         ${(nestedFolderCount || totalNestedQuizCount) ? `<div class="cq-del-summary">
-          ${nestedFolderCount ? `<div>📁 ${nestedFolderCount} subfolder${nestedFolderCount !== 1 ? 's' : ''} inside</div>` : ''}
-          ${totalNestedQuizCount ? `<div>📝 ${totalNestedQuizCount} quiz${totalNestedQuizCount !== 1 ? 'zes' : ''} filed inside (including subfolders)</div>` : ''}
+          ${nestedFolderCount ? `<div><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${nestedFolderCount} subfolder${nestedFolderCount !== 1 ? 's' : ''} inside</div>` : ''}
+          ${totalNestedQuizCount ? `<div><svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg> ${totalNestedQuizCount} quiz${totalNestedQuizCount !== 1 ? 'zes' : ''} filed inside (including subfolders)</div>` : ''}
         </div>` : ''}
         <div class="cq-del-options">
           <label class="cq-del-opt">
             <input type="radio" name="cqDelMode" value="keep" checked>
             <div>
-              <div class="cq-del-opt-title">📤 Just remove this folder</div>
+              <div class="cq-del-opt-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg> Just remove this folder</div>
               <div class="cq-del-opt-desc">Nothing is deleted — subfolders move up${col.parentId ? " to this folder's parent" : ' to the top level'}, and any quiz filed directly here becomes Uncategorized.</div>
             </div>
           </label>
           <label class="cq-del-opt">
             <input type="radio" name="cqDelMode" value="everything">
             <div>
-              <div class="cq-del-opt-title">🔥 Delete everything inside</div>
+              <div class="cq-del-opt-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Delete everything inside</div>
               <div class="cq-del-opt-desc">Permanently deletes this folder, every subfolder inside it, and every quiz filed anywhere inside — this can't be undone.</div>
             </div>
           </label>
@@ -550,10 +550,10 @@ function _cqRenderDeleteCollectionModal() {
     if (totalNestedQuizCount) pieces.push(`${totalNestedQuizCount} quiz${totalNestedQuizCount !== 1 ? 'zes' : ''}`);
     _cqDeleteModalEl.innerHTML = `
       <div class="qm-modal">
-        <div class="qm-title">🔥 Permanently delete "${escapeHtml(col.name)}"?</div>
+        <div class="qm-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Permanently delete "${escapeHtml(col.name)}"?</div>
         <div class="qm-status err">This will permanently delete ${pieces.join(' and ')}. This action can't be undone.</div>
         <div class="qm-actions">
-          <button class="qm-btn danger" onclick="_cqDeleteCollectionExecute('everything')">🔥 Yes, delete everything</button>
+          <button class="qm-btn danger" onclick="_cqDeleteCollectionExecute('everything')"><svg class="sicon" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Yes, delete everything</button>
           <button class="qm-btn secondary" onclick="_cqDeleteCollectionModalBack()">◀ Back</button>
         </div>
       </div>`;

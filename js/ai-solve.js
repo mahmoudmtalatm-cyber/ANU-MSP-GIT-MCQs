@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════
    AI SOLVE — per-question source picker
-   Every question card's 🤖 AI Solve button now has a ▾ caret beside it
+   Every question card's <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve button now has a ▾ caret beside it
    that lets the admin choose, PER QUESTION, whether to solve using pure
    AI knowledge, the bulk source already configured for this editor (the
    text/files pasted into "AI Solve All" / MCQ-extraction settings), or
@@ -50,14 +50,35 @@ function _aiSolveGetChoice(editorKey, i) {
   return _aiSolveSourceChoice[key] || _aiSolveDefaultChoice(editorKey);
 }
 
-function _aiSolveSourceShortLabel(editorKey, i) {
+// Icon markup for the per-question "solve using…" short label. Kept
+// separate from the plain-text label below: callers HTML-escape the label
+// before rendering it (it may contain a user-typed library source name),
+// and escaping raw SVG markup along with it would turn the icon into
+// visible "<svg ...>" text instead of rendering it.
+function _aiSolveSourceShortIcon(editorKey, i) {
   const choice = _aiSolveGetChoice(editorKey, i);
-  if (choice.type === 'bulk') return '📚 ' + _aiSolveBulkSourceLabel(editorKey);
+  if (choice.type === 'bulk') return '<svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>';
   if (choice.type === 'lib') {
     const src = _aiSourceLibrary.find(s => s.id === choice.id);
-    if (src) return '📄 ' + src.label;
+    if (src) return '<svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
   }
-  return '🧠 AI knowledge';
+  return '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>';
+}
+// Plain-text label to go with the icon above. Always run through
+// escapeHtml() at the call site — a library source's label is admin-typed
+// free text, not trusted markup.
+function _aiSolveSourceShortLabel(editorKey, i) {
+  const choice = _aiSolveGetChoice(editorKey, i);
+  if (choice.type === 'bulk') return _aiSolveBulkSourceLabel(editorKey);
+  if (choice.type === 'lib') {
+    const src = _aiSourceLibrary.find(s => s.id === choice.id);
+    if (src) return src.label;
+  }
+  return 'AI knowledge';
+}
+// Convenience helper: icon + escaped label, ready to drop into innerHTML.
+function _aiSolveSourceShortHTML(editorKey, i) {
+  return `${_aiSolveSourceShortIcon(editorKey, i)} ${escapeHtml(_aiSolveSourceShortLabel(editorKey, i))}`;
 }
 
 // Shared open/close logic for every per-question "button + ▾ caret +
@@ -87,15 +108,15 @@ function _toggleAiRefineInstrPicker(editorKey, i) {
 }
 
 // Content of Refine's instructions popover — deliberately labeled so it's
-// unambiguous this text is used ONLY by 🪄 Refine Question, never by AI Solve.
+// unambiguous this text is used ONLY by Refine Question, never by AI Solve.
 function _renderAiRefineInstrPickerHTML(editorKey, i) {
   const key = _aiToolsKey(editorKey, i);
   const draft = _aiToolsCustomPromptText[key] || '';
   return `<div class="ai-source-picker-inner" style="max-width:290px;">
-    <div class="ai-source-picker-title">🪄 Custom Instructions — Refine Question only</div>
+    <div class="ai-source-picker-title"><svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Custom Instructions — Refine Question only</div>
     <div style="font-size:.71rem;color:var(--text-muted);padding:0 6px 6px;line-height:1.35;">
-      Optional extra guidance used only when you click 🪄 Refine Question on this question.
-      It has no effect on 🤖 AI Solve. Only overrides the default refine rules (grammar, exam phrasing) where it truly conflicts.
+      Optional extra guidance used only when you click <svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Question on this question.
+      It has no effect on <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve. Only overrides the default refine rules (grammar, exam phrasing) where it truly conflicts.
     </div>
     <textarea id="aiCustomPromptInput_${editorKey}_${i}" rows="3"
       oninput="_aiCustomPromptChanged('${editorKey}', ${i}, this.value)"
@@ -109,22 +130,22 @@ function _renderAiSourcePickerHTML(editorKey, i) {
   const choice = _aiSolveGetChoice(editorKey, i);
   const isSel = (t, id) => choice.type === t && (t !== 'lib' || choice.id === id);
   let html = `<div class="ai-source-picker-inner">`;
-  html += `<div class="ai-source-picker-title">🤖 Solve using…</div>`;
-  html += `<div class="ai-source-opt${isSel('ai') ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'ai', null)">🧠 AI knowledge only${isSel('ai') ? ' ✓' : ''}</div>`;
+  html += `<div class="ai-source-picker-title"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> Solve using…</div>`;
+  html += `<div class="ai-source-opt${isSel('ai') ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'ai', null)"> AI knowledge only${isSel('ai') ? ' ✓' : ''}</div>`;
   if (_aiSolveBulkSourceHasContent(editorKey)) {
-    html += `<div class="ai-source-opt${isSel('bulk') ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'bulk', null)">📚 ${escapeHtml(_aiSolveBulkSourceLabel(editorKey))}${isSel('bulk') ? ' ✓' : ''}</div>`;
+    html += `<div class="ai-source-opt${isSel('bulk') ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'bulk', null)"> ${escapeHtml(_aiSolveBulkSourceLabel(editorKey))}${isSel('bulk') ? ' ✓' : ''}</div>`;
   }
   if (_aiSourceLibrary.length) {
     html += `<div class="ai-source-picker-divider"></div>`;
     _aiSourceLibrary.forEach(src => {
       html += `<div class="ai-source-opt${isSel('lib', src.id) ? ' ai-source-opt-active' : ''}" onclick="_aiSolvePickSource('${editorKey}', ${i}, 'lib', '${src.id}')">
-        <span style="flex:1;">📄 ${escapeHtml(src.label)}${isSel('lib', src.id) ? ' ✓' : ''}</span>
+        <span style="flex:1;"> ${escapeHtml(src.label)}${isSel('lib', src.id) ? ' ✓' : ''}</span>
         <span class="ai-source-opt-remove" title="Remove this source" onclick="event.stopPropagation();_aiSourceLibraryRemove('${src.id}', '${editorKey}', ${i})">✕</span>
       </div>`;
     });
   }
   html += `<div class="ai-source-picker-divider"></div>`;
-  html += `<div class="ai-source-add-toggle" onclick="event.stopPropagation();_aiSourceAddFormToggle('${editorKey}', ${i})">➕ Add new source</div>`;
+  html += `<div class="ai-source-add-toggle" onclick="event.stopPropagation();_aiSourceAddFormToggle('${editorKey}', ${i})"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add new source</div>`;
   html += `<div id="aiSourceAddForm_${editorKey}_${i}" style="display:none;margin-top:6px;" onclick="event.stopPropagation();"></div>`;
   html += `</div>`;
   return html;
@@ -133,7 +154,7 @@ function _renderAiSourcePickerHTML(editorKey, i) {
 function _aiSolvePickSource(editorKey, i, type, id) {
   _aiSolveSourceChoice[_aiToolsKey(editorKey, i)] = (type === 'lib') ? { type, id } : { type };
   const btn = document.getElementById(`aiSolveSrcCaret_${editorKey}_${i}`);
-  if (btn) btn.innerHTML = escapeHtml(_aiSolveSourceShortLabel(editorKey, i)) + ' ▾';
+  if (btn) btn.innerHTML = _aiSolveSourceShortHTML(editorKey, i) + ' ▾';
   const picker = document.getElementById(`aiSourcePicker_${editorKey}_${i}`);
   if (picker) picker.style.display = 'none';
 }
@@ -187,7 +208,7 @@ function _aiSourceAddDraftFileListHTML(editorKey, i, files) {
   if (!files || !files.length) return '';
   return `<div class="cq-dz-filelist">` + files.map((f, idx) => `
     <div class="cq-dz-file-item">
-      <span>✅ ${escapeHtml(f.name)}</span>
+      <span><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ${escapeHtml(f.name)}</span>
       <button type="button" onclick="event.stopPropagation();_aiSourceAddRemoveFile('${editorKey}', ${i}, ${idx})" title="Remove this file">✕</button>
     </div>`).join('') + `</div>`;
 }
@@ -216,19 +237,19 @@ function _renderAiSourceAddFormHTML(editorKey, i) {
     <input type="text" placeholder="Source name (e.g. Lecture 4 slides)" value="${escapeHtml(draft.label)}"
       oninput="_aiSourceAddDraftChange('${editorKey}', ${i}, 'label', this.value)"
       style="width:100%;font-size:.75rem;padding:5px 7px;border:1.5px solid var(--border-soft);border-radius:5px;margin-bottom:8px;box-sizing:border-box;">
-    <div style="font-size:.72rem;font-weight:700;color:var(--violet-dark);margin-bottom:4px;">🖼️ Source images / PDFs</div>
+    <div style="font-size:.72rem;font-weight:700;color:var(--violet-dark);margin-bottom:4px;"><svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Source images / PDFs</div>
     <div class="cq-dropzone cq-dz-purple ai-source-dz" id="aiSourceDropzone_${editorKey}_${i}"
       onclick="document.getElementById('aiSourceFileInput_${editorKey}_${i}').click()">
-      <div class="cq-dz-icon">🖼️📄</div>
+      <div class="cq-dz-icon"><svg class="hicon" style="width:28px;height:28px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
       <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
       ${_aiSourceAddDraftFileListHTML(editorKey, i, draft.files)}
-      ${draft.files.length ? `<div class="cq-dz-add-more">➕ Click again to add more files</div>` : ''}
+      ${draft.files.length ? `<div class="cq-dz-add-more"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Click again to add more files</div>` : ''}
     </div>
     <input type="file" id="aiSourceFileInput_${editorKey}_${i}" accept="image/*,application/pdf" multiple style="display:none;"
       onchange="_aiSourceAddFileSelect('${editorKey}', ${i}, this)">
     <div style="display:flex;gap:6px;margin-top:8px;">
       <button type="button" class="cq-edit-reask-btn" style="background:#1565C0;color:#fff;font-size:.72rem;"
-        onclick="_aiSourceAddSave('${editorKey}', ${i})">✅ Save Source</button>
+        onclick="_aiSourceAddSave('${editorKey}', ${i})"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Save Source</button>
       <button type="button" class="cq-edit-reask-btn" style="font-size:.72rem;"
         onclick="_aiSourceAddFormToggle('${editorKey}', ${i})">Cancel</button>
     </div>`;
@@ -257,7 +278,7 @@ function _aiSourceLibraryRemove(id, editorKey, i) {
     if (_aiSolveSourceChoice[k].type === 'lib' && _aiSolveSourceChoice[k].id === id) delete _aiSolveSourceChoice[k];
   });
   const btn = document.getElementById(`aiSolveSrcCaret_${editorKey}_${i}`);
-  if (btn) btn.innerHTML = escapeHtml(_aiSolveSourceShortLabel(editorKey, i)) + ' ▾';
+  if (btn) btn.innerHTML = _aiSolveSourceShortHTML(editorKey, i) + ' ▾';
   const picker = document.getElementById(`aiSourcePicker_${editorKey}_${i}`);
   if (picker) { picker.innerHTML = _renderAiSourcePickerHTML(editorKey, i); }
 }
@@ -301,7 +322,7 @@ async function aiSolveQuestion(editorKey, i) {
   _aiToolsCancelToken[_key] = token;
   _aiToolsSetBusy(editorKey, i, true, 'solve');
   const statusEl = _aiToolsStatusEl(editorKey, i);
-  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🤖 AI is solving this question…'));
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving this question…'));
   try {
     await cqAiSolveQuestions(questions, [i], sourceText, sourceFiles, statusEl, token);
   } catch (e) {
@@ -366,7 +387,7 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
   // If a rate limit forced an automatic key rotation mid-call, pick up
   // whichever key/file-reference actually ended up succeeding, so the
   // image-cropping pass below (and anything else reusing these) keeps working.
-  if (data.__rotatedApiKey)   apiKey   = data.__rotatedApiKey;
+  if (data.__rotatedApiKey) apiKey = data.__rotatedApiKey;
   if (data.__rotatedFilePart) filePart = data.__rotatedFilePart;
 
   const candidate = data && data.candidates && data.candidates[0];
@@ -468,24 +489,24 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
 }
 
 async function generateQuizFromAI() {
-  const titleInput  = document.getElementById('cqTitleInput'); // read synchronously below only — safe as a one-time lookup
+  const titleInput = document.getElementById('cqTitleInput'); // read synchronously below only — safe as a one-time lookup
   // Self-healing references (see js/dom-utils.js) — this flow runs across
   // many `await`s, and the surrounding modal can be rebuilt mid-run (e.g.
-  // switching keys via 🔑 Manage APIs while paused), which would otherwise
+  // switching keys via Manage APIs while paused), which would otherwise
   // leave these pointing at detached, invisible DOM nodes for the rest of
   // the run.
-  const statusEl    = liveStatusRef('cqStatus', 'cqStatus');
-  const genBtn      = liveRef('cqGenerateBtn');
-  const pauseRow    = liveRef('cqPauseRow');
-  const pauseBtn    = liveRef('cqPauseBtn');
-  const resumeBtn   = liveRef('cqResumeBtn');
+  const statusEl = liveStatusRef('cqStatus', 'cqStatus');
+  const genBtn = liveRef('cqGenerateBtn');
+  const pauseRow = liveRef('cqPauseRow');
+  const pauseBtn = liveRef('cqPauseBtn');
+  const resumeBtn = liveRef('cqResumeBtn');
 
-  let apiKey  = getActiveApiKey();
+  let apiKey = getActiveApiKey();
   const title = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
 
-  if (!apiKey)              { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Add API Key</button></div>`; return; }
-  if (!cqSelectedFiles.length){ statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload at least one image or PDF of your quiz first.</div>`; return; }
-  if (!title)               { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
+  if (!apiKey)              { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Add API Key</button></div>`; return; }
+  if (!cqSelectedFiles.length){ statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please upload at least one image or PDF of your quiz first.</div>`; return; }
+  if (!title)               { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please give this quiz a title.</div>`; return; }
 
   cqGeneratedTitle = title;
   cqBusy = true;
@@ -494,12 +515,12 @@ async function generateQuizFromAI() {
   cqIsPaused = false;
   cqStopRequested = false;
   cqCancelToken = { cancelled: false };
-  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
-  if (pauseRow)  pauseRow.style.display  = 'flex';
-  if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
+  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = '<svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Generating…'; }
+  if (pauseRow) pauseRow.style.display = 'flex';
+  if (pauseBtn) { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause'; }
   if (resumeBtn) resumeBtn.style.display = 'none';
   const stopBtn = document.getElementById('cqStopBtn');
-  if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+  if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; stopBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop'; }
   statusEl.innerHTML = _cqProgressStatusHTML(`Reading your file${cqSelectedFiles.length > 1 ? 's' : ''} and extracting all questions…`, 0);
 
   try {
@@ -513,7 +534,7 @@ async function generateQuizFromAI() {
       if (!apiKey) throw new Error('No active API key. Add or select one, then click Extract Questions again.');
 
       const file = cqSelectedFiles[fi];
-      const basePct  = (fi / totalFiles) * 100;
+      const basePct = (fi / totalFiles) * 100;
       const slicePct = 100 / totalFiles;
       const onProgress = (frac, label) => {
         const prefix = totalFiles > 1 ? `File ${fi + 1} of ${totalFiles} — ` : '';
@@ -535,7 +556,7 @@ async function generateQuizFromAI() {
             cqPauseSkipRequested = false;
             cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
             apiKey = await _cqEnterPause(statusEl,
-              `⏸️ Paused — stepped back to before "${escapeHtml(file.name)}" so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`);
+              `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before "${escapeHtml(file.name)}" so nothing already done is lost. Open Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`);
             if (!apiKey) throw new Error('No active API key. Add or select one, then click Extract Questions again.');
             continue; // retry this same file
           }
@@ -561,11 +582,11 @@ async function generateQuizFromAI() {
     if (cqAiAnsweringEnabled && cqAiAnswerSubmode === 'all') {
       // Solve ALL questions (including those with existing keys)
       const allIdxs = cleaned.map((_, i) => i);
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is solving all ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}… please wait.</div>`;
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving all ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}… please wait.</div>`;
       await cqAiSolveQuestions(cleaned, allIdxs, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
     } else if (cqAiAnsweringEnabled && cqAiAnswerSubmode === 'missing' && noKeyQs.length > 0) {
       // Solve only no-key questions
-      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 🤖 AI is answering ${noKeyQs.length} question${noKeyQs.length !== 1 ? 's' : ''} without an answer key… please wait.</div>`;
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is answering ${noKeyQs.length} question${noKeyQs.length !== 1 ? 's' : ''} without an answer key… please wait.</div>`;
       await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
     }
 
@@ -580,7 +601,7 @@ async function generateQuizFromAI() {
     // sense content-wise: nail down the correct answer first, then pad out
     // the remaining choices around it, and only polish the wording last,
     // once nothing about the question is still changing.
-    let fillResult   = null;
+    let fillResult = null;
     let refineResult = null;
     if (cqFillChoicesToggle) {
       fillResult = await cqBulkFillChoices(cleaned, statusEl, cqCancelToken);
@@ -592,32 +613,32 @@ async function generateQuizFromAI() {
     let warn = '';
     if (truncatedFiles.length) {
       const fileList = truncatedFiles.map(n => `"${escapeHtml(n)}"`).join(', ');
-      warn = ` ⚠️ ${truncatedFiles.length > 1 ? 'These files\' responses were' : 'This file\'s response was'} cut off because the document is very large: ${fileList}. Every complete question up to that point was still recovered, but check below that nothing near the end is missing, and split very long documents into smaller files if needed.`;
+      warn = ` <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${truncatedFiles.length > 1 ? 'These files\' responses were' : 'This file\'s response was'} cut off because the document is very large: ${fileList}. Every complete question up to that point was still recovered, but check below that nothing near the end is missing, and split very long documents into smaller files if needed.`;
     }
 
-    const imgCount    = cleaned.filter(q => q.image).length;
-    const imgNote     = imgCount > 0 ? ` · 🖼️ ${imgCount} image${imgCount !== 1 ? 's' : ''} embedded` : '';
-    const noKeyCount  = noKeyQs.length;
-    const aiCount     = cleaned.filter(q => q.ai_answered).length;
-    const guessCount  = cleaned.filter(q => q.ai_guessed).length;
-    const solveNote   = cqAiAnsweringEnabled && cqAiAnswerSubmode === 'all' && aiCount > 0
-      ? ` · 🤖 ${aiCount} AI-solved${guessCount > 0 ? ' (⚠️ ' + guessCount + ' from own knowledge)' : ''}`
+    const imgCount = cleaned.filter(q => q.image).length;
+    const imgNote     = imgCount > 0 ? ` · <svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> ${imgCount} image${imgCount !== 1 ? 's' : ''} embedded` : '';
+    const noKeyCount = noKeyQs.length;
+    const aiCount = cleaned.filter(q => q.ai_answered).length;
+    const guessCount = cleaned.filter(q => q.ai_guessed).length;
+    const solveNote = cqAiAnsweringEnabled && cqAiAnswerSubmode === 'all' && aiCount > 0
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> ${aiCount} AI-solved${guessCount > 0 ? ' (<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ' + guessCount + ' from own knowledge)' : ''}`
       : noKeyCount > 0 && cqAiAnsweringEnabled && cqAiAnswerSubmode === 'missing' && aiCount > 0
-      ? ` · 🤖 ${aiCount} AI-answered${guessCount > 0 ? ' (⚠️ ' + guessCount + ' from own knowledge)' : ''}`
-      : noKeyCount > 0 ? ` · ⚠️ ${noKeyCount} without key` : '';
-    const fileNote   = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
-    const fillNote   = fillResult && fillResult.done > 0
-      ? ` · 🧩 ${fillResult.done} question${fillResult.done !== 1 ? 's' : ''} filled to 4 choices` : '';
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> ${aiCount} AI-answered${guessCount > 0 ? ' (<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ' + guessCount + ' from own knowledge)' : ''}`
+      : noKeyCount > 0 ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${noKeyCount} without key` : '';
+    const fileNote = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
+    const fillNote = fillResult && fillResult.done > 0
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> ${fillResult.done} question${fillResult.done !== 1 ? 's' : ''} filled to 4 choices` : '';
     const refineNote = refineResult && refineResult.done > 0
-      ? ` · 🪄 ${refineResult.done} question${refineResult.done !== 1 ? 's' : ''} refined` : '';
-    statusEl.innerHTML = `<div class="cq-status success">✅ Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote}${imgNote}${solveNote}${fillNote}${refineNote}. Review below, then save.${warn}</div>`;
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ${refineResult.done} question${refineResult.done !== 1 ? 's' : ''} refined` : '';
+    statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote}${imgNote}${solveNote}${fillNote}${refineNote}. Review below, then save.${warn}</div>`;
 
     // Surface any per-question errors from the Fill Choices / Refine passes
     // without blocking the rest of the summary — extraction itself already
     // succeeded, these are just best-effort polish steps.
-    [['🧩 Fill Choices', fillResult], ['🪄 Refine Questions', refineResult]].forEach(([label, res]) => {
+    [['<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Fill Choices', fillResult], ['<svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Questions', refineResult]].forEach(([label, res]) => {
       if (res && res.errors.length > 0) {
-        const errHtml = res.errors.map(err => `<div>⚠️ ${escapeHtml(err)}</div>`).join('');
+        const errHtml = res.errors.map(err => `<div><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${escapeHtml(err)}</div>`).join('');
         statusEl.insertAdjacentHTML('beforeend',
           `<div class="cq-status warning" style="margin-top:6px;">${label} ran into issues on some questions:<br>${errHtml}</div>`
         );
@@ -625,12 +646,12 @@ async function generateQuizFromAI() {
     });
     if (noKeyCount > 0 && !cqAiAnsweringEnabled) {
       statusEl.insertAdjacentHTML('beforeend',
-        `<div class="cq-status warning" style="margin-top:6px;">⚠️ ${noKeyCount} question${noKeyCount !== 1 ? 's have' : ' has'} no answer key in the source document and ${noKeyCount !== 1 ? 'are' : 'is'} marked below with a <strong>⚠️ No Key</strong> badge. You can set the correct answer manually, or enable <strong>🤖 AI Answering</strong> before extracting to let AI answer them automatically.</div>`
+        `<div class="cq-status warning" style="margin-top:6px;"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${noKeyCount} question${noKeyCount !== 1 ? 's have' : ' has'} no answer key in the source document and ${noKeyCount !== 1 ? 'are' : 'is'} marked below with a <strong><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No Key</strong> badge. You can set the correct answer manually, or enable <strong><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Answering</strong> before extracting to let AI answer them automatically.</div>`
       );
     }
     if (guessCount > 0) {
       statusEl.insertAdjacentHTML('beforeend',
-        `<div class="cq-status warning" style="margin-top:6px;">🧠 ${guessCount} question${guessCount !== 1 ? 's were' : ' was'} answered from AI’s own knowledge (answer not found in the provided source). These are marked with a <strong>🧠 AI Guess</strong> badge — please verify them.</div>`
+        `<div class="cq-status warning" style="margin-top:6px;"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> ${guessCount} question${guessCount !== 1 ? 's were' : ' was'} answered from AI’s own knowledge (answer not found in the provided source). These are marked with a <strong><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> AI Guess</strong> badge — please verify them.</div>`
       );
     }
     renderCQPreview();
@@ -641,11 +662,11 @@ async function generateQuizFromAI() {
     if (err._cqStopped || err._cancelled) {
       statusEl.innerHTML = '';
     } else if (isKeyErr) {
-      statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
-        <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
+      statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
+        <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Choose or Add a Different Key</button>
       </div>`;
     } else {
-      statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+      statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ${escapeHtml(err.message || String(err))}</div>`;
     }
   } finally {
     cqBusy = false;
@@ -657,7 +678,7 @@ async function generateQuizFromAI() {
     cqResumeResolve = null;
     if (pauseRow) pauseRow.style.display = 'none';
     const btn = document.getElementById('cqGenerateBtn');
-    if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Quiz'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg> Generate Quiz'; }
   }
 }
 
@@ -706,7 +727,7 @@ The "answer" value must be one of the keys present in that question's "options" 
 function fileToText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload  = () => resolve(reader.result || '');
+    reader.onload = () => resolve(reader.result || '');
     reader.onerror = () => reject(new Error('Failed to read the file.'));
     reader.readAsText(file);
   });
@@ -823,42 +844,42 @@ async function _generateQuestionsFromLectureFile(file, generationPrompt, apiKey,
 }
 
 async function generateQuizFromLecture() {
-  const titleInput    = document.getElementById('cqLectureTitleInput'); // read synchronously below only
-  const qCountInput   = document.getElementById('cqQCountInput');
-  const promptInput   = document.getElementById('cqCustomPromptInput');
+  const titleInput = document.getElementById('cqLectureTitleInput'); // read synchronously below only
+  const qCountInput = document.getElementById('cqQCountInput');
+  const promptInput = document.getElementById('cqCustomPromptInput');
   // Self-healing references (see js/dom-utils.js) — same reasoning as
   // generateQuizFromAI() above.
-  const statusEl      = liveStatusRef('cqStatus', 'cqStatus');
-  const genBtn        = liveRef('cqLectureGenBtn');
-  const pauseRow      = liveRef('cqPauseRow');
-  const pauseBtn      = liveRef('cqPauseBtn');
-  const resumeBtn     = liveRef('cqResumeBtn');
+  const statusEl = liveStatusRef('cqStatus', 'cqStatus');
+  const genBtn = liveRef('cqLectureGenBtn');
+  const pauseRow = liveRef('cqPauseRow');
+  const pauseBtn = liveRef('cqPauseBtn');
+  const resumeBtn = liveRef('cqResumeBtn');
 
-  let apiKey   = getActiveApiKey();
-  const title  = (titleInput  ? titleInput.value  : cqGeneratedTitle).trim();
+  let apiKey = getActiveApiKey();
+  const title = (titleInput ? titleInput.value : cqGeneratedTitle).trim();
   const qCount = (qCountInput ? qCountInput.value : cqQuestionCount).trim();
   const prompt = (promptInput ? promptInput.value : cqCustomPrompt).trim();
 
-  if (!apiKey)               { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Add API Key</button></div>`; return; }
-  if (!cqLectureFiles.length) { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please upload at least one lecture file first.</div>`; return; }
-  if (!title)                { statusEl.innerHTML = `<div class="cq-status error">⚠️ Please give this quiz a title.</div>`; return; }
+  if (!apiKey)               { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Add API Key</button></div>`; return; }
+  if (!cqLectureFiles.length) { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please upload at least one lecture file first.</div>`; return; }
+  if (!title)                { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please give this quiz a title.</div>`; return; }
 
   cqGeneratedTitle = title;
-  cqCustomPrompt   = prompt;
-  cqQuestionCount  = qCount;
+  cqCustomPrompt = prompt;
+  cqQuestionCount = qCount;
   cqBusy = true;
   cqPauseRequested = false;
   cqPauseSkipRequested = false;
   cqIsPaused = false;
   cqStopRequested = false;
   cqCancelToken = { cancelled: false };
-  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generating…'; }
-  if (pauseRow)  pauseRow.style.display  = 'flex';
-  if (pauseBtn)  { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
+  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = '<svg class="sicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Generating…'; }
+  if (pauseRow) pauseRow.style.display = 'flex';
+  if (pauseBtn) { pauseBtn.style.display = 'inline-flex'; pauseBtn.disabled = false; pauseBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause'; }
   if (resumeBtn) resumeBtn.style.display = 'none';
   {
     const stopBtn = document.getElementById('cqStopBtn');
-    if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+    if (stopBtn) { stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; stopBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop'; }
   }
   statusEl.innerHTML = _cqProgressStatusHTML(`Reading your lecture${cqLectureFiles.length > 1 ? 's' : ''} and generating questions…`, 0);
 
@@ -875,7 +896,7 @@ async function generateQuizFromLecture() {
       if (!apiKey) throw new Error('No active API key. Add or select one, then click Generate Questions again.');
 
       const file = cqLectureFiles[fi];
-      const basePct  = (fi / totalFiles) * 100;
+      const basePct = (fi / totalFiles) * 100;
       const slicePct = 100 / totalFiles;
       const onProgress = (frac, label) => {
         const prefix = totalFiles > 1 ? `Lecture ${fi + 1} of ${totalFiles} — ` : '';
@@ -896,7 +917,7 @@ async function generateQuizFromLecture() {
             cqPauseSkipRequested = false;
             cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
             apiKey = await _cqEnterPause(statusEl,
-              `⏸️ Paused — stepped back to before "${escapeHtml(file.name)}" so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`);
+              `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before "${escapeHtml(file.name)}" so nothing already done is lost. Open Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`);
             if (!apiKey) throw new Error('No active API key. Add or select one, then click Generate Questions again.');
             continue; // retry this same file
           }
@@ -920,7 +941,7 @@ async function generateQuizFromLecture() {
     let warn = '';
     if (truncatedFiles.length) {
       const fileList = truncatedFiles.map(n => `"${escapeHtml(n)}"`).join(', ');
-      warn = ` ⚠️ ${truncatedFiles.length > 1 ? 'These files\' responses were' : 'This file\'s response was'} cut off because the document is very large: ${fileList}. Every complete question up to that point was still recovered, but try splitting very long documents into smaller files for a full set.`;
+      warn = ` <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${truncatedFiles.length > 1 ? 'These files\' responses were' : 'This file\'s response was'} cut off because the document is very large: ${fileList}. Every complete question up to that point was still recovered, but try splitting very long documents into smaller files for a full set.`;
     }
 
     const clinicalCount = cleaned.filter(q =>
@@ -929,20 +950,20 @@ async function generateQuizFromLecture() {
     const clinicalPct = Math.round((clinicalCount / cleaned.length) * 100);
     const fileNote = cqLectureFiles.length > 1 ? ` from ${cqLectureFiles.length} files` : '';
 
-    statusEl.innerHTML = `<div class="cq-status success">✅ Generated ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote} (${clinicalPct}% clinical scenarios). Review below, then save.${warn}</div>`;
+    statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Generated ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote} (${clinicalPct}% clinical scenarios). Review below, then save.${warn}</div>`;
     renderCQPreview();
 
   } catch (err) {
     const isKeyErr = err._keyError ||
       /api.?key|invalid.?key|not.?valid|permission.?denied/i.test(err.message || '');
     if (err._cqStopped || err._cancelled) {
-      statusEl.innerHTML = `<div class="cq-status warning">⏹️ Stopped. Nothing generated before the abort was lost, but you'll need to click <strong>Generate Questions</strong> again to continue.</div>`;
+      statusEl.innerHTML = `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stopped. Nothing generated before the abort was lost, but you'll need to click <strong>Generate Questions</strong> again to continue.</div>`;
     } else if (isKeyErr) {
-      statusEl.innerHTML = `<div class="cq-status error">🔑 Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
-        <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())">🔑 Choose or Add a Different Key</button>
+      statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Your active API key was rejected or is invalid.<br><small>${escapeHtml(err.message || String(err))}</small><br><br>
+        <button class="apikey-open-btn ghost" onclick="openApiKeyManager(() => renderCustomQuizModal())"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Choose or Add a Different Key</button>
       </div>`;
     } else {
-      statusEl.innerHTML = `<div class="cq-status error">❌ ${escapeHtml(err.message || String(err))}</div>`;
+      statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ${escapeHtml(err.message || String(err))}</div>`;
     }
   } finally {
     cqBusy = false;
@@ -954,7 +975,7 @@ async function generateQuizFromLecture() {
     cqResumeResolve = null;
     if (pauseRow) pauseRow.style.display = 'none';
     const btn = document.getElementById('cqLectureGenBtn');
-    if (btn) { btn.disabled = false; btn.textContent = '🧠 Generate Questions'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> Generate Questions'; }
   }
 }
 
@@ -974,15 +995,15 @@ function renderCQPreview() {
 
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0 10px;">
     <div style="font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">
-      ✏️ Review &amp; Edit — ${cqGeneratedQuestions.length} question${cqGeneratedQuestions.length !== 1 ? 's' : ''}
+      <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Review &amp; Edit — ${cqGeneratedQuestions.length} question${cqGeneratedQuestions.length !== 1 ? 's' : ''}
     </div>
     <div style="font-size:.74rem;color:var(--text-muted);font-weight:600;">
-      Click any field to edit &nbsp;·&nbsp; 🔘 = correct answer &nbsp;·&nbsp; 🤖 = re-ask AI &nbsp;·&nbsp; 🔗 = linked case questions
+      Click any field to edit &nbsp;·&nbsp; <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" style="fill:currentColor;stroke:none;"/></svg> = correct answer &nbsp;·&nbsp; <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> = re-ask AI &nbsp;·&nbsp; <svg class="sicon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> = linked case questions
     </div>
   </div>`;
   // Same whole-quiz AI Tools panel the Admin and Custom-Quiz editors get
   // (AI Solve All / Fill Choices / Refine Questions), plus a fourth,
-  // preview-only tool — 🖼️ Re-extract Missing Images — for anyone who
+  // preview-only tool — Re-extract Missing Images — for anyone who
   // forgot to hit the per-question AI buttons during extraction, or whose
   // extraction left some images un-cropped. See _renderBulkAiToolsPanel
   // and _editorBulkReextractImages in js/ai-features.js.
@@ -992,18 +1013,18 @@ function renderCQPreview() {
 
   cqGeneratedQuestions.forEach((q, i) => {
     const optEntries = getOptionEntries(q);
-    const usedKeys   = optEntries.map(([k]) => k);
-    const nextKey    = ALL_KEYS.find(k => !usedKeys.includes(k));
+    const usedKeys = optEntries.map(([k]) => k);
+    const nextKey = ALL_KEYS.find(k => !usedKeys.includes(k));
 
     html += `<div class="cq-preview-q cq-editable-q" id="cqQ_${i}">`;
 
     /* ── Question header ── */
     const qBadge = q.ai_guessed
-      ? `<span title="AI answered this from its own knowledge — answer was not found in the provided source. Please verify." style="background:var(--amber-pale);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-mid);">🧠 AI Guess</span>`
+      ? `<span title="AI answered this from its own knowledge — answer was not found in the provided source. Please verify." style="background:var(--amber-pale);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-mid);"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> AI Guess</span>`
       : q.ai_answered
-      ? `<span title="AI answered this question from the provided source" style="background:var(--violet-pale);color:var(--violet-dark);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--violet-border);">🤖 AI-answered</span>`
+      ? `<span title="AI answered this question from the provided source" style="background:var(--violet-pale);color:var(--violet-dark);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--violet-border);"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI-answered</span>`
       : q.no_answer_key
-      ? `<span title="No answer key found in the PDF — please set the correct answer manually" style="background:var(--unanswered-bg);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-strong);">⚠️ No Key</span>`
+      ? `<span title="No answer key found in the PDF — please set the correct answer manually" style="background:var(--unanswered-bg);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-strong);"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No Key</span>`
       : '';
     html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
@@ -1014,7 +1035,7 @@ function renderCQPreview() {
       ${_renderReorderButtons('cq', i, cqGeneratedQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
         onclick="cqDeleteQuestion(${i})"
-        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);">🗑 Delete</button>
+        style="background:var(--wrong-bg);color:var(--wrong-fg);border-color:var(--red-soft-border);"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
     </div>`;
 
     /* ── Question textarea ── */
@@ -1045,11 +1066,11 @@ function renderCQPreview() {
     const _reextractStatusId = `aiReextractStatus_cq_${i}`;
     // Same restore-from-cache pattern _renderAiRefineTools/_renderAiChoiceTools
     // use for their status boxes — without it, this box comes back empty on
-    // any mid-run rebuild (e.g. closing 🔑 Manage APIs) until the request
+    // any mid-run rebuild (e.g. closing Manage APIs) until the request
     // finishes, even though the ⏹ Stop button above still shows correctly
     // (it's driven by live busy state, not by this cached HTML).
     const _reextractCachedStatus = _reBusy ? getCachedStatusHTML(_reextractStatusId) : '';
-    // Shared markup for the 🔁 Re-extract Image button + ⚙️ instructions
+    // Shared markup for the Re-extract Image button + instructions
     // caret + ⏹ Stop button, used identically whether the question already
     // has an image (to try a better crop) or doesn't yet (to try again).
     const _reextractControlsHTML = _canReextract ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -1057,7 +1078,7 @@ function renderCQPreview() {
               <button class="cq-img-action-btn" type="button" id="aiReextractImageBtn_cq_${i}" ${_reBusy ? 'disabled' : ''}
                 title="Ask AI to re-locate and re-crop this image from the original source file"
                 onclick="cqReextractImage(${i})"
-                style="border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML('cq', i, 'reextractImage')}🔁 Re-extract Image</button>
+                style="border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML('cq', i, 'reextractImage')}<svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Re-extract Image</button>
               <button class="cq-img-action-btn" type="button" id="aiReextractInstrCaret_cq_${i}" ${_reBusy ? 'disabled' : ''}
                 title="Optional correction used only when re-extracting this image (e.g. widen the frame, fix the position)"
                 onclick="_toggleReextractInstrPicker(${i})"
@@ -1065,7 +1086,7 @@ function renderCQPreview() {
             </div>
             <button class="ai-tool-stop-btn" type="button" id="aiReextractStopBtn_cq_${i}"
               style="${_reBusy && _aiToolsActiveAction[_aiToolsKey('cq', i)] === 'reextractImage' ? 'display:inline-block;' : ''}"
-              title="Stop re-extracting" onclick="_aiToolsStopAction('cq', ${i})">⏹ Stop</button>
+              title="Stop re-extracting" onclick="_aiToolsStopAction('cq', ${i})"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
           </div>` : '';
     const _reextractExtrasHTML = _canReextract ? `<div id="aiReextractInstrPicker_cq_${i}" class="ai-source-picker" style="display:none;"></div>
           <div id="${_reextractStatusId}" style="max-width:220px;">${_reextractCachedStatus}</div>` : '';
@@ -1077,13 +1098,13 @@ function renderCQPreview() {
             style="max-width:200px;max-height:130px;object-fit:contain;display:block;" />
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">
-          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">📷 Question Image</div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;"><svg class="sicon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Question Image</div>
           <label class="cq-img-action-btn" title="Upload a different image">
-            🔄 Change Image
+            <svg class="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Change Image
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
           ${_reextractControlsHTML}
-          <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button">🗑️ Remove Image</button>
+          <button class="cq-img-action-btn cq-img-remove-btn" onclick="cqRemoveImage(${i})" type="button"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Remove Image</button>
           ${_reextractExtrasHTML}
         </div>
       </div>`;
@@ -1091,11 +1112,11 @@ function renderCQPreview() {
       html += `<div style="padding:8px 12px;background:var(--unanswered-bg);border:1.5px dashed var(--unanswered-fg);
         border-radius:7px;font-size:.78rem;color:#795500;font-weight:700;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-          ⚠️ AI detected an image for this question but couldn't extract it
+          <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> AI detected an image for this question but couldn't extract it
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <label class="cq-img-action-btn" style="color:var(--accent);border-color:var(--accent);" title="Upload image manually">
-            📎 Upload Image Manually
+            <svg class="sicon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Upload Image Manually
             <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
           </label>
           ${_reextractControlsHTML}
@@ -1104,7 +1125,7 @@ function renderCQPreview() {
       </div>`;
     } else {
       html += `<label class="cq-img-upload-label" title="Attach an image to this question">
-        🖼️ Add Image (optional)
+        <svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Add Image (optional)
         <input type="file" accept="image/*" style="display:none;" onchange="cqReplaceImage(${i}, event)" />
       </label>`;
     }
@@ -1116,7 +1137,7 @@ function renderCQPreview() {
     /* ── Options label ── */
     html += `<div style="font-size:.72rem;font-weight:700;color:var(--text-muted);
       text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">
-      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with 🔘</span>
+      Answer Choices &nbsp;<span style="font-weight:500;text-transform:none;letter-spacing:0;">— select the correct answer with <svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" style="fill:currentColor;stroke:none;"/></svg></span>
     </div>`;
 
     /* ── Options rows ── */
@@ -1164,13 +1185,13 @@ function renderCQPreview() {
 
   /* ── Add question + save/discard ── */
   html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <button class="cq-btn" id="cqPreviewSaveBtn" onclick="saveGeneratedCustomQuiz()">💾 Save Quiz</button>
+    <button class="cq-btn" id="cqPreviewSaveBtn" onclick="saveGeneratedCustomQuiz()"><svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Quiz</button>
     <button class="cq-btn cq-btn-secondary" id="cqPreviewAddBtn" onclick="cqAddBlankQuestion()"
       style="background:var(--green-mid);">＋ Add Question</button>
     <button class="cq-btn cq-btn-secondary" id="cqPreviewMergeBtn" onclick="openMergePicker('cq')"
-      style="background:var(--violet);color:#fff;">🧩 Merge Quizzes In</button>
+      style="background:var(--violet);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg> Merge Quizzes In</button>
     <button class="cq-btn cq-btn-secondary" id="cqPreviewSplitBtn" onclick="openSplitPanel('preview', null)"
-      style="background:var(--violet);color:#fff;">✂️ Split into Multiple</button>
+      style="background:var(--violet);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Split into Multiple</button>
     <button class="cq-btn cq-btn-secondary" id="cqPreviewDiscardBtn" onclick="discardGeneratedQuiz()">✖ Discard</button>
   </div>`;
 
@@ -1232,7 +1253,7 @@ function cqSetAnswer(idx, key) {
 
 function cqRemoveImage(idx) {
   if (!cqGeneratedQuestions || !cqGeneratedQuestions[idx]) return;
-  cqGeneratedQuestions[idx].image    = undefined;
+  cqGeneratedQuestions[idx].image = undefined;
   cqGeneratedQuestions[idx].has_image = false;
   _markQuestionEditDirty();
   renderCQPreview();
@@ -1261,7 +1282,7 @@ function _reextractInstrChanged(i, val) {
 }
 function _reextractInstrCaretLabel(i) {
   const draft = (_cqReextractInstrText[i] || '').trim();
-  return draft ? '⚙️ Instructions •' : '⚙️ Instructions';
+  return draft ? '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Instructions •' : '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Instructions';
 }
 function _toggleReextractInstrPicker(i) {
   _toggleAiPopover(`aiReextractInstrPicker_cq_${i}`, `aiReextractInstrCaret_cq_${i}`,
@@ -1270,12 +1291,12 @@ function _toggleReextractInstrPicker(i) {
 function _renderReextractInstrPickerHTML(i) {
   const draft = _cqReextractInstrText[i] || '';
   return `<div class="ai-source-picker-inner" style="max-width:290px;">
-    <div class="ai-source-picker-title">🔁 Custom Instructions — Re-extract Image only</div>
+    <div class="ai-source-picker-title"><svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Custom Instructions — Re-extract Image only</div>
     <div style="font-size:.71rem;color:var(--text-muted);padding:0 6px 6px;line-height:1.35;">
       If AI keeps getting this image wrong, tell it what to fix — e.g.
       "widen the frame, it's cutting off the left edge" or "wrong position,
       it's actually the graph on the next page". Used only for
-      🔁 Re-extract Image on this question.
+      <svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Re-extract Image on this question.
     </div>
     <textarea id="reextractInstrInput_${i}" rows="3"
       oninput="_reextractInstrChanged(${i}, this.value)"
@@ -1293,7 +1314,7 @@ async function cqReextractImage(i) {
   // Own DOM id (not the shared aiToolsStatus_cq_<i> box the textarea tools
   // use) — see the render block in renderCQPreview(). Every write below
   // goes through _aiToolsSetStatusById so this box survives a mid-run
-  // rebuild (e.g. closing 🔑 Manage APIs) the same way Refine/Solve/Fill
+  // rebuild (e.g. closing Manage APIs) the same way Refine/Solve/Fill
   // Choices already do — see that helper in js/ai-question-tools.js for why.
   const reextractStatusId = `aiReextractStatus_cq_${i}`;
 
@@ -1316,7 +1337,7 @@ async function cqReextractImage(i) {
   _aiToolsCancelToken[key] = token;
 
   _aiToolsSetBusy('cq', i, true, 'reextractImage');
-  _aiToolsSetStatusById(reextractStatusId, _aiToolsLoadingHTML('🔁 Re-extracting image from source…'));
+  _aiToolsSetStatusById(reextractStatusId, _aiToolsLoadingHTML('<svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Re-extracting image from source…'));
 
   try {
     // Passing just this one question keeps the request scoped to it —
@@ -1355,10 +1376,10 @@ function cqReplaceImage(idx, event) {
     const dataUrl = reader.result;
     // Compress before storing
     try {
-      cqGeneratedQuestions[idx].image    = await compressImageDataUrl(dataUrl);
+      cqGeneratedQuestions[idx].image = await compressImageDataUrl(dataUrl);
       cqGeneratedQuestions[idx].has_image = true;
     } catch(e) {
-      cqGeneratedQuestions[idx].image    = dataUrl;
+      cqGeneratedQuestions[idx].image = dataUrl;
       cqGeneratedQuestions[idx].has_image = true;
     }
     _markQuestionEditDirty();
@@ -1494,19 +1515,19 @@ async function saveGeneratedCustomQuiz() {
   // spinner for the duration, same treatment as extraction's Generate
   // button, instead of leaving Save (and its siblings) clickable with no
   // feedback while the write is still in flight.
-  const statusEl  = liveStatusRef('cqStatus', 'cqStatus');
-  const saveBtn   = liveRef('cqPreviewSaveBtn');
+  const statusEl = liveStatusRef('cqStatus', 'cqStatus');
+  const saveBtn = liveRef('cqPreviewSaveBtn');
   const rowBtnIds = ['cqPreviewSaveBtn', 'cqPreviewAddBtn', 'cqPreviewMergeBtn', 'cqPreviewSplitBtn', 'cqPreviewDiscardBtn'];
   rowBtnIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
   if (saveBtn) saveBtn.innerHTML = '<span class="ai-btn-spinner"></span> Saving…';
-  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> 💾 Saving quiz…</div>`;
+  statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Saving quiz…</div>`;
 
   try {
     await saveCustomQuizzesList(quizzes);
   } catch (e) {
     rowBtnIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
-    if (saveBtn) saveBtn.innerHTML = '💾 Save Quiz';
-    statusEl.innerHTML = `<div class="cq-status error">❌ Failed to save: ${escapeHtml(e.message || String(e))}</div>`;
+    if (saveBtn) saveBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Quiz';
+    statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Failed to save: ${escapeHtml(e.message || String(e))}</div>`;
     return;
   }
 
@@ -1518,6 +1539,6 @@ async function saveGeneratedCustomQuiz() {
 
   renderCustomQuizModal();
   const freshStatusEl = document.getElementById('cqStatus');
-  if (freshStatusEl) freshStatusEl.innerHTML = `<div class="cq-status success">✅ Quiz "${escapeHtml(title)}" saved! Start it from the list above.</div>`;
+  if (freshStatusEl) freshStatusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Quiz "${escapeHtml(title)}" saved! Start it from the list above.</div>`;
 }
 

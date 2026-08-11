@@ -21,7 +21,7 @@
    key it wrote to.
 
    Custom quizzes (private, per-user) use a separate per-user version
-   doc: users/{uid}/meta/cacheVersion  { v: <ms> } — see the
+   doc: users/{uid}/meta/cacheVersion { v: <ms> } — see the
    "PER-USER CACHE" section further down.
 
    STORAGE BACKEND: IndexedDB, not localStorage.
@@ -46,7 +46,7 @@
 const CACHE_VER_KEY = 'anu_msp_cache_ver';
 
 
-const _IDB_NAME  = 'anu_msp_cache_db';
+const _IDB_NAME = 'anu_msp_cache_db';
 const _IDB_STORE = 'kv';
 
 // subjName -> { lectureId: lectureName }, valid only for the current page
@@ -68,7 +68,7 @@ function _idbOpen() {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
+    req.onerror = () => reject(req.error);
   });
   return _idbPromise;
 }
@@ -80,7 +80,7 @@ async function _idbGet(key) {
       const tx = db.transaction(_IDB_STORE, 'readonly');
       const rq = tx.objectStore(_IDB_STORE).get(key);
       rq.onsuccess = () => resolve(rq.result === undefined ? null : rq.result);
-      rq.onerror   = () => reject(rq.error);
+      rq.onerror = () => reject(rq.error);
     });
   } catch (e) { return null; }
 }
@@ -92,7 +92,7 @@ async function _idbSet(key, value) {
       const tx = db.transaction(_IDB_STORE, 'readwrite');
       tx.objectStore(_IDB_STORE).put(value, key);
       tx.oncomplete = () => resolve();
-      tx.onerror    = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error);
     });
     return true;
   } catch (e) { console.warn('[cache] IndexedDB write failed for', key, e); return false; }
@@ -105,7 +105,7 @@ async function _idbDelete(key) {
       const tx = db.transaction(_IDB_STORE, 'readwrite');
       tx.objectStore(_IDB_STORE).delete(key);
       tx.oncomplete = () => resolve();
-      tx.onerror    = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error);
     });
   } catch (e) {}
 }
@@ -117,7 +117,7 @@ async function _idbKeys() {
       const tx = db.transaction(_IDB_STORE, 'readonly');
       const rq = tx.objectStore(_IDB_STORE).getAllKeys();
       rq.onsuccess = () => resolve(rq.result || []);
-      rq.onerror   = () => reject(rq.error);
+      rq.onerror = () => reject(rq.error);
     });
   } catch (e) { return []; }
 }
@@ -240,8 +240,8 @@ function _applyCurriculumCache(cached) {
 
 function _reRenderOpenSelections() {
   const _yr = selectedYear, _mod = selectedModule, _subj = selectedSubject, _lecs = selectedLectures;
-  if (_yr)   { selectYear(_yr);    selectedLectures = _lecs; }
-  if (_mod)  { selectModule(_mod); selectedLectures = _lecs; }
+  if (_yr) { selectYear(_yr); selectedLectures = _lecs; }
+  if (_mod) { selectModule(_mod); selectedLectures = _lecs; }
   if (_subj) { selectSubject(_subj); }
 }
 
@@ -285,11 +285,11 @@ function _reRenderOpenSelections() {
    in place rather than removed, since it's inert either way and safe. */
 async function _backfillManifestIfNeeded() {
   try {
-    const doneRef  = window._doc(window._db, 'appConfig', 'manifestBackfillDone');
+    const doneRef = window._doc(window._db, 'appConfig', 'manifestBackfillDone');
     const doneSnap = await window._getDoc(doneRef);
     if (doneSnap.exists() && doneSnap.data().done) return;
 
-    const manifestRef  = window._doc(window._db, 'appConfig', 'publishedManifest');
+    const manifestRef = window._doc(window._db, 'appConfig', 'publishedManifest');
     const manifestSnap = await window._getDoc(manifestRef);
     const manifestData = manifestSnap.exists() ? (manifestSnap.data() || {}) : {};
     if (!manifestData.subjects) manifestData.subjects = {};
@@ -297,12 +297,12 @@ async function _backfillManifestIfNeeded() {
     let changed = false;
     await Promise.all(Object.keys(subjects).map(async (subjName) => {
       try {
-        const col   = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
+        const col = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
         const snaps = await window._getDocs(col);
         const known = new Set(Object.keys(manifestData.subjects[subjName] || {}));
         snaps.forEach(docSnap => {
           if (!known.has(docSnap.id)) {
-            const d  = docSnap.data() || {};
+            const d = docSnap.data() || {};
             const ts = d.updatedAt || d.publishedAt || Date.now();
             if (!manifestData.subjects[subjName]) manifestData.subjects[subjName] = {};
             manifestData.subjects[subjName][docSnap.id] = ts;
@@ -346,11 +346,11 @@ async function _backfillManifestIfNeeded() {
    _backfillManifestIfNeeded above — safe, inert no-op. */
 async function _backfillLectureOrderIfNeeded() {
   try {
-    const doneRef  = window._doc(window._db, 'appConfig', 'orderBackfillDone');
+    const doneRef = window._doc(window._db, 'appConfig', 'orderBackfillDone');
     const doneSnap = await window._getDoc(doneRef);
     if (doneSnap.exists() && doneSnap.data().done) return;
 
-    const manifestRef  = window._doc(window._db, 'appConfig', 'publishedManifest');
+    const manifestRef = window._doc(window._db, 'appConfig', 'publishedManifest');
     const manifestSnap = await window._getDoc(manifestRef);
     const manifestData = manifestSnap.exists() ? (manifestSnap.data() || {}) : {};
     if (!manifestData.subjects) manifestData.subjects = {};
@@ -358,7 +358,7 @@ async function _backfillLectureOrderIfNeeded() {
     let changed = false;
     await Promise.all(Object.keys(subjects).map(async (subjName) => {
       try {
-        const col   = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
+        const col = window._collection(window._db, 'publishedQuestions', subjName, 'lectures');
         const snaps = await window._getDocs(col);
         const fixes = [];
         snaps.forEach(docSnap => {
@@ -415,7 +415,7 @@ const PUBLISHED_MANIFEST_THROTTLE_KEY = 'lastVersionCheck:curriculum';
 async function _rebuildPublishedFromCacheOnly() {
   const perSubject = {};
   for (const subjName of Object.keys(subjects)) {
-    const trackKey  = 'publishedTrack:' + subjName;
+    const trackKey = 'publishedTrack:' + subjName;
     const prevTrack = _sessionPublishedTrack[subjName] || (await _idbGet(trackKey)) || {};
     const lecIds = Object.keys(prevTrack);
     const resolved = [];
@@ -459,11 +459,11 @@ async function loadPublishedQuestionsIntoSubjects(skipThrottle) {
     /* ── 2. Handle every subject in parallel, and within each subject
             every quiz in parallel. Each quiz is checked/fetched/cached
             completely independently:
-              • unchanged quiz  → read straight from IndexedDB, 0 reads
+              • unchanged quiz → read straight from IndexedDB, 0 reads
               • new/changed one → fetch just that one doc, cache it the
                                     moment it lands (not after the whole
                                     subject or app finishes loading)
-              • removed one     → dropped from memory + local cache
+              • removed one → dropped from memory + local cache
             Fetches run in parallel so they can land in any order — the
             actual student-facing sequence is decided afterward from each
             quiz's admin-controlled 'order' field, not fetch timing. ── */
@@ -477,7 +477,7 @@ async function loadPublishedQuestionsIntoSubjects(skipThrottle) {
       // session track (set the last time this function ran during THIS
       // page load, e.g. after an admin migration) over the IndexedDB one,
       // so repeated in-session calls clean up renames/reorders correctly.
-      const trackKey  = 'publishedTrack:' + subjName;
+      const trackKey = 'publishedTrack:' + subjName;
       const prevTrack = _sessionPublishedTrack[subjName] || (await _idbGet(trackKey)) || {};
 
       if (!subjects[subjName].lectures) subjects[subjName].lectures = {};
@@ -486,8 +486,8 @@ async function loadPublishedQuestionsIntoSubjects(skipThrottle) {
 
       await Promise.all(lecIds.map(async (lectureId) => {
         const ver = lecVersions[lectureId];
-        const idbKey  = 'published:' + subjName + ':' + lectureId;
-        const cached  = await _idbGet(idbKey);
+        const idbKey = 'published:' + subjName + ':' + lectureId;
+        const cached = await _idbGet(idbKey);
 
         if (cached && cached.ver === ver) {
           // Cache hit for this exact quiz — zero Firestore reads.
@@ -570,10 +570,10 @@ async function loadPublishedQuestionsIntoSubjects(skipThrottle) {
    as a new prefix-filtering helper. local-store.js is patched separately to
    unwrap { value } itself via a small local wrapper — see local-store.js.
    ============================================================================= */
-window._idbGet    = _idbGet;
-window._idbSet    = _idbSet;
+window._idbGet = _idbGet;
+window._idbSet = _idbSet;
 window._idbDelete = _idbDelete;
-window._idbKeys   = _idbKeys;
+window._idbKeys = _idbKeys;
 
 /** Lists all stored keys starting with `prefix`, returned as { keys: [...] }. */
 window._idbList = async function _idbList(prefix = '') {

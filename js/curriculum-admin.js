@@ -41,7 +41,7 @@ function renderAdminCurriculumPanel() {
 
 function adminCurrBreadcrumbHtml() {
   let html = `<div class="curr-breadcrumb">`;
-  html += `<span class="curr-crumb ${adminCurrNavLevel === 'years' ? 'active' : ''}" onclick="adminCurrGoYears()">📅 Years</span>`;
+  html += `<span class="curr-crumb ${adminCurrNavLevel === 'years' ? 'active' : ''}" onclick="adminCurrGoYears()"><svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Years</span>`;
   if (adminTargetYear) {
     html += `<span class="curr-crumb-sep">›</span><span class="curr-crumb ${adminCurrNavLevel === 'modules' ? 'active' : ''}" onclick="adminCurrGoModules()">${escapeHtml(adminTargetYear)}</span>`;
   }
@@ -104,7 +104,7 @@ function renderAdminCurrYearsLevel(body) {
 
       <div class="curr-section">
         ${isFull ? `
-        <div class="curr-section-title">➕ Add New Academic Year</div>
+        <div class="curr-section-title"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add New Academic Year</div>
         <div class="curr-row">
           <div class="curr-field">
             <label>Year Name (e.g. "Fourth Year")</label>
@@ -114,7 +114,7 @@ function renderAdminCurrYearsLevel(body) {
           <button class="curr-add-btn" onclick="adminAddYear()">Add Year</button>
         </div>
         <div class="curr-status" id="currYearStatus"></div>
-        ` : `<div class="scope-hint">📍 Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects — you can still fully manage quizzes anywhere within your access.</div>`}
+        ` : `<div class="scope-hint"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects — you can still fully manage quizzes anywhere within your access.</div>`}
         <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Existing Years — tap one to manage its modules</div>
         <div id="currYearList">${years.length ? years.map((y, i) => `
           <div class="curr-item-row curr-item-open" onclick="adminCurrOpenYear('${escapeHtml(y)}')">
@@ -123,9 +123,9 @@ function renderAdminCurrYearsLevel(body) {
               <div class="curr-item-sub">${Object.keys(curriculum[y] || {}).length} module(s)</div>
             </div>
             ${isFull ? `
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditYearIcon('${escapeHtml(y)}')">🎨 Icon</button>
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameYear('${escapeHtml(y)}')">✏️ Rename</button>
-            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteYear('${escapeHtml(y)}')">🗑 Delete</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditYearIcon('${escapeHtml(y)}')"><svg class="sicon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".6"/><circle cx="17.5" cy="10.5" r=".6"/><circle cx="8.5" cy="7.5" r=".6"/><circle cx="6.5" cy="12.5" r=".6"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.5-2.5 5.5-5.6C22 6 17.5 2 12 2z"/></svg> Icon</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameYear('${escapeHtml(y)}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Rename</button>
+            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteYear('${escapeHtml(y)}')"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
             ` : ''}
             <span class="curr-item-arrow">▶</span>
           </div>`).join('') : '<span style="color:var(--text-muted);font-size:.8rem;">None yet</span>'}</div>
@@ -148,7 +148,7 @@ function renderAdminCurrModulesLevel(body) {
 
       <div class="curr-section">
         ${isFull ? `
-        <div class="curr-section-title">➕ Add New Module to "${escapeHtml(year)}"</div>
+        <div class="curr-section-title"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add New Module to "${escapeHtml(year)}"</div>
         <div class="curr-row">
           <div class="curr-field">
             <label>Module Name (e.g. "Module 5")</label>
@@ -158,7 +158,7 @@ function renderAdminCurrModulesLevel(body) {
           <button class="curr-add-btn" onclick="adminAddModule()">Add Module</button>
         </div>
         <div class="curr-status" id="currModuleStatus"></div>
-        ` : `<div class="scope-hint">📍 Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects.</div>`}
+        ` : `<div class="scope-hint"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects.</div>`}
         <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Modules in ${escapeHtml(year)} — tap one to manage its subjects</div>
         <div id="currModuleList">${mods.length ? mods.map(m => `
           <div class="curr-item-row curr-item-open" onclick="adminCurrOpenModule('${escapeHtml(m)}')">
@@ -167,9 +167,9 @@ function renderAdminCurrModulesLevel(body) {
               <div class="curr-item-sub">${(curriculum[year][m] || []).filter(k => subjects[k]).length} subject(s)</div>
             </div>
             ${isFull ? `
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditModuleIcon('${escapeHtml(year)}','${escapeHtml(m)}')">🎨 Icon</button>
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameModule('${escapeHtml(year)}','${escapeHtml(m)}')">✏️ Rename</button>
-            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteModule('${escapeHtml(year)}','${escapeHtml(m)}')">🗑 Delete</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditModuleIcon('${escapeHtml(year)}','${escapeHtml(m)}')"><svg class="sicon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".6"/><circle cx="17.5" cy="10.5" r=".6"/><circle cx="8.5" cy="7.5" r=".6"/><circle cx="6.5" cy="12.5" r=".6"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.5-2.5 5.5-5.6C22 6 17.5 2 12 2z"/></svg> Icon</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameModule('${escapeHtml(year)}','${escapeHtml(m)}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Rename</button>
+            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteModule('${escapeHtml(year)}','${escapeHtml(m)}')"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
             ` : ''}
             <span class="curr-item-arrow">▶</span>
           </div>`).join('') : `<span style="color:var(--text-muted);font-size:.8rem;">${isFull ? 'No modules yet in this year' : 'No modules within your curriculum access in this year'}</span>`}</div>
@@ -194,7 +194,7 @@ function renderAdminCurrSubjectsLevel(body) {
 
       <div class="curr-section">
         ${isFull ? `
-        <div class="curr-section-title">➕ Add New Subject to "${escapeHtml(mod)}"</div>
+        <div class="curr-section-title"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add New Subject to "${escapeHtml(mod)}"</div>
         <div class="curr-row">
           <div class="curr-field">
             <label>Subject Label (shown to users)</label>
@@ -211,7 +211,7 @@ function renderAdminCurrSubjectsLevel(body) {
           <button class="curr-add-btn secondary" onclick="adminAddSubject()">Add Subject</button>
         </div>
         <div class="curr-status" id="currSubjStatus"></div>
-        ` : `<div class="scope-hint">📍 Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects — tap a subject below to manage its quizzes.</div>`}
+        ` : `<div class="scope-hint"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Your curriculum access: ${escapeHtml(curriculumScopeSummary(scope))}. Only whole-curriculum admins can restructure Years/Modules/Subjects — tap a subject below to manage its quizzes.</div>`}
         <div class="curr-section-title" style="margin-top:10px;margin-bottom:6px;">Subjects in ${escapeHtml(mod)} — tap one to manage its quizzes</div>
         <div id="currSubjList" class="curr-list">${keys.length ? keys.map(k => {
           const s = subjects[k];
@@ -221,9 +221,9 @@ function renderAdminCurrSubjectsLevel(body) {
               <div class="curr-item-sub">key: ${escapeHtml(k)}</div>
             </div>
             ${isFull ? `
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditSubjectIcon('${escapeHtml(k)}')">🎨 Icon</button>
-            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameSubject('${escapeHtml(k)}')">✏️ Rename</button>
-            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteSubject('${escapeHtml(k)}')">🗑 Delete</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminEditSubjectIcon('${escapeHtml(k)}')"><svg class="sicon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".6"/><circle cx="17.5" cy="10.5" r=".6"/><circle cx="8.5" cy="7.5" r=".6"/><circle cx="6.5" cy="12.5" r=".6"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.5-2.5 5.5-5.6C22 6 17.5 2 12 2z"/></svg> Icon</button>
+            <button class="curr-item-btn edit" onclick="event.stopPropagation();adminRenameSubject('${escapeHtml(k)}')"><svg class="sicon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Rename</button>
+            <button class="curr-item-btn del"  onclick="event.stopPropagation();adminDeleteSubject('${escapeHtml(k)}')"><svg class="sicon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
             ` : ''}
             <span class="curr-item-arrow">▶</span>
           </div>`;
@@ -251,7 +251,7 @@ function renderAdminCurrQuizzesLevel(body) {
       <button class="curr-back-btn" onclick="adminCurrGoSubjects()">← Back to Subjects</button>
 
       <div class="curr-section">
-        <div class="curr-section-title">🗂️ Manage Quizzes — ${escapeHtml(subjects[adminTargetSubject]?.label || adminTargetSubject)}</div>
+        <div class="curr-section-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Manage Quizzes — ${escapeHtml(subjects[adminTargetSubject]?.label || adminTargetSubject)}</div>
         <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;margin-bottom:10px;">
           View, edit, reorder, copy/move, or delete the quizzes published to this subject.
         </div>
@@ -269,15 +269,15 @@ async function adminAddYear() {
   const status = document.getElementById('currYearStatus');
   const name   = (input?.value || '').trim();
   const icon   = (iconIn?.value || '').trim() || _numberEmoji(Object.keys(curriculum).length + 1);
-  if (!name)          { status.textContent = '⚠️ Please enter a year name.'; status.className = 'curr-status err'; return; }
-  if (curriculum[name]) { status.textContent = `⚠️ "${name}" already exists.`; status.className = 'curr-status err'; return; }
+  if (!name)          { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please enter a year name.'; status.className = 'curr-status err'; return; }
+  if (curriculum[name]) { status.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> "${name}" already exists.`; status.className = 'curr-status err'; return; }
   curriculum[name] = {};
   yearIconMap[name] = icon;
   addCustomIcon(icon);
   buildYearGrid();
-  status.textContent = '⏳ Saving…'; status.className = 'curr-status';
+  status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Saving…'; void 0; status.className = 'curr-status';
   await saveCurriculumStructure();
-  status.textContent = `✅ Year "${name}" added! You can now add modules to it.`;
+  status.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Year "${name}" added! You can now add modules to it.`;
   status.className = 'curr-status ok';
   input.value = '';
   selectIconForField('currNewYearIcon', _numberEmoji(Object.keys(curriculum).length + 1));
@@ -304,17 +304,17 @@ async function adminAddModule() {
   const yr  = adminTargetYear;
   const mod = (input?.value || '').trim();
   const icon = (iconIn?.value || '').trim() || '📚';
-  if (!yr)  { status.textContent = '⚠️ Select a year first.'; status.className = 'curr-status err'; return; }
-  if (!mod) { status.textContent = '⚠️ Enter a module name.'; status.className = 'curr-status err'; return; }
-  if (!curriculum[yr]) { status.textContent = '⚠️ Year not found.'; status.className = 'curr-status err'; return; }
-  if (curriculum[yr][mod]) { status.textContent = `⚠️ Module "${mod}" already exists in ${yr}.`; status.className = 'curr-status err'; return; }
+  if (!yr)  { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Select a year first.'; status.className = 'curr-status err'; return; }
+  if (!mod) { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Enter a module name.'; status.className = 'curr-status err'; return; }
+  if (!curriculum[yr]) { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Year not found.'; status.className = 'curr-status err'; return; }
+  if (curriculum[yr][mod]) { status.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Module "${mod}" already exists in ${yr}.`; status.className = 'curr-status err'; return; }
   curriculum[yr][mod] = [];
   if (!moduleIconMap[yr]) moduleIconMap[yr] = {};
   moduleIconMap[yr][mod] = icon;
   buildYearGrid();
-  status.textContent = '⏳ Saving…'; status.className = 'curr-status';
+  status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Saving…'; void 0; status.className = 'curr-status';
   await saveCurriculumStructure();
-  status.textContent = `✅ Module "${mod}" added to ${yr}!`;
+  status.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Module "${mod}" added to ${yr}!`;
   status.className = 'curr-status ok';
   input.value = '';
   setTimeout(() => renderAdminCurriculumPanel(), 400);
@@ -349,19 +349,19 @@ async function adminAddSubject() {
   const label = (labelIn?.value || '').trim();
   const icon  = (iconIn?.value  || '').trim() || '📘';
   const key   = (keyIn?.value   || '').trim();
-  if (!yr)    { status.textContent = '⚠️ Select a year.';          status.className = 'curr-status err'; return; }
-  if (!mod)   { status.textContent = '⚠️ Select a module.';        status.className = 'curr-status err'; return; }
-  if (!label) { status.textContent = '⚠️ Enter a subject label.';  status.className = 'curr-status err'; return; }
-  if (!key)   { status.textContent = '⚠️ Enter an internal key.';  status.className = 'curr-status err'; return; }
-  if (subjects[key]) { status.textContent = `⚠️ Key "${key}" already exists. Choose another.`; status.className = 'curr-status err'; return; }
-  status.textContent = '⏳ Saving…'; status.className = 'curr-status';
+  if (!yr)    { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Select a year.';          status.className = 'curr-status err'; return; }
+  if (!mod)   { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Select a module.';        status.className = 'curr-status err'; return; }
+  if (!label) { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Enter a subject label.';  status.className = 'curr-status err'; return; }
+  if (!key)   { status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Enter an internal key.';  status.className = 'curr-status err'; return; }
+  if (subjects[key]) { status.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Key "${key}" already exists. Choose another.`; status.className = 'curr-status err'; return; }
+  status.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Saving…'; void 0; status.className = 'curr-status';
   subjects[key] = { icon, label, lectures: {} };
   if (!curriculum[yr]) curriculum[yr] = {};
   if (!curriculum[yr][mod]) curriculum[yr][mod] = [];
   if (!curriculum[yr][mod].includes(key)) curriculum[yr][mod].push(key);
   buildYearGrid();
   await saveCurriculumExtensionSubject(key, { icon, label, year: yr, module: mod });
-  status.textContent = `✅ Subject "${label}" added to ${yr} → ${mod}!`;
+  status.innerHTML = `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Subject "${label}" added to ${yr} → ${mod}!`;
   status.className = 'curr-status ok';
   labelIn.value = ''; keyIn.value = '';
   selectIconForField('currSubjIcon', '📘');
@@ -520,7 +520,7 @@ function adminOpenMoveQuiz(lectureId, encodedName) {
   el.id = 'moveQuizModal';
   el.innerHTML = `
     <div class="qm-modal">
-      <div class="qm-title">📋 Copy / Move Quiz</div>
+      <div class="qm-title"><svg class="sicon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copy / Move Quiz</div>
       <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:14px;">
         Quiz: <strong>${escapeHtml(_moveQuizLectureName)}</strong><br>
         From: <strong>${escapeHtml(adminTargetYear)} → ${escapeHtml(adminTargetModule)} → ${escapeHtml(subjects[adminTargetSubject]?.label || adminTargetSubject)}</strong>
@@ -543,8 +543,8 @@ function adminOpenMoveQuiz(lectureId, encodedName) {
       </div>
       <div id="mqStatus"></div>
       <div class="qm-actions">
-        <button class="qm-btn primary" onclick="adminExecMoveQuiz(false)">📋 Copy</button>
-        <button class="qm-btn danger"  onclick="adminExecMoveQuiz(true)">✂️ Move (delete original)</button>
+        <button class="qm-btn primary" onclick="adminExecMoveQuiz(false)"><svg class="sicon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copy</button>
+        <button class="qm-btn danger"  onclick="adminExecMoveQuiz(true)"><svg class="sicon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Move (delete original)</button>
         <button class="qm-btn secondary" onclick="adminCloseMoveQuiz()">Cancel</button>
       </div>
     </div>`;
@@ -577,17 +577,17 @@ async function adminExecMoveQuiz(andDelete) {
 
   if (!destYear || !destModule || !destSubject) {
     statusEl.className = 'qm-status err';
-    statusEl.textContent = '⚠️ Please select a destination year, module, and subject.';
+    statusEl.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please select a destination year, module, and subject.';
     return;
   }
   if (destSubject === adminTargetSubject && !andDelete) {
     statusEl.className = 'qm-status err';
-    statusEl.textContent = '⚠️ Source and destination subject are the same.';
+    statusEl.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Source and destination subject are the same.';
     return;
   }
 
   statusEl.className = 'qm-status';
-  statusEl.textContent = '⏳ Working…';
+  statusEl.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Working…';
 
   try {
     // Fetch the source lecture from R2 (images already resolved, permanent URLs)
@@ -633,8 +633,8 @@ async function adminExecMoveQuiz(andDelete) {
 
     statusEl.className = 'qm-status ok';
     statusEl.textContent = andDelete
-      ? `✅ Moved to ${subjects[destSubject].label || destSubject}!`
-      : `✅ Copied to ${subjects[destSubject].label || destSubject}!`;
+      ? `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Moved to ${subjects[destSubject].label || destSubject}!`
+      : `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Copied to ${subjects[destSubject].label || destSubject}!`;
     // Manifest bump for the new destination lecture already happened
     // server-side in the Worker (as part of putContentItem above) — no
     // separate call needed here.
@@ -648,7 +648,7 @@ async function adminExecMoveQuiz(andDelete) {
     setTimeout(() => adminCloseMoveQuiz(), 1000);
   } catch (e) {
     statusEl.className = 'qm-status err';
-    statusEl.textContent = '❌ ' + (e.message || String(e));
+    statusEl.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ' + (e.message || String(e));
   }
 }
 

@@ -1,78 +1,102 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      /* ── Meridian design system — Day ── */
-      --bg-main:        #E9EEF4;
+      /* ══════════════════════════════════════════════════════════
+         DESIGN TOKENS — "Meridian Blue"
+         A calm, professional blue system: crisp whites, soft sky-blue
+         surfaces, a confident indigo-blue accent, and a warm amber used
+         sparingly as a lighthearted counterpoint. Every color in this
+         file is referenced through these custom properties so the whole
+         product reskins from this single block.
+         ══════════════════════════════════════════════════════════ */
+
+      /* Surfaces */
+      --bg-main:        #EEF3FC;
       --bg-card:        #FFFFFF;
       --card:           #FFFFFF;
-      --surface-2:      #F5F8FB;
-      --surface-2-hover:#EAF0F6;
-      --surface-3:      #EFF4F8;
-      --border-soft:    #D3E0EA;
-      --border:         #D3E0EA;
-      --border-soft-2:  #E1E9F0;
+      --surface-2:      #F4F8FE;
+      --surface-2-hover:#E8F0FC;
+      --surface-3:      #EAF1FB;
+      --border-soft:    #D9E5F7;
+      --border:         #D9E5F7;
+      --border-soft-2:  #E3ECFA;
 
-      --accent:         #0E6E82;
-      --accent-dark:    #0A5566;
-      --accent-glow:    #29C2D9;
-      --accent-soft:    rgba(14,110,130,.12);
-      --gold:           #B8934A;
-      --gold-bright:    #D9B36B;
+      /* Brand blue */
+      --accent:         #2A5FE0;
+      --accent-dark:    #1E46B8;
+      --accent-glow:    #7AA6FF;
+      --accent-soft:    rgba(42,95,224,.11);
+      --gold:           #E2A83D;
+      --gold-bright:    #F0BE5E;
 
-      --nav-default:    #C3D2DF;
-      --nav-answered:   #2E8FA3;
-      --nav-marked:     #B8394A;
-      --nav-current:    #0A3F52;
+      --nav-default:    #CEDBF2;
+      --nav-answered:   #2F7FD1;
+      --nav-marked:     #E0526E;
+      --nav-current:    #16306E;
 
-      /* Brand badge — single source of truth for the logo, shared by the
-         browser-tab favicon (index.html <head>), the header wordmark icon,
-         and the loading-screen sigil, so all three always render as the
-         exact same mark. Keep this pair in sync with the favicon's inline
-         SVG colors if either ever changes. */
-      --brand-badge-bg: #0A3F52;
-      --brand-badge-fg: #6FE3F0;
+      /* Loading (intro) screen — a pale, airy blue distinct from
+         --nav-current, so this can be re-tuned without touching nav
+         states elsewhere in the app. */
+      --intro-bg:       #D4DFEC;
 
-      --text-main:      #16232F;
-      --text:           #16232F;
-      --text-muted:     #5C7285;
+      /* Brand badge — single source of truth for the logo mark, shared by
+         assets/brand/logo-mark.svg (favicon + PWA icons), the header
+         .brand-mark badge (index.html, x2), the loading-screen mark, and
+         js/pdf-export.js's PDX_LOGO_SVG, so every rendering of the logo
+         across the app and its PDF exports always matches. Colors are
+         sampled directly from the source artwork — keep this trio in sync
+         if the artwork ever changes. */
+      --brand-badge-bg:   #152B55;
+      --brand-badge-fg:   #1AD6E5;
+      --brand-badge-ring: #1AD6E5;
 
-      --correct-bg:     #E5F3EC;
+      --text-main:      #14203B;
+      --text:           #14203B;
+      --text-muted:     #5C6E8F;
+
+      --correct-bg:     #E4F5EC;
       --correct-fg:     #1E7A54;
-      --wrong-bg:       #FBEAEA;
-      --wrong-fg:       #B23A3A;
-      --unanswered-bg:  #FCF1E1;
-      --unanswered-fg:  #96631E;
+      --wrong-bg:       #FCEAEA;
+      --wrong-fg:       #C13B3B;
+      --unanswered-bg:  #FDF2E1;
+      --unanswered-fg:  #A06A1D;
 
-      --violet:         #6B4FA0;
-      --violet-dark:    #4E3878;
-      --violet-darkest: #3B2A5C;
-      --violet-strong:  #7E57C2;
-      --violet-pale:    #EFEAF8;
-      --violet-pale-2:  #E7DEF3;
-      --violet-border:  #C3AEE0;
-      --violet-mid-border: #B8A1DC;
+      --violet:         #5C5FCB;
+      --violet-dark:    #40439B;
+      --violet-darkest: #2E3072;
+      --violet-strong:  #6C6FDA;
+      --violet-pale:    #ECEDFA;
+      --violet-pale-2:  #E2E4F7;
+      --violet-border:  #B9BCEE;
+      --violet-mid-border: #AEB1E8;
 
-      --red-soft-border:#E3A9A9;
-      --red-pale:       #F8DADA;
+      --red-soft-border:#E9AFAF;
+      --red-pale:       #FADCDC;
       --red-deep:       #8F2A2A;
       --green-pale-border:#A9CDB8;
       --green-mid:      #4C9A6B;
-      --chip-blue-bg:   #E4EEF7;
-      --amber-pale:     #FBF1DE;
-      --amber-mid:      #C98D1F;
+      --chip-blue-bg:   #E3EDFB;
+      --amber-pale:     #FBF0DC;
+      --amber-mid:      #C48A1F;
       --amber-strong:   #D99A45;
       --amber-glow:     #E7B65C;
-      --blue-pale:      #DCEAF3;
-      --slate:          #66808F;
+      --blue-pale:      #DEEAFB;
+      --slate:          #64748F;
 
-      --shadow-ambient: rgba(15, 30, 42, .10);
-      --sigil-line:     rgba(14,110,130,.5);
-      --carved-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='none' stroke='%230E6E82' stroke-width='1' opacity='.16'%3E%3Cpath d='M0 60 L60 0 L120 60 L60 120 Z'/%3E%3Cpath d='M60 0 L60 120 M0 60 L120 60'/%3E%3Ccircle cx='60' cy='60' r='19'/%3E%3Ccircle cx='60' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E");
-      /* Same line-work as --carved-pattern, but drawn fully opaque/white so it
-         works cleanly as a mask under EITHER alpha- or luminance-based mask
-         compositing (the visible pattern above is too faint at 16% opacity to
-         use directly — it would render the sheen almost invisible). */
-      --carved-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1'%3E%3Cpath d='M0 60 L60 0 L120 60 L60 120 Z'/%3E%3Cpath d='M60 0 L60 120 M0 60 L120 60'/%3E%3Ccircle cx='60' cy='60' r='19'/%3E%3Ccircle cx='60' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E");
+      /* Secondary "sky" accent — used for the AI-chat surfaces so they read
+         distinctly from the violet AI-explain surfaces while staying inside
+         the blue system (no unrelated cyan). */
+      --sky-pale:       #E6F1FD;
+      --sky-fg:         #164A8C;
+      --sky-border:     #AFCCF2;
+      --sky-border-strong:#6FA3E8;
+
+      --shadow-ambient: rgba(20, 40, 90, .10);
+      --sigil-line:     rgba(42,95,224,.45);
+      /* Soft dotted-grid texture used behind hero/header surfaces — a
+         quiet, professional substitute for a heavy engraved motif. */
+      --carved-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Ccircle cx='2' cy='2' r='1.4' fill='%23ffffff' opacity='.35'/%3E%3C/svg%3E");
+      --carved-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Ccircle cx='2' cy='2' r='1.4' fill='%23ffffff'/%3E%3C/svg%3E");
 
       --font: 'Plus Jakarta Sans', sans-serif;
       --font-display: 'Fraunces', 'Plus Jakarta Sans', serif;
@@ -81,61 +105,97 @@
 
 
 
-    /* ── CARVED / AMBIENT SURFACE MOTIF ──
-       Recessed line-engraving texture with a slow travelling sheen.
-       Applied to large low-content surfaces so nothing reads as dead space. */
+    /* ── AMBIENT SURFACE MOTIF ──
+       A quiet dotted texture plus one slow travelling light sheen.
+       Applied to the header/hero/footer bands so they read as calm,
+       considered surfaces rather than dead space — without the heavier
+       engraved look of an earlier iteration. */
     .carved-surface { position: relative; isolation: isolate; }
     .carved-surface::before {
       content: "";
       position: absolute; inset: 0;
       background-image: var(--carved-pattern);
       background-repeat: repeat;
+      background-size: 24px 24px;
       pointer-events: none;
       z-index: 0;
     }
     .carved-surface::after {
       content: "";
       position: absolute; inset: 0;
-      background: linear-gradient(100deg, transparent 38%, var(--sigil-line) 50%, transparent 62%);
+      background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,.9) 50%, transparent 58%);
       background-repeat: no-repeat;
-      background-size: 340% 100%;
+      background-size: 260% 100%;
       background-position: 220% 0%;
-      -webkit-mask-image: var(--carved-mask);
-      mask-image: var(--carved-mask);
-      -webkit-mask-repeat: repeat;
-      mask-repeat: repeat;
-      -webkit-mask-size: 120px 120px;
-      mask-size: 120px 120px;
-      animation: carvedSheen 30s ease-in-out infinite;
+      animation: carvedSheen 9s ease-in-out infinite;
       mix-blend-mode: screen;
       pointer-events: none;
-      z-index: 2;
+      z-index: 0;
+      /* Clip the sheen to the same dot tile as ::before, so the travelling
+         light only ever catches the dots themselves — never the text or
+         the solid surface behind them. */
+      mask-image: var(--carved-pattern);
+      -webkit-mask-image: var(--carved-pattern);
+      mask-repeat: repeat;
+      -webkit-mask-repeat: repeat;
+      mask-size: 24px 24px;
+      -webkit-mask-size: 24px 24px;
     }
     .carved-surface > * { position: relative; z-index: 1; }
     @keyframes carvedSheen {
-      0%       { background-position: 220% 0%; }
-      15%      { background-position: -70% 0%; }
-      100%     { background-position: -70% 0%; }
+      0%, 60% { background-position: 220% 0%; }
+      100%    { background-position: -60% 0%; }
     }
     @media (prefers-reduced-motion: reduce) {
       .carved-surface::after { animation: none; }
     }
+    /* Bars that carry the brand badge (top identity bar, quiz/results
+       header) get a radial fade so the dot texture — and the glint
+       riding on top of it — clears away smoothly around the logo instead
+       of dots sitting flush behind it. ::before already draws only dots
+       (its background-image), so one radial mask is enough to fade it.
+       ::after already draws only within dot shapes (masked to the tile),
+       so its radial fade is intersected with that tile mask. */
+    .topbar.carved-surface::before, .header.carved-surface::before {
+      mask-image: radial-gradient(circle at 38px 50%, transparent 0, transparent 20px, #000 40px, #000 100%);
+      -webkit-mask-image: radial-gradient(circle at 38px 50%, transparent 0, transparent 20px, #000 40px, #000 100%);
+    }
+    .topbar.carved-surface::after, .header.carved-surface::after {
+      mask-image: var(--carved-pattern), radial-gradient(circle at 38px 50%, transparent 0, transparent 20px, #000 40px, #000 100%);
+      -webkit-mask-image: var(--carved-pattern), radial-gradient(circle at 38px 50%, transparent 0, transparent 20px, #000 40px, #000 100%);
+      mask-repeat: repeat, no-repeat;
+      -webkit-mask-repeat: repeat, no-repeat;
+      mask-size: 24px 24px, 100% 100%;
+      -webkit-mask-size: 24px 24px, 100% 100%;
+      mask-composite: intersect;
+      -webkit-mask-composite: source-in;
+    }
 
     /* ── INTRO LOADING SEQUENCE (fake, aesthetic-only, page-load once) ──
-       Choreography: a ring of loose particles drifts inward and dissolves
-       ("scattered questions" being gathered up) → the rounded badge plate
-       irises open behind them with a spring overshoot → the magnifying-
-       glass/"B" mark draws itself on top, stroke by stroke → a glow pulse
-       + the wordmark settle in → the whole screen contracts away from the
-       badge's position, handing off visually to the identical badge that's
-       already waiting in the header. The badge markup/colors here are the
-       exact same shape as the tab favicon and the header .brand-mark (see
-       --brand-badge-bg / --brand-badge-fg), so the loading screen visibly
-       "resolves into" the same logo used everywhere else in the app. */
+       Choreography: the rounded badge plate irises open with a spring
+       overshoot → the cyan ring blooms into place around it → the
+       magnifying glass sweeps in from off-badge at an angle and settles
+       onto the "D" mark as if it just found what it was searching for,
+       its lens flashing a glint right as it lands → a settle pulse on
+       the assembled badge + the wordmark settle in → the whole screen
+       contracts away from the badge's position, handing off visually to
+       the identical badge already waiting in the header. The badge
+       markup/colors here are the exact same mark as the tab favicon and
+       the header .brand-mark (see --brand-badge-bg / --brand-badge-fg /
+       --brand-badge-ring), so the loading screen visibly "resolves into"
+       the same logo used everywhere else in the app. */
     #introScreen {
       position: fixed; inset: 0; z-index: 100000;
       display: flex; align-items: center; justify-content: center;
-      background: radial-gradient(circle at 50% 42%, #E9EEF4 0%, #D3E0EA 78%);
+      /* Flat, static brand color — deliberately not a gradient. A
+         radial-gradient across three close, dark blues (the previous
+         approach) bands visibly on plenty of real screens, showing up as
+         faint concentric rings that look like they're rippling even
+         though nothing is animating. A single solid fill has nothing to
+         band, so it reads as genuinely still. Uses the dedicated
+         --intro-bg token (see :root) so it can be retuned independently
+         of --nav-current, which is still used for nav-button states. */
+      background: var(--intro-bg);
       clip-path: circle(150% at 50% 42%);
       opacity: 1;
       transition: clip-path .7s cubic-bezier(.65,0,.35,1), opacity .5s ease .2s;
@@ -143,85 +203,77 @@
     #introScreen.intro-hide { clip-path: circle(0% at 50% 42%); opacity: 0; pointer-events: none; }
     .intro-inner {
       display: flex; flex-direction: column; align-items: center;
-      gap: clamp(14px, 3vh, 22px);
+      gap: clamp(18px, 3.4vh, 30px);
       transition: transform .7s cubic-bezier(.65,0,.35,1);
     }
     #introScreen.intro-hide .intro-inner { transform: scale(1.08); }
 
-    /* Badge stage: holds the converging particles and the badge SVG at the
-       same responsive footprint, so particles always converge exactly on
-       the badge's center regardless of viewport size. */
     .intro-badge-wrap {
       position: relative; display: flex; align-items: center; justify-content: center;
-      width: clamp(96px, 26vw, 156px); height: clamp(96px, 26vw, 156px);
+      width: clamp(130px, min(32vw, 34vh), 200px);
+      height: clamp(130px, min(32vw, 34vh), 200px);
+      animation: introBadgeIn .7s cubic-bezier(.2,.9,.3,1.15) both;
+    }
+    @keyframes introBadgeIn {
+      0%   { opacity: 0; transform: scale(.72); }
+      100% { opacity: 1; transform: scale(1); }
     }
     #introBadgeSvg { width: 100%; height: 100%; overflow: visible; }
+    .intro-particles { display: none; }
 
-    /* Particles — a ring of small dots scattered around the badge that
-       drift inward and fade as they're "gathered" into the mark. */
-    .intro-particles {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: clamp(9px, 2.4vw, 15px); /* scales the whole ring with viewport */
-      pointer-events: none;
+    .intro-plate { fill: var(--brand-badge-bg); }
+    .intro-ring  { fill: var(--brand-badge-ring); }
+    .sigil-d, .sigil-glass { fill: var(--brand-badge-fg); }
+    .sigil-glint { fill: var(--brand-badge-fg); }
+
+    /* Ring blooms into place just after the plate irises open. */
+    .intro-ring-group {
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: introRingBloom .6s cubic-bezier(.25,.9,.35,1.2) .16s both;
     }
-    .intro-particle {
-      position: absolute; width: .55em; height: .55em; border-radius: 50%;
-      background: var(--brand-badge-fg);
-      box-shadow: 0 0 .5em rgba(111,227,240,.8);
+    @keyframes introRingBloom {
+      0%   { opacity: 0; transform: scale(.6); }
+      65%  { opacity: 1; transform: scale(1.06); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    /* The magnifying glass sweeps in at an angle and settles onto the "D"
+       mark, as though it just located it — the glint flashes right as it
+       lands, echoing a moment of discovery. The "D" simply fades/scales
+       in underneath, already "found". */
+    .sigil-d {
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: sigilDReveal .5s ease-out .3s both;
+    }
+    @keyframes sigilDReveal {
+      0%   { opacity: 0; transform: scale(.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .intro-glass-group {
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: introGlassSweepIn .62s cubic-bezier(.2,.7,.25,1) .42s both;
+    }
+    @keyframes introGlassSweepIn {
+      0%   { opacity: 0; transform: translate(34%, -30%) rotate(26deg) scale(.72); }
+      65%  { opacity: 1; transform: translate(-3%, 2%) rotate(-5deg) scale(1.05); }
+      100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+    }
+    .sigil-glint {
       opacity: 0;
-      animation: particleConverge .8s cubic-bezier(.3,.6,.3,1) both;
+      animation: sigilGlintFlash .7s ease-out .78s both;
     }
-    .intro-particle:nth-child(1) { --tx: 0em;    --ty: -6.4em; animation-delay: .05s; }
-    .intro-particle:nth-child(2) { --tx: 4.6em;  --ty: -4.6em; animation-delay: .10s; }
-    .intro-particle:nth-child(3) { --tx: 6.4em;  --ty: 0em;    animation-delay: .15s; }
-    .intro-particle:nth-child(4) { --tx: 4.6em;  --ty: 4.6em;  animation-delay: .20s; }
-    .intro-particle:nth-child(5) { --tx: 0em;    --ty: 6.4em;  animation-delay: .12s; }
-    .intro-particle:nth-child(6) { --tx: -4.6em; --ty: 4.6em;  animation-delay: .18s; }
-    .intro-particle:nth-child(7) { --tx: -6.4em; --ty: 0em;    animation-delay: .08s; }
-    .intro-particle:nth-child(8) { --tx: -4.6em; --ty: -4.6em; animation-delay: .22s; }
-    @keyframes particleConverge {
-      0%   { opacity: 0;   transform: translate(var(--tx), var(--ty)) scale(.4); }
-      40%  { opacity: .9;  transform: translate(calc(var(--tx) * .5), calc(var(--ty) * .5)) scale(.85); }
-      100% { opacity: 0;   transform: translate(0, 0) scale(.2); }
+    @keyframes sigilGlintFlash {
+      0%   { opacity: 0; }
+      35%  { opacity: 1; }
+      60%  { opacity: .55; }
+      100% { opacity: .85; }
     }
 
-    /* Badge plate — the rounded-square backdrop, irising open with a
-       spring overshoot once the particles have mostly gathered in. */
-    .intro-plate {
-      fill: var(--brand-badge-bg);
-      transform-origin: 50px 50px;
-      transform: scale(0);
-      opacity: 0;
-      animation: plateIris .6s cubic-bezier(.34,1.56,.64,1) .42s forwards;
-    }
-    @keyframes plateIris {
-      0%   { transform: scale(0);    opacity: 0; }
-      65%  { transform: scale(1.08); opacity: 1; }
-      100% { transform: scale(1);    opacity: 1; }
-    }
-
-    /* Icon strokes — same path data as the favicon, drawn on top of the
-       plate stroke-by-stroke as it settles in. */
-    .intro-icon { fill: none; stroke: var(--brand-badge-fg); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
-    .sigil-path { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; animation: sigilDraw .55s cubic-bezier(.4,0,.2,1) forwards; }
-    .sigil-q       { animation-delay: .5s; }
-    .sigil-b-stem  { animation-delay: .58s; }
-    .sigil-b-upper { animation-delay: .72s; }
-    .sigil-q-tail  { animation-delay: .86s; }
-    .sigil-b-lower { animation-delay: .86s; }
-    @keyframes sigilDraw {
-      0%   { stroke-dashoffset: 1; opacity: 1; }
-      1%   { opacity: 1; }
-      100% { stroke-dashoffset: 0; opacity: 1; }
-    }
-    #introBadgeSvg.sigil-glow {
-      filter: drop-shadow(0 0 8px rgba(111,227,240,.55)) drop-shadow(0 0 24px rgba(111,227,240,.35));
+    #introBadgeSvg.sigil-pulse {
       animation: sigilPulse 1s ease-in-out;
     }
     @keyframes sigilPulse {
       0%   { transform: scale(1); }
-      42%  { transform: scale(1.08); }
+      42%  { transform: scale(1.07); }
       100% { transform: scale(1); }
     }
     .intro-wordmark {
@@ -232,15 +284,17 @@
     .intro-wordmark.show { opacity: 1; transform: translateY(0); }
     .intro-word-main {
       display: block; font-family: var(--font-display);
-      font-size: clamp(.85rem, 3.4vw, 1.05rem); font-weight: 600; letter-spacing: 2.5px;
-      color: var(--brand-badge-bg); max-width: min(80vw, 260px);
+      font-size: clamp(1.05rem, 4.6vw, 1.4rem); font-weight: 600; letter-spacing: 2.5px;
+      /* Dark text — the intro background (--intro-bg) is now a pale blue,
+         so white text (used when the backdrop was navy) would disappear. */
+      color: var(--text-main); max-width: min(88vw, 340px);
     }
     @media (prefers-reduced-motion: reduce) {
       #introScreen { transition: opacity .3s ease; clip-path: none !important; }
       .intro-inner { transition: opacity .3s ease; transform: none !important; }
-      .intro-particles { display: none; }
-      .intro-plate { animation: none !important; transform: scale(1); opacity: 1; }
-      .sigil-path, #introBadgeSvg.sigil-glow { animation: none !important; stroke-dashoffset: 0; opacity: 1; filter: none; }
+      .intro-badge-wrap { animation: none !important; opacity: 1; transform: none; }
+      .intro-ring-group, .sigil-d, .intro-glass-group, .sigil-glint { animation: none !important; opacity: 1; transform: none; }
+      #introBadgeSvg.sigil-pulse { animation: none !important; }
       .intro-wordmark { transition: opacity .3s ease; }
     }
 
@@ -249,86 +303,308 @@
       font-family: var(--font);
       background: var(--bg-main);
       color: var(--text-main);
+      /* Safety net: no matter how tight a viewport gets, nothing (a badge,
+         a button, a pill) is ever allowed to push the page into horizontal
+         scroll. Every bar below is built to fit on its own, but this keeps
+         layout mistakes contained instead of letting content spill off-screen. */
+      overflow-x: hidden;
     }
 
     /* ── LAYOUT ── */
-    #app { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-main); }
+    #app { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-main); max-width: 100vw; }
 
-    /* ── HEADER ── */
+    /* ── ICONS ──
+       Small inline-SVG glyphs used throughout in place of emoji, for a
+       calmer, more professional chrome. */
+    .hicon, .bicon, .ticon, .nicon, .ficon, .micon, .sicon {
+      fill: none; stroke: currentColor; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round;
+      flex-shrink: 0;
+      vertical-align: -3px;
+    }
+    .hicon { width: 19px; height: 19px; }
+    .bicon { width: 15px; height: 15px; }
+    .ticon { width: 21px; height: 21px; }
+    .nicon { width: 16px; height: 16px; }
+    .ficon { width: 15px; height: 15px; }
+    /* .micon / .sicon: same line-icon language, used for icons injected by
+       JS into buttons, tabs and badges across the modals (admin, community,
+       backup, PDF export, etc.) so every screen — not just the home screen —
+       shares one consistent icon system instead of emoji. */
+    .micon { width: 16px; height: 16px; margin-right: 2px; }
+    .sicon { width: 13px; height: 13px; margin-right: 1px; }
+    .micon.spin, .sicon.spin, .hicon.spin { animation: iconspin 1s linear infinite; }
+    @keyframes iconspin { to { transform: rotate(360deg); } }
+
+    /* ── QUIZ HEADER (quiz + results screens) ──
+       Same responsive strategy as .topbar above: the title shrinks with
+       clamp(), the auth control compacts itself first, and wrapping to a
+       second row is only a last-resort safety net — the left-to-right,
+       top-to-bottom order of title → auth → timer never changes. */
     .header {
       background: linear-gradient(120deg, var(--nav-current) 0%, var(--accent-dark) 55%, var(--accent) 100%);
       color: #fff;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      flex-wrap: wrap;
+      row-gap: 8px;
+      padding: 10px 24px;
       min-height: 64px;
       flex-shrink: 0;
-      box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 4px 18px rgba(4,14,20,.28);
+      box-shadow: 0 4px 18px rgba(16,32,72,.22);
       position: relative;
       z-index: 5;
       gap: 14px;
     }
     .header-title {
-      font-size: 1.08rem; font-weight: 700; letter-spacing: .1px;
+      font-size: clamp(.86rem, 3.2vw, 1.08rem); font-weight: 700; letter-spacing: .1px;
       display: flex; align-items: center; gap: 10px;
       font-family: var(--font-display);
+      min-width: 0; flex-shrink: 1;
     }
-    .header-title span { font-size: 1.3rem; }
-    /* Header/hero logo — identical badge shape (rounded-square plate +
-       magnifying-glass "B" mark) as the tab favicon and the loading
-       screen; see --brand-badge-bg / --brand-badge-fg. */
-    .brand-mark { width: clamp(26px, 6vw, 30px); height: clamp(26px, 6vw, 30px); flex-shrink: 0; filter: drop-shadow(0 0 6px rgba(111,227,240,.45)); animation: badgeFloat 5s ease-in-out infinite; }
+    .header-title-text {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    #authAreaQuiz { min-width: 0; flex-shrink: 1; }
+    .timer { flex-shrink: 0; }
+    /* Brand mark — identical badge (rounded-square plate + cyan ring +
+       magnifying-glass/"D" mark) as the tab favicon, the loading screen,
+       and the PDF export header/cover; see --brand-badge-bg /
+       --brand-badge-fg / --brand-badge-ring. The mark is a pixel-accurate
+       vector trace of the source artwork (assets/brand/logo-mark.svg),
+       so it's built from filled silhouette paths rather than strokes. */
+    .brand-mark { width: clamp(26px, 6vw, 30px); height: clamp(26px, 6vw, 30px); flex-shrink: 0; overflow: visible; }
     .brand-mark .badge-plate { fill: var(--brand-badge-bg); }
-    .brand-mark .badge-icon { fill: none; stroke: var(--brand-badge-fg); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
-    .brand-mark .badge-icon circle {
-      transform-origin: 36px 54px;
-      animation: badgePulse 3.4s ease-in-out infinite;
+    .brand-mark .badge-ring  { fill: var(--brand-badge-ring); }
+    .brand-mark .badge-d,
+    .brand-mark .badge-glass,
+    .brand-mark .badge-glint { fill: var(--brand-badge-fg); }
+
+    /* Tailored idle motion — the magnifying glass gives a slow, deliberate
+       "sweep", as if actively scanning for the next question, and its lens
+       catches a soft shimmer of light. The "D" mark stays still, anchoring
+       the badge as a fixed identity while the glass does the searching. */
+    .brand-mark .badge-glass-group { transform-box: fill-box; transform-origin: 50% 50%; animation: badgeScan 3.6s ease-in-out infinite; }
+    .brand-mark .badge-glint       { transform-box: fill-box; transform-origin: 50% 50%; animation: badgeGlint 2.6s ease-in-out infinite; }
+    .brand-mark .badge-ring        { animation: badgeRingGlow 3.6s ease-in-out infinite; }
+    @keyframes badgeScan {
+      0%, 100% { transform: rotate(0deg) translate(0, 0); }
+      50%      { transform: rotate(-7deg) translate(-3%, 2%); }
     }
-    @keyframes badgeFloat {
-      0%, 100% { transform: translateY(0); }
-      50%      { transform: translateY(-2px); }
+    @keyframes badgeGlint {
+      0%, 100% { opacity: .45; }
+      50%      { opacity: 1; }
     }
-    @keyframes badgePulse {
-      0%, 100% { opacity: 1; }
-      50%      { opacity: .78; }
+    @keyframes badgeRingGlow {
+      0%, 100% { opacity: .88; }
+      50%      { opacity: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .brand-mark, .brand-mark .badge-icon circle { animation: none; }
+      .brand-mark .badge-glass-group,
+      .brand-mark .badge-glint,
+      .brand-mark .badge-ring { animation: none; }
     }
     .timer {
       font-size: 1.28rem; font-weight: 800;
-      color: var(--amber-glow);
+      color: #fff;
       font-variant-numeric: tabular-nums;
       letter-spacing: 2px;
       transition: color .3s;
-      text-shadow: 0 0 12px rgba(231,182,92,.4);
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.22);
+      padding: 4px 14px;
+      border-radius: 999px;
     }
-    .timer.urgent { color: #FF6B6B; animation: pulse 1s ease-in-out infinite; text-shadow: 0 0 14px rgba(255,107,107,.55); }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+    .timer.urgent { color: #FFD3D3; background: rgba(224,82,82,.35); animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
 
     /* ── HOME SCREEN ── */
     #home { flex: 1; display: flex; flex-direction: column; }
+
+    /* Top identity bar
+       ──────────────────────────────────────────────────────────
+       Responsive strategy (kept identical across every screen size,
+       so the bar never "reorganizes" — only scales down):
+         1. Brand mark + title shrink smoothly with clamp() instead of
+            jumping between fixed sizes.
+         2. The right-side controls (sign-in / user pill / Admin) each
+            compact their own label text before anything is allowed to
+            overflow — see .auth-signin-btn / .admin-btn below.
+         3. flex-wrap is a last-resort safety net: if a very long user
+            name still can't fit, the right-side group drops to its own
+            full-width row *underneath* the brand, still right-aligned,
+            never off-screen and never reshuffled. */
+    .topbar {
+      background: var(--nav-current);
+      color: #fff;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap;
+      row-gap: 10px;
+      gap: 14px;
+      padding: 14px 22px;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 11px; min-width: 0; flex-shrink: 1; }
+    .topbar-brand .brand-mark { width: clamp(24px, 7vw, 32px); height: clamp(24px, 7vw, 32px); flex-shrink: 0; }
+    .topbar-word { display: flex; min-width: 0; }
+    .topbar-title {
+      font-family: var(--font-display); font-weight: 600;
+      font-size: clamp(.86rem, 3.2vw, 1.05rem);
+      letter-spacing: .2px; color: #fff; line-height: 1.15;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .topbar-right {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
+      flex: 1 1 auto; min-width: 0;
+    }
+    .topbar-right .stats-open-btn { margin-top: 0; }
+
+    /* Hero band — short, confident, and no longer a wall of buttons */
     .home-hero {
-      background: linear-gradient(150deg, var(--nav-current) 0%, var(--accent-dark) 48%, var(--accent) 100%);
-      text-align: center;
-      padding: 46px 20px 50px;
+      background: linear-gradient(150deg, #16306E 0%, var(--accent-dark) 55%, var(--accent) 100%);
+      padding: 40px 22px 34px;
       color: white;
       position: relative;
       overflow: hidden;
     }
+    .hero-copy { max-width: 620px; margin: 0 auto; text-align: center; }
+    .hero-eyebrow {
+      display: inline-block; font-size: .74rem; font-weight: 700;
+      letter-spacing: 1.4px; text-transform: uppercase;
+      color: var(--gold-bright); margin-bottom: 10px;
+    }
     .home-hero h1 {
       font-family: var(--font-display);
-      font-size: 2.1rem; font-weight: 600; letter-spacing: -.3px;
-      display: flex; align-items: center; justify-content: center; gap: 12px;
+      font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.15rem);
+      font-weight: 600; letter-spacing: -.3px; line-height: 1.25;
     }
-    .home-hero h1 .brand-mark { width: clamp(32px, 9vw, 44px); height: clamp(32px, 9vw, 44px); }
-    .home-hero p { font-size: 1rem; opacity: .82; margin-top: 8px; letter-spacing: .1px; }
+    .home-hero p { font-size: .98rem; opacity: .85; margin-top: 10px; letter-spacing: .1px; }
+
+    /* Quick-access toolbar — icon tiles, not stacked full-width buttons.
+       On screens too narrow to show every tile at once, the row scrolls
+       horizontally rather than wrapping or reordering the tiles. There is
+       no scroll-snap here on purpose — tiles are free to stop at any
+       scroll position instead of being pulled to a fixed "resting" point,
+       and there's no edge fade either, so a tile stays fully visible and
+       fully opaque right up to the moment it scrolls out of view. */
+    .toolbar-wrap {
+      position: relative;
+    }
+    .toolbar {
+      display: flex; gap: 10px; overflow-x: auto;
+      padding: 14px 22px; margin-top: -20px; position: relative; z-index: 2;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .toolbar::-webkit-scrollbar { display: none; }
+    .tool-btn {
+      flex: 0 0 auto;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 7px;
+      width: 92px; padding: 14px 6px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
+      box-shadow: 0 6px 18px var(--shadow-ambient);
+      color: var(--text-muted);
+      font-family: var(--font); font-size: .72rem; font-weight: 700;
+      cursor: pointer; text-align: center; line-height: 1.2;
+      transition: border-color .18s, color .18s, transform .15s, box-shadow .18s, background .18s;
+    }
+
+    /* "Wheel" mode — added by js/toolbar-carousel.js only once it has
+       measured that the tiles genuinely don't fit side by side. The row
+       is quietly padded out with cloned tiles before and after the real
+       set, then recentered, so scrolling in either direction feels like
+       turning an endless wheel: once a tile scrolls fully past one edge,
+       an identical copy of it is already waiting to carry on from the
+       other. Nothing here ever runs on screens where everything already
+       fits. */
+    .toolbar.toolbar--loop {
+      /* No scroll-behavior override here on purpose: "smooth" would also
+         apply to the loop's own rewind jump (see js/toolbar-carousel.js),
+         animating it visibly and colliding with whatever momentum the
+         rider's own scroll gesture still had. */
+    }
+    /* Cloned tiles are purely visual filler for the loop illusion — kept
+       out of the tab order and out of assistive-tech announcements, since
+       the real, focusable copy of each tool is always in the DOM too. */
+    .toolbar.toolbar--loop .tool-btn[aria-hidden="true"] { cursor: pointer; }
+
+    /* Scroll-position indicator — a short, centered pill under the
+       toolbar tracking how far through the wheel the rider currently is.
+       Deliberately much narrower than the toolbar itself (a thin dash,
+       not a full-width bar) so it reads as a subtle progress cue rather
+       than a second scrollbar. Invisible and inert until
+       js/toolbar-carousel.js confirms the toolbar is actually scrollable
+       (.toolbar-wrap--scrollable), and always hidden at the desktop
+       breakpoint where the toolbar never scrolls at all. */
+    .toolbar-indicator {
+      width: min(72px, 28vw);
+      height: 4px;
+      margin: 0 auto 10px;
+      opacity: 0;
+      transform: translateY(-2px);
+      pointer-events: none;
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    .toolbar-wrap--scrollable .toolbar-indicator {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toolbar-indicator__track {
+      position: relative;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--border-soft);
+      overflow: hidden;
+    }
+    .toolbar-indicator__thumb {
+      position: absolute;
+      top: 0; left: 0; height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-glow));
+      box-shadow: 0 0 8px var(--accent-soft);
+      /* No left/width transition here on purpose: js/toolbar-carousel.js
+         recalculates both segments on every scroll event, so the thumb
+         is meant to track the gesture in exact lockstep. Easing it would
+         make the primary segment visibly slide backward across the
+         whole track the instant a lap wraps, instead of the intended
+         "flows off one edge, already waiting on the other" illusion. */
+    }
+    /* Keeps the primary segment from thinning into an imperceptible
+       hairline on very small tracks (narrow phones). js/toolbar-carousel.js
+       already clamps the thumb's own percentage width to a short,
+       line-like range (see THUMB_MIN_PCT/THUMB_MAX_PCT there); this is
+       just a hard pixel floor under that for the smallest viewports.
+       Only the primary segment gets this floor — the wrap segment below
+       must still be able to reach a true, invisible 0 while there's
+       nothing to show at the opposite edge. */
+    #toolbarIndicatorThumb { min-width: 12px; }
+    /* The wraparound segment: whatever portion of the band has scrolled
+       past the end of the current lap reappears here, pinned to the
+       start of the track, exactly like a tile's own clone reappearing on
+       the opposite edge. Zero width (and therefore invisible) whenever
+       the primary segment alone covers the visible window. */
+    .toolbar-indicator__thumb--wrap { width: 0; }
+
+    .tool-btn .ticon { color: var(--accent); }
+    .tool-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 22px var(--accent-soft);
+      background: var(--surface-2);
+    }
+    @media (min-width: 720px) {
+      .toolbar { justify-content: center; flex-wrap: wrap; overflow: visible; }
+      .toolbar-indicator { display: none; }
+    }
 
     .home-footer {
       background: linear-gradient(120deg, var(--accent-dark), var(--nav-current));
       text-align: center;
-      padding: 20px 20px 24px;
+      padding: 20px 20px 26px;
       color: #fff;
       position: relative;
       overflow: hidden;
@@ -340,7 +616,7 @@
       color: #fff;
       border: 1.5px solid rgba(255,255,255,.4);
       padding: 9px 20px;
-      border-radius: 8px;
+      border-radius: 999px;
       font-weight: 700;
       font-size: .88rem;
       font-family: inherit;
@@ -360,35 +636,47 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 32px 20px;
-      gap: 26px;
+      padding: 8px 20px 32px;
+      gap: 22px;
     }
 
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border-soft);
-      border-radius: 16px;
-      padding: 34px 36px;
+      border-radius: 18px;
+      padding: 30px 30px 34px;
       width: 100%;
-      max-width: 560px;
-      box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 10px 34px var(--shadow-ambient);
+      max-width: 600px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 14px 40px var(--shadow-ambient);
       position: relative;
     }
 
+    .builder-head { margin-bottom: 22px; }
+    .builder-head h2 {
+      font-family: var(--font-display); font-size: 1.35rem; font-weight: 600;
+      color: var(--text-main);
+    }
+    .builder-head p { font-size: .85rem; color: var(--text-muted); margin-top: 4px; }
+
     .field-label {
-      font-size: .82rem; font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 1.1px;
-      margin-bottom: 10px;
+      font-size: .84rem; font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: .1px;
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent-soft); color: var(--accent-dark);
+      font-size: .74rem; font-weight: 800;
     }
 
     select, input[type="number"] {
       width: 100%;
       padding: 12px 14px;
       border: 1.5px solid var(--border-soft);
-      border-radius: 9px;
+      border-radius: 10px;
       font-family: var(--font);
       font-size: 1rem;
       color: var(--text-main);
@@ -411,6 +699,7 @@
     }
 
     .field-group { margin-bottom: 20px; }
+    .step-group { scroll-margin-top: 20px; }
 
     /* Subject grid */
     .subject-grid {
@@ -424,7 +713,7 @@
       gap: 6px;
       padding: 14px 8px;
       border: 1.5px solid var(--border-soft);
-      border-radius: 11px;
+      border-radius: 13px;
       background: var(--surface-2);
       cursor: pointer;
       font-family: var(--font);
@@ -456,20 +745,84 @@
     }
     .subject-btn.active .subj-icon { filter: brightness(2); }
 
+    /* Lecture list */
+    .lecture-list {
+      max-height: 220px; overflow-y: auto;
+      border: 1.5px solid var(--border-soft); border-radius: 12px;
+      background: var(--surface-2); padding: 8px 10px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .lecture-empty { color: var(--text-muted); font-size: .88rem; padding: 8px; }
+    .lecture-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .chip-btn { padding: 7px 15px; font-size: .8rem; border-radius: 999px; }
+    .chip-btn-ghost { background: var(--surface-2); color: var(--accent-dark); border: 1.5px solid var(--border-soft); }
+    .chip-btn-ghost:hover { border-color: var(--accent); background: var(--accent-soft); }
+
     /* Q-count badge */
     .q-count-badge {
       display: inline-flex; align-items: center; gap: 6px;
-      background: var(--surface-2-hover); border: 1.5px solid var(--border-soft);
-      border-radius: 20px; padding: 5px 12px;
-      font-size: .83rem; font-weight: 700; color: var(--accent);
-      margin-top: 8px;
+      background: var(--accent-soft); border: 1.5px solid var(--accent);
+      border-radius: 999px; padding: 6px 14px;
+      font-size: .8rem; font-weight: 700; color: var(--accent-dark);
       transition: opacity .2s;
     }
     .q-count-badge.hidden { opacity: 0; pointer-events: none; }
 
+    /* Options row: duration + shuffle — both fields share the same
+       label-above-control structure (.option-field) and the control
+       itself shares the exact padding/border/radius as the number input
+       below, so the Minutes field and the Shuffle button always line up
+       at an identical height, on every screen size. */
+    .options-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
+    .option-field {
+      flex: 1 1 130px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .option-field-label { font-size: .76rem; font-weight: 700; color: var(--text-muted); }
+    .shuffle-btn {
+      width: 100%; height: 100%; box-sizing: border-box;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border-soft); border-radius: 10px;
+      font-family: var(--font); font-size: .87rem; font-weight: 600;
+      color: var(--text-main); background: var(--surface-2);
+      cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s, color .2s;
+    }
+    .shuffle-btn:hover { border-color: var(--accent); }
+    .shuffle-btn:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+    .shuffle-btn[aria-checked="true"] {
+      border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark);
+    }
+    .shuffle-btn .sicon { flex-shrink: 0; }
+    .shuffle-btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Elegant custom checkbox inside the Shuffle button — an explicit,
+       always-visible on/off indicator (empty box vs. filled + check),
+       so the button's active/inactive state reads at a glance and isn't
+       carried by border/background color alone. */
+    .shuffle-checkbox {
+      width: 18px; height: 18px; flex-shrink: 0; box-sizing: border-box;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1.5px solid var(--border-soft); border-radius: 5px;
+      background: var(--bg-card);
+      transition: background .18s, border-color .18s;
+    }
+    .shuffle-check-icon {
+      width: 12px; height: 12px;
+      fill: none; stroke: #fff; stroke-width: 3;
+      stroke-linecap: round; stroke-linejoin: round;
+      opacity: 0; transform: scale(.4);
+      transition: opacity .15s ease, transform .15s cubic-bezier(.2,.9,.3,1.3);
+    }
+    .shuffle-btn[aria-checked="true"] .shuffle-checkbox {
+      background: var(--accent); border-color: var(--accent);
+    }
+    .shuffle-btn[aria-checked="true"] .shuffle-check-icon {
+      opacity: 1; transform: scale(1);
+    }
+
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-      border: none; border-radius: 9px; cursor: pointer;
+      border: none; border-radius: 10px; cursor: pointer;
       font-family: var(--font); font-weight: 700;
       transition: filter .15s, transform .12s, background .15s, box-shadow .2s;
       white-space: nowrap;
@@ -482,19 +835,20 @@
       background: linear-gradient(135deg, var(--accent), var(--accent-dark));
       color: white;
       padding: 15px 24px; font-size: 1.05rem;
-      width: 100%;
-      box-shadow: 0 6px 20px var(--accent-soft);
+      width: 100%; margin-top: 26px;
+      box-shadow: 0 8px 24px var(--accent-soft);
       letter-spacing: .2px;
     }
-    .btn-primary:hover:not(:disabled) { box-shadow: 0 8px 26px var(--accent-soft), 0 0 0 1px var(--accent) inset; }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 10px 30px var(--accent-soft), 0 0 0 1px var(--accent) inset; }
 
     /* Legend */
     .legend {
       display: flex; align-items: center; justify-content: center;
-      gap: 6px; flex-wrap: wrap;
+      gap: 14px; flex-wrap: wrap;
+      font-size: .8rem;
     }
-    .legend-item { display: flex; align-items: center; gap: 5px; font-size: .85rem; color: var(--text-muted); }
-    .legend-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+    .legend-item { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-weight: 600; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 
     /* ── QUIZ SCREEN ── */
     #quiz { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -568,7 +922,7 @@
       flex-shrink: 0;
     }
 
-    .btn-nav { padding: 11px 19px; font-size: .9rem; border-radius: 9px; }
+    .btn-nav { padding: 11px 19px; font-size: .9rem; border-radius: 10px; }
     .btn-prev { background: var(--slate); color: white; }
     .btn-mark { background: var(--nav-marked); color: white; }
     .btn-mark.is-marked { background: var(--red-deep); }
@@ -580,14 +934,14 @@
       flex-shrink: 0;
       background: var(--bg-card);
       border: 1px solid var(--border-soft);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 12px 14px;
     }
     .nav-label { font-size: .76rem; font-weight: 700; color: var(--text-muted); margin-bottom: 9px; text-transform: uppercase; letter-spacing: 1px; }
     .nav-grid { display: flex; flex-wrap: wrap; gap: 6px; }
     .nav-btn {
       width: 34px; height: 34px;
-      border: none; border-radius: 7px;
+      border: none; border-radius: 8px;
       font-family: var(--font); font-size: .8rem; font-weight: 700;
       cursor: pointer; transition: filter .15s, transform .12s, box-shadow .15s;
       color: white;
@@ -602,13 +956,13 @@
     #results { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
     .results-header {
       background: linear-gradient(120deg, var(--nav-current), var(--accent-dark)); display: flex;
-      align-items: center; justify-content: space-between;
-      padding: 16px 28px; flex-shrink: 0;
+      align-items: center; justify-content: space-between; gap: 14px;
+      padding: 18px 28px; flex-shrink: 0; flex-wrap: wrap;
     }
-    .results-title { font-size: 1.28rem; font-weight: 700; color: white; font-family: var(--font-display); }
+    .results-title { font-size: 1.2rem; font-weight: 700; color: white; font-family: var(--font-display); }
     .results-score-badge {
       font-size: 1.1rem; font-weight: 800;
-      padding: 6px 18px; border-radius: 8px; color: var(--text-main);
+      padding: 7px 20px; border-radius: 999px; color: var(--text-main);
     }
 
     .results-body { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
@@ -658,8 +1012,15 @@
     }
     .r-opt-pfx { font-weight: 800; min-width: 18px; }
 
-    .results-footer { padding: 16px 24px; flex-shrink: 0; display: flex; justify-content: center; }
-    .btn-home { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: white; padding: 13px 34px; font-size: 1rem; border-radius: 9px; box-shadow: 0 6px 20px var(--accent-soft); }
+    .results-footer { padding: 18px 24px; flex-shrink: 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .btn-home { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: white; padding: 13px 28px; font-size: .95rem; border-radius: 10px; box-shadow: 0 6px 20px var(--accent-soft); }
+    .btn-manage-api {
+      background: var(--surface-2); color: var(--accent-dark);
+      border: 1.5px solid var(--accent); padding: 12px 22px;
+      border-radius: 10px; cursor: pointer; font-weight: 700;
+      font-size: .9rem; font-family: inherit;
+    }
+    .btn-manage-api:hover { background: var(--accent-soft); }
 
     /* ── UTILS ── */
     .hidden { display: none !important; }
@@ -733,7 +1094,7 @@
       font-size: .82rem; font-weight: 700; color: var(--text-muted);
     }
     .curr-crumb { cursor: pointer; padding: 3px 7px; border-radius: 6px; transition: background .15s, color .15s; }
-    .curr-crumb:hover { background: #E8F4FB; color: var(--accent); }
+    .curr-crumb:hover { background: var(--surface-3); color: var(--accent); }
     .curr-crumb.active { color: var(--accent-dark); cursor: default; }
     .curr-crumb.active:hover { background: none; }
     .curr-crumb-sep { color: var(--border-soft); }
@@ -762,7 +1123,7 @@
     .scope-mode-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .scope-mode-opt input[type="radio"]:disabled ~ * { opacity: .5; }
     .scope-hint {
-      font-size: .78rem; color: var(--accent-dark); background: #EAF6FF;
+      font-size: .78rem; color: var(--accent-dark); background: var(--surface-2);
       border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 11px; margin: 8px 0;
       font-weight: 600;
     }
@@ -778,7 +1139,7 @@
       border-radius: 5px; padding: 1px 6px; margin-left: 5px; vertical-align: middle;
     }
     .scope-selection-summary {
-      font-size: .8rem; font-weight: 700; color: var(--accent-dark); background: #EAF6FF;
+      font-size: .8rem; font-weight: 700; color: var(--accent-dark); background: var(--surface-2);
       border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 11px; margin-top: 10px;
       overflow-wrap: anywhere;
     }
@@ -856,7 +1217,7 @@
     }
     .year-btn, .module-btn {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; padding: 14px 8px; border: 2px solid var(--border-soft); border-radius: 10px;
+      gap: 6px; padding: 14px 8px; border: 1.5px solid var(--border-soft); border-radius: 12px;
       background: var(--surface-2); cursor: pointer; font-family: var(--font);
       font-size: .82rem; font-weight: 700; color: var(--text-muted);
       text-align: center; line-height: 1.3; transition: all .18s;
@@ -864,15 +1225,21 @@
     .year-btn .y-icon, .module-btn .m-icon { font-size: 1.4rem; }
     .year-btn:hover, .module-btn:hover {
       border-color: var(--accent); background: var(--surface-2-hover); color: var(--accent);
-      transform: translateY(-2px); box-shadow: 0 3px 10px rgba(14,110,130,.15);
+      transform: translateY(-2px); box-shadow: 0 3px 10px var(--accent-soft);
     }
     .year-btn.active, .module-btn.active {
-      border-color: var(--accent); background: var(--accent); color: #fff;
-      box-shadow: 0 3px 12px rgba(14,110,130,.35);
+      border-color: var(--accent);
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #fff;
+      box-shadow: 0 3px 14px var(--accent-soft);
     }
     /* Mobile tweaks */
     @media (max-width: 600px) {
-      .card { padding: 22px 16px; }
+      .topbar { padding: 12px 16px; }
+      .home-hero { padding: 30px 16px 30px; }
+      .toolbar { padding: 12px 16px; margin-top: -18px; }
+      .tool-btn { width: 80px; padding: 12px 4px; }
+      .card { padding: 22px 16px 26px; }
       .subject-grid { grid-template-columns: repeat(4, 1fr); gap: 7px; }
       .subject-btn { padding: 10px 4px; font-size: .7rem; min-width: 0; word-break: break-word; }
       .subject-btn .subj-icon { font-size: 1.3rem; }
@@ -880,11 +1247,17 @@
       .q-card { padding: 16px 14px; }
       .q-text { font-size: .97rem; }
       .option-label { font-size: .9rem; padding: 10px 12px; }
-      .results-header { padding: 12px 16px; }
+      .results-header { padding: 14px 16px; }
       .results-body { padding: 12px 14px; }
       .r-content { padding: 12px 14px; }
-      .header-title { font-size: .95rem; }
       .home-hero h1 { font-size: 1.35rem; }
+    }
+    @media (min-width: 601px) and (max-width: 900px) {
+      .subject-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 380px) {
+      .tool-btn { width: 72px; padding: 10px 3px; font-size: .68rem; }
+      .tool-btn .ticon { width: 19px; height: 19px; }
     }
     
           /* ── STATS MODAL ── */
@@ -921,7 +1294,7 @@
         padding: 17px 24px;
         display: flex; align-items: center; justify-content: space-between;
       }
-      .stats-modal-header h2 { font-size: 1.12rem; font-weight: 700; font-family: var(--font-display); }
+      .stats-modal-header h2 { font-size: 1.12rem; font-weight: 700; font-family: var(--font-display); display: flex; align-items: center; gap: 10px; }
       .stats-close-btn {
         background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); color: white;
         width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
@@ -1341,7 +1714,7 @@
   background: var(--bg-card); padding: 14px; min-height: 220px;
   max-height: 540px; overflow-y: auto;
 }
-/* Curriculum tab reuses the admin "📤 Publish Quizzes" destination
+/* Curriculum tab reuses the admin "Publish Quizzes" destination
    picker's own .curr-section/.curr-item-row/.curr-breadcrumb components
    (see adminPublishTargetPickerHtml in js/admin-panel.js) — stripped of
    its own boxed background/border/padding here since .pdx-tab-content
@@ -1416,7 +1789,7 @@
    PDF page, restyled instantly on every settings change. Never shows real
    quiz content. */
 .pdx-preview-page {
-  --pdx-base: #0E6E82; --pdx-dark: #0A3F52; --pdx-pale: #E4F3F6;
+  --pdx-base: var(--accent); --pdx-dark: var(--accent-dark); --pdx-pale: var(--surface-2);
   background: white; border-radius: 10px; overflow: hidden;
   border: 1px solid var(--border-soft); box-shadow: 0 6px 18px rgba(15,30,42,.12);
   aspect-ratio: 210 / 297; display: flex; flex-direction: column;
@@ -1427,7 +1800,7 @@
 }
 .pdx-pv-badge {
   width: 12px; height: 12px; border-radius: 3px;
-  background: #0A3F52; box-shadow: inset 0 0 0 1.5px #6FE3F0;
+  background: var(--accent-dark); box-shadow: inset 0 0 0 1.5px var(--accent-glow);
   flex-shrink: 0;
 }
 .pdx-pv-crumb { font-size: .58rem; font-weight: 700; padding: 6px 10px 0; }
@@ -1644,7 +2017,7 @@
 
 /* Desktop collapse toggle in the sidebar header, and the slim pill shown in
    its place once collapsed — lets the whole folder column be hidden/shown
-   on demand above the ~720px breakpoint (below it, the existing "📁 Browse
+   on demand above the ~720px breakpoint (below it, the existing "Browse
    Folders" drawer toggle already covers the same need). */
 .cq-coll-collapse-btn {
   border: none; border-radius: 6px; background: var(--border-soft-2); color: var(--text-muted);
@@ -1795,7 +2168,7 @@
 
 /* Below ~720px there isn't room for a fixed sidebar column beside the quiz
    list, so the tree becomes a collapsible drawer: hidden by default, opened
-   with the "📁 Browse Folders" toggle, and rendered as a full-width overlay
+   with the "Browse Folders" toggle, and rendered as a full-width overlay
    card above the quiz list rather than a side column. */
 @media (max-width: 720px) {
   .cq-coll-layout { display: block; }
@@ -1858,7 +2231,7 @@
   cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s;
 }
 .ai-tool-stop-btn:hover { background: var(--red-deep); }
-/* Compact "🧠 Thinking" pill-checkbox — one independent instance per AI
+/* Compact "Thinking" pill-checkbox — one independent instance per AI
    tool (Refine Question, Fill Choices, Add Choice, and their bulk
    counterparts). Off (grey) by default; violet + filled when the user has
    opted that specific tool into Gemini's reasoning pass. Every rendered
@@ -2264,7 +2637,8 @@
 .community-empty {
   text-align: center; padding: 28px 16px; color: var(--text-muted); font-size: .9rem;
 }
-.community-empty .ce-icon { font-size: 2rem; margin-bottom: 8px; }
+.community-empty .ce-icon { margin-bottom: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.community-empty .ce-icon .hicon { width: 40px; height: 40px; margin-right: 0; }
 
 /* ── COMMUNITY SEARCH & FILTER BAR ── */
 .comm-filter-bar {
@@ -2293,13 +2667,28 @@
 .comm-filter-row {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
+/* Wraps each filter <select> with a themed leading icon (Year/Module/
+   Subject/Sort) — mirrors .comm-search-wrap's icon-in-input treatment
+   right above so the whole filter bar reads as one consistent control
+   group. Native <option> elements can only ever render plain text (any
+   markup written inside one is invisible to the browser), so the icon
+   lives on the wrapper instead of inside the select's options. */
+.comm-filter-select-wrap {
+  position: relative; flex: 1; min-width: 120px;
+}
+.comm-filter-select-wrap .comm-filter-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  display: flex; pointer-events: none; opacity: .55; color: var(--accent);
+}
 .comm-filter-select {
-  flex: 1; min-width: 120px;
-  padding: 8px 10px; border: 1.5px solid var(--border-soft); border-radius: 8px;
+  width: 100%; box-sizing: border-box;
+  padding: 8px 10px 8px 30px; border: 1.5px solid var(--border-soft); border-radius: 8px;
   font-family: var(--font); font-size: .82rem; background: var(--surface-2); color: var(--text-main);
   outline: none; cursor: pointer; transition: border-color .15s, background .2s;
 }
 .comm-filter-select:focus { border-color: var(--accent); }
+.comm-filter-select:disabled { cursor: not-allowed; opacity: .6; }
+.comm-filter-select-wrap:has(.comm-filter-select:disabled) .comm-filter-icon { opacity: .3; }
 .comm-results-count {
   font-size: .76rem; color: var(--text-muted); padding: 2px 0;
 }
@@ -2328,8 +2717,8 @@
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .sq-modal {
-  background: #fff; border-radius: 16px; padding: 28px 24px 22px;
-  box-shadow: 0 8px 40px rgba(0,0,0,.22); width: 100%; max-width: 400px;
+  background: #fff; border-radius: 20px; padding: 28px 24px 22px;
+  box-shadow: 0 20px 60px rgba(4,14,20,.3); width: 100%; max-width: 400px;
   border-top: 4px solid var(--violet);
 }
 .sq-title { font-size: 1.05rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
@@ -2372,9 +2761,10 @@
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .dn-modal {
-  background: white; border-radius: 14px; padding: 28px 28px 24px;
+  background: white; border-radius: 20px; padding: 28px 28px 24px;
   max-width: 420px; width: 100%;
-  box-shadow: 0 8px 40px rgba(0,0,0,.22);
+  box-shadow: 0 20px 60px rgba(4,14,20,.3);
+  border-top: 4px solid var(--accent);
 }
 .dn-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; }
 .dn-sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
@@ -2421,7 +2811,7 @@
 
 .ai-explain-panel {
   margin-top: 10px; border-radius: 8px;
-  border: 1.5px solid var(--violet-mid-border); background: #F8F5FF;
+  border: 1.5px solid var(--violet-mid-border); background: var(--violet-pale);
   overflow: hidden;
 }
 .ai-explain-panel-header {
@@ -2475,12 +2865,12 @@
 /* ── AI CHAT (per-question) ── */
 .ai-chat-btn {
   display: inline-flex; align-items: center; gap: 5px;
-  background: #E1F5FE; color: #01579B; border: 1.5px solid #81D4FA;
+  background: var(--sky-pale); color: var(--sky-fg); border: 1.5px solid var(--sky-border);
   border-radius: 7px; padding: 5px 12px; font-family: var(--font);
   font-size: .8rem; font-weight: 700; cursor: pointer;
   transition: all .15s; margin-top: 8px; margin-left: 8px;
 }
-.ai-chat-btn:hover:not(:disabled) { background: var(--blue-pale); border-color: #29B6F6; }
+.ai-chat-btn:hover:not(:disabled) { background: var(--blue-pale); border-color: var(--sky-border-strong); }
 
 .ai-apikey-btn {
   display: inline-flex; align-items: center; gap: 5px;
@@ -2495,13 +2885,13 @@
 .ai-chat-panel { margin-top: 10px; }
 .ai-chat-panel:empty { margin-top: 0; }
 .ai-chat-box {
-  border-radius: 8px; border: 1.5px solid #81D4FA;
-  background: #F4FBFF; overflow: hidden;
+  border-radius: 8px; border: 1.5px solid var(--sky-border);
+  background: var(--surface-2); overflow: hidden;
 }
 .ai-chat-header {
-  background: #E1F5FE; padding: 8px 14px;
+  background: var(--sky-pale); padding: 8px 14px;
   display: flex; align-items: center; gap: 7px;
-  font-size: .8rem; font-weight: 800; color: #01579B;
+  font-size: .8rem; font-weight: 800; color: var(--sky-fg);
   letter-spacing: .3px;
 }
 .ai-chat-messages {
@@ -2593,13 +2983,64 @@
 /* ── ADMIN PANEL ── */
 .admin-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(255,200,0,.2); border: 2px solid rgba(255,200,0,.6);
-  color: var(--amber-glow); padding: 7px 14px; border-radius: 8px;
-  font-family: var(--font); font-size: .85rem; font-weight: 800;
-  cursor: pointer; margin-top: 10px;
-  transition: background .15s;
+  background: rgba(255,255,255,.12); border: 1.5px solid rgba(255,255,255,.4);
+  color: #fff; padding: 7px 14px; border-radius: 999px;
+  font-family: var(--font); font-size: .82rem; font-weight: 700;
+  cursor: pointer; margin-top: 0; flex-shrink: 0;
+  transition: background .18s, border-color .18s, transform .15s;
 }
-.admin-btn:hover { background: rgba(255,200,0,.35); }
+.admin-btn:hover { background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.7); transform: translateY(-1px); }
+/* Below ~400px the "Admin" word is dropped and the icon alone carries the
+   button — the badge keeps its position and tap target, it just gets
+   quieter instead of forcing the bar to wrap or spilling off-screen. */
+.admin-btn .btn-label { white-space: nowrap; }
+@media (max-width: 400px) {
+  .admin-btn { padding: 7px 10px; }
+  .admin-btn .btn-label { display: none; }
+}
+
+/* ── AUTH CONTROL (Google sign-in / signed-in user pill) ──
+   Shared markup+styles for #authAreaHome and #authAreaQuiz, rendered
+   from js/app-core.js. Kept as real classes (not inline styles) so the
+   responsive rules below are the single source of truth for how this
+   control compacts on small screens. */
+.auth-signedin { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.auth-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,.6); object-fit: cover;
+}
+.auth-name {
+  color: #fff; font-size: .85rem; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 120px;
+}
+.auth-signout-btn {
+  background: rgba(255,255,255,.2); border: 1.5px solid rgba(255,255,255,.4);
+  color: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  font-weight: 700; font-size: .78rem; font-family: var(--font);
+  flex-shrink: 0; white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.auth-signout-btn:hover { background: rgba(255,255,255,.3); }
+.auth-signin-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #fff; color: var(--accent); border: none;
+  padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  font-weight: 800; font-size: .85rem; font-family: var(--font);
+  box-shadow: 0 2px 8px rgba(0,0,0,.15); flex-shrink: 0;
+  transition: transform .15s, box-shadow .15s;
+}
+.auth-signin-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.auth-signin-btn img { width: 17px; height: 17px; flex-shrink: 0; }
+.auth-signin-text { white-space: nowrap; }
+/* Same idea as .admin-btn: the label text is the first thing to go, so
+   the sign-in control shrinks to a compact icon-only button rather than
+   being clipped or pushed past the edge of the screen. */
+@media (max-width: 480px) {
+  .auth-signin-btn { padding: 8px 10px; }
+  .auth-signin-text { display: none; }
+  .auth-name { max-width: 64px; }
+}
 
 .admin-overlay {
   position: fixed; inset: 0; z-index: 13000;
@@ -2607,18 +3048,19 @@
   display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .admin-modal {
-  background: white; border-radius: 16px;
+  background: white; border-radius: 18px;
   width: 100%; max-width: 820px; max-height: 88vh;
   display: flex; flex-direction: column;
-  box-shadow: 0 12px 50px rgba(0,0,0,.3);
+  box-shadow: 0 20px 60px rgba(4,14,20,.35);
+  border: 1px solid var(--border-soft);
   overflow: hidden;
 }
 .admin-modal-header {
-  background: var(--accent-dark); color: #fff;
+  background: linear-gradient(120deg, var(--nav-current), var(--accent-dark)); color: #fff;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 22px; flex-shrink: 0;
+  padding: 17px 24px; flex-shrink: 0;
 }
-.admin-modal-header h2 { font-size: 1.1rem; font-weight: 800; }
+.admin-modal-header h2 { font-size: 1.12rem; font-weight: 700; font-family: var(--font-display); display: flex; align-items: center; gap: 10px; }
 .admin-modal-header button {
   background: rgba(255,255,255,.2); border: none; color: #fff;
   width: 32px; height: 32px; border-radius: 50%; font-size: 1.1rem;
@@ -2641,7 +3083,7 @@
    source tab so an admin always knows what's queued while browsing. */
 .admin-selection-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  background: #EBF4FA; border: 1.5px solid var(--accent-dark); border-radius: 8px;
+  background: var(--surface-3); border: 1.5px solid var(--accent-dark); border-radius: 8px;
   padding: 8px 12px; font-size: .82rem; font-weight: 700; color: var(--accent-dark);
 }
 
@@ -2664,7 +3106,7 @@
 .admin-multi-quiz-remove:hover { background: var(--red-pale); }
 
 .admin-quiz-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
-/* "🤖 My Custom Quizzes" — the collections folder tree (.cq-coll-layout) owns
+/* "My Custom Quizzes" — the collections folder tree (.cq-coll-layout) owns
    its own height/scrolling (sidebar is sticky+scrollable, the quiz list just
    grows and the surrounding .admin-body scrolls), so this variant drops the
    old fixed max-height/overflow box instead of nesting scroll areas. */
@@ -2676,7 +3118,7 @@
   padding: 10px 14px; cursor: pointer; transition: all .15s;
 }
 .admin-quiz-item:hover { border-color: var(--accent); background: var(--surface-2-hover); }
-.admin-quiz-item.selected { border-color: var(--accent-dark); background: #EBF4FA; }
+.admin-quiz-item.selected { border-color: var(--accent-dark); background: var(--surface-3); }
 .admin-quiz-item-info { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
 .admin-quiz-item-title { font-weight: 700; font-size: .9rem; color: var(--text-main); }
 .admin-quiz-item-meta { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
@@ -2690,7 +3132,7 @@
   border-color: var(--accent-dark); background: var(--accent-dark); color: #fff;
 }
 /* Compact icon-only "move to folder" button on each admin publish-source
-   card — same job as the custom-quiz modal's "📁 Move" button, sized to
+   card — same job as the custom-quiz modal's "Move" button, sized to
    match this card's more compact, icon-driven design language instead of
    reusing that button's text label. */
 .admin-quiz-move-btn {
@@ -2733,10 +3175,12 @@
   flex: 1; height: 1px; background: var(--border-soft-2);
 }
 .admin-publish-here-btn {
+  display: inline-flex; align-items: center; gap: 4px;
   font-size: .7rem; font-weight: 800; color: var(--accent-dark); background: #EAF4FF;
   border: 1.5px dashed var(--border-soft); border-radius: 20px; padding: 3px 10px;
   white-space: nowrap; transition: all .12s;
 }
+.admin-publish-here-btn .sicon { width: 11px; height: 11px; margin-right: 0; }
 .admin-publish-here-gap:hover .admin-publish-here-btn { border-style: solid; background: #DCEEFF; }
 .admin-publish-here-gap.admin-publish-here-active .admin-publish-here-btn {
   background: var(--accent-dark); color: #fff; border-style: solid; border-color: var(--accent-dark);
@@ -2759,7 +3203,7 @@
 .admin-remove-btn:hover { background: var(--red-pale); }
 .admin-assigned-insert-summary {
   font-size: .78rem; font-weight: 700; color: var(--accent-dark);
-  background: #EAF6FF; border: 1px solid var(--border-soft); border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 8px;
   padding: 7px 11px; margin-bottom: 9px;
 }
 .admin-insert-btn-active { border-color: var(--accent) !important; font-weight: 800; box-shadow: 0 0 0 1.5px var(--accent) inset; }
@@ -2776,7 +3220,7 @@
   margin-bottom: -2px; transition: all .15s;
 }
 .admin-panel-tab.active { color: var(--accent-dark); border-bottom-color: var(--accent-dark); background: white; }
-.admin-panel-tab:hover:not(.active) { background: #E8F4FB; color: var(--text-main); }
+.admin-panel-tab:hover:not(.active) { background: var(--surface-3); color: var(--text-main); }
 
 /* Curriculum manager */
 .curr-section {
@@ -2825,7 +3269,7 @@
 }
 .icon-picker-pop.hidden { display: none; }
 .icon-picker-search {
-  width: 100%; padding: 7px 9px; border: 1.5px solid #D6E6F2; border-radius: 6px;
+  width: 100%; padding: 7px 9px; border: 1.5px solid var(--border-soft); border-radius: 6px;
   font-family: var(--font); font-size: .82rem; margin-bottom: 8px;
 }
 .icon-picker-grid {
@@ -2841,7 +3285,7 @@
   display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #EEF3F7;
 }
 .icon-picker-add-row input {
-  flex: 1; min-width: 0; padding: 6px 8px; border: 1.5px solid #D6E6F2; border-radius: 6px;
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1.5px solid var(--border-soft); border-radius: 6px;
   font-family: var(--font); font-size: .8rem; text-align: center;
 }
 .icon-picker-add-row button {
@@ -2858,7 +3302,7 @@
 
 /* API key prompt for explanations */
 .ai-key-prompt {
-  background: #F8F5FF; border: 1.5px solid var(--violet-mid-border); border-radius: 10px;
+  background: var(--violet-pale); border: 1.5px solid var(--violet-mid-border); border-radius: 10px;
   padding: 16px 18px; margin: 10px 0;
 }
 .ai-key-prompt-title {
@@ -3103,7 +3547,7 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
 
 @media (max-width: 480px) {
   .comm-filter-row { flex-direction: column; }
-  .comm-filter-select { min-width: unset; width: 100%; }
+  .comm-filter-select-wrap { min-width: unset; width: 100%; }
   .sq-modal { padding: 22px 16px 18px; }
   .apikey-item { padding: 12px; }
   .apikey-info { flex-basis: 100%; min-width: 0; }
@@ -3145,7 +3589,7 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   .cq-split-q-row { padding: 8px 10px; gap: 8px; }
   .cq-scissors-btn { width: 26px; height: 26px; font-size: .95rem; }
 
-  /* 🧠 Thinking toggles: same shrink treatment as the other small AI-tool
+  /* Thinking toggles: same shrink treatment as the other small AI-tool
      controls above, plus its button+toggle group (see ai-question-tools.js
      / ai-features.js) is already allowed to wrap internally, so on very
      narrow phones the toggle drops cleanly under its own button instead of

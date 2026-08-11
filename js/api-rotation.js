@@ -100,11 +100,11 @@ function recordApiSuccess(id) {
   const st = _apiRotState(id);
   if (!st) return;
   const wasExcluded = st.excludedAt || st.invalid;
-  st.consecutive429  = 0;
-  st.consecutive400  = 0;
-  st.excludedAt      = null;
-  st.excludedReason  = null;
-  st.invalid         = false;
+  st.consecutive429 = 0;
+  st.consecutive400 = 0;
+  st.excludedAt = null;
+  st.excludedReason = null;
+  st.invalid = false;
   if (wasExcluded) _broadcastRotationUI({ recoveredId: id });
 }
 
@@ -124,7 +124,7 @@ function recordApiFailure(id, status) {
   if (status === 429) {
     st.consecutive429++;
     if (st.consecutive429 >= API_ROTATION_FAILURE_THRESHOLD && !st.excludedAt) {
-      st.excludedAt     = Date.now();
+      st.excludedAt = Date.now();
       st.excludedReason = 'rate_limited';
       return true; // just became excluded this call
     }
@@ -133,7 +133,7 @@ function recordApiFailure(id, status) {
   if (status === 400) {
     st.consecutive400++;
     if (st.consecutive400 >= API_ROTATION_FAILURE_THRESHOLD && !st.excludedAt) {
-      st.excludedAt     = Date.now();
+      st.excludedAt = Date.now();
       st.excludedReason = 'model_error';
       return true; // just became excluded this call
     }
@@ -167,10 +167,10 @@ function isKeyExcluded(id) {
   if (st.excludedAt) {
     if (Date.now() - st.excludedAt >= API_ROTATION_COOLDOWN_MS) {
       // Cooldown elapsed — give it another chance automatically.
-      st.excludedAt      = null;
-      st.excludedReason  = null;
-      st.consecutive429  = 0;
-      st.consecutive400  = 0;
+      st.excludedAt = null;
+      st.excludedReason = null;
+      st.consecutive429 = 0;
+      st.consecutive400 = 0;
       return false;
     }
     return true;
@@ -250,7 +250,7 @@ function _broadcastRotationUI(detail) {
    some keys and repeated model errors on others at the same time. */
 function _apiAllRateLimitedBannerHTML() {
   const msg = isSmartRotationEnabled()
-    ? `⚠️ All your API keys are currently hitting issues (rate limits and/or model errors). This will keep automatically rotating between them and retrying — it may just be a little slower right now. Adding another API key (🔑 Manage APIs) will speed things back up as soon as you paste it in.`
-    : `⚠️ All your API keys are currently hitting issues (rate limits and/or model errors), and Smart Rotation is off, so the app is retrying on the same key instead of switching. Turn Smart Rotation back on in 🔑 Manage APIs, or add another key, to speed things back up.`;
+    ? `<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> All your API keys are currently hitting issues (rate limits and/or model errors). This will keep automatically rotating between them and retrying — it may just be a little slower right now. Adding another API key (<svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs) will speed things back up as soon as you paste it in.`
+    : `<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> All your API keys are currently hitting issues (rate limits and/or model errors), and Smart Rotation is off, so the app is retrying on the same key instead of switching. Turn Smart Rotation back on in <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs, or add another key, to speed things back up.`;
   return `<div class="cq-status warning api-rotation-banner" style="margin-top:6px;">${msg}</div>`;
 }

@@ -28,7 +28,7 @@
    Choice) are different: every question card renders its own copy, and
    each one now remembers its OWN on/off state, independently of every
    other question — turning it on for question 3 has no effect on
-   question 7, even though both show the same "🧩 Fill Choices" button.
+   question 7, even though both show the same "<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Fill Choices" button.
    That state is keyed by `${editorKey}_${i}_${toolKey}` and lives only in
    memory for the current session (not persisted): a question's index can
    point at a completely different question next time the editor opens
@@ -37,15 +37,15 @@
    actually turned it on for. */
 const AI_TOOLS_THINKING_STORE = 'aiToolsThinkingSettings';
 const _AI_TOOLS_BULK_THINKING_DEFAULTS = {
-  fillBulk:     false, // 🧩 Fill Choices — bulk (post-extraction pass / "Fill Choices (All)")
-  refineBulk:   false  // 🪄 Refine Questions — bulk (post-extraction pass / "Refine Questions (All)")
+  fillBulk:     false, // <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Fill Choices — bulk (post-extraction pass / "Fill Choices (All)")
+  refineBulk:   false  // <svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Questions — bulk (post-extraction pass / "Refine Questions (All)")
 };
 // Which tool keys are per-question (vs. the shared/persisted bulk ones
 // above) — checked by every function below to decide which store to use.
 const _AI_TOOLS_PER_QUESTION_KEYS = {
-  refineSingle: 1, // 🪄 Refine Question (per-question button)
-  fillSingle:   1, // 🧩 Fill Choices (per-question button)
-  addChoice:    1  // ➕ Add Choice (AI) (per-question button)
+  refineSingle: 1, // <svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Question (per-question button)
+  fillSingle:   1, // <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Fill Choices (per-question button)
+  addChoice:    1  // <svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Choice (AI) (per-question button)
 };
 function _aiToolsLoadThinkingSettings() {
   try {
@@ -57,8 +57,8 @@ function _aiToolsLoadThinkingSettings() {
     return Object.assign({}, _AI_TOOLS_BULK_THINKING_DEFAULTS);
   }
 }
-let _aiToolsThinkingBulk = _aiToolsLoadThinkingSettings();     // { fillBulk, refineBulk } — persisted
-let _aiToolsThinkingByQuestion = {};                           // { "<editorKey>_<i>_<toolKey>": true|false } — in-memory only
+let _aiToolsThinkingBulk = _aiToolsLoadThinkingSettings(); // { fillBulk, refineBulk } — persisted
+let _aiToolsThinkingByQuestion = {}; // { "<editorKey>_<i>_<toolKey>": true|false } — in-memory only
 function _aiToolsThinkingByQuestionKey(toolKey, editorKey, i) { return `${editorKey}_${i}_${toolKey}`; }
 function _aiToolsThinkingOn(toolKey, editorKey, i) {
   if (_AI_TOOLS_PER_QUESTION_KEYS[toolKey]) return !!_aiToolsThinkingByQuestion[_aiToolsThinkingByQuestionKey(toolKey, editorKey, i)];
@@ -103,10 +103,10 @@ function _aiToolsSetThinking(toolKey, on, editorKey, i) {
 }
 const _AI_THINKING_LABELS = {
   refineSingle: 'Refine Question',
-  fillSingle:   'Fill Choices',
-  addChoice:    'Add Choice',
-  fillBulk:     'Fill Choices (bulk)',
-  refineBulk:   'Refine Questions (bulk)'
+  fillSingle: 'Fill Choices',
+  addChoice: 'Add Choice',
+  fillBulk: 'Fill Choices (bulk)',
+  refineBulk: 'Refine Questions (bulk)'
 };
 /* Pill-checkbox for one tool. For a BULK toolKey, safe to render many
    times (all copies stay in sync via the querySelectorAll sync above) —
@@ -134,7 +134,7 @@ function _renderAiThinkingToggle(toolKey, variant, extraStyle, editorKey, i) {
     <input type="checkbox" class="ai-thinking-cb" data-tool="${toolKey}"${idAttr} ${on ? 'checked' : ''}
       onchange="_aiToolsSetThinking(${onchangeArgs})">
     <span class="ai-thinking-cb-box"></span>
-    <span class="ai-thinking-cb-label">🧠 Thinking</span>
+    <span class="ai-thinking-cb-label"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> Thinking</span>
   </label>`;
 }
 
@@ -145,7 +145,7 @@ const _aiToolsCustomPromptText = {};
 function _aiToolsKey(editorKey, i) { return editorKey + '_' + i; }
 
 /* ── Per-question AI lock ──
-   Refine Question, Fill Choices, Add Choice (AI), and the existing 🤖 AI
+   Refine Question, Fill Choices, Add Choice (AI), and the existing <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI
    Solve button all mutate the SAME question object. Without a lock, firing
    two of them at once on the same question is a real race: e.g. AI Solve
    could read/settle on a fabricated distractor that Fill Choices is still
@@ -183,9 +183,9 @@ function _aiToolsButtonIds(editorKey, i) {
     `aiRefineInstrCaret_${editorKey}_${i}`,
     `aiAddChoiceBtn_${editorKey}_${i}`,
     `aiFillChoicesBtn_${editorKey}_${i}`,
-    `cqAiSolveBtn_${editorKey}_${i}`,   // now available in every editor, not just 'cq'
+    `cqAiSolveBtn_${editorKey}_${i}`, // now available in every editor, not just 'cq'
     `aiSolveSrcCaret_${editorKey}_${i}`, // the ▾ source picker toggle next to it
-    `aiReextractImageBtn_${editorKey}_${i}`, // 🔁 Re-extract Image (currently only rendered in 'cq')
+    `aiReextractImageBtn_${editorKey}_${i}`, // <svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Re-extract Image (currently only rendered in 'cq')
     `aiReextractInstrCaret_${editorKey}_${i}` // its ▾ custom-instructions caret
   ];
 }
@@ -196,7 +196,7 @@ function _aiToolsButtonIds(editorKey, i) {
    used in _renderAiRefineTools/_renderAiChoiceTools/renderCQPreview) so the
    correct button still shows its highlight + spinner after a mid-run
    rebuild — e.g. the editor re-renders because the user opened and closed
-   🔑 Manage APIs while this action was still running. Without baking this
+   <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs while this action was still running. Without baking this
    into the template too, only the imperative DOM insert would show it, and
    that's wiped out the moment the button's HTML gets replaced wholesale. */
 function _aiToolsActionIsActive(editorKey, i, action) {
@@ -217,10 +217,10 @@ function _aiToolsSyncButtons(editorKey, i, busy, action) {
 
   // Which button id corresponds to which action name.
   const idMap = {
-    refine:      `aiRefineBtn_${editorKey}_${i}`,
-    addChoice:   `aiAddChoiceBtn_${editorKey}_${i}`,
+    refine: `aiRefineBtn_${editorKey}_${i}`,
+    addChoice: `aiAddChoiceBtn_${editorKey}_${i}`,
     fillChoices: `aiFillChoicesBtn_${editorKey}_${i}`,
-    solve:       `cqAiSolveBtn_${editorKey}_${i}`,
+    solve: `cqAiSolveBtn_${editorKey}_${i}`,
     reextractImage: `aiReextractImageBtn_${editorKey}_${i}`
   };
   const activeId = action && idMap[action];
@@ -239,10 +239,10 @@ function _aiToolsSyncButtons(editorKey, i, busy, action) {
   // every other feature's Stop button on this card (only one of these four
   // can ever be running at once per question, thanks to the busy lock).
   const stopIdMap = {
-    refine:      `aiRefineStopBtn_${editorKey}_${i}`,
-    addChoice:   `aiAddChoiceStopBtn_${editorKey}_${i}`,
+    refine: `aiRefineStopBtn_${editorKey}_${i}`,
+    addChoice: `aiAddChoiceStopBtn_${editorKey}_${i}`,
     fillChoices: `aiFillChoicesStopBtn_${editorKey}_${i}`,
-    solve:       `cqAiSolveStopBtn_${editorKey}_${i}`,
+    solve: `cqAiSolveStopBtn_${editorKey}_${i}`,
     reextractImage: `aiReextractStopBtn_${editorKey}_${i}`
   };
   Object.values(stopIdMap).forEach(id => {
@@ -269,7 +269,7 @@ function _aiToolsStatusEl(editorKey, i) {
 /* Cached (see js/dom-utils.js) so any status box driven by a per-question
    AI tool can restore its content immediately if the question's card gets
    rebuilt mid-run (e.g. the editor re-renders because the user switched
-   API keys via 🔑 Manage APIs while the tool was still working) — without
+   API keys via <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs while the tool was still working) — without
    this, the freshly-rendered card would show a blank status box (just the
    Stop button, since that part is already driven by live busy state) until
    the in-flight request happens to finish. Takes the DOM id directly so it
@@ -289,7 +289,7 @@ function _aiToolsLoadingHTML(label) {
     <div class="cq-spinner" style="width:12px;height:12px;border-width:2px;"></div> ${label}</div>`;
 }
 function _aiToolsErrorHTML(msg) {
-  return `<div class="cq-status warning" style="font-size:.75rem;padding:5px 10px;">⚠️ ${escapeHtml(msg)}</div>`;
+  return `<div class="cq-status warning" style="font-size:.75rem;padding:5px 10px;"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${escapeHtml(msg)}</div>`;
 }
 /* Every AI tool call shares the same active Gemini key used everywhere else
    in the app (extraction, AI Solve, explanations) — if none is configured
@@ -297,7 +297,7 @@ function _aiToolsErrorHTML(msg) {
 function _aiToolsRequireKey(editorKey, i) {
   const apiKey = getActiveApiKey();
   if (!apiKey) {
-    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Add a Gemini API key (⚙️ API Keys) to use AI tools.'));
+    _aiToolsSetStatus(editorKey, i, _aiToolsErrorHTML('Add a Gemini API key (<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> API Keys) to use AI tools.'));
     return null;
   }
   return apiKey;
@@ -309,7 +309,7 @@ function _aiCustomPromptChanged(editorKey, i, val) {
 }
 function _aiRefineInstrCaretLabel(editorKey, i) {
   const draft = (_aiToolsCustomPromptText[_aiToolsKey(editorKey, i)] || '').trim();
-  return draft ? '⚙️ Instructions •' : '⚙️ Instructions';
+  return draft ? '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Instructions •' : '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Instructions';
 }
 /* Strips ```json fences (Gemini sometimes adds them despite the mime type
    request) before parsing — same tolerant pattern used elsewhere in the app.
@@ -346,7 +346,7 @@ function _aiToolsCaseContext(questions, q) {
   return { textBlock, imagePart };
 }
 
-/* Renders the "🤖 AI Solve" + "🪄 Refine Question" toolbar, each with its
+/* Renders the " AI Solve" + " Refine Question" toolbar, each with its
    own ▾ caret opening a popover scoped to THAT action only — AI Solve's
    caret picks the source to solve from; Refine's caret holds the custom
    instructions used only when refining. Keeping both as the same
@@ -367,21 +367,21 @@ function _renderAiRefineTools(editorKey, i) {
         <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'solve')}" type="button" id="cqAiSolveBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Ask AI to solve this question using the source chosen below"
           onclick="aiSolveQuestion('${editorKey}', ${i})"
-          style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML(editorKey, i, 'solve')}🤖 AI Solve</button>
+          style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML(editorKey, i, 'solve')}<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve</button>
         <button class="cq-edit-reask-btn" type="button" id="aiSolveSrcCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
           title="Choose what AI Solve should rely on: general AI knowledge, or a specific source"
           onclick="_toggleAiSourcePicker('${editorKey}', ${i})"
-          style="background:#F1F8F4;color:var(--correct-fg);border-color:var(--green-pale-border);border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_aiSolveSourceShortLabel(editorKey, i))} ▾</button>
+          style="background:#F1F8F4;color:var(--correct-fg);border-color:var(--green-pale-border);border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_aiSolveSourceShortHTML(editorKey, i)} ▾</button>
       </div>
       <button class="ai-tool-stop-btn" type="button" id="cqAiSolveStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'solve' ? 'display:inline-block;' : ''}"
-        title="Stop AI Solve" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>
+        title="Stop AI Solve" onclick="_aiToolsStopAction('${editorKey}', ${i})"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <div style="display:flex;">
           <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'refine')}" type="button" id="aiRefineBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
             title="Use AI to rewrite this question with clear, exam-style phrasing and no grammar mistakes or typos"
             onclick="aiRefineQuestion('${editorKey}', ${i})"
-            style="background:var(--violet-pale);color:var(--violet-dark);border-color:var(--violet-border);border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML(editorKey, i, 'refine')}🪄 Refine Question</button>
+            style="background:var(--violet-pale);color:var(--violet-dark);border-color:var(--violet-border);border-top-right-radius:0;border-bottom-right-radius:0;">${_aiToolsBtnSpinnerHTML(editorKey, i, 'refine')}<svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Question</button>
           <button class="cq-edit-reask-btn" type="button" id="aiRefineInstrCaret_${editorKey}_${i}" ${busy ? 'disabled' : ''}
             title="Optional custom instructions used only when refining this question"
             onclick="_toggleAiRefineInstrPicker('${editorKey}', ${i})"
@@ -391,7 +391,7 @@ function _renderAiRefineTools(editorKey, i) {
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiRefineStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'refine' ? 'display:inline-block;' : ''}"
-        title="Stop Refine Question" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>
+        title="Stop Refine Question" onclick="_aiToolsStopAction('${editorKey}', ${i})"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
     </div>
     <div id="aiSourcePicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
     <div id="aiRefineInstrPicker_${editorKey}_${i}" class="ai-source-picker" style="display:none;"></div>
@@ -410,24 +410,24 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
       <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'addChoice')}" type="button" id="aiAddChoiceBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
         title="Let AI write one more plausible answer choice for this question"
         onclick="aiAddChoice('${editorKey}', ${i})"
-        style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'addChoice')}🤖 Add Choice (AI)</button>
+        style="background:var(--correct-bg);color:var(--correct-fg);border-color:var(--green-pale-border);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'addChoice')}<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> Add Choice (AI)</button>
       ${_renderAiThinkingToggle('addChoice', 'green', undefined, editorKey, i)}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiAddChoiceStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'addChoice' ? 'display:inline-block;' : ''}"
-        title="Stop Add Choice" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>`;
+        title="Stop Add Choice" onclick="_aiToolsStopAction('${editorKey}', ${i})"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>`;
   }
   if (optCount < 4 && nextKey) {
     html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <button class="cq-edit-reask-btn${_aiToolsBtnActiveClass(editorKey, i, 'fillChoices')}" type="button" id="aiFillChoicesBtn_${editorKey}_${i}" ${busy ? 'disabled' : ''}
         title="Let AI fill in the remaining choices (up to 4 total)"
         onclick="aiFillChoices('${editorKey}', ${i})"
-        style="background:var(--unanswered-bg);color:var(--unanswered-fg);border-color:var(--amber-strong);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'fillChoices')}🧩 Fill Choices (AI)</button>
+        style="background:var(--unanswered-bg);color:var(--unanswered-fg);border-color:var(--amber-strong);">${_aiToolsBtnSpinnerHTML(editorKey, i, 'fillChoices')}<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Fill Choices (AI)</button>
       ${_renderAiThinkingToggle('fillSingle', 'amber', undefined, editorKey, i)}
       </div>
       <button class="ai-tool-stop-btn" type="button" id="aiFillChoicesStopBtn_${editorKey}_${i}"
         style="${busy && activeAction === 'fillChoices' ? 'display:inline-block;' : ''}"
-        title="Stop Fill Choices" onclick="_aiToolsStopAction('${editorKey}', ${i})">⏹ Stop</button>`;
+        title="Stop Fill Choices" onclick="_aiToolsStopAction('${editorKey}', ${i})"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>`;
   }
   html += `</div>`;
   return html;
@@ -441,7 +441,7 @@ function _renderAiChoiceTools(editorKey, i, optCount, nextKey) {
    overrides the default rules above where the two genuinely conflict on
    that specific point; everything else still applies. */
 /* Shared refine-prompt caller — builds the same prompt/rules used by the
-   per-question "🪄 Refine Question" button, but as a standalone function so
+   per-question "<svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Question" button, but as a standalone function so
    the bulk post-extraction pass (cqBulkRefineQuestions) can reuse it without
    needing an editor/card in the DOM. Returns the refined question string,
    or throws on failure. */
@@ -491,7 +491,7 @@ Respond ONLY with a JSON object: {"question": "the refined question text"}. No m
       // unpredictably eat most of the budget, leaving too little for the
       // actual answer and truncating it mid-string. Off by default reclaims
       // the whole budget for the real output and is also faster; the user
-      // can opt back into thinking per-tool via the 🧠 Thinking checkbox
+      // can opt back into thinking per-tool via the Thinking checkbox
       // (see _aiToolsGenConfigExtra) if they'd rather trade that for a
       // chance at higher quality.
       ..._aiToolsGenConfigExtra(toolKey || 'refineSingle', editorKey, i)
@@ -525,7 +525,7 @@ async function aiRefineQuestion(editorKey, i) {
   const token = { cancelled: false };
   _aiToolsCancelToken[key] = token;
   _aiToolsSetBusy(editorKey, i, true, 'refine');
-  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🪄 Refining question…'));
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('<svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refining question…'));
 
   try {
     q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, token, 'refineSingle', editorKey, i);
@@ -601,7 +601,7 @@ Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(
       // reasoning pass, so it's off by default, freeing the full token
       // budget for the actual answer instead of risking it being squeezed
       // out and truncated. Each caller (Fill Choices single/bulk, Add
-      // Choice) passes its own toolKey, so the user's 🧠 Thinking choice
+      // Choice) passes its own toolKey, so the user's Thinking choice
       // for one of those never affects the others.
       ..._aiToolsGenConfigExtra(toolKey || 'fillSingle', editorKey, i)
     }
@@ -663,7 +663,7 @@ async function aiFillChoices(editorKey, i) {
   const token = { cancelled: false };
   _aiToolsCancelToken[_key] = token;
   _aiToolsSetBusy(editorKey, i, true, 'fillChoices');
-  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML(`🧩 Filling ${missing.length} more choice${missing.length !== 1 ? 's' : ''}…`));
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML(`<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Filling ${missing.length} more choice${missing.length !== 1 ? 's' : ''}…`));
 
   try {
     const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, missing.length, token, 'fillSingle', editorKey, i);
@@ -723,7 +723,7 @@ async function aiAddChoice(editorKey, i) {
   const token = { cancelled: false };
   _aiToolsCancelToken[_key] = token;
   _aiToolsSetBusy(editorKey, i, true, 'addChoice');
-  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('🤖 AI is writing a new choice…'));
+  _aiToolsSetStatus(editorKey, i, _aiToolsLoadingHTML('<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is writing a new choice…'));
 
   try {
     const newVals = await _aiGenerateDistractors(apiKey, questions, q, optEntries, 1, token, 'addChoice', editorKey, i);
@@ -823,13 +823,13 @@ function _cqGroupAwareCanonicalOrder(arr) { return _cqGroupAwareOrder(arr, false
    the whole banner, so the user still sees it's being handled. */
 function _cqPausingBannerHTML() {
   const skipPart = (typeof cqPauseSkipRequested !== 'undefined' && cqPauseSkipRequested)
-    ? `<div style="margin-top:6px;font-style:italic;">⏳ Stepping back to the last checkpoint instead…</div>`
+    ? `<div style="margin-top:6px;font-style:italic;"><svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Stepping back to the last checkpoint instead…</div>`
     : `<div style="margin-top:6px;">
         <button class="cq-btn cq-btn-secondary" type="button" style="padding:4px 10px;font-size:.72rem;"
-          onclick="cqRequestPauseSkip()">⏭️ Don't wait — pause now (retries this step)</button>
+          onclick="cqRequestPauseSkip()"><svg class="sicon" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg> Don't wait — pause now (retries this step)</button>
       </div>`;
   return `<div class="cq-status warning cq-pausing-banner" style="margin-top:6px;">
-    ⏳ Waiting for the nearest checkpoint to pause safely — this finishes the current step first so nothing already done is lost.
+    <svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Waiting for the nearest checkpoint to pause safely — this finishes the current step first so nothing already done is lost.
     ${skipPart}
   </div>`;
 }
@@ -873,7 +873,7 @@ function _cqProgressStatusHTML(message, percent) {
 
    Because getActiveApiKey() always reads the currently-active key fresh,
    any loop that re-reads it right after a checkpoint will automatically
-   pick up a different key if the user opened 🔑 Manage APIs while paused. */
+   pick up a different key if the user opened <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs while paused. */
 function _cqActiveGenBtn() {
   return document.getElementById('cqGenerateBtn') || document.getElementById('cqLectureGenBtn');
 }
@@ -883,7 +883,7 @@ function cqRequestPause() {
   cqPauseRequested = true;
   cqPauseSkipRequested = false;
   const pauseBtn = document.getElementById('cqPauseBtn');
-  if (pauseBtn) { pauseBtn.disabled = true; pauseBtn.textContent = '⏳ Pausing…'; }
+  if (pauseBtn) { pauseBtn.disabled = true; pauseBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Pausing…'; }
 
   // Let the user know right away — pausing isn't instant, it takes effect at
   // the next safe checkpoint (between files/batches), so tell them what's
@@ -928,7 +928,7 @@ function cqRequestStop() {
     resolve();
   }
   const stopBtn = document.getElementById('cqStopBtn');
-  if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = '⏳ Stopping…'; }
+  if (stopBtn) { stopBtn.disabled = true; stopBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Stopping…'; }
 }
 
 function cqResumeGeneration() {
@@ -936,12 +936,12 @@ function cqResumeGeneration() {
   const resolve = cqResumeResolve;
   cqResumeResolve = null;
   const pauseBtn = document.getElementById('cqPauseBtn');
-  if (pauseBtn) { pauseBtn.disabled = false; pauseBtn.textContent = '⏸️ Pause'; }
+  if (pauseBtn) { pauseBtn.disabled = false; pauseBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause'; }
   const resumeBtn = document.getElementById('cqResumeBtn');
   if (resumeBtn) resumeBtn.style.display = 'none';
   if (pauseBtn) pauseBtn.style.display = 'inline-flex';
   const genBtn = _cqActiveGenBtn();
-  if (genBtn) genBtn.textContent = '⏳ Generating…';
+  if (genBtn) genBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Generating…';
   resolve();
 }
 
@@ -955,12 +955,12 @@ async function _cqEnterPause(statusEl, message) {
   cqPauseSkipRequested = false;
   cqIsPaused = true;
 
-  const pauseBtn  = document.getElementById('cqPauseBtn');
+  const pauseBtn = document.getElementById('cqPauseBtn');
   const resumeBtn = document.getElementById('cqResumeBtn');
-  if (pauseBtn)  pauseBtn.style.display  = 'none';
+  if (pauseBtn) pauseBtn.style.display = 'none';
   if (resumeBtn) resumeBtn.style.display = 'inline-flex';
   const genBtn = _cqActiveGenBtn();
-  if (genBtn) genBtn.textContent = '⏸️ Paused';
+  if (genBtn) genBtn.innerHTML = '<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused';
 
   if (statusEl) {
     // The "waiting for checkpoint" note has done its job now that we've
@@ -1001,7 +1001,7 @@ async function cqCheckPause(statusEl) {
   }
   if (cqPauseRequested) {
     return _cqEnterPause(statusEl,
-      `⏸️ Paused — everything done so far is safe. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue right where this left off.`);
+      `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — everything done so far is safe. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue right where this left off.`);
   }
   return getActiveApiKey();
 }
@@ -1017,6 +1017,6 @@ async function cqCheckPause(statusEl) {
 async function cqFallbackPauseForRateLimit(statusEl, whatLabel) {
   const what = whatLabel ? ` for ${escapeHtml(whatLabel)}` : '';
   return _cqEnterPause(statusEl,
-    `⏸️ Paused automatically — Gemini kept rate-limiting (429) repeatedly while trying to finish${what}, so this stepped back to before it instead of waiting indefinitely. Nothing is lost — switch your API key (🔑 Manage APIs) and press ▶️ Resume to retry it.`);
+    `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused automatically — Gemini kept rate-limiting (429) repeatedly while trying to finish${what}, so this stepped back to before it instead of waiting indefinitely. Nothing is lost — switch your API key (<svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs) and press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to retry it.`);
 }
 

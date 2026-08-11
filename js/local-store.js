@@ -62,8 +62,8 @@ export async function deleteCustomQuiz(id) {
 }
 
 /** Deletes every custom quiz on this device. Used only by the "replace"
- *  import mode, right before writing the incoming set — never called for
- *  a normal merge import. */
+ * import mode, right before writing the incoming set — never called for
+ * a normal merge import. */
 export async function clearCustomQuizzes() {
   const existing = await listCustomQuizzes();
   await Promise.all(existing.map(q => window._idbDelete(`customQuiz:${q.id}`).catch(() => {})));
@@ -73,11 +73,11 @@ export async function clearCustomQuizzes() {
  * Imports quizzes (from an imported backup file).
  * @param {object[]} incomingQuizzes
  * @param {{ mode?: 'merge'|'replace' }} [options]
- *   - 'merge' (default): keep existing quizzes, skip exact-duplicate content.
- *   - 'replace': delete every existing custom quiz first, then import the
- *     incoming set as-is (still de-duplicating identical entries within
- *     the incoming batch itself, so a backup file with repeats doesn't
- *     create repeats).
+ * - 'merge' (default): keep existing quizzes, skip exact-duplicate content.
+ * - 'replace': delete every existing custom quiz first, then import the
+ * incoming set as-is (still de-duplicating identical entries within
+ * the incoming batch itself, so a backup file with repeats doesn't
+ * create repeats).
  */
 export async function importCustomQuizzes(incomingQuizzes, { mode = 'merge' } = {}) {
   if (mode === 'replace') await clearCustomQuizzes();
@@ -103,7 +103,7 @@ export async function importCustomQuizzes(incomingQuizzes, { mode = 'merge' } = 
 // (see js/quiz-collections.js for the UI/state layer built on top of this).
 //
 // Shape: { id, name, parentId (null = top level), icon, color, order,
-//          createdAt }. A quiz opts into a folder via its own
+// createdAt }. A quiz opts into a folder via its own
 // `collectionId` field (null/undefined = "Uncategorized") — collections
 // don't store a list of their quizzes, the quiz points at its folder, so
 // moving/deleting a quiz never has to touch a collection document.
@@ -132,7 +132,7 @@ export async function deleteQuizCollectionRaw(id) {
 }
 
 /** Deletes every collection on this device. Used only by the "replace"
- *  import mode, right before writing the incoming set. */
+ * import mode, right before writing the incoming set. */
 export async function clearQuizCollections() {
   const existing = await listQuizCollections();
   await Promise.all(existing.map(c => window._idbDelete(`quizCollection:${c.id}`).catch(() => {})));
@@ -210,7 +210,7 @@ export async function importCollectionsAndQuizzes(incomingCollections, incomingQ
           id: newId(),
           name: c.name || 'Untitled Collection',
           parentId: newParentId,
-          icon: c.icon || '📁',
+          icon: c.icon || '',
           color: c.color || null,
           order: typeof c.order === 'number' ? c.order : 0,
           createdAt: c.createdAt || Date.now(),
@@ -231,7 +231,7 @@ export async function importCollectionsAndQuizzes(incomingCollections, incomingQ
   for (const [cid, c] of remaining) {
     const copy = {
       id: newId(), name: c.name || 'Untitled Collection', parentId: null,
-      icon: c.icon || '📁', color: c.color || null,
+      icon: c.icon || '', color: c.color || null,
       order: typeof c.order === 'number' ? c.order : 0, createdAt: c.createdAt || Date.now(),
     };
     await window._idbSet(`quizCollection:${copy.id}`, copy);
@@ -352,8 +352,8 @@ export function recomputeAggregateForMerge(attempts) {
 }
 
 /** Deletes every recorded attempt + the aggregate on this device. Used
- *  only by the "replace" import mode, right before writing the incoming
- *  set — never called for a normal merge import. */
+ * only by the "replace" import mode, right before writing the incoming
+ * set — never called for a normal merge import. */
 export async function clearAttempts() {
   const existing = await listAttempts();
   await Promise.all(existing.map(a => window._idbDelete(`attempt:${a.id}`).catch(() => {})));
@@ -364,10 +364,10 @@ export async function clearAttempts() {
  * Safe merge for stats coming from an imported backup.
  * @param {object[]} incomingAttempts
  * @param {{ mode?: 'merge'|'replace' }} [options]
- *   - 'merge' (default): union by attempt ID, de-duplicating exact repeats.
- *   - 'replace': delete every existing attempt + aggregate first, then
- *     import the incoming set as-is (still de-duplicated within the
- *     incoming batch by ID).
+ * - 'merge' (default): union by attempt ID, de-duplicating exact repeats.
+ * - 'replace': delete every existing attempt + aggregate first, then
+ * import the incoming set as-is (still de-duplicated within the
+ * incoming batch by ID).
  * Never merges pre-computed summary numbers — the aggregate is always
  * recomputed fresh from the resulting raw list afterward.
  */
@@ -430,20 +430,20 @@ export async function buildExportPayload({ includeQuizzes = true, includeStats =
  * quiz with embedded base64 images does immediately (a single photo
  * easily adds hundreds of KB to several MB):
  *
- *  1. The `<a>` was never attached to the document before `.click()` —
- *     some browsers only reliably trigger a download-via-anchor when
- *     the element is actually in the DOM.
- *  2. `URL.revokeObjectURL(url)` was called SYNCHRONOUSLY, immediately
- *     after `.click()` — before the browser has necessarily finished
- *     reading the Blob and writing it to disk. For a few hundred bytes
- *     of quiz text that race is essentially always won invisibly; for
- *     a multi-MB payload (embedded images) it's a real race, and losing
- *     it truncates/corrupts the downloaded file — the images (the
- *     largest part of the payload, and typically serialized last within
- *     each question) are exactly what's most likely to land after the
- *     cut-off point. This reproduces on ANY image-containing quiz,
- *     regardless of whether its images were ever remote — unrelated to
- *     the save-time remote-image fixes in #91/#92/#93.
+ * 1. The `<a>` was never attached to the document before `.click()` —
+ * some browsers only reliably trigger a download-via-anchor when
+ * the element is actually in the DOM.
+ * 2. `URL.revokeObjectURL(url)` was called SYNCHRONOUSLY, immediately
+ * after `.click()` — before the browser has necessarily finished
+ * reading the Blob and writing it to disk. For a few hundred bytes
+ * of quiz text that race is essentially always won invisibly; for
+ * a multi-MB payload (embedded images) it's a real race, and losing
+ * it truncates/corrupts the downloaded file — the images (the
+ * largest part of the payload, and typically serialized last within
+ * each question) are exactly what's most likely to land after the
+ * cut-off point. This reproduces on ANY image-containing quiz,
+ * regardless of whether its images were ever remote — unrelated to
+ * the save-time remote-image fixes in #91/#92/#93.
  */
 export function downloadExportFile(payload, filename = 'anu-msp-backup.json') {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -465,8 +465,8 @@ export function downloadExportFile(payload, filename = 'anu-msp-backup.json') {
 }
 
 /** Validates a payload and reports what it contains, WITHOUT writing
- *  anything — used to drive the "what do you want to load, and how"
- *  confirmation step before applyImportPayload() actually runs. */
+ * anything — used to drive the "what do you want to load, and how"
+ * confirmation step before applyImportPayload() actually runs. */
 export function inspectImportPayload(payload) {
   if (!payload || payload.__app !== 'anu-msp-question-bank') {
     return { valid: false, hasQuizzes: false, hasStats: false, quizCount: 0, statsCount: 0 };
@@ -487,11 +487,11 @@ export function inspectImportPayload(payload) {
  * Validates + applies an imported payload (from a backup file).
  * @param {object} payload
  * @param {{ mode?: 'merge'|'replace', includeQuizzes?: boolean, includeStats?: boolean }} [options]
- *   - mode: 'merge' (default, keeps existing data) or 'replace' (deletes
- *     this device's existing data of the included types first).
- *   - includeQuizzes / includeStats: which data types from the payload to
- *     actually apply — lets the user load just one when a backup contains
- *     both. Both default to true (apply everything present).
+ * - mode: 'merge' (default, keeps existing data) or 'replace' (deletes
+ * this device's existing data of the included types first).
+ * - includeQuizzes / includeStats: which data types from the payload to
+ * actually apply — lets the user load just one when a backup contains
+ * both. Both default to true (apply everything present).
  */
 export async function applyImportPayload(payload, { mode = 'merge', includeQuizzes = true, includeStats = true } = {}) {
   if (!payload || payload.__app !== 'anu-msp-question-bank') {

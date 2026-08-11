@@ -9,8 +9,8 @@
    enforces (2GB per file — included on the free tier), so this app
    no longer imposes anything smaller on top of that.
 ══════════════════════════════════════════════════════════ */
-const GEMINI_MAX_FILE_BYTES         = 2 * 1024 * 1024 * 1024; // Gemini Files API hard limit, per file (free tier included)
-const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024;       // stay safely under Gemini's ~20MB inline request cap once base64 (~33%) overhead is added
+const GEMINI_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // Gemini Files API hard limit, per file (free tier included)
+const GEMINI_INLINE_THRESHOLD_BYTES = 15 * 1024 * 1024; // stay safely under Gemini's ~20MB inline request cap once base64 (~33%) overhead is added
 
 /* Bounding-box lookup (getBoundingBoxes, used by extractImagesForQuestions)
    asks about at most this many image-bearing questions per request instead
@@ -52,7 +52,7 @@ const GEMINI_BOUNDING_BOX_BATCH_SIZE = 15;
         and its call sites in callGeminiWithRetry and getBoundingBoxes
         below, which is what actually triggers the fallback.
 ══════════════════════════════════════════════════════════ */
-const GEMINI_PRIMARY_MODEL  = 'gemini-2.5-flash';
+const GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash';
 const GEMINI_FALLBACK_MODEL = 'gemini-flash-latest'; // Google's auto-updating "current stable Flash" alias
 
 /* Any of these HTTP statuses is treated as "this model isn't valid for
@@ -201,7 +201,7 @@ function resolveGeminiFallbackUrl(status, url, logPrefix, bodyObj) {
    every choice already written), not just the one that got cut off.
 
    Returns { data, truncated }:
-     - data:      the parsed array (possibly shorter than what the model
+     - data: the parsed array (possibly shorter than what the model
                    intended to return), or null if nothing usable was found.
      - truncated: true if repair kicked in, so callers can flag the result
                    as MAX_TOKENS-affected even when the API's own
@@ -585,7 +585,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
   const RATE_LIMIT_PAUSE_FALLBACK_THRESHOLD = 20;
 
   const initialKeyId = _findKeyIdByValue(apiKey);
-  let currentKeyId    = initialKeyId;
+  let currentKeyId = initialKeyId;
   let rotatedFilePart = null; // set if a Files-API re-upload happened mid-call
 
   // Wait for a shared slot before this call's very first attempt — retries
@@ -612,7 +612,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
     if (!next) return false;
 
     const fromId = fromKeyId;
-    apiKey       = next.key;
+    apiKey = next.key;
     currentKeyId = next.id;
     try { setActiveApiKeyId(next.id); } catch (e) {}
     // Same reset a manual key switch gets (see useApiKey in ai-features.js)
@@ -678,7 +678,7 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
         const msg = (data && data.error && data.error.message) || `HTTP ${resp.status}`;
         const err = new Error(msg);
         err._httpStatus = resp.status;
-        err._apiData    = data;
+        err._apiData = data;
         if (isKeyError(resp.status, data)) {
           // The key itself is broken (revoked/invalid) — no amount of
           // retrying fixes that, but another configured key might still
@@ -793,7 +793,7 @@ function cancellableSleep(ms, cancelToken, wakeOnKeysChange) {
 function loadImageFromDataUrl(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload  = () => resolve(img);
+    img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('Image load failed'));
     img.src = dataUrl;
   });
@@ -806,7 +806,7 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      script.onload  = resolve;
+      script.onload = resolve;
       script.onerror = reject;
       document.head.appendChild(script);
     });
@@ -815,15 +815,15 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
   }
   const pdfLib = window.pdfjsLib;
   const binary = atob(base64Data);
-  const bytes  = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const pdf  = await pdfLib.getDocument({ data: bytes }).promise;
+  const pdf = await pdfLib.getDocument({ data: bytes }).promise;
   const page = await pdf.getPage(pageNum);
-  const scale    = 2;
+  const scale = 2;
   const viewport = page.getViewport({ scale });
-  const canvas   = document.createElement('canvas');
-  canvas.width   = viewport.width;
-  canvas.height  = viewport.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
   await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
   return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
 }
@@ -837,7 +837,7 @@ async function renderPdfPageToDataUrl(base64Data, pageNum) {
    callGeminiWithRetry — see its doc comment above for what they do.
    `pauseCheck` is only meaningfully set by the main bulk-extraction pass
    (extractImagesForQuestions → _extractQuestionsFromFile), which already
-   has a pause/resume UI to fall back into; the single-question 🔁
+   has a pause/resume UI to fall back into; the single-question <svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
    Re-extract Image path leaves it undefined, matching every other
    per-question AI tool (aiRefineQuestion, aiFillChoices, …), which just
    retries with backoff/rotation until it succeeds or the user hits Stop. */
@@ -964,11 +964,11 @@ async function cropRegionFromDataUrl(pageDataUrl, pageWidth, pageHeight, box) {
   const img = await loadImageFromDataUrl(pageDataUrl);
   const sx = Math.max(0, Math.round(box.x * pageWidth));
   const sy = Math.max(0, Math.round(box.y * pageHeight));
-  const sw = Math.min(Math.round(box.w * pageWidth),  pageWidth  - sx);
+  const sw = Math.min(Math.round(box.w * pageWidth), pageWidth - sx);
   const sh = Math.min(Math.round(box.h * pageHeight), pageHeight - sy);
   if (sw <= 0 || sh <= 0) return null;
   const canvas = document.createElement('canvas');
-  canvas.width  = sw;
+  canvas.width = sw;
   canvas.height = sh;
   canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
   return canvas.toDataURL('image/png');
@@ -983,10 +983,10 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
     let { naturalWidth: w, naturalHeight: h } = img;
     if (w > maxPx || h > maxPx) {
       if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
-      else        { w = Math.round(w * maxPx / h); h = maxPx; }
+      else { w = Math.round(w * maxPx / h); h = maxPx; }
     }
     const canvas = document.createElement('canvas');
-    canvas.width  = w;
+    canvas.width = w;
     canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     return canvas.toDataURL('image/jpeg', quality);
@@ -1022,7 +1022,7 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
    retrying silently in the background. Passed by the main bulk pass
    (_extractQuestionsFromFile in ai-solve.js), which already has that
    pause/resume UI to fall back into. Left undefined by the single-question
-   🔁 Re-extract Image path (cqReextractImage), matching every other
+   <svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Re-extract Image path (cqReextractImage), matching every other
    per-question AI tool (aiRefineQuestion, aiFillChoices, …), which just
    retries with backoff/rotation until it succeeds or the user hits Stop.
 
@@ -1121,7 +1121,7 @@ async function extractImagesForQuestions(questions, file, apiKey, filePart, cust
           // Single image — treat as page 1
           const img = await loadImageFromDataUrl(`data:${mimeType};base64,${sourceBase64}`);
           const canvas = document.createElement('canvas');
-          canvas.width  = img.naturalWidth;
+          canvas.width = img.naturalWidth;
           canvas.height = img.naturalHeight;
           canvas.getContext('2d').drawImage(img, 0, 0);
           pageCache[pageNum] = {
@@ -1166,7 +1166,7 @@ function handleCqSourceFileSelect(event) {
 }
 
 function acceptSourceFile(file) {
-  const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
 
   if (!isPdf && !isImage) {
@@ -1237,9 +1237,9 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
   const instructionPart = {
     text: 'For each question below, determine the correct answer letter. ' +
           'Respond ONLY with a JSON array (one object per question, same order) with keys:\n' +
-          '  "index": the number inside [index:N]\n' +
-          '  "answer": the correct option letter (e.g. "A")\n' +
-          '  "found_in_source": true if the answer was clearly found in the provided source material, false if you used your own knowledge\n' +
+          ' "index": the number inside [index:N]\n' +
+          ' "answer": the correct option letter (e.g. "A")\n' +
+          ' "found_in_source": true if the answer was clearly found in the provided source material, false if you used your own knowledge\n' +
           'No explanation, no preamble, no markdown.'
   };
 
@@ -1265,8 +1265,8 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
 
     if (statusEl) {
       const label = chunks.length > 1
-        ? `🤖 AI is solving questions… (batch ${ci + 1} of ${chunks.length})`
-        : `🤖 AI is solving ${chunk.length} question${chunk.length !== 1 ? 's' : ''}…`;
+        ? `<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving questions… (batch ${ci + 1} of ${chunks.length})`
+        : `<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving ${chunk.length} question${chunk.length !== 1 ? 's' : ''}…`;
       statusEl.innerHTML = _cqProgressStatusHTML(label, (ci / chunks.length) * 100);
     }
 
@@ -1274,7 +1274,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
 
     chunk.forEach((qi, serial) => {
       const q = questions[qi];
-      const opts = Object.entries(q.options).map(([k, v]) => '  ' + k + '. ' + v).join('\n');
+      const opts = Object.entries(q.options).map(([k, v]) => ' ' + k + '. ' + v).join('\n');
       let qText = 'Question ' + (serial + 1) + ' [index:' + qi + ']:\n';
       qText += _cqCaseContextBlock(questions, q);
       qText += q.question + '\n' + opts;
@@ -1318,9 +1318,9 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           const qi = item.index;
           const ans = (item.answer || '').trim().toUpperCase();
           if (questions[qi] !== undefined && questions[qi].options && questions[qi].options[ans]) {
-            questions[qi].answer      = ans;
+            questions[qi].answer = ans;
             questions[qi].ai_answered = true;
-            questions[qi].ai_guessed  = !item.found_in_source;
+            questions[qi].ai_guessed = !item.found_in_source;
             totalSolved++;
           }
         });
@@ -1338,7 +1338,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
           cancelToken = cqCancelToken;
           apiKey = (await _cqEnterPause(statusEl,
-            `⏸️ Paused — stepped back to before ${chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : 'this batch'} so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+            `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before ${chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : 'this batch'} so nothing already done is lost. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`)) || apiKey;
           ci--; // retry this same batch once resumed
           continue;
         }
@@ -1356,10 +1356,10 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
 
   // Surface any errors to the user
   if (errors.length > 0 && statusEl) {
-    const errHtml = errors.map(err => `<div>⚠️ ${escapeHtml(err)}</div>`).join('');
+    const errHtml = errors.map(err => `<div><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${escapeHtml(err)}</div>`).join('');
     statusEl.insertAdjacentHTML('beforeend',
       `<div class="cq-status warning" style="margin-top:6px;">
-        🤖 AI Solve encountered issues — ${totalSolved} question${totalSolved !== 1 ? 's' : ''} solved successfully:<br>${errHtml}
+        <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve encountered issues — ${totalSolved} question${totalSolved !== 1 ? 's' : ''} solved successfully:<br>${errHtml}
       </div>`
     );
   }
@@ -1373,7 +1373,7 @@ async function cqAiAnswerMissingKeys(questions, sourceText, sourceFiles, statusE
 
 /* ── Post-extraction bulk pass: Fill Choices ──
    Tops every extracted question up to 4 answer choices (same rules as the
-   single-question "🧩 Fill Choices (AI)" tool: only adds missing distractors,
+   single-question "<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Fill Choices (AI)" tool: only adds missing distractors,
    never touches which option is marked correct). Runs strictly one question
    at a time — never in parallel with itself or with the refine pass — since
    both this and Refine Questions mutate the same question objects, and the
@@ -1398,7 +1398,7 @@ async function cqBulkFillChoices(questions, statusEl, cancelToken) {
     const q = questions[qi];
     if (statusEl) {
       statusEl.innerHTML = _cqProgressStatusHTML(
-        `🧩 Filling choices… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
+        `<svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> Filling choices… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
     }
     try {
       const optEntries = getOptionEntries(q);
@@ -1426,7 +1426,7 @@ async function cqBulkFillChoices(questions, statusEl, cancelToken) {
           cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
           cancelToken = cqCancelToken;
           apiKey = (await _cqEnterPause(statusEl,
-            `⏸️ Paused — stepped back to before question ${n + 1} of ${idxs.length} so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+            `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before question ${n + 1} of ${idxs.length} so nothing already done is lost. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`)) || apiKey;
           n--; // retry this same question once resumed
           continue;
         }
@@ -1448,7 +1448,7 @@ async function cqBulkFillChoices(questions, statusEl, cancelToken) {
 
 /* ── Post-extraction bulk pass: Refine Questions ──
    Rewrites every extracted question's stem into clean exam-style phrasing
-   (same rules/prompt as the single-question "🪄 Refine Question" tool),
+   (same rules/prompt as the single-question "<svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine Question" tool),
    optionally guided by a shared custom-instructions box. Also strictly
    one-at-a-time — see note above cqBulkFillChoices. */
 async function cqBulkRefineQuestions(questions, customInstructions, statusEl, cancelToken) {
@@ -1469,7 +1469,7 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
     const q = questions[qi];
     if (statusEl) {
       statusEl.innerHTML = _cqProgressStatusHTML(
-        `🪄 Refining question wording… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
+        `<svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refining question wording… (${n + 1} of ${idxs.length})`, (n / idxs.length) * 100);
     }
     try {
       q.question = await _aiRefineQuestionCall(apiKey, questions, q, custom, cancelToken, 'refineBulk');
@@ -1485,7 +1485,7 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
           cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
           cancelToken = cqCancelToken;
           apiKey = (await _cqEnterPause(statusEl,
-            `⏸️ Paused — stepped back to before question ${n + 1} of ${idxs.length} so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+            `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before question ${n + 1} of ${idxs.length} so nothing already done is lost. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`)) || apiKey;
           n--; // retry this same question once resumed
           continue;
         }
@@ -1507,8 +1507,8 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
 
 /* ── Post-extraction bulk pass: Re-extract Missing Images (cq preview only) ──
    Finds every question Gemini flagged as having an image (has_image) that
-   never actually got one cropped — the same "⚠️ AI detected an image…
-   couldn't extract it" case handled per-question by 🔁 Re-extract Image in
+   never actually got one cropped — the same "<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> AI detected an image…
+   couldn't extract it" case handled per-question by <svg class="sicon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Re-extract Image in
    renderCQPreview (js/ai-solve.js) — and retries extraction for all of
    them in one pass.
 
@@ -1561,8 +1561,8 @@ async function cqBulkReextractMissingImages(questions, statusEl, cancelToken) {
 
     const group = groups[gi];
     const label = groups.length > 1
-      ? `🖼️ Re-extracting missing images… (file ${gi + 1} of ${groups.length}: "${escapeHtml(group.file.name)}")`
-      : `🖼️ Re-extracting ${group.questions.length} missing image${group.questions.length !== 1 ? 's' : ''} from "${escapeHtml(group.file.name)}"…`;
+      ? `<svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Re-extracting missing images… (file ${gi + 1} of ${groups.length}: "${escapeHtml(group.file.name)}")`
+      : `<svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Re-extracting ${group.questions.length} missing image${group.questions.length !== 1 ? 's' : ''} from "${escapeHtml(group.file.name)}"…`;
     if (statusEl) statusEl.innerHTML = _cqProgressStatusHTML(label, (gi / groups.length) * 100);
 
     const beforeCount = group.questions.filter(q => q.image).length;
@@ -1582,7 +1582,7 @@ async function cqBulkReextractMissingImages(questions, statusEl, cancelToken) {
           cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
           cancelToken = cqCancelToken;
           apiKey = (await _cqEnterPause(statusEl,
-            `⏸️ Paused — stepped back to before file ${gi + 1} of ${groups.length} ("${escapeHtml(group.file.name)}") so nothing already done is lost. Open 🔑 Manage APIs to switch keys, then press ▶️ Resume to continue.`)) || apiKey;
+            `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before file ${gi + 1} of ${groups.length} ("${escapeHtml(group.file.name)}") so nothing already done is lost. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`)) || apiKey;
           gi--; // retry this same file once resumed
           continue;
         }
