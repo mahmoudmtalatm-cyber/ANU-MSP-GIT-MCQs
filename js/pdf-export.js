@@ -134,9 +134,9 @@ async function renderPdfExportModal() {
     <div class="pdx-layout">
       <div class="pdx-picker-col">
         <div class="community-section-tabs pdx-source-tabs">
-          <button class="community-tab-btn ${_pdxTab === 'curriculum' ? 'active' : ''}" data-tab="curriculum" onclick="pdxSetTab('curriculum')"><svg class="sicon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Curriculum ${_pdxSelCurriculum.size ? `(${_pdxSelCurriculum.size})` : ''}</button>
-          <button class="community-tab-btn ${_pdxTab === 'community' ? 'active' : ''}" data-tab="community" onclick="pdxSetTab('community')"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community ${_pdxSelCommunity.size ? `(${_pdxSelCommunity.size})` : ''}</button>
-          <button class="community-tab-btn ${_pdxTab === 'custom' ? 'active' : ''}" data-tab="custom" onclick="pdxSetTab('custom')"><svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg> My Custom Quizzes ${_pdxSelCustom.size ? `(${_pdxSelCustom.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'curriculum' ? 'active' : ''}" data-tab="curriculum" onclick="pdxSetTab('curriculum')">${SOURCE_TAB_ICONS.curriculum.full} ${_pdxSelCurriculum.size ? `(${_pdxSelCurriculum.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'community' ? 'active' : ''}" data-tab="community" onclick="pdxSetTab('community')">${SOURCE_TAB_ICONS.community.full} ${_pdxSelCommunity.size ? `(${_pdxSelCommunity.size})` : ''}</button>
+          <button class="community-tab-btn ${_pdxTab === 'custom' ? 'active' : ''}" data-tab="custom" onclick="pdxSetTab('custom')">${SOURCE_TAB_ICONS.custom.full} ${_pdxSelCustom.size ? `(${_pdxSelCustom.size})` : ''}</button>
         </div>
         <div id="pdxTabContent" class="pdx-tab-content"></div>
 
@@ -207,12 +207,17 @@ function _pdxRefreshChrome() {
    switching tabs never re-renders the tab bar markup itself. */
 function _pdxSyncTabButtons() {
   const counts = { curriculum: _pdxSelCurriculum.size, community: _pdxSelCommunity.size, custom: _pdxSelCustom.size };
-  const labels = { curriculum: '<svg class="sicon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Curriculum', community: '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community', custom: '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> My Custom Quizzes' };
+  // NOTE: SOURCE_TAB_ICONS values are trusted, hardcoded <svg> markup
+  // (shared with the other source-tab pickers — see dom-utils.js), not
+  // plain text, so this MUST use innerHTML. Assigning markup like this to
+  // .textContent doesn't render it — it prints the raw "<svg ...>" tag
+  // as literal text, which is the bug this comment exists to prevent
+  // reintroducing. Nothing user-controlled is interpolated here.
   document.querySelectorAll('.pdx-source-tabs .community-tab-btn').forEach(btn => {
     const tab = btn.dataset.tab;
     if (!tab) return;
     btn.classList.toggle('active', tab === _pdxTab);
-    btn.textContent = `${labels[tab]} ${counts[tab] ? `(${counts[tab]})` : ''}`.trim();
+    btn.innerHTML = `${SOURCE_TAB_ICONS[tab].full} ${counts[tab] ? `(${counts[tab]})` : ''}`.trim();
   });
 }
 function pdxClearAll() {
@@ -849,13 +854,21 @@ async function _pdxCollectDataset() {
 /* Builds the flat [{level, text}] outline used by the Contents page,
    purely from the already-resolved dataset — no drawing, so it can run
    before the cover page even exists. Mirrors the exact grouping the main
-   drawing loop below uses, so the two never disagree. */
+   drawing loop below uses, so the two never disagree.
+
+   IMPORTANT: `text` here is drawn with jsPDF's doc.text(), not written
+   to the DOM — it's plain text baked into the PDF file itself, so it
+   must never contain <svg>/HTML markup (jsPDF can't render it, and
+   there's no innerHTML step to make sense of it downstream; it would
+   print the raw "<svg ...>" tag as literal text on the Contents page).
+   Icons belong on the on-screen tab buttons (see SOURCE_TAB_ICONS in
+   dom-utils.js) — plain labels only belong here. */
 function _pdxBuildOutline(dataset) {
   const out = [];
   for (const year of Object.keys(dataset.curriculum)) {
-    out.push({ level: 0, text: `<svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${year}` });
+    out.push({ level: 0, text: year });
     for (const mod of Object.keys(dataset.curriculum[year])) {
-      out.push({ level: 1, text: `<svg class="sicon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> ${mod}` });
+      out.push({ level: 1, text: mod });
       for (const subjKey of Object.keys(dataset.curriculum[year][mod])) {
         const subj = subjects[subjKey] || { label: subjKey, icon: '📘' };
         out.push({ level: 2, text: `${subj.icon || '📘'} ${subj.label || subjKey}` });
@@ -864,16 +877,16 @@ function _pdxBuildOutline(dataset) {
     }
   }
   if (dataset.community.groups.length) {
-    out.push({ level: 0, text: '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community Quizzes' });
+    out.push({ level: 0, text: 'Community Quizzes' });
     dataset.community.groups.forEach(group => {
-      out.push({ level: 1, text: `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${group.label}` });
+      out.push({ level: 1, text: group.label });
       group.quizzes.forEach(quiz => out.push({ level: 2, text: quiz.title }));
     });
   }
   if (dataset.custom.groups.length) {
-    out.push({ level: 0, text: '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> My Custom Quizzes' });
+    out.push({ level: 0, text: 'My Custom Quizzes' });
     dataset.custom.groups.forEach(group => {
-      out.push({ level: 1, text: `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${group.label}` });
+      out.push({ level: 1, text: group.label });
       group.quizzes.forEach(quiz => out.push({ level: 2, text: quiz.title }));
     });
   }

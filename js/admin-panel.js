@@ -670,8 +670,8 @@ async function renderAdminPanel() {
 
   const sourceTabsHtml = `
     <div class="admin-quiz-source-tabs">
-      ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'custom' ? 'active' : ''}" onclick="adminSetSourceTab('custom')"><svg class="micon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg> My Custom Quizzes</button>` : ''}
-      ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')"><svg class="micon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg> Community Quizzes</button>` : ''}
+      ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'custom' ? 'active' : ''}" onclick="adminSetSourceTab('custom')">${SOURCE_TAB_ICONS.custom.full}</button>` : ''}
+      ${canCurriculum ? `<button class="admin-source-tab ${adminSourceTab === 'community' ? 'active' : ''}" onclick="adminSetSourceTab('community')">${SOURCE_TAB_ICONS.community.icon} Community Quizzes</button>` : ''}
     </div>`;
 
   const selCount = adminSelectedQuizzes.size;

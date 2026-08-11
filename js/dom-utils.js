@@ -259,3 +259,42 @@ function _commRenderResults(opts) {
   const countEl = document.getElementById(opts.idPrefix + 'ResultsCount');
   if (countEl) countEl.textContent = _commResultsCountLabel(opts.resultCount);
 }
+
+/* ══════════════════════════════════════════════════════════
+   SHARED SOURCE-TAB ICONS — the three "where is this quiz from"
+   tabs (Curriculum / Community / My Custom Quizzes) appear in several
+   independent pickers: the PDF export modal (pdf-export.js), the merge
+   picker (community-quizzes.js), and the admin publish panel
+   (admin-panel.js). Each used to hardcode its own copy of the same
+   <svg> markup + label, which meant a design tweak had to be made in
+   three places and could silently drift out of sync. Defining it once
+   here — a file every one of those scripts loads after (see index.html
+   script order) — keeps them identical by construction.
+
+   `icon` is trusted, hardcoded <svg> markup (no user input), safe to
+   use with .innerHTML. It must NEVER be assigned to .textContent —
+   that prints the raw "<svg ...>" tag as literal text instead of
+   rendering the icon (that was exactly the PDF-export tab bar bug).
+   `label` is kept separate from `icon` (rather than baked into one
+   combined string) so each caller can phrase its own button text —
+   e.g. "Community" vs "Community Quizzes" — without string-hacking
+   a shared value. A convenience `full` getter is provided for the
+   common "icon + default label" case. */
+const SOURCE_TAB_ICONS = {
+  curriculum: {
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+    label: 'Curriculum',
+  },
+  community: {
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg>',
+    label: 'Community',
+  },
+  custom: {
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6M9 9h1"/></svg>',
+    label: 'My Custom Quizzes',
+  },
+};
+for (const key of Object.keys(SOURCE_TAB_ICONS)) {
+  const entry = SOURCE_TAB_ICONS[key];
+  Object.defineProperty(entry, 'full', { get() { return `${entry.icon} ${entry.label}`; } });
+}

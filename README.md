@@ -818,6 +818,56 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **104 — Fixed raw `<svg ...>` markup rendering as literal text in the
+  Export to PDF picker's source tabs, and in the exported PDF's own
+  Contents page.** The Curriculum/Community/My Custom Quizzes tab
+  buttons in the PDF export modal correctly showed their icons on first
+  paint, but the moment a selection changed (or the tab switched), the
+  count-refresh code that keeps the tab bar's `(N)` badges and active
+  highlight in sync rewrote each button's label via `.textContent`
+  instead of `.innerHTML`. `.textContent` doesn't render HTML — it
+  prints it as literal text, so every tab immediately started showing
+  its raw `<svg class="sicon" viewBox="0 0 24 24">...` markup instead of
+  the icon. Separately, the same icon+label strings had been reused
+  verbatim as plain text for the exported PDF's Table of Contents
+  (`_pdxBuildOutline`, drawn with jsPDF's `doc.text()`), which can't
+  render `<svg>` at all — every curriculum year/module and the
+  "Community Quizzes"/"My Custom Quizzes" section headers were printing
+  the raw tag straight into the downloaded PDF. Both were the same root
+  cause: markup meant for `.innerHTML` ending up in a plain-text sink.
+  Both were the same root cause: markup meant for `.innerHTML` ending up
+  in a plain-text sink. A follow-up full-repo audit (every `.textContent =`
+  assignment, every jsPDF `doc.text()`/`splitTextToSize()` call, plus
+  `innerText`, `<option>`/`new Option()`, `alert()`/`confirm()`,
+  `.title`/`aria-label`/`placeholder` attributes, `createTextNode`, and
+  every accumulator variable — `errHtml`, `bodyHTML`, `finalHtml`,
+  `msgsHTML` — that carries `<svg>` markup, tracing each through to its
+  eventual write) turned up one more live instance: the "Move/Copy
+  lecture" success message in the admin curriculum manager
+  (`js/curriculum-admin.js`) had the exact same `.textContent` mistake —
+  one line out of five status writes in that function, the other four
+  already correct. Fixed the same way. No further instances found
+  anywhere in the codebase.
+  - **`js/dom-utils.js`**: added a new shared `SOURCE_TAB_ICONS` constant
+    — `{ curriculum, community, custom }`, each `{ icon, label, full }`
+    — as the single source of truth for these three tab icons, loaded
+    before every screen that uses them (see script order in
+    `index.html`). Previously the same icon markup was hand-duplicated
+    in three files (and, for "My Custom Quizzes", had drifted into two
+    *different* icons depending on which render path drew it — fixed by
+    standardizing on the file icon used everywhere else in the app).
+  - **`js/pdf-export.js`**: `_pdxSyncTabButtons()` now writes
+    `.innerHTML` (not `.textContent`) and reads from `SOURCE_TAB_ICONS`;
+    the modal's initial tab-bar markup does too. `_pdxBuildOutline()`
+    now pushes plain text only (year/module/group names, no icon
+    markup) — icons belong on-screen, never inside PDF-drawn text.
+  - **`js/community-quizzes.js`**, **`js/admin-panel.js`**: the merge
+    picker's and admin publish panel's source tabs now read from the
+    same shared `SOURCE_TAB_ICONS` instead of their own hardcoded copies.
+  - **`js/curriculum-admin.js`**: `.textContent` → `.innerHTML` for the
+    Move/Copy lecture success message, matching the other four status
+    writes in the same function.
+
 - **103 — AI extraction: fixed questions/choices being dropped at page
   breaks.** Rule 9 (CROSS-PAGE CONTINUATIONS) in `CQ_EXTRACTION_PROMPT`
   already told Gemini that page breaks carry no semantic meaning, but two

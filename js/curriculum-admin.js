@@ -632,7 +632,11 @@ async function adminExecMoveQuiz(andDelete) {
     }
 
     statusEl.className = 'qm-status ok';
-    statusEl.textContent = andDelete
+    // Every other status write in this function correctly uses .innerHTML
+    // (see above) since these all carry <svg> icon markup — this one was
+    // the one place still using .textContent, which prints the "<svg ...>"
+    // tag as literal text instead of rendering it. Matched to the rest.
+    statusEl.innerHTML = andDelete
       ? `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Moved to ${subjects[destSubject].label || destSubject}!`
       : `<svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Copied to ${subjects[destSubject].label || destSubject}!`;
     // Manifest bump for the new destination lecture already happened
