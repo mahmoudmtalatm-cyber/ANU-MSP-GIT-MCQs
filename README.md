@@ -818,6 +818,16 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **109 — Hid the page-level scrollbar on the home screen.** The home
+  screen's content scrolls the page itself (`html`/`body`) rather than
+  an internal `.xxx-body` pane, so it was picking up the app's shared
+  `::-webkit-scrollbar` styling — a thin colored track/thumb pinned to
+  the right edge — which read as a stray scroll rail rather than part of
+  the page while scrolling up and down. `html`/`body` now suppress that
+  scrollbar specifically (`scrollbar-width: none` +
+  `::-webkit-scrollbar { display: none }`) while scrolling itself is
+  untouched; internal panes like `.admin-body` and `.results-body` keep
+  their own visible scrollbar as before.
 - **108 — Replaced the remaining ⌛ hourglass emoji loading indicators with
   the app's standard SVG spinner.** The Admin Panel's "Manage Community
   Quizzes" loading state (`renderAdminManageCommunityPanel()` in

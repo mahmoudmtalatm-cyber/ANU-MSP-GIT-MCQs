@@ -308,7 +308,17 @@
          scroll. Every bar below is built to fit on its own, but this keeps
          layout mistakes contained instead of letting content spill off-screen. */
       overflow-x: hidden;
+      /* The home screen (and any other view tall enough to scroll the
+         page itself, rather than an internal .xxx-body pane) still
+         scrolls normally — this only hides the page-level scrollbar
+         track/thumb so nothing sits pinned to the right edge while
+         scrolling. Internal panes (.admin-body, .results-body, etc.)
+         keep their own visible scrollbar from the ::-webkit-scrollbar
+         rule below. */
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
+    html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
     /* ── LAYOUT ── */
     #app { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-main); max-width: 100vw; }
