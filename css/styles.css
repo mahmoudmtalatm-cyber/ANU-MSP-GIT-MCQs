@@ -315,12 +315,24 @@
 
     /* ── ICONS ──
        Small inline-SVG glyphs used throughout in place of emoji, for a
-       calmer, more professional chrome. */
+       calmer, more professional chrome.
+
+       Baseline alignment: wherever an icon sits directly beside its label
+       inside a flex row (the vast majority of cases — buttons, chips,
+       badges, titles), `align-items: center` on that row is what actually
+       centers it; `vertical-align` is irrelevant there and safely ignored.
+       `vertical-align` only takes effect for the handful of icons that sit
+       mid-sentence inside plain flowing text (no flex parent). We use an
+       em-relative offset there instead of a fixed pixel value, so the icon
+       stays correctly seated on the line even as the surrounding text's
+       font-size changes across breakpoints — a fixed px offset would drift
+       out of place (icon sinking below the line) whenever the type scale
+       responds to viewport size. */
     .hicon, .bicon, .ticon, .nicon, .ficon, .micon, .sicon {
       fill: none; stroke: currentColor; stroke-width: 2;
       stroke-linecap: round; stroke-linejoin: round;
       flex-shrink: 0;
-      vertical-align: -3px;
+      vertical-align: -0.18em;
     }
     .hicon { width: 19px; height: 19px; }
     .bicon { width: 15px; height: 15px; }
@@ -1037,7 +1049,7 @@
       box-shadow: 0 8px 40px rgba(0,0,0,.25);
       max-height: 90vh; overflow-y: auto;
     }
-    .qm-title { font-size: 1.05rem; font-weight: 800; color: var(--text-main); margin-bottom: 14px; }
+    .qm-title { display: flex; align-items: center; gap: 7px; font-size: 1.05rem; font-weight: 800; color: var(--text-main); margin-bottom: 14px; }
     .qm-field { margin-bottom: 12px; }
     .qm-field label { font-size: .8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .7px; display: block; margin-bottom: 5px; }
     .qm-field select, .qm-field input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-soft); border-radius: 8px; font-family: var(--font); font-size: .93rem; color: var(--text-main); background: var(--surface-2); outline: none; }
@@ -1067,7 +1079,7 @@
     .cq-del-opt:hover { background: var(--surface-2); }
     .cq-del-opt:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
     .cq-del-opt input[type="radio"] { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); }
-    .cq-del-opt-title { font-size: .86rem; font-weight: 700; color: var(--text-main); }
+    .cq-del-opt-title { display: flex; align-items: center; gap: 6px; font-size: .86rem; font-weight: 700; color: var(--text-main); }
     .cq-del-opt-desc { font-size: .76rem; color: var(--text-muted); margin-top: 2px; line-height: 1.35; }
 
     /* ── CURR-ITEM EDITABLE (years / modules / subjects with delete/rename) ── */
@@ -1093,7 +1105,10 @@
       display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
       font-size: .82rem; font-weight: 700; color: var(--text-muted);
     }
-    .curr-crumb { cursor: pointer; padding: 3px 7px; border-radius: 6px; transition: background .15s, color .15s; }
+    .curr-crumb {
+      display: inline-flex; align-items: center; gap: 5px;
+      cursor: pointer; padding: 3px 7px; border-radius: 6px; transition: background .15s, color .15s;
+    }
     .curr-crumb:hover { background: var(--surface-3); color: var(--accent); }
     .curr-crumb.active { color: var(--accent-dark); cursor: default; }
     .curr-crumb.active:hover { background: none; }
@@ -1123,10 +1138,15 @@
     .scope-mode-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .scope-mode-opt input[type="radio"]:disabled ~ * { opacity: .5; }
     .scope-hint {
+      /* Multi-line copy with a leading icon — align-items: flex-start (not
+         center) so the icon sits level with the first line of text instead
+         of drifting to the vertical middle of the whole wrapped paragraph. */
+      display: flex; align-items: flex-start; gap: 7px;
       font-size: .78rem; color: var(--accent-dark); background: var(--surface-2);
       border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 11px; margin: 8px 0;
       font-weight: 600;
     }
+    .scope-hint .sicon { margin-top: .15em; }
     .scope-pick-row { padding: 6px 10px; }
     .scope-pick-checkbox {
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -1307,6 +1327,7 @@
       .stats-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
       .stats-section { display: flex; flex-direction: column; }
       .stats-section-title {
+        display: flex; align-items: center; gap: 6px;
         font-size: .78rem; font-weight: 700; color: var(--text-muted);
         text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
       }
@@ -1742,6 +1763,7 @@
   font-size: .82rem; font-weight: 700;
 }
 .pdx-clear-btn {
+  display: inline-flex; align-items: center; gap: 5px;
   background: transparent; border: 1.5px solid var(--accent-dark); color: var(--accent-dark);
   border-radius: 7px; padding: 5px 10px; font-size: .76rem; font-weight: 700; cursor: pointer;
   transition: background .15s;
@@ -1846,6 +1868,7 @@
   margin-bottom: 4px;
 }
 .cq-section-title {
+  display: flex; align-items: center; gap: 6px;
   font-size: .78rem; font-weight: 700; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
 }
@@ -1929,7 +1952,7 @@
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .cq-dz-file-item button:hover { filter: brightness(1.1); }
-.cq-dz-add-more { font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-top: 6px; }
+.cq-dz-add-more { display: flex; align-items: center; gap: 5px; font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-top: 6px; }
 .cq-dropzone.cq-dz-purple { border-color: var(--violet-border); background: #FBF5FC; }
 .cq-dropzone.cq-dz-purple:hover, .cq-dropzone.cq-dz-purple.drag-over { border-color: var(--violet-strong); background: var(--violet-pale); }
 .cq-dropzone.cq-dz-purple .cq-dz-file-item { color: var(--violet-dark); }
@@ -1976,7 +1999,11 @@
   padding: 10px 14px; margin-bottom: 8px; flex-wrap: wrap;
 }
 .cq-quiz-info { flex: 1; min-width: 140px; }
-.cq-quiz-name { font-weight: 700; font-size: .92rem; color: var(--text-main); }
+.cq-quiz-name {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-weight: 700; font-size: .92rem; color: var(--text-main);
+}
+.cq-quiz-name .sicon { margin-top: .2em; }
 .cq-quiz-meta { font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
 .cq-quiz-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .cq-quiz-actions input[type="number"] {
@@ -2009,6 +2036,7 @@
 }
 .cq-coll-header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .cq-coll-new-btn {
+  display: inline-flex; align-items: center; gap: 4px;
   border: none; border-radius: 6px; background: var(--accent); color: #fff;
   font-weight: 700; font-size: .72rem; padding: 4px 9px; cursor: pointer;
   transition: filter .12s ease, transform .12s ease;
@@ -2132,7 +2160,7 @@
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
   font-size: .8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; padding: 0 2px;
 }
-.cq-coll-breadcrumb .crumb { cursor: pointer; border-radius: 5px; padding: 2px 5px; }
+.cq-coll-breadcrumb .crumb { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 5px; padding: 2px 5px; }
 .cq-coll-breadcrumb .crumb:not(.current):hover { background: var(--surface-2); color: var(--text-main); }
 .cq-coll-breadcrumb .crumb.current { color: var(--text-main); cursor: default; }
 .cq-coll-breadcrumb .sep { opacity: .5; }
@@ -2282,7 +2310,7 @@
 .ai-thinking-toggle.ai-thinking-green.ai-thinking-on {
   color: var(--correct-fg); border-color: var(--green-pale-border); background: var(--correct-bg);
 }
-.ai-thinking-cb-label { letter-spacing: .2px; }
+.ai-thinking-cb-label { display: inline-flex; align-items: center; gap: 4px; letter-spacing: .2px; }
 .ai-source-picker {
   position: relative; z-index: 20; margin: 4px 0 8px;
 }
@@ -2291,6 +2319,7 @@
   padding: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.12); max-width: 320px;
 }
 .ai-source-picker-title {
+  display: flex; align-items: center; gap: 5px;
   font-size: .72rem; font-weight: 800; color: var(--correct-fg); text-transform: uppercase;
   letter-spacing: .5px; padding: 2px 6px 6px;
 }
@@ -2307,6 +2336,7 @@
 .ai-source-opt-remove:hover { opacity: 1; background: var(--wrong-bg); }
 .ai-source-picker-divider { height: 1px; background: #E0E0E0; margin: 5px 2px; }
 .ai-source-add-toggle {
+  display: flex; align-items: center; gap: 5px;
   padding: 6px 8px; border-radius: 6px; font-size: .78rem; font-weight: 700;
   color: #1565C0; cursor: pointer; transition: background .12s;
 }
@@ -2318,7 +2348,7 @@
   margin: 8px 0 12px; padding: 12px 14px; background: #F3F0FF;
   border: 1.5px solid #C5B3F0; border-radius: 10px;
 }
-.cq-bulk-ai-title { font-size: .85rem; font-weight: 800; color: var(--violet-dark); margin-bottom: 4px; }
+.cq-bulk-ai-title { display: flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 800; color: var(--violet-dark); margin-bottom: 4px; }
 .cq-bulk-ai-subtitle { font-size: .72rem; font-weight: 600; color: var(--violet-dark); opacity: .8; margin-bottom: 10px; }
 .cq-bulk-ai-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .cq-bulk-ai-tool {
@@ -2332,7 +2362,14 @@
 .cq-bulk-ai-opts summary {
   font-size: .76rem; font-weight: 700; color: var(--violet-dark); cursor: pointer; user-select: none;
 }
-.cq-bulk-ai-label { font-size: .73rem; font-weight: 700; color: var(--violet-dark); margin-bottom: 5px; }
+.cq-bulk-ai-label {
+  /* Leading icon followed by one run of (occasionally wrapping) text —
+     flex-start keeps the icon level with the first line rather than the
+     vertical center of the whole wrapped block. */
+  display: flex; align-items: flex-start; gap: 5px;
+  font-size: .73rem; font-weight: 700; color: var(--violet-dark); margin-bottom: 5px;
+}
+.cq-bulk-ai-label .sicon { margin-top: .15em; }
 .cq-bulk-lock { pointer-events: none; opacity: .55; filter: grayscale(.25); transition: opacity .2s; }
 .cq-opt-edit-row {
   display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
@@ -2415,6 +2452,7 @@
   padding: 16px 20px;
 }
 .change-flow-title {
+  display: flex; align-items: center; gap: 6px;
   font-size: .78rem; font-weight: 700; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px;
 }
@@ -2488,6 +2526,7 @@
   display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
 }
 .cq-badge {
+  display: inline-flex; align-items: center; gap: 5px;
   background: var(--chip-blue-bg); color: var(--nav-current); border-radius: 20px;
   padding: 4px 11px; font-size: .75rem; font-weight: 700;
 }
@@ -2540,10 +2579,12 @@
   line-height: 1.7; display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start;
 }
 .cq-split-chip {
-  display: inline-block; background: #fff; border: 1.5px solid var(--violet-border); border-radius: 14px;
+  display: inline-flex; align-items: flex-start; gap: 5px;
+  background: #fff; border: 1.5px solid var(--violet-border); border-radius: 14px;
   padding: 2px 10px; font-weight: 700; color: var(--violet-dark); font-size: .76rem;
   max-width: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-word;
 }
+.cq-split-chip .sicon { margin-top: .2em; }
 .cq-split-chip.warn { border-color: var(--unanswered-fg); color: var(--unanswered-fg); background: var(--unanswered-bg); }
 .cq-split-status:empty { display: none; }
 .cq-split-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
@@ -3120,7 +3161,7 @@
 .admin-quiz-item:hover { border-color: var(--accent); background: var(--surface-2-hover); }
 .admin-quiz-item.selected { border-color: var(--accent-dark); background: var(--surface-3); }
 .admin-quiz-item-info { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
-.admin-quiz-item-title { font-weight: 700; font-size: .9rem; color: var(--text-main); }
+.admin-quiz-item-title { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .9rem; color: var(--text-main); }
 .admin-quiz-item-meta { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .admin-quiz-item-check {
   width: 22px; height: 22px; border-radius: 50%;
@@ -3156,6 +3197,7 @@
   border-color: var(--accent-dark); box-shadow: 0 0 0 3px rgba(27,79,114,.12);
 }
 .admin-assign-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: var(--accent-dark); color: #fff; border: none; border-radius: 8px;
   padding: 12px 22px; font-family: var(--font); font-size: .95rem; font-weight: 800;
   cursor: pointer; width: 100%; transition: filter .15s;
@@ -3195,6 +3237,7 @@
 .admin-assigned-name { font-weight: 700; font-size: .88rem; color: var(--text-main); }
 .admin-assigned-path { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .admin-remove-btn {
+  display: inline-flex; align-items: center; gap: 5px;
   background: var(--wrong-bg); color: var(--wrong-fg); border: 1px solid var(--red-soft-border);
   border-radius: 6px; padding: 5px 10px; font-family: var(--font);
   font-size: .78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
@@ -3227,6 +3270,7 @@
   background: var(--surface-2); border: 1.5px solid var(--border-soft); border-radius: 10px; padding: 16px; margin-bottom: 4px;
 }
 .curr-section-title {
+  display: flex; align-items: center; gap: 6px;
   font-size: .8rem; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 12px;
 }
 .curr-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
@@ -3429,7 +3473,7 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
   color: var(--apikey-color, var(--accent));
 }
 
-.apikey-edit-btn { background: var(--violet-pale); color: var(--violet-dark); }
+.apikey-edit-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--violet-pale); color: var(--violet-dark); }
 .apikey-del-btn { background: var(--wrong-bg); color: var(--wrong-fg); }
 .apikey-edit-row { margin-top: 4px; }
 .apikey-edit-row input {
@@ -3461,9 +3505,11 @@ button.apikey-view-btn { background: var(--surface-2-hover); color: var(--text-m
 }
 .apikey-empty .ns-icon { font-size: 2rem; margin-bottom: 6px; display: block; }
 .apikey-pending-note {
+  display: flex; align-items: flex-start; gap: 7px;
   background: var(--amber-pale); border-left: 3px solid var(--amber-mid); border-radius: 8px;
   padding: 10px 14px; font-size: .85rem; color: var(--unanswered-fg); font-weight: 600;
 }
+.apikey-pending-note .sicon { margin-top: .15em; }
 .apikey-allrl-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ── Smart Rotation ON/OFF toggle card — sits above the key list in the
