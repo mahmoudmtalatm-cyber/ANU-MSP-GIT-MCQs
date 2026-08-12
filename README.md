@@ -818,6 +818,15 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **108 — Replaced the remaining ⌛ hourglass emoji loading indicators with
+  the app's standard SVG spinner.** The Admin Panel's "Manage Community
+  Quizzes" loading state (`renderAdminManageCommunityPanel()` in
+  `js/admin-panel.js`) and the merge-conflict picker's Community tab
+  loading state (`_mergeLoadCommunityTab()` in `js/community-quizzes.js`)
+  were still rendering a plain `&#8987;` emoji, out of step with every
+  other loading state in the app, which uses the shared `sicon`/`hicon`
+  spinner SVG with the `.spin` rotation class. Both now render that same
+  spinner for visual consistency.
 - **104 — Fixed raw `<svg ...>` markup rendering as literal text in the
   Export to PDF picker's source tabs, and in the exported PDF's own
   Contents page.** The Curriculum/Community/My Custom Quizzes tab
