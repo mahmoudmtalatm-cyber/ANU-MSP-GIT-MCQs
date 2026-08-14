@@ -38,6 +38,7 @@ function renderAdminQuestionEditor(containerId) {
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
       ${_renderMergeSourceBadge(q)}
+      ${_renderContentFilterReviewBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
       ${_renderReorderButtons('admin', i, adminEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"
@@ -408,6 +409,7 @@ function renderCustomQuizEditor() {
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
       ${_renderMergeSourceBadge(q)}
+      ${_renderContentFilterReviewBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
       ${_renderReorderButtons('customQuiz', i, cqEditQuestions.length)}
       <button class="cq-edit-reask-btn" title="Delete this question"

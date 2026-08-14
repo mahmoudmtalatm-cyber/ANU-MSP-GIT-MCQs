@@ -1323,15 +1323,15 @@ const CQ_SOLVE_PROGRESS_LABEL = {
    silently through into the published set. */
 const CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION =
   'You are a strict fact-checker verifying whether questions can be answered PURELY from the exact reference source material provided (text and/or images/PDFs) — nothing else. ' +
-  'This is a filtering task, not a general-knowledge quiz: your only job is to catch questions that do NOT genuinely belong to this source, so treat "found_in_source" as a strict pass/fail test, never a soft judgment call. ' +
-  'Set found_in_source to true ONLY if the source material explicitly states, shows, or directly and unambiguously implies the specific fact, value, option, or reasoning needed to answer THIS exact question — not merely the same general subject, topic, organ system, disease category, or chapter. ' +
-  'The correct answer must be verifiable by pointing to a specific passage, table, figure, label, or statement in the source that a person could show you. If you cannot point to that specific place, found_in_source is false. ' +
-  'Being on the same broad topic as the source, being plausible medical/academic knowledge, or being something you could answer confidently from your own training is NOT sufficient — set found_in_source to false in every one of those cases, even if your own answer is correct. ' +
-  'Any uncertainty, any reliance on outside/background knowledge to fill even one gap, or any need to infer beyond what the source literally states — however small — means found_in_source MUST be false. When genuinely unsure whether the source covers it, default to false. ' +
-  'Still provide your best answer letter for every question (using the source where found_in_source is true, your own expert knowledge otherwise) — "answer" and "found_in_source" are graded independently; never let a correct answer talk you into marking found_in_source true. ' +
+  'This is a filtering task, not a general-knowledge quiz: your only job is to sort each question into exactly one of three verdicts — "found", "not_found", or "uncertain" — never a vague in-between. ' +
+  'Set source_verdict to "found" ONLY if the source material explicitly states, shows, or directly and unambiguously implies the specific fact, value, option, or reasoning needed to answer THIS exact question — not merely the same general subject, topic, organ system, disease category, or chapter. The correct answer must be verifiable by pointing to a specific passage, table, figure, label, or statement in the source that a person could show you. ' +
+  'Set source_verdict to "not_found" when you are CONFIDENT the source does not cover this question at all — e.g. the source is entirely silent on this subject, or covers a clearly different topic. This is a firm, confident "no", not a shrug. ' +
+  'Set source_verdict to "uncertain" for the genuine middle ground: the source is on-topic and plausibly relevant, but you cannot point to the exact specific passage/figure/table that nails down THIS question — a partial match, a same-topic-but-not-quite fact, or a case where you would want a second look before deciding either way. Reserve "uncertain" for real borderline cases, not as an easy default — if you are confident either way, say so with "found" or "not_found" instead. ' +
+  'Being on the same broad topic as the source, being plausible medical/academic knowledge, or being something you could answer confidently from your own training is NOT sufficient for "found" — use "uncertain" or "not_found" in those cases, even if your own answer is correct. ' +
+  'Still provide your best answer letter for every question (using the source where source_verdict is "found", your own expert knowledge otherwise) — "answer" and "source_verdict" are graded independently; never let a correct answer talk you into marking source_verdict as "found". ' +
   'Some questions may include an image — analyse it carefully against the source\'s own images/figures specifically, not just the general topic. ' +
   'Respond ONLY with a JSON array. ' +
-  'Be fully deterministic: given the same question and source material, always give the same answer and the same found_in_source verdict.';
+  'Be fully deterministic: given the same question and source material, always give the same answer and the same source_verdict.';
 
 // General-purpose AI solver: solves questions at given indices using Gemini.
 // targetIdxs: array of question indices to solve (can be no-key or keyed questions)
@@ -1341,19 +1341,21 @@ const CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION =
 // progressLabel: optional { icon, multi, single(n) } — see CQ_SOLVE_PROGRESS_LABEL
 // above and _cqContentFilterProgressLabel in cqRunContentFilterPass for the
 // wording swap that lets Content Filter reuse this same batch progress bar.
-// strictSourceCheck: optional, default false. Swaps in a much stricter
-// found_in_source system instruction (CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION
-// above) and a matching stricter found_in_source line in instructionPart
-// below — see CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION's own comment for
-// exactly what "strict" means. Only cqRunContentFilterPass sets this
-// (true), since
-// found_in_source is ALL Content Filter keep/remove decisions are based
-// on — a lenient true there lets an unrelated question slip through. AI
-// Solve/Answer Missing Keys never pass it, so their answer quality and
-// wording are completely unchanged by this — the two prompts are kept
-// as fully separate strings for exactly that reason, not a shared one
-// with a strictness flag threaded through it, so a future edit to one
-// can never accidentally bleed into the other.
+// strictSourceCheck: optional, default false. Swaps in a much stricter,
+// three-way system instruction (CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION above)
+// and a matching instructionPart line below, requesting a "source_verdict"
+// of "found" / "not_found" / "uncertain" instead of the plain boolean
+// found_in_source the non-strict branch still uses — see
+// CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION's own comment for exactly what each
+// of the three means. Only cqRunContentFilterPass sets this (true), since
+// source_verdict is what its whole keep/remove/re-check decision is based
+// on (see #131 in the changelog) — a lenient "found" there lets an
+// unrelated question slip through. AI Solve/Answer Missing Keys never pass
+// it, so their prompt, output shape (still the plain found_in_source
+// boolean), and answer quality are completely unchanged by any of this —
+// the two prompts/parsing paths are kept as fully separate branches for
+// exactly that reason, not one shared shape with a flag threaded through
+// it, so a future edit to one can never accidentally bleed into the other.
 async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken, progressLabel, strictSourceCheck) {
   const label = progressLabel || CQ_SOLVE_PROGRESS_LABEL;
   if (!targetIdxs || !targetIdxs.length) return;
@@ -1424,7 +1426,7 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           ' "index": the number inside [index:N]\n' +
           ' "answer": the correct option letter (e.g. "A")\n' +
           (strictSourceCheck
-            ? ' "found_in_source": true ONLY if this exact question is directly and specifically answerable from the provided source material (a specific passage/figure/table you could point to) — false for ANY other case, including same-topic-but-not-this-question, partial matches, or anything requiring outside knowledge to complete\n'
+            ? ' "source_verdict": "found" ONLY if this exact question is directly and specifically answerable from the provided source material (a specific passage/figure/table you could point to); "not_found" if you are confident the source does not cover this at all; "uncertain" for a genuine borderline/partial-match case you are not confident about either way\n'
             : ' "found_in_source": true if the answer was clearly found in the provided source material, false if you used your own knowledge\n') +
           'No explanation, no preamble, no markdown.'
   };
@@ -1529,7 +1531,20 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           if (questions[qi] !== undefined && questions[qi].options && questions[qi].options[ans]) {
             questions[qi].answer = ans;
             questions[qi].ai_answered = true;
-            questions[qi].ai_guessed = !item.found_in_source;
+            if (strictSourceCheck) {
+              // Three-way verdict (see CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION):
+              // ai_guessed = confidently NOT in the source (permanent
+              // reject); ai_uncertain = genuine doubt (goes to the retry
+              // batch — see cqRunContentFilterPass). Anything malformed or
+              // missing here is treated as "uncertain" rather than
+              // silently defaulting to a keep or a delete — an unreliable
+              // signal should mean "ask again", never "guess".
+              const verdict = String(item.source_verdict || '').trim().toLowerCase();
+              questions[qi].ai_guessed = verdict === 'not_found';
+              questions[qi].ai_uncertain = verdict !== 'found' && verdict !== 'not_found';
+            } else {
+              questions[qi].ai_guessed = !item.found_in_source;
+            }
             totalSolved++;
           }
         });
@@ -1715,38 +1730,80 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
 }
 
 /* ── Shared bulk pass: Content Filter ──
-   Removes every question the AI can only answer from its own knowledge,
-   not from a required reference source. Shared by both call sites —
-   the post-extraction "Content Filter" bulk AI tool
+   Removes every question the AI is CONFIDENT it can only answer from its
+   own knowledge, not from a required reference source — and gives
+   genuinely borderline calls repeated second looks before giving up on
+   them, instead of deleting on a single ambiguous verdict. Shared by both
+   call sites — the post-extraction "Content Filter" bulk AI tool
    (_editorBulkContentFilter, js/ai-features.js) and the pre-extraction
    "Content Filter (AI)" toggle run inline as part of generateQuizFromAI
    (js/ai-solve.js) — so the actual filtering logic only exists once.
    Deliberately layered on top of cqAiSolveQuestions rather than a
    separate answer-checking implementation, since "was this question's
    answer found in the source" is exactly what that engine already
-   reports per question via found_in_source/ai_guessed.
+   reports per question via its strict-mode source_verdict/ai_guessed/
+   ai_uncertain (see the strictSourceCheck comment on cqAiSolveQuestions
+   above).
 
-   Shows the SAME per-batch progress bar Solve/Answer does — cqAiSolveQuestions'
-   batch-by-batch text and percentage — just re-worded via
-   _cqContentFilterProgressLabel below so it reads "Checking questions
-   against the source… (batch N of M)" instead of "AI is solving…".
-   If a caller has no live statusEl to hand in (or omits the argument),
-   this falls back to a throwaway target that swallows the chatter
-   instead of throwing. Either way, neither ai_answered nor ai_guessed is
-   left behind on a surviving question afterward — a question either made
-   it through the filter or it didn't, so there's nothing left for a
-   stray "AI-answered"/"AI Guess" badge to advertise. Callers own their
-   own before/after status text; the batch progress in between is this
-   function's to manage.
+   ── The iterative design (changelog #131) ──
+   A single ambiguous AI verdict used to be a permanent deletion. Now:
+     1. Round 1 checks EVERY question once — it has to, that's the only
+        way to find out who's confidently in, confidently out, or
+        genuinely unclear.
+     2. "found" this round → confirmed keeper, immediately, never
+        re-checked again — no wasted API calls on questions that already
+        cleared the bar.
+     3. "not_found" this round → confident no, deleted right then,
+        permanently. A confident rejection never gets a second chance
+        (that's not what this feature is for — see the discussion this
+        answers below).
+     4. "uncertain" this round → goes into a retry batch. Every next round
+        re-asks ONLY that shrinking batch (auto-chunked into ≤20-question
+        requests by cqAiSolveQuestions itself, nothing extra needed here).
+        Within the batch, the exact same three-way split applies every
+        round: found → promoted to keeper and leaves the batch,
+        not_found → deleted and leaves the batch, uncertain → stays in
+        the batch for yet another round.
+     5. The loop naturally shrinks every round (it can only lose members,
+        never gain any) and stops the moment a round is a genuine
+        plateau — nobody resolved to found OR not_found, everyone's still
+        uncertain, so asking again clearly won't help. Whatever's left at
+        that point is NOT deleted: each one gets `content_filter_flagged
+        = true` and the whole leftover group is moved to the end of the
+        array (see _cqMoveQuestionsToEnd below) for a human to look at,
+        preserving everything else's original order/position — including
+        any case-group siblings that already resolved cleanly, which stay
+        exactly where they were.
+     6. If the run is stopped (cancelToken) mid-round, whatever that round
+        already resolved (removals/promotions) stays applied — nothing
+        already decided is lost — but the leftover uncertain pool from
+        that interrupted round is left exactly as-is: NOT flagged, NOT
+        moved. A user-initiated stop is not the same thing as the AI
+        genuinely plateauing, so it shouldn't be treated as one.
+
+   Shows the SAME per-batch progress bar Solve/Answer does —
+   cqAiSolveQuestions' batch-by-batch text and percentage — just re-worded
+   via _cqContentFilterProgressLabel / _cqContentFilterRoundLabel below so
+   round 1 reads "Checking questions against the source… (batch N of M)"
+   and every later round reads "Re-checking questions still in doubt
+   (round N)…" instead of "AI is solving…". If a caller has no live
+   statusEl to hand in (or omits the argument), this falls back to a
+   throwaway target that swallows the chatter instead of throwing. Either
+   way, no ai_answered/ai_guessed/ai_uncertain is left behind on any
+   surviving question once the whole pass finishes — a question either
+   made it through the filter, got deleted, or got flagged for review, so
+   there's nothing left for a stray "AI-answered"/"AI Guess" badge to
+   advertise. Callers own their own before/after status text; the batch
+   progress in between is this function's to manage.
 
    Also never actually solves/verifies anything as far as the output is
-   concerned: cqAiSolveQuestions is only borrowed here to learn WHETHER
-   each answer was found in the source, and every surviving question's
-   original `answer` is restored immediately after that call returns.
-   Whether questions get genuinely re-solved is controlled solely by the
-   separate "Solve/verify all questions" toggle elsewhere — if that ran
-   too, it already did so as its own earlier step before Content Filter
-   ever touches these questions.
+   concerned: cqAiSolveQuestions is only borrowed here to learn EACH
+   ROUND'S verdict, and every still-present question's original `answer`
+   is restored immediately after every round's call returns — not just
+   once at the end. Whether questions get genuinely re-solved is
+   controlled solely by the separate "Solve/verify all questions" toggle
+   elsewhere — if that ran too, it already did so as its own earlier step
+   before Content Filter ever touches these questions.
 
    Requires at least one reference-source file — callers are expected
    to validate that themselves (with a message suited to where the
@@ -1762,62 +1819,144 @@ const _cqContentFilterProgressLabel = {
   single: n => `Checking ${n} question${n !== 1 ? 's' : ''} against the source…`
 };
 
+// Round 2+ wording for the same progress bar — "still in doubt" is
+// literally accurate now that only genuinely-uncertain survivors ever
+// reach a second round (confident keeps/rejects are already resolved and
+// gone by round 1). round is 2, 3, 4… (round 1 uses the label above).
+function _cqContentFilterRoundLabel(round) {
+  return {
+    icon: _cqContentFilterProgressLabel.icon,
+    multi: `Re-checking questions still in doubt (round ${round})…`,
+    single: n => `Re-checking ${n} question${n !== 1 ? 's' : ''} still in doubt (round ${round})…`
+  };
+}
+
+// Moves the given question objects (by reference) to the end of
+// `questions`, preserving their relative order among themselves and the
+// relative order of everything else — used to send Content Filter's
+// unresolved-after-retries leftovers to the back of the list instead of
+// deleting them (see step 5 in the comment above). Mutates `questions` in
+// place (same array reference every caller already holds), rather than
+// reassigning to a new array those callers wouldn't see.
+function _cqMoveQuestionsToEnd(questions, toMove) {
+  if (!toMove || !toMove.length) return;
+  const moveSet = new Set(toMove);
+  const rest = questions.filter(q => !moveSet.has(q));
+  questions.length = 0;
+  questions.push(...rest, ...toMove);
+}
+
 async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statusEl) {
   if (!sourceFiles || !sourceFiles.length) {
     throw new Error('Content Filter needs a reference source — upload at least one image or PDF first.');
   }
 
   const allIdxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
-  // Clear any ai_answered/ai_guessed left on these questions by an
-  // earlier, unrelated AI Solve/Content Filter pass first — otherwise a
-  // question this run never actually reaches (e.g. because the run gets
-  // stopped partway through) could get filtered, or kept, based on a
-  // stale flag from before instead of nothing being decided for it yet.
-  allIdxs.forEach(i => { delete questions[i].ai_answered; delete questions[i].ai_guessed; });
+  // Clear any ai_answered/ai_guessed/ai_uncertain/content_filter_flagged
+  // left on these questions by an earlier, unrelated AI Solve/Content
+  // Filter pass first — otherwise a question this run never actually
+  // reaches (e.g. because the run gets stopped partway through) could get
+  // filtered, kept, or left flagged based on a stale state from before
+  // instead of nothing being decided for it yet.
+  allIdxs.forEach(i => { delete questions[i].ai_answered; delete questions[i].ai_guessed; delete questions[i].ai_uncertain; delete questions[i].content_filter_flagged; });
 
   // Content Filter only needs cqAiSolveQuestions to find out WHERE each
-  // answer came from (found_in_source vs. own knowledge) — it isn't meant
+  // answer came from (source_verdict vs. own knowledge) — it isn't meant
   // to actually solve/verify anything. Whether questions get re-solved is
   // controlled solely by the separate "Solve/verify all questions"
   // toggle, which — if on — has already run as its own earlier step by
-  // the time this runs. So the answer this internal call comes up with is
-  // used only to decide keep-or-remove, then discarded: every surviving
-  // question's original answer is restored below, untouched.
-  const answersBefore = new Map(allIdxs.map(i => [i, questions[i].answer]));
+  // the time this runs. So the answer each round's internal call comes up
+  // with is used only to decide keep/remove/retry, then discarded: every
+  // still-present question's original answer is restored after every
+  // round below, untouched. Keyed by question OBJECT (not index) since
+  // indices shift as rounds splice questions out — object identity is
+  // stable across that, array position isn't.
+  const answersBefore = new Map(allIdxs.map(i => [questions[i], questions[i].answer]));
 
   const progressTarget = statusEl || createSilentStatusStub();
-  // strictSourceCheck: true — this is the one call site that actually
-  // needs it. See the strictSourceCheck comment on cqAiSolveQuestions
-  // above for why: found_in_source IS the entire keep/remove decision
-  // here, so it must use CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION, not the
-  // lenient AI-Solve wording.
-  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, progressTarget, cancelToken, _cqContentFilterProgressLabel, true);
 
-  answersBefore.forEach((originalAnswer, i) => {
-    if (questions[i]) questions[i].answer = originalAnswer;
-  });
-
-  // The filter itself: drop every question the AI could only answer from
-  // outside the source. Walk backward so splicing doesn't shift
-  // not-yet-checked indices out from under the loop, and run the same
-  // case-group housekeeping a manual per-question delete uses, so a
-  // removed question never leaves a case group's linking broken.
+  let pool = allIdxs.map(i => questions[i]); // question objects still awaiting a final verdict
+  let round = 0;
   let removed = 0;
-  for (let k = allIdxs.length - 1; k >= 0; k--) {
-    const qi = allIdxs[k];
-    const q = questions[qi];
-    if (q && q.ai_guessed) {
+
+  while (pool.length) {
+    if (cancelToken && cancelToken.cancelled) break;
+    round++;
+
+    // Recompute this round's indices fresh — `questions` may have shrunk
+    // from a previous round's removals, so a pool object's array position
+    // is not stable across rounds even though the object itself is.
+    const poolIdxs = pool.map(q => questions.indexOf(q)).sort((a, b) => a - b);
+
+    // Clear stale flags for exactly this round's pool right before
+    // asking, so "did this question get a verdict THIS round" is
+    // unambiguous afterward (a batch error/cancellation partway through
+    // must never be misread as a stale flag from a prior round).
+    poolIdxs.forEach(i => { delete questions[i].ai_answered; delete questions[i].ai_guessed; delete questions[i].ai_uncertain; });
+
+    // strictSourceCheck: true — this is the one call site that actually
+    // needs it. See the strictSourceCheck comment on cqAiSolveQuestions
+    // above for why: source_verdict IS the entire keep/remove/retry
+    // decision here, so it must use CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION,
+    // not the lenient AI-Solve wording.
+    const label = round === 1 ? _cqContentFilterProgressLabel : _cqContentFilterRoundLabel(round);
+    await cqAiSolveQuestions(questions, poolIdxs, '', sourceFiles, progressTarget, cancelToken, label, true);
+
+    poolIdxs.forEach(i => {
+      const q = questions[i];
+      if (q) q.answer = answersBefore.get(q);
+    });
+
+    const notFoundIdxs = [];
+    const stillUncertain = [];
+    let confirmedThisRound = 0; // count of found + not_found — "did this round make progress?"
+    poolIdxs.forEach(i => {
+      const q = questions[i];
+      if (!q) return;
+      if (!q.ai_answered) { stillUncertain.push(q); return; } // no verdict this round (batch error/cancel) — retry, never silently guess
+      if (q.ai_guessed) { notFoundIdxs.push(i); confirmedThisRound++; }
+      else if (q.ai_uncertain) { stillUncertain.push(q); }
+      else { confirmedThisRound++; } // confirmed "found" — quietly leaves the pool for good, no action needed
+    });
+
+    // Remove every confidently-rejected question right now, permanently —
+    // descending order so splicing never shifts an index still to be
+    // processed in this same pass, and run the same case-group
+    // housekeeping a manual per-question delete uses, so a removed
+    // question never leaves a case group's linking broken.
+    notFoundIdxs.sort((a, b) => b - a).forEach(qi => {
       const [deleted] = questions.splice(qi, 1);
       _caseGroupOnQuestionDeleted(questions, deleted);
       removed++;
+    });
+
+    const cancelledThisRound = !!(cancelToken && cancelToken.cancelled);
+    if (confirmedThisRound === 0 && !cancelledThisRound) {
+      // Plateau: nobody resolved to found or not_found, everyone's still
+      // uncertain — another round won't change anything. Flag the
+      // remainder for manual review and send it to the end of the list
+      // instead of asking forever or deleting on unresolved doubt.
+      stillUncertain.forEach(q => { q.content_filter_flagged = true; });
+      _cqMoveQuestionsToEnd(questions, stillUncertain);
+      pool = [];
+    } else {
+      // Real progress this round (or the user stopped mid-round) — leave
+      // whatever's still uncertain exactly as-is, unflagged, either for
+      // the next round or, if stopped, for a future run to pick back up.
+      pool = stillUncertain;
     }
   }
+
   // Strip the solve-flavoured flags off whatever's left — a survivor was
   // only ever checked here to confirm it belongs, not relabelled, so no
-  // "AI-answered" badge should linger on it either.
-  questions.forEach(q => { delete q.ai_answered; delete q.ai_guessed; });
+  // "AI-answered" badge should linger on it either. content_filter_flagged
+  // is deliberately NOT cleared here — that one is meant to persist as a
+  // visible "needs manual review" marker until a human actually looks at
+  // the question, not just until this function returns.
+  questions.forEach(q => { delete q.ai_answered; delete q.ai_guessed; delete q.ai_uncertain; });
 
-  return { removed, remaining: questions.length };
+  const needsReview = questions.reduce((n, q) => n + (q && q.content_filter_flagged ? 1 : 0), 0);
+  return { removed, remaining: questions.length, needsReview };
 }
 
 /* ── Post-extraction bulk pass: Re-extract Missing Images (cq preview only) ──

@@ -824,7 +824,52 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
-- **129 — Fixed a real data-loss bug: saving a custom quiz could silently
+- **131 — Content Filter no longer deletes a question on a single ambiguous
+  AI verdict.** Previously, `cqRunContentFilterPass` (`js/gemini-uploads.js`)
+  asked the AI a single yes/no question per quiz question — "was this
+  found in the source?" — and deleted anything that came back `false`,
+  including genuinely borderline calls the strict prompt's own "when
+  unsure, default to false" rule would produce. One noisy verdict, one
+  permanent deletion.
+  - The strict-mode prompt (`CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION`, Content
+    Filter only — the normal AI Solve/Answer Missing Keys prompt and
+    output shape are byte-for-byte unchanged) now asks for a three-way
+    `source_verdict`: `"found"`, `"not_found"`, or `"uncertain"`, instead
+    of a boolean. A confident `"not_found"` is still deleted immediately,
+    same as before — this isn't a general reprieve for confidently
+    unsourced questions. What changed is `"uncertain"`: instead of being
+    folded into a `false`/delete, it now goes into a retry batch.
+  - `cqRunContentFilterPass` re-asks that batch, round after round —
+    auto-chunked into ≤20-question requests for free, since
+    `cqAiSolveQuestions` already batches whatever index list it's handed.
+    Each round, `"found"` promotes a question to a confirmed keeper
+    (never re-asked again), `"not_found"` deletes it permanently, and
+    `"uncertain"` keeps it in the batch for another round. The batch can
+    only shrink, so this self-terminates without needing an arbitrary
+    round cap.
+  - If a round comes back with everyone still `"uncertain"` (a genuine
+    plateau — asking again won't help), those questions are no longer
+    deleted on unresolved doubt. They're marked `content_filter_flagged`,
+    shown with a new distinct rose/pink "Needs Review" badge
+    (`_renderContentFilterReviewBadge`, `js/ai-features.js`, using new
+    `--review-*` CSS variables in `css/styles.css` — deliberately not
+    reusing the amber "AI Guess" badge, since it means something
+    different) on both the pre-extraction preview (`js/ai-solve.js`) and
+    the post-extraction admin/custom-quiz editors (`js/quiz-editor.js`),
+    and moved to the end of the question list so already-resolved
+    questions (including case-group siblings that passed cleanly) keep
+    their original order.
+  - If the run is stopped mid-round, whatever that round already resolved
+    stays applied (nothing already decided is lost, matching the rest of
+    the app's pause/stop semantics), but the round's remaining
+    unresolved questions are left exactly as they were — not flagged,
+    not moved — since a user-initiated stop isn't the same thing as the
+    AI genuinely plateauing.
+  - Both call sites — the pre-extraction "Content Filter (AI)" toggle and
+    the post-extraction "Content Filter" bulk tool — now also report a
+    "flagged for review" / "Needs Review" count alongside the existing
+    removed/remaining counts.
+- **130 — Fixed a real data-loss bug: saving a custom quiz could silently
   delete OTHER custom quizzes if the save landed in a narrow async race
   window.** `saveCustomQuizzesList()` (`js/firebase-storage.js`) used to
   write by diffing: it deleted anything already in IndexedDB that wasn't
@@ -833,7 +878,7 @@ change (see the filename of whichever zip you're reading from).
   be the complete, current list. It isn't always — `window._cachedCustomQuizzes`
   (what `loadCustomQuizzes()` returns, and what most save call sites build
   their array from) gets reset and reloaded fresh from IndexedDB on *every*
-  auth state change (see #126/#127), not just once at page load. A save
+  auth state change (see #126/#127/#129), not just once at page load. A save
   that happened to land in the brief async window before that reload
   resolved would build its array from an empty or incomplete cache — and
   the old diff-delete logic would then wipe out every other quiz missing
@@ -855,6 +900,39 @@ change (see the filename of whichever zip you're reading from).
     `saveCustomQuizzesList()` caller (move to folder, rename, share,
     import, split, admin save-as) was already a pure upsert and needed no
     change.
+- **129 — Fixed Custom Quizzes/Stats/Retake still rendering empty on open
+  right after a page refresh, even after #126's fix.** #126 fixed the
+  READ side (window._cachedCustomQuizzes/_cachedStats getting reloaded
+  after a refresh, for signed-out use too) but left two remaining races
+  that could still make a freshly-reloaded screen render as if nothing had
+  loaded:
+  - `_fsReady.stats` / `_fsReady.customQuizzes` (`js/app-core.js`) used to
+    default to `true` ("nothing to load yet") — a leftover from when this
+    data only existed for signed-in users, and loading it was literally
+    gated behind sign-in. Now that both live in local storage and load on
+    every visit regardless of sign-in state, that default was wrong: on a
+    fresh page load, before Firebase Auth's first callback has fired
+    (async, anywhere from a few ms to a few hundred), opening Custom
+    Quizzes or Stats saw an already-"ready" flag, skipped
+    `fsAwaitIfNeeded`'s wait entirely, and rendered against still-undefined
+    caches — with nothing left to trigger a re-render once the real data
+    landed a moment later. Both now default to `false`, exactly like
+    `curriculum`/`published` already did, and `js/firebase-init.js`
+    explicitly resets them to `false` at the start of every
+    `onAuthStateChanged` reload (not just the first one).
+  - `fsAwaitIfNeeded()` (`js/app-core.js`) only ever showed/hid a loading
+    toast — it never re-rendered the screen's content once the data it was
+    waiting on actually arrived. `openStats()` had its own hand-rolled
+    retry for this; nothing else did, including `openCustomQuizzes()`,
+    which called `renderCustomQuizModal()` exactly once, synchronously, on
+    open. If that render landed before the local-storage load behind it
+    resolved, the toast would hide right on schedule but the modal stayed
+    frozen on "no quizzes yet" forever. `fsAwaitIfNeeded` now takes an
+    optional `onReady` callback, fired once the moment its flag flips
+    true, so the screen gets a genuine re-render instead of just a toast
+    that disappears. Wired into `openCustomQuizzes()`
+    (`js/firebase-storage.js`) and `openRetake()` (`js/app-core.js`),
+    generalizing the same fix `openStats()` already had by hand.
 - **128 — Fixed a shared quiz not appearing on the Community Quizzes screen
   if opened within 60 seconds of sharing it.** `shareCustomQuiz()`
   (`js/sharing.js`) correctly uploads the quiz and caches its content

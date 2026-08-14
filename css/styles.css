@@ -100,6 +100,16 @@
       --extai-border:      #A8DFC9;
       --extai-border-strong:#5CBE93;
 
+      /* Fourth accent — "needs manual review" (Content Filter's leftover
+         genuinely-uncertain questions, see changelog #131). Deliberately a
+         rose/pink hue, since amber is already "AI Guess", violet is
+         "AI-answered", and this needs to read as its own distinct signal
+         rather than a shade of either. */
+      --review-pale:        #FBEAF0;
+      --review-fg:          #A8195A;
+      --review-border:      #EFB8CE;
+      --review-border-strong:#DE6E9E;
+
       --shadow-ambient: rgba(20, 40, 90, .10);
       --sigil-line:     rgba(42,95,224,.45);
       /* Soft dotted-grid texture used behind hero/header surfaces — a

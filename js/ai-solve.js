@@ -651,7 +651,7 @@ async function generateQuizFromAI() {
       : noKeyCount > 0 ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${noKeyCount} without key` : '';
     const fileNote = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
     const filterNote = filterResult
-      ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> ${filterResult.removed} filtered out`
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> ${filterResult.removed} filtered out${filterResult.needsReview ? ` (<svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${filterResult.needsReview} flagged for review)` : ''}`
       : '';
     const fillNote = fillResult && fillResult.done > 0
       ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> ${fillResult.done} question${fillResult.done !== 1 ? 's' : ''} filled to 4 choices` : '';
@@ -1056,6 +1056,7 @@ function renderCQPreview() {
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
       ${qBadge}
+      ${_renderContentFilterReviewBadge(q)}
       ${_renderMergeSourceBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
       ${_renderReorderButtons('cq', i, cqGeneratedQuestions.length)}
