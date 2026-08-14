@@ -824,6 +824,42 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **124 — Fixed AI Solve / Content Filter losing track of reference-source
+  files after a mid-run API key rotation, instead of every batch after the
+  rotation failing on a stale file reference.** `cqAiSolveQuestions()`
+  (`js/gemini-uploads.js` — the shared engine behind Solve All, Answer
+  Missing Keys, and Content Filter's internal check) builds its reference
+  sources' request parts (`sourceParts`) once and reuses the same array
+  across every batch, which is correct and intentional — see the
+  "identified missing file re-upload logic during API key rotation"
+  investigation this closes out. The gap: `callGeminiWithRetry()` already
+  knew how to re-upload a Files-API document under a newly-rotated key
+  (added for the single-file extraction pipeline), but only supported ONE
+  such file per request and `cqAiSolveQuestions()` never told it about its
+  source files at all — so a rotation mid-batch (rate limit or an invalid
+  key) left `sourceParts` holding a `file_uri` scoped to the OLD key's
+  project, and every subsequent batch in that run would fail against it.
+  - `callGeminiWithRetry()`'s rotation handling is now multi-file aware:
+    `_findFileDataPartRefs()` (replacing the old single-result
+    `_findFileDataPartRef()`, kept as a thin back-compat wrapper) locates
+    every `file_data` reference in a request instead of just the first,
+    and `fileForReupload` now accepts either a single `{ file, mimeType }`
+    (unchanged for the single-file extraction/generation callers) or an
+    array of them for requests carrying several source files — each is
+    re-uploaded and patched into the request in place, matched to its
+    `file_data` reference by position. On success, the returned object
+    now also carries `__rotatedFileParts` (an array) alongside the
+    existing single-file `__rotatedFilePart`.
+  - `cqAiSolveQuestions()` now tracks, per source file, whether its part
+    became a `file_data` reference (large enough to need the Files API)
+    or was inlined as base64 (small enough not to need re-uploading at
+    all), passes the former list in as `fileForReupload`, and — this is
+    the actual fix — applies `__rotatedApiKey` / `__rotatedFileParts` back
+    onto its own `apiKey` and `sourceParts` after every batch, not just
+    inside the one in-flight request that happened to trigger the
+    rotation. Every later batch in the same run now picks up the freshly
+    re-uploaded reference and the new key, instead of repeating the same
+    failure batch after batch.
 - **123 — Content Filter now shows the same live "(batch N of M)" progress
   bar Solve All does, instead of sitting on a static message for the whole
   run.** `cqRunContentFilterPass()` (`js/gemini-uploads.js`) drives its

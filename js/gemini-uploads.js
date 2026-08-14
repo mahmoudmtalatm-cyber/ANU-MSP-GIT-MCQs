@@ -476,19 +476,32 @@ async function _geminiRateGate(cancelToken) {
   _geminiLastRequestAt = Date.now();
 }
 
-/* Finds the single file_data part (a reference into Google's Files API)
-   inside a request body, if any — inline_data (base64) parts don't need
-   this since those bytes are valid under any key. Returns a mutable
-   { parts, idx } handle so a rotation can patch it in place, or null if
-   this request doesn't reference an uploaded file at all. */
-function _findFileDataPartRef(bodyObj) {
-  if (!bodyObj || !Array.isArray(bodyObj.contents)) return null;
+/* Finds every file_data part (a reference into Google's Files API) inside
+   a request body, in the order they appear — inline_data (base64) parts
+   don't need this since those bytes are valid under any key. Returns an
+   array of mutable { parts, idx } handles, one per file_data part found
+   (possibly across several `contents` entries), so a rotation can patch
+   each in place. Empty array if this request doesn't reference any
+   uploaded file. A request can carry more than one — e.g. AI Solve /
+   Content Filter's reference-source list (`sourceFiles`, several files at
+   once) — so every caller that walks this must handle 0, 1, or many. */
+function _findFileDataPartRefs(bodyObj) {
+  const refs = [];
+  if (!bodyObj || !Array.isArray(bodyObj.contents)) return refs;
   for (const content of bodyObj.contents) {
     if (!Array.isArray(content.parts)) continue;
-    const idx = content.parts.findIndex(p => p && p.file_data);
-    if (idx !== -1) return { parts: content.parts, idx };
+    content.parts.forEach((p, idx) => {
+      if (p && p.file_data) refs.push({ parts: content.parts, idx });
+    });
   }
-  return null;
+  return refs;
+}
+
+/* Back-compat single-result wrapper around _findFileDataPartRefs, kept for
+   any caller that only ever expects (or only cares about) one file_data
+   part in the request. */
+function _findFileDataPartRef(bodyObj) {
+  return _findFileDataPartRefs(bodyObj)[0] || null;
 }
 
 /* ── Retry helper: retries indefinitely with exponential back-off (2s, 4s, 8s… capped at 30s).
@@ -538,11 +551,13 @@ function _findFileDataPartRef(bodyObj) {
        GEMINI_PRIMARY_MODEL (see resetGeminiModelResolution) — exactly the
        same as opening the site fresh — since a model that needed the
        fallback on one key/project isn't guaranteed to need it on another.
-     - If the request carried an uploaded (Files-API) document, that
-       reference belongs to the OLD key/project and won't resolve under the
-       new one — so when `fileForReupload` is given, the file is silently
-       re-uploaded under the new key and the request body patched in place
-       before the retry fires.
+     - If the request carried one or more uploaded (Files-API) documents,
+       those references belong to the OLD key/project and won't resolve
+       under the new one — so when `fileForReupload` is given (a single
+       `{ file, mimeType }`, or an array of them for a request with
+       several source files), every one of them is silently re-uploaded
+       under the new key and the request body patched in place before the
+       retry fires.
      - If literally every configured key is currently excluded (all rate-
        limited / invalid), rotation keeps cycling between them anyway
        (a key's cooldown can lapse at any moment) instead of getting stuck
@@ -555,12 +570,21 @@ function _findFileDataPartRef(bodyObj) {
        retries with nothing left to rotate to, that sleep also wakes early
        the instant the key list changes, instead of finishing its full
        backoff first.
-     - On success, the returned object gets two extra (non-API) fields
-       attached — `__rotatedApiKey` and `__rotatedFilePart` — set only if
-       a rotation actually happened during this call, so callers that keep
-       their own local `apiKey`/`filePart` variables for later requests
-       (e.g. the extraction pipeline's follow-up image-cropping pass) can
-       pick up the values that actually ended up succeeding. ──────── */
+     - On success, the returned object gets extra (non-API) fields
+       attached — `__rotatedApiKey`, `__rotatedFilePart`, and
+       `__rotatedFileParts` — set only if a rotation actually happened
+       during this call, so callers that keep their own local
+       `apiKey`/`filePart`/`sourceParts` variables for later requests
+       (e.g. the extraction pipeline's follow-up image-cropping pass, or
+       AI Solve / Content Filter's batch loop reusing the same reference
+       sources across many requests) can pick up the values that actually
+       ended up succeeding instead of silently retrying with a now-stale
+       file reference on the next request.
+       `__rotatedFilePart` is the single-file case (back-compat: same
+       value as `fileForReupload` was given as one object, not an array).
+       `__rotatedFileParts` is always an array, in the same order as
+       `fileForReupload` was passed in — the one to use whenever more than
+       one source file might be present. ──────── */
 async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCheck, apiKey, fileForReupload, onAllRateLimited } = {}) {
   const KEY_ERRORS = ['API_KEY_INVALID', 'API_KEY_NOT_VALID', 'INVALID_API_KEY',
                       'PERMISSION_DENIED', 'API key not valid'];
@@ -586,7 +610,16 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
 
   const initialKeyId = _findKeyIdByValue(apiKey);
   let currentKeyId = initialKeyId;
-  let rotatedFilePart = null; // set if a Files-API re-upload happened mid-call
+  let rotatedFileParts = null; // set (array) if a Files-API re-upload happened mid-call
+  // Normalize fileForReupload to an array up front — callers with exactly
+  // one source file pass a plain { file, mimeType } object (back-compat),
+  // callers with several (e.g. AI Solve's reference-source list) pass an
+  // array of them, one per file, in the same order those files' parts
+  // were built — see cqAiSolveQuestions in this file for how that order
+  // is tracked.
+  const _reuploadList = Array.isArray(fileForReupload)
+    ? fileForReupload
+    : (fileForReupload ? [fileForReupload] : []);
 
   // Wait for a shared slot before this call's very first attempt — retries
   // after a failure already back off exponentially below, so they don't
@@ -626,20 +659,39 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
     }
 
     // Files-API uploads are scoped to the key/project that made them — a
-    // key rotation invalidates any file_data reference already in this
-    // request, so re-upload under the new key before retrying.
-    const fileRef = _findFileDataPartRef(bodyObj);
-    if (fileRef && fileForReupload && fileForReupload.file) {
-      try {
-        const newPart = await buildGeminiFilePart(fileForReupload.file, apiKey, fileForReupload.mimeType);
-        fileRef.parts[fileRef.idx] = newPart;
-        rotatedFilePart = newPart;
-      } catch (e) {
-        // Re-upload failed — fall through and let the next attempt surface
-        // whatever real error Google returns for the now-stale reference,
-        // rather than silently pretending the rotation fully succeeded.
-        console.warn('callGeminiWithRetry: file re-upload after key rotation failed:', e && e.message);
+    // key rotation invalidates every file_data reference already in this
+    // request (there can be more than one — e.g. AI Solve / Content
+    // Filter's reference-source list), so re-upload each one under the
+    // new key before retrying. Refs and the reupload list line up by
+    // position: both follow the order the files' parts were originally
+    // built in, so refs[i] always corresponds to _reuploadList[i].
+    const fileRefs = _findFileDataPartRefs(bodyObj);
+    if (fileRefs.length && _reuploadList.length) {
+      const newParts = [];
+      const count = Math.min(fileRefs.length, _reuploadList.length);
+      if (fileRefs.length !== _reuploadList.length) {
+        // Shouldn't normally happen — it means the request's file_data
+        // parts and the caller's reupload list drifted out of sync — but
+        // re-upload whatever does line up rather than skip the rotation
+        // entirely, and log so a real mismatch is easy to spot.
+        console.warn('callGeminiWithRetry: file_data part count (' + fileRefs.length +
+          ') does not match fileForReupload count (' + _reuploadList.length + ') — re-uploading the first ' + count + '.');
       }
+      for (let i = 0; i < count; i++) {
+        const entry = _reuploadList[i];
+        if (!entry || !entry.file) continue;
+        try {
+          const newPart = await buildGeminiFilePart(entry.file, apiKey, entry.mimeType);
+          fileRefs[i].parts[fileRefs[i].idx] = newPart;
+          newParts[i] = newPart;
+        } catch (e) {
+          // Re-upload failed — fall through and let the next attempt surface
+          // whatever real error Google returns for the now-stale reference,
+          // rather than silently pretending the rotation fully succeeded.
+          console.warn('callGeminiWithRetry: file re-upload after key rotation failed:', e && e.message);
+        }
+      }
+      if (newParts.length) rotatedFileParts = newParts;
     }
 
     try { _broadcastRotationUI({ fromId, toId: next.id, toLabel: next.label, reason: 'rotation' }); } catch (e) {}
@@ -751,7 +803,11 @@ async function callGeminiWithRetry(url, bodyObj, { onRetry, cancelToken, pauseCh
 
       if (currentKeyId && typeof recordApiSuccess === 'function') recordApiSuccess(currentKeyId);
       if (currentKeyId && currentKeyId !== initialKeyId) data.__rotatedApiKey = apiKey;
-      if (rotatedFilePart) data.__rotatedFilePart = rotatedFilePart;
+      if (rotatedFileParts) {
+        data.__rotatedFileParts = rotatedFileParts;
+        // Back-compat: single-file callers only ever read __rotatedFilePart.
+        data.__rotatedFilePart = rotatedFileParts[0];
+      }
       return data; // success
     } catch (err) {
       if (cancelToken) cancelToken.controller = null;
@@ -1283,8 +1339,20 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
       'Respond ONLY with a JSON array. ' +
       'Be fully deterministic: given the same question, always give the same answer.';
 
-  // Build source parts (shared across all chunks)
+  // Build source parts (shared across all chunks — see the batch loop
+  // below, which spreads this same array into every batch's request
+  // instead of rebuilding/re-sending the files each time).
   const sourceParts = [];
+  // Parallel bookkeeping for Files-API re-upload on key rotation (see
+  // "reused sourceParts across batches" comment further down): for every
+  // source file whose part ended up as a file_data reference (i.e. it was
+  // large enough to need the Files API rather than being inlined),
+  // records the file/mimeType to re-upload PLUS which index in
+  // `sourceParts` that reference lives at, so a rotation mid-run can
+  // patch sourceParts itself in place — not just the one batch request
+  // that happened to be in flight when the rotation fired.
+  const sourceFileReuploads = []; // [{ file, mimeType }, ...] — passed to callGeminiWithRetry
+  const sourceFileReuploadPartIdx = []; // sourceParts[] index for each entry above, same order
   if (sourceText && sourceText.trim()) {
     sourceParts.push({ text: '## Reference Source Material (Text)\n' + sourceText.trim() + '\n\n---\n' });
   }
@@ -1293,7 +1361,14 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     for (let sfi = 0; sfi < sourceFiles.length; sfi++) {
       const sf = sourceFiles[sfi];
       sourceParts.push({ text: 'Source file ' + (sfi + 1) + ' (' + sf.name + '):' });
-      sourceParts.push(await buildGeminiFilePart(sf.file, apiKey, sf.mimeType));
+      const filePart = await buildGeminiFilePart(sf.file, apiKey, sf.mimeType);
+      const partIdx = sourceParts.push(filePart) - 1;
+      if (filePart.file_data) {
+        // Only Files-API uploads need re-uploading on rotation — inline
+        // base64 parts are valid under any key, so they're left alone.
+        sourceFileReuploads.push({ file: sf.file, mimeType: sf.mimeType });
+        sourceFileReuploadPartIdx.push(partIdx);
+      }
     }
     sourceParts.push({ text: '---' });
   }
@@ -1363,7 +1438,30 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
         // "Be fully deterministic" line in systemInstruction above is the
         // prompt-level backstop for that case.
         generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192, temperature: 0 }
-      }, { pauseCheck: () => cqPauseRequested, cancelToken: cancelToken, apiKey });
+      }, {
+        pauseCheck: () => cqPauseRequested, cancelToken: cancelToken, apiKey,
+        // Lets a mid-batch key rotation (rate limit / invalid key) re-upload
+        // every reference-source file under the new key instead of retrying
+        // with a file_uri that only the OLD key's project can see.
+        fileForReupload: sourceFileReuploads
+      });
+
+      // A rotation may have happened mid-call above — pick up whichever
+      // key/file-references actually ended up succeeding so the NEXT
+      // batch (which reuses this same `sourceParts` array) doesn't go
+      // back to sending a now-stale key or file reference. Without this,
+      // only the one in-flight batch request got patched (inside
+      // callGeminiWithRetry's own retry loop); sourceParts itself — and
+      // therefore every later batch — would still hold the old key's
+      // apiKey/file_uri and immediately fail again next batch.
+      if (data.__rotatedApiKey) apiKey = data.__rotatedApiKey;
+      if (data.__rotatedFileParts) {
+        data.__rotatedFileParts.forEach((newPart, i) => {
+          if (newPart && sourceFileReuploadPartIdx[i] !== undefined) {
+            sourceParts[sourceFileReuploadPartIdx[i]] = newPart;
+          }
+        });
+      }
 
       const textOut = ((data.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('');
       const cleanText = textOut.replace(/```json|```/g, '').trim();
