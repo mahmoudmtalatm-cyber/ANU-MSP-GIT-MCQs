@@ -422,8 +422,24 @@ function _yearIcon(year, position) {
 const _fsReady = {
   curriculum: false,
   published: false,
-  stats: true, // true until the local-storage load in firebase-init.js's onAuthStateChanged fires (signed-in or not)
-  customQuizzes: true, // true until the local-storage load in firebase-init.js's onAuthStateChanged fires (signed-in or not)
+  // stats/customQuizzes used to default to true ("nothing to load yet") because
+  // only a SIGNED-IN user had anything to fetch, and that fetch was triggered
+  // by (and gated behind) sign-in itself. Now that both live in local storage
+  // and load for every visit regardless of sign-in state (see the
+  // onAuthStateChanged handler in js/firebase-init.js), that default became a
+  // real bug: on a fresh page load, Firebase Auth's first callback hasn't
+  // fired yet — it's async and can take anywhere from a few ms to a few
+  // hundred — so opening Stats/Custom Quizzes in that window (very easy to
+  // do, e.g. right after a refresh) saw a flag that was already "ready",
+  // skipped fsAwaitIfNeeded's wait/retry entirely, and rendered against
+  // window._cachedCustomQuizzes/_cachedStats while they were still undefined
+  // — with nothing left to ever trigger a re-render once the real data
+  // actually arrived a moment later. False here, like curriculum/published,
+  // fixes that: fsAwaitIfNeeded now always waits (and, via its onReady
+  // callback — see openCustomQuizzes/openRetake — re-renders) until the very
+  // first local-storage load genuinely finishes.
+  stats: false,
+  customQuizzes: false,
 };
 
 function fsLoadingShow(msg) {
@@ -438,8 +454,18 @@ function fsLoadingHide() {
   if (toast) toast.classList.remove('visible');
 }
 
-/* Call when user opens something — shows toast if data isn't ready, hides when it is */
-function fsAwaitIfNeeded(key, msg) {
+/* Call when user opens something — shows toast if data isn't ready, hides when it is.
+   onReady: optional callback fired once, the moment _fsReady[key] flips true — for
+   any screen that renders its content immediately/synchronously on open (most of
+   them: renderCustomQuizModal() below is the motivating case), that initial render
+   can easily land BEFORE the async local-storage/Firestore load behind this flag
+   finishes, and nothing was re-rendering it afterward — the toast hid, but the
+   screen stayed frozen on whatever it rendered (usually "no quizzes yet") the
+   moment it opened. Passing onReady here re-runs that same render function once
+   the data actually lands, exactly like openStats()'s own hand-rolled retry
+   (js/app-core.js) already did for the stats screen — this generalizes that same
+   fix to every fsAwaitIfNeeded caller instead of leaving each one to reinvent it. */
+function fsAwaitIfNeeded(key, msg, onReady) {
   if (_fsReady[key]) return; // already done, nothing to show
   fsLoadingShow(msg);
   // Poll until ready (resolves within the same event-loop tick once the promise sets the flag)
@@ -447,6 +473,7 @@ function fsAwaitIfNeeded(key, msg) {
     if (_fsReady[key]) {
       clearInterval(interval);
       fsLoadingHide();
+      if (onReady) onReady();
     }
   }, 100);
 }
@@ -1324,8 +1351,13 @@ function openStats() {
   document.getElementById('statsOverlay').classList.remove('hidden');
   _statsFlow = { year: null, module: null, openSubject: null, openOther: null };
 
-  if (window._currentUser && !window._cachedStats) {
-    // Still loading from Firestore — show spinner
+  if (!window._cachedStats) {
+    // Still loading from local storage (the onAuthStateChanged handler in
+    // js/firebase-init.js hasn't resolved yet) — show a spinner and retry
+    // shortly. Not gated on window._currentUser: stats load from local
+    // storage the same way for signed-in and signed-out use now, so a
+    // signed-out user opening Stats in the brief window before that load
+    // finishes should see this same spinner, not an empty/default state.
     document.getElementById('statsBody').innerHTML = `
       <div style="text-align:center;padding:40px;color:var(--text-muted);">
         <div style="font-size:2rem;margin-bottom:12px;"><svg viewBox="0 0 24 24" style="width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg></div>
@@ -1795,7 +1827,11 @@ async function retakeSingleQuiz(h) {
 }
 
 function openRetake() {
-  fsAwaitIfNeeded('stats', 'Loading your stats…');
+  fsAwaitIfNeeded('stats', 'Loading your stats…', () => {
+    if (!document.getElementById('retakeOverlay').classList.contains('hidden')) {
+      renderRetakeSelector();
+    }
+  });
   renderRetakeSelector();
   document.getElementById('retakeOverlay').classList.remove('hidden');
 }

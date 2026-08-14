@@ -824,6 +824,102 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **129 — Fixed a real data-loss bug: saving a custom quiz could silently
+  delete OTHER custom quizzes if the save landed in a narrow async race
+  window.** `saveCustomQuizzesList()` (`js/firebase-storage.js`) used to
+  write by diffing: it deleted anything already in IndexedDB that wasn't
+  present in the array it was handed, treating "missing from this array"
+  as "the user removed it." That's only safe if the array is guaranteed to
+  be the complete, current list. It isn't always — `window._cachedCustomQuizzes`
+  (what `loadCustomQuizzes()` returns, and what most save call sites build
+  their array from) gets reset and reloaded fresh from IndexedDB on *every*
+  auth state change (see #126/#127), not just once at page load. A save
+  that happened to land in the brief async window before that reload
+  resolved would build its array from an empty or incomplete cache — and
+  the old diff-delete logic would then wipe out every other quiz missing
+  from it. This wasn't just a display glitch a refresh would fix: the
+  deletion was written straight to IndexedDB, so the data was actually
+  gone. Reproduced and confirmed with a standalone harness (Node +
+  `fake-indexeddb`) exercising the real `local-store.js` before writing the
+  fix.
+  - `saveCustomQuizzesList(arr, deletedIds = [])` no longer infers
+    deletions from the array shrinking. It upserts every quiz in `arr` and
+    deletes only the ids explicitly passed in `deletedIds` — a stale or
+    incomplete snapshot can at worst redundantly re-save quizzes that
+    didn't need it, but it can never delete one just because it was
+    absent from an in-flight load.
+  - Updated the two call sites that actually mean to delete a quiz to say
+    so explicitly: `deleteCustomQuiz()` (`js/split-quiz.js`) and the
+    "delete folder + everything filed inside it" path in
+    `_cqDeleteCollectionExecute()` (`js/quiz-collections.js`). Every other
+    `saveCustomQuizzesList()` caller (move to folder, rename, share,
+    import, split, admin save-as) was already a pure upsert and needed no
+    change.
+- **128 — Fixed a shared quiz not appearing on the Community Quizzes screen
+  if opened within 60 seconds of sharing it.** `shareCustomQuiz()`
+  (`js/sharing.js`) correctly uploads the quiz and caches its content
+  locally via `putContentItem()` (`js/content-client.js`) — that part
+  already worked. The bug was in `ensureSharedQuizzesLoaded()`
+  (`js/community-quizzes.js`): its 60-second throttle window (there to
+  avoid re-checking the server on every reopen — see build #80/#98) skips
+  the real manifest check and instead rebuilds the list from a locally
+  cached `communityKnownIds` array. That array was only ever written at
+  the end of a FULL manifest check — never updated incrementally by a
+  single new item — so a quiz shared inside that 60-second window had its
+  content already cached correctly under `content:community:{id}`, but its
+  id was missing from `communityKnownIds`, so the throttle-path rebuild
+  silently skipped it. Opening Community Quizzes any time after the 60
+  seconds passed (which triggers a real check) always showed it fine —
+  which is why this only ever showed up as "disappears if I check right
+  away."
+  - `putContentItem()` now appends the item's id to `communityKnownIds`
+    itself, right after caching its content, whenever `category ===
+    'community'` — so every write path (sharing a quiz, an admin editing
+    one) keeps that list correct at the source, not just after the next
+    full manifest check.
+  - `deleteContentItem()` gets the mirror fix — removes the id from
+    `communityKnownIds` on delete, so a removal inside the same throttle
+    window also stays on the fast, zero-network-call path instead of
+    (harmlessly, but unnecessarily) falling back to a full check.
+- **127 — Swept the codebase for the same "gated on sign-in when the data
+  actually lives in local storage now" bug class that #126 fixed, and
+  closed the two remaining live instances.** Both are the identical root
+  cause: code written back when custom quizzes/stats were Firestore-backed
+  (so `window._currentUser` was a correct proxy for "is there anything to
+  load/show") never got its guard removed once that data moved to
+  per-device local storage, which needs no sign-in at all.
+  - `_backupRefreshAfterImport()` (`js/backup-transfer-ui.js`) — after
+    importing a Backup & Transfer file, custom quizzes/collections always
+    refreshed correctly, but the stats/history reload was wrapped in
+    `if (window._currentUser && …)`, so a signed-out user importing a
+    backup that included stats wouldn't see them on the Stats screen until
+    a page refresh happened to land after signing in. Now reloads
+    unconditionally, same as the quizzes/collections reload right above it.
+  - `openStats()` (`js/app-core.js`) — the "still loading, show a spinner
+    and retry shortly" branch only fired `if (window._currentUser && …)`.
+    In the brief window before `firebase-init.js`'s local-storage load
+    finishes, a signed-out user opening Stats would skip straight to
+    rendering an empty/default state instead of the spinner-and-retry a
+    signed-in user got in the same window. Now checks `!window._cachedStats`
+    only, regardless of sign-in state.
+  - Also swept `js/community-quizzes.js`, `js/pdf-export.js`,
+    `js/sharing.js`, `js/user-profile.js`, and the admin-only files for the
+    same `window._currentUser` pattern — every other instance is a
+    genuinely account-gated feature (Community Quizzes browsing/sharing,
+    display-name lookup, admin tools), all backed by Firestore and
+    correctly requiring sign-in, so none of those were changed.
+  - Note for a future cleanup pass (not touched here, since it's inert and
+    out of scope for a bug fix): `js/firebase-storage.js` still carries a
+    few hundred lines of the pre-local-storage Firestore implementation
+    for custom quizzes and per-quiz stats history (`loadCustomQuizzesFromFirestore()`,
+    `saveHistoryEntryToStorage()`/`loadHistoryEntries()`,
+    `uploadHistoryFullSnapshotToStorage()`/`hydrateHistoryFullSnapshot()`,
+    and their per-user localStorage cache-version helpers in
+    `js/ai-features.js`/`js/firebase-storage.js`) that's no longer called
+    from anywhere — superseded by `js/local-store.js`, confirmed via a
+    full-codebase reference search. It's dead, not buggy, so it can't
+    cause this issue, but it's worth removing in its own dedicated drop
+    to keep the module from misleading future changes.
 - **126 — Fixed custom quizzes (and quiz collections/stats/attempt history)
   appearing to vanish after a page refresh, for any signed-out or
   not-yet-signed-in use of the app.** Saving a quiz always wrote correctly

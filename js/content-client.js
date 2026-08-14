@@ -129,6 +129,27 @@ export async function putContentItem(category, subject, itemId, content) {
   const manifest = category === 'curriculum' ? await fetchCurriculumManifest() : await fetchCommunityManifest();
   const newVersion = category === 'curriculum' ? manifest[subject]?.[itemId] : manifest[itemId];
   await window._idbSet(idbKey, { ...content, __version: newVersion });
+
+  // Community content also needs `communityKnownIds` (js/community-quizzes.js)
+  // kept in sync with any NEW quiz id — that list is what the community-list
+  // throttle-window rebuild (ensureSharedQuizzesLoaded, within 60s of the
+  // last real manifest check) trusts blindly to avoid a network call. This
+  // per-item cache write above already made the new/updated quiz's content
+  // available locally with the right version, but a share landing inside
+  // that 60s window was still invisible on the community screen because
+  // its id wasn't in `communityKnownIds` yet — that list was only ever
+  // written at the end of a FULL manifest check (community-quizzes.js),
+  // never incrementally by a single item write like this one. Appending it
+  // here, right where the item itself becomes known, closes that gap for
+  // every community write path (share, admin edit) at the source, without
+  // giving up the "0 network calls" throttle optimization.
+  if (category === 'community') {
+    const knownIds = (await window._idbGet('communityKnownIds').catch(() => null)) || [];
+    if (!knownIds.includes(itemId)) {
+      knownIds.push(itemId);
+      await window._idbSet('communityKnownIds', knownIds).catch(() => {});
+    }
+  }
 }
 
 /** Deletes an item's content outright (community quiz delete, or curriculum unpublish). */
@@ -141,4 +162,19 @@ export async function deleteContentItem(category, subject, itemId) {
   if (!resp.ok && resp.status !== 404) throw new Error(`Delete failed: ${await resp.text()}`);
   const idbKey = category === 'curriculum' ? `content:curriculum:${subject}:${itemId}` : `content:community:${itemId}`;
   await window._idbDelete(idbKey).catch(() => {});
+
+  // Mirror of the communityKnownIds fix in putContentItem() above — keeps
+  // that list in sync on delete too, so a quiz removed inside the 60s
+  // community throttle window doesn't just fall back to a full manifest
+  // check (harmless, since ensureSharedQuizzesLoaded already falls back
+  // safely whenever a known id's cached content is missing) but stays on
+  // the fast, 0-network-call path like every other case.
+  if (category === 'community') {
+    const knownIds = (await window._idbGet('communityKnownIds').catch(() => null)) || [];
+    const idx = knownIds.indexOf(itemId);
+    if (idx !== -1) {
+      knownIds.splice(idx, 1);
+      await window._idbSet('communityKnownIds', knownIds).catch(() => {});
+    }
+  }
 }

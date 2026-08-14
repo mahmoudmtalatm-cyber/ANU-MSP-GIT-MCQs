@@ -662,9 +662,12 @@ async function deleteCustomQuiz(id) {
   let quizzes = loadCustomQuizzes();
   quizzes = quizzes.filter(q => q.id !== id);
   // No Firestore cleanup needed anymore — custom quizzes (and their images,
-  // kept inline) live entirely in local storage; saveCustomQuizzesList's
-  // local-storage diff already removes this quiz's entry cleanly.
-  await saveCustomQuizzesList(quizzes);
+  // kept inline) live entirely in local storage. Pass the id explicitly so
+  // saveCustomQuizzesList deletes exactly this quiz, regardless of whether
+  // `quizzes` here happens to be a fully up-to-date snapshot (see the
+  // comment on saveCustomQuizzesList for why it no longer infers deletions
+  // just from a quiz being absent from the array).
+  await saveCustomQuizzesList(quizzes, [id]);
   renderCustomQuizModal();
 }
 

@@ -594,7 +594,15 @@ async function _cqDeleteCollectionExecute(mode) {
     for (const cid of allIds) await deleteQuizCollectionRaw(cid);
     saveQuizCollectionsList(collections.filter(c => !allIds.has(c.id)));
     const remainingQuizzes = quizzes.filter(q => !q.collectionId || !allIds.has(q.collectionId));
-    if (remainingQuizzes.length !== quizzes.length) await saveCustomQuizzesList(remainingQuizzes);
+    if (remainingQuizzes.length !== quizzes.length) {
+      // Pass the removed quizzes' ids explicitly rather than relying on
+      // saveCustomQuizzesList to infer them from the array shrinking — see
+      // the comment on saveCustomQuizzesList for why.
+      const deletedQuizIds = quizzes
+        .filter(q => q.collectionId && allIds.has(q.collectionId))
+        .map(q => q.id);
+      await saveCustomQuizzesList(remainingQuizzes, deletedQuizIds);
+    }
     if (cqActiveCollectionId && allIds.has(cqActiveCollectionId)) cqActiveCollectionId = null;
     allIds.forEach(cid => cqExpandedCollections.delete(cid));
   } else {
