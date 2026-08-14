@@ -125,11 +125,13 @@ function liveStatusRef(id, cacheKey) {
    (`.querySelector()`, to find/replace/remove their own banners).
 
    Some callers borrow cqAiSolveQuestions() for its side effects only and
-   don't want its own progress/pause chatter to ever reach the screen —
-   e.g. cqRunContentFilterPass() (js/gemini-uploads.js), which uses it
-   solely to learn whether each answer was found in the source and keeps
-   its own, separate status text on top. Those callers need a `statusEl`
-   that safely absorbs every one of the calls above and does nothing.
+   have no live `statusEl` on hand to show its progress/pause chatter on
+   — e.g. cqRunContentFilterPass() (js/gemini-uploads.js) falls back to
+   this when called without one. Normally, though, cqRunContentFilterPass
+   is handed the caller's real statusEl and re-words that same chatter
+   into its own batch progress bar (see _cqContentFilterProgressLabel)
+   rather than discarding it. Either way, whatever target is in play
+   needs to safely absorb every one of the calls above.
 
    A bare `{ innerHTML: '' }` object literal used to stand in for this,
    which covered plain `.innerHTML = …` writes but had no

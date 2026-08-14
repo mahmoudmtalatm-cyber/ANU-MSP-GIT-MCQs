@@ -602,7 +602,9 @@ async function generateQuizFromAI() {
     let filterResult = null;
     if (cqContentFilterToggle) {
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Checking questions against the reference source…</div>`;
-      filterResult = await cqRunContentFilterPass(cleaned, cqFilterSourceFiles, cqCancelToken);
+      // statusEl passed through so this shows the same live "(batch N of M)"
+      // progress bar Solve/Answer above does, instead of sitting static.
+      filterResult = await cqRunContentFilterPass(cleaned, cqFilterSourceFiles, cqCancelToken, statusEl);
       cqGeneratedQuestions = cleaned; // filter may have spliced items out — keep the live reference in sync
     }
 

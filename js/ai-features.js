@@ -2152,9 +2152,10 @@ async function _editorBulkAiSolve(editorKey) {
    AI Solve All — an "AI's own knowledge" fallback here would make this
    indistinguishable from a pass that filters out nothing.
 
-   Deliberately quiet about the mechanics: cqAiSolveQuestions' own
-   per-batch progress text ("AI is solving questions… (batch N of M)")
-   is swallowed rather than shown (see silentStatusEl below), and neither
+   Shows the same live "(batch N of M)" progress bar Solve All does —
+   cqRunContentFilterPass re-words cqAiSolveQuestions' own per-batch text
+   to "Checking questions against the source…" instead of hiding it (see
+   _cqContentFilterProgressLabel in js/gemini-uploads.js) — and neither
    ai_answered nor ai_guessed is left behind on a surviving question — a
    question either made it through the filter or it didn't, so there's
    nothing about how each one was scored left for a stray "AI-answered"/
@@ -2183,8 +2184,9 @@ async function _editorBulkContentFilter(editorKey) {
   try {
     // Actual filtering logic lives in cqRunContentFilterPass (js/gemini-uploads.js),
     // shared with the pre-extraction "Content Filter (AI)" toggle so it
-    // only exists in one place.
-    const { removed, remaining } = await cqRunContentFilterPass(questions, sourceFiles, token);
+    // only exists in one place. Passing statusEl through gives this the
+    // same live "(batch N of M)" progress bar Solve All shows.
+    const { removed, remaining } = await cqRunContentFilterPass(questions, sourceFiles, token, statusEl);
     finalHtml = token.cancelled
       ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Content Filter stopped${removed ? ` — ${removed} question${removed !== 1 ? 's' : ''} already removed before stopping` : ''}.</div>`
       : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Content Filter finished — ${removed} question${removed !== 1 ? 's' : ''} removed, ${remaining} remain${remaining === 1 ? 's' : ''}.</div>`;

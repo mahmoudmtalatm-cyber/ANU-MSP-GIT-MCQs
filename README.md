@@ -824,6 +824,33 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **123 — Content Filter now shows the same live "(batch N of M)" progress
+  bar Solve All does, instead of sitting on a static message for the whole
+  run.** `cqRunContentFilterPass()` (`js/gemini-uploads.js`) drives its
+  internal check through `cqAiSolveQuestions()`, which already tracks and
+  reports batch-by-batch progress — but Content Filter was always handing
+  it `createSilentStatusStub()` (added in #122) so that chatter never
+  reached the screen, leaving the tool's own status box frozen on
+  "Checking questions against the source…" at 0% until the entire run
+  finished.
+  - `cqAiSolveQuestions()` now takes an optional `progressLabel` — an
+    `{ icon, multi, single(n) }` wording override — so callers that reuse
+    it for a different purpose can re-word its per-batch text instead of
+    only being able to silence it. Defaults to the existing "AI is
+    solving…" wording (`CQ_SOLVE_PROGRESS_LABEL`) when omitted, so Solve
+    All / Answer Missing Keys are unaffected.
+  - `cqRunContentFilterPass()` now takes an optional `statusEl` and, when
+    given one, passes it straight through to `cqAiSolveQuestions()` along
+    with `_cqContentFilterProgressLabel` — the same batch progress bar,
+    re-worded to "Checking questions against the source… (batch N of M)".
+    Both call sites (the post-extraction "Content Filter" bulk AI tool in
+    `js/ai-features.js`, and the pre-extraction toggle in
+    `js/ai-solve.js`) now pass their live `statusEl` through. Omitting the
+    argument still falls back to the silent stub, so the fix is
+    backward-compatible with any other caller.
+  - Pause/resume and rate-limit banners now surface during a Content
+    Filter run too, matching Solve All, since they ride the same
+    `statusEl` instead of being swallowed.
 - **122 — Fixed a crash ("statusEl.insertAdjacentHTML is not a function")
   that could abort extraction partway through the pre-extraction Content
   Filter pass (#120).** `cqRunContentFilterPass()` (`js/gemini-uploads.js`)

@@ -1235,12 +1235,28 @@ function cqRemoveFilterSourceFile(idx) {
   renderCustomQuizModal();
 }
 
+// Default per-batch progress wording ("AI is solving questions… (batch N
+// of M)") — the text Solve/Answer callers see. Other callers that borrow
+// this engine for its side effects (e.g. Content Filter, see
+// cqRunContentFilterPass below) can pass their own `progressLabel` so the
+// SAME batch-by-batch progress bar reads correctly for what they're
+// actually doing, instead of describing this engine's internals.
+const CQ_SOLVE_PROGRESS_LABEL = {
+  icon: '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg>',
+  multi: 'AI is solving questions…',
+  single: n => `AI is solving ${n} question${n !== 1 ? 's' : ''}…`
+};
+
 // General-purpose AI solver: solves questions at given indices using Gemini.
 // targetIdxs: array of question indices to solve (can be no-key or keyed questions)
 // sourceText: optional reference text
 // sourceFiles: optional array of {file, mimeType, name}
 // onlyIfNoKey: if true, only process questions with no_answer_key (legacy behaviour)
-async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken) {
+// progressLabel: optional { icon, multi, single(n) } — see CQ_SOLVE_PROGRESS_LABEL
+// above and _cqContentFilterProgressLabel in cqRunContentFilterPass for the
+// wording swap that lets Content Filter reuse this same batch progress bar.
+async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken, progressLabel) {
+  const label = progressLabel || CQ_SOLVE_PROGRESS_LABEL;
   if (!targetIdxs || !targetIdxs.length) return;
 
   let apiKey = getGeminiKey();
@@ -1312,10 +1328,10 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     const chunk = chunks[ci];
 
     if (statusEl) {
-      const label = chunks.length > 1
-        ? `<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving questions… (batch ${ci + 1} of ${chunks.length})`
-        : `<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving ${chunk.length} question${chunk.length !== 1 ? 's' : ''}…`;
-      statusEl.innerHTML = _cqProgressStatusHTML(label, (ci / chunks.length) * 100);
+      const batchText = chunks.length > 1
+        ? `${label.icon} ${label.multi} (batch ${ci + 1} of ${chunks.length})`
+        : `${label.icon} ${label.single(chunk.length)}`;
+      statusEl.innerHTML = _cqProgressStatusHTML(batchText, (ci / chunks.length) * 100);
     }
 
     const parts = [...sourceParts, instructionPart];
@@ -1565,13 +1581,18 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
    answer found in the source" is exactly what that engine already
    reports per question via found_in_source/ai_guessed.
 
-   Always runs quiet about the mechanics: cqAiSolveQuestions' own
-   per-batch progress text ("AI is solving questions… (batch N of M)")
-   is swallowed via a throwaway status target, and neither ai_answered
-   nor ai_guessed is left behind on a surviving question — a question
-   either made it through the filter or it didn't, so there's nothing
-   left for a stray "AI-answered"/"AI Guess" badge to advertise
-   afterward. Callers own their own before/after status text.
+   Shows the SAME per-batch progress bar Solve/Answer does — cqAiSolveQuestions'
+   batch-by-batch text and percentage — just re-worded via
+   _cqContentFilterProgressLabel below so it reads "Checking questions
+   against the source… (batch N of M)" instead of "AI is solving…".
+   If a caller has no live statusEl to hand in (or omits the argument),
+   this falls back to a throwaway target that swallows the chatter
+   instead of throwing. Either way, neither ai_answered nor ai_guessed is
+   left behind on a surviving question afterward — a question either made
+   it through the filter or it didn't, so there's nothing left for a
+   stray "AI-answered"/"AI Guess" badge to advertise. Callers own their
+   own before/after status text; the batch progress in between is this
+   function's to manage.
 
    Also never actually solves/verifies anything as far as the output is
    concerned: cqAiSolveQuestions is only borrowed here to learn WHETHER
@@ -1585,8 +1606,18 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
    Requires at least one reference-source file — callers are expected
    to validate that themselves (with a message suited to where the
    toggle lives) before calling this; this function throws if called
-   without one as a last-resort guard. */
-async function cqRunContentFilterPass(questions, sourceFiles, cancelToken) {
+   without one as a last-resort guard.
+
+   statusEl (optional): the caller's live status element. Pass this so
+   the batch progress bar actually reaches the screen — omit it only if
+   there's genuinely nowhere for progress to be shown. */
+const _cqContentFilterProgressLabel = {
+  icon: '<svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+  multi: 'Checking questions against the source…',
+  single: n => `Checking ${n} question${n !== 1 ? 's' : ''} against the source…`
+};
+
+async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statusEl) {
   if (!sourceFiles || !sourceFiles.length) {
     throw new Error('Content Filter needs a reference source — upload at least one image or PDF first.');
   }
@@ -1609,8 +1640,8 @@ async function cqRunContentFilterPass(questions, sourceFiles, cancelToken) {
   // question's original answer is restored below, untouched.
   const answersBefore = new Map(allIdxs.map(i => [i, questions[i].answer]));
 
-  const silentStatusEl = createSilentStatusStub();
-  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, silentStatusEl, cancelToken);
+  const progressTarget = statusEl || createSilentStatusStub();
+  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, progressTarget, cancelToken, _cqContentFilterProgressLabel);
 
   answersBefore.forEach((originalAnswer, i) => {
     if (questions[i]) questions[i].answer = originalAnswer;
