@@ -507,6 +507,7 @@ async function generateQuizFromAI() {
   if (!apiKey)              { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please add a Gemini API key first. <button class="apikey-open-btn ghost" style="margin-top:6px;" onclick="openApiKeyManager(() => renderCustomQuizModal())"><svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Add API Key</button></div>`; return; }
   if (!cqSelectedFiles.length){ statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please upload at least one image or PDF of your quiz first.</div>`; return; }
   if (!title)               { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Please give this quiz a title.</div>`; return; }
+  if (cqContentFilterToggle && !cqFilterSourceFiles.length) { statusEl.innerHTML = `<div class="cq-status error"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Content Filter needs a reference source — upload at least one image or PDF under its "Reference Source" dropzone, then try again.</div>`; return; }
 
   cqGeneratedTitle = title;
   cqBusy = true;
@@ -590,17 +591,34 @@ async function generateQuizFromAI() {
       await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
     }
 
+    // ── Content Filter — runs right after Solve/Answer (if any) and
+    // strictly before Fill Choices / Refine below, for two reasons: (1) it
+    // reuses the same solve engine and would otherwise redo work the Solve
+    // step above may have just done, and (2) there's no point spending AI
+    // calls padding choices or polishing wording on a question that's
+    // about to be removed for failing the filter. See cqRunContentFilterPass
+    // (js/gemini-uploads.js) for the shared filtering logic — also used by
+    // the post-extraction "Content Filter" bulk AI tool.
+    let filterResult = null;
+    if (cqContentFilterToggle) {
+      statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Checking questions against the reference source…</div>`;
+      filterResult = await cqRunContentFilterPass(cleaned, cqFilterSourceFiles, cqCancelToken);
+      cqGeneratedQuestions = cleaned; // filter may have spliced items out — keep the live reference in sync
+    }
+
     // ── Fill Choices, then Refine Questions — run STRICTLY one after the
-    // other (never together, and never alongside the solve/answer step
-    // above, which has already finished by this point). All three steps
-    // write to the same question objects (answer/options/question text),
-    // so firing them concurrently risks one step's write clobbering
-    // another's — e.g. Fill Choices adding a distractor while Refine is
-    // mid-rewrite of the same question's stem. Running them in this fixed
-    // order — Solve/Answer → Fill Choices → Refine — also makes the most
-    // sense content-wise: nail down the correct answer first, then pad out
-    // the remaining choices around it, and only polish the wording last,
-    // once nothing about the question is still changing.
+    // other (never together, and never alongside the solve/answer or
+    // content-filter steps above, which have already finished by this
+    // point). All these steps write to the same question objects
+    // (answer/options/question text), so firing them concurrently risks
+    // one step's write clobbering another's — e.g. Fill Choices adding a
+    // distractor while Refine is mid-rewrite of the same question's stem.
+    // Running them in this fixed order — Solve/Answer → Content Filter →
+    // Fill Choices → Refine — also makes the most sense content-wise: nail
+    // down the correct answer and drop anything that doesn't belong first,
+    // then pad out the remaining choices around what's left, and only
+    // polish the wording last, once nothing about the question is still
+    // changing.
     let fillResult = null;
     let refineResult = null;
     if (cqFillChoicesToggle) {
@@ -618,7 +636,10 @@ async function generateQuizFromAI() {
 
     const imgCount = cleaned.filter(q => q.image).length;
     const imgNote     = imgCount > 0 ? ` · <svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> ${imgCount} image${imgCount !== 1 ? 's' : ''} embedded` : '';
-    const noKeyCount = noKeyQs.length;
+    // Recomputed fresh against the post-filter `cleaned` array rather than
+    // reusing the earlier noKeyQs snapshot — Content Filter (if it ran)
+    // may have since removed some of those same questions.
+    const noKeyCount = cleaned.filter(q => q.no_answer_key).length;
     const aiCount = cleaned.filter(q => q.ai_answered).length;
     const guessCount = cleaned.filter(q => q.ai_guessed).length;
     const solveNote = cqAiAnsweringEnabled && cqAiAnswerSubmode === 'all' && aiCount > 0
@@ -627,11 +648,14 @@ async function generateQuizFromAI() {
       ? ` · <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> ${aiCount} AI-answered${guessCount > 0 ? ' (<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ' + guessCount + ' from own knowledge)' : ''}`
       : noKeyCount > 0 ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${noKeyCount} without key` : '';
     const fileNote = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
+    const filterNote = filterResult
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> ${filterResult.removed} filtered out`
+      : '';
     const fillNote = fillResult && fillResult.done > 0
       ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> ${fillResult.done} question${fillResult.done !== 1 ? 's' : ''} filled to 4 choices` : '';
     const refineNote = refineResult && refineResult.done > 0
       ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ${refineResult.done} question${refineResult.done !== 1 ? 's' : ''} refined` : '';
-    statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote}${imgNote}${solveNote}${fillNote}${refineNote}. Review below, then save.${warn}</div>`;
+    statusEl.innerHTML = `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Extracted ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}${fileNote}${imgNote}${solveNote}${filterNote}${fillNote}${refineNote}. Review below, then save.${warn}</div>`;
 
     // Surface any per-question errors from the Fill Choices / Refine passes
     // without blocking the rest of the summary — extraction itself already

@@ -45,6 +45,12 @@ else is plain HTML/CSS/JavaScript.
   slides/PDFs, generate new questions, auto-answer, refine question
   wording, fill in missing choices, and produce step-by-step explanations
   or a per-question AI chat.
+  - **🤖 Ask AI** — on the results screen, next to Explain and Chat, a
+    dropdown lets you send the question (plus any AI explanation or chat
+    already generated for it) to ChatGPT, Claude, Gemini, Perplexity,
+    DeepSeek, Grok, or "copy for another AI" — opening the real site in a
+    new tab so you continue in your own account, no API key of ours
+    needed. See changelog **#110**.
   - **Smart multi-key rotation** — add more than one Gemini API key and
     the app automatically rotates between them whenever one gets rate
     limited, with no interruption to whatever's currently running. See
@@ -818,6 +824,373 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **122 — Fixed a crash ("statusEl.insertAdjacentHTML is not a function")
+  that could abort extraction partway through the pre-extraction Content
+  Filter pass (#120).** `cqRunContentFilterPass()` (`js/gemini-uploads.js`)
+  runs its internal check via `cqAiSolveQuestions()` but wants that call's
+  own progress/pause chatter to stay silent, so it hands it a throwaway
+  `statusEl` — previously a bare `{ innerHTML: '' }` object literal. That
+  covered plain `.innerHTML =` writes, but `cqAiSolveQuestions()` and the
+  shared pause helpers it can call into (`cqCheckPause()`,
+  `_cqEnterPause()`, `cqFallbackPauseForRateLimit()`, all in
+  `js/ai-question-tools.js`) also call `.insertAdjacentHTML()` (to report
+  per-batch errors, or show a pause banner) and `.querySelector()` (to
+  find/replace/remove that banner) on it — neither of which a plain
+  object implements. The moment a silent Content Filter run actually hit
+  a per-batch error, an automatic rate-limit pause, or a manual pause
+  mid-filter, one of those calls would throw and abort the whole
+  extraction, discarding everything already extracted.
+  - Fixed by replacing the one-off literal with `createSilentStatusStub()`
+    (`js/dom-utils.js`), a small reusable stub that implements
+    `innerHTML`, `insertAdjacentHTML()`, and `querySelector()` as no-ops —
+    it absorbs every write/read those shared helpers make and stays
+    silent, instead of missing methods the moment an edge case is hit.
+    Documented alongside `liveRef()`/`liveStatusRef()` so any future
+    "give this an internal call a status target it should ignore" need
+    reaches for the same helper instead of another bare literal.
+- **121 — Fixed Content Filter silently overwriting answers it was only
+  ever supposed to be checking, not solving.** `cqRunContentFilterPass()`
+  (`js/gemini-uploads.js`, added in #120) borrows `cqAiSolveQuestions()`
+  purely to learn whether each answer was found in the reference source —
+  but that function's actual job is to solve/verify, so as a side effect
+  it was also overwriting every checked question's `answer` with
+  whatever the AI came up with, regardless of what the source's own
+  answer key said, and regardless of whether "Solve/verify all
+  questions" was even toggled on. A run of Content Filter with that
+  toggle off — its normal, most common use — was quietly re-answering
+  every surviving question anyway.
+  - Fixed by snapshotting each question's `answer` immediately before the
+    internal solve call and restoring it immediately after, before
+    filtering runs. The AI's response is now used only for what Content
+    Filter actually needs — `found_in_source`, to decide keep-or-remove —
+    and never reaches the output. Whether questions get genuinely
+    re-solved is controlled solely by the separate "Solve/verify all
+    questions" toggle, same as before this fix; if that ran too, it
+    already did so as its own earlier step, upstream of Content Filter
+    entirely.
+  - One fix in the shared helper covers both call sites from #120 — the
+    post-extraction "Content Filter" bulk AI tool and the new
+    pre-extraction toggle alike.
+- **120 — "Content Filter" is now also a pre-extraction toggle, right next
+  to Fill Choices and Refine Questions — not just a post-extraction bulk
+  tool you had to open the editor to find.** Lives in the "Create a New
+  Quiz with AI" tab (`js/firebase-storage.js`, `renderCustomQuizModal()`),
+  styled to match its own severity (red, like the "wrong answer" palette)
+  rather than the amber/violet used by Fill Choices/Refine, since removing
+  questions is a more consequential action than polishing them.
+  - Gets its own required reference-source dropzone
+    (`cqFilterSourceDropzone` / `cqFilterSourceFiles`, distinct from AI
+    Answering's optional one, `cqAiSourceFiles`, for the same reason #118
+    kept the editor's two source lists separate: one tool's source being
+    optional and the other's mandatory means they can't safely share a
+    list) — new helpers `setupFilterSourceDropzone()`,
+    `handleCqFilterSourceFileSelect()`, `acceptFilterSourceFile()`, and
+    `cqRemoveFilterSourceFile()` in `js/gemini-uploads.js`, mirroring the
+    existing `*SourceFile*` helpers exactly. `generateQuizFromAI()`
+    (`js/ai-solve.js`) now also refuses to start — same as the
+    already-existing missing-API-key/no-file/no-title checks — if the
+    toggle is on with no file uploaded yet.
+  - The actual filtering logic (drop any question the AI could only
+    answer from its own knowledge rather than the source) previously
+    lived only inside `_editorBulkContentFilter()`
+    (`js/ai-features.js`). It's now factored out into a shared
+    `cqRunContentFilterPass(questions, sourceFiles, cancelToken)`
+    (`js/gemini-uploads.js`), which both `_editorBulkContentFilter()` and
+    the new pre-extraction step in `generateQuizFromAI()` call — so the
+    filtering behavior (and any future fix to it) only has to exist, and
+    be fixed, in one place.
+  - Runs, when enabled, immediately after the existing Solve/Answer step
+    and strictly before Fill Choices/Refine Questions — added to the
+    "Multiple AI steps selected" sequential-run notice in that same
+    order. Filtering first (rather than last) avoids spending Fill
+    Choices/Refine AI calls on a question that's about to be deleted for
+    failing the filter anyway. The final extraction summary line gains a
+    "N filtered out" note alongside the existing AI-solved/filled/refined
+    counts when it runs.
+  - The post-extraction "Content Filter" bulk AI tool from #118 is
+    unchanged in behavior or location — this just adds an earlier,
+    automatic way to run the same pass, it doesn't replace the manual one.
+- **119 — Fixed "Copy question image" (and the image half of any
+  combined text+image copy) always failing with "can't copy in this
+  browser", on every browser, not just some.** Root cause in
+  `js/ai-external-send.js`: every image this app stores has already been
+  compressed through a canvas as JPEG (`compressImageDataUrl()` in
+  `js/gemini-uploads.js`), but the Clipboard API's image write only
+  reliably accepts PNG — handing `ClipboardItem` a JPEG blob throws
+  instead of copying, and does so consistently across Chrome, Firefox,
+  and Safari alike, which is why it looked like every browser was
+  broken rather than one. `_extAiCopyImage()` and
+  `_extAiCopyTextAndImage()` both now run the image through a new
+  `_extAiImageToPngBlob()` first — a plain canvas re-encode to PNG,
+  regardless of the source image's original format — before handing it
+  to `ClipboardItem`, so the write always uses a type the browser will
+  actually accept.
+- **118 — New bulk AI tool: "Content Filter" — removes any question the
+  AI can only answer from its own knowledge, not from a required
+  reference source.** Lives in the same whole-quiz AI Tools panel as AI
+  Solve All / Fill Choices / Refine Questions (see #100-ish onward for
+  that panel's history) and looks and behaves like them — its own
+  button, its own Stop button, its own "settings" `<details>` with a
+  reference-source dropzone — but with no per-question equivalent, since
+  filtering only makes sense as a whole-quiz pass.
+  - Deliberately reuses AI Solve All's own engine, `cqAiSolveQuestions()`
+    (`js/gemini-uploads.js`), rather than a separate answer-checking
+    implementation: "was this question's answer found in the source" is
+    exactly what that engine already determines per question via
+    `found_in_source`/`ai_guessed`. `_editorBulkContentFilter()`
+    (`js/ai-features.js`) runs it across every question, then removes
+    every one left flagged `ai_guessed` — walking the list backward so
+    splicing is safe, and calling the same `_caseGroupOnQuestionDeleted()`
+    housekeeping a manual per-question delete uses, so a removed question
+    never leaves a case group's linking broken.
+  - The reference source is **required** — unlike AI Solve All's optional
+    one, a Content Filter run with no source would be indistinguishable
+    from "filters out nothing", so the button refuses to run and shows an
+    error status until at least one file is uploaded.
+  - Deliberately quiet about the mechanics: `cqAiSolveQuestions()`'s own
+    per-batch progress text ("AI is solving questions… (batch N of M)")
+    is swallowed via a throwaway status target rather than shown, and
+    both `ai_answered`/`ai_guessed` are stripped from every surviving
+    question afterward — a question either made it through the filter or
+    it didn't, so there's no "AI-answered"/"AI Guess" badge left over to
+    advertise how each one was scored. The only feedback is a generic
+    "Checking questions against the source…" progress line while it
+    runs, and a clean "N question(s) removed, M remain" summary at the end.
+  - Its dropzone reuses AI Solve All's exact component
+    (`_editorBulkSourceFileListHTML()`/`_editorBulkSourceAcceptFile()`/
+    `_editorBulkSourceFileSelect()`/`_editorBulkSourceRemoveFile()`/
+    `_editorBulkSourceSetupDropzone()`), generalized to take a `toolKey`
+    ('Solve' or 'Filter') so the two tools can each have independent
+    files and DOM ids without colliding or duplicating code — Content
+    Filter gets its own `_editorBulkFilterSourceFiles` store rather than
+    sharing AI Solve All's `_editorBulkAiSourceFiles`, since one tool's
+    source being optional and the other's mandatory means they can't
+    safely be the same list.
+  - Stopping mid-run, and the "AI is busy" close-guard on the editor
+    modal, both work automatically with no extra wiring — `_stopAllAiProcesses()`
+    and `_editorBulkSetBusy()` already key off `_editorBulkCancelToken`/
+    tool-name lists generically, and Content Filter was simply added to
+    both.
+- **117 — The "Ask AI" selection toast now gives situation-specific
+  instructions instead of a generic "asking X next" line, and the toast
+  that used to follow an actual send is gone for anything that opens a
+  new tab.** Two changes to `js/ai-external-send.js`, both in the same
+  spirit — say something the student will actually use, and only when
+  they're actually looking at this page to read it:
+  - The toast shown right after selecting a specific assistant
+    (`_extAiSelectionInstructionText()`, replacing #116's
+    `_extAiSelectionToastText()`) now describes what tapping the
+    resulting "Ask ‹Name›" button will do, in one of four ways depending
+    on the assistant and the question: pre-fill support with no image
+    ("opens with the question already typed in and ready to send"),
+    pre-fill support with an image (notes the image is copied separately
+    since a URL can't carry it, and needs pasting in before sending),
+    no pre-fill support with no image ("the question is copied — paste
+    it in and send once it opens"), and no pre-fill support with an
+    image (same, but "the question and image are copied together").
+  - `sendQuestionToExternalAi()` no longer shows a toast once a real
+    site actually opens in a new tab, since by the time that tab has
+    loaded the student has already moved their attention there — a
+    toast left behind on this page mostly goes unseen. The
+    situation-specific instructions above are the only feedback for that
+    path now. A toast still fires for "Copy for another AI" (never opens
+    a site) and for any provider where opening didn't happen — both
+    cases where the student is still looking at this page. The
+    now-simpler function drops the dead message-building branches for
+    outcomes that could never be shown anymore.
+- **116 — Selecting an AI in the "Ask AI" picker goes back to just
+  selecting — it no longer sends.** Follows immediately after #115,
+  which (per that step's request) made a tap send right away. This
+  undoes that specifically: tapping a specific assistant (anything but
+  "Copy for another AI") now closes the picker, remembers it as the
+  default (turning the button into the one-click "Ask ‹Name›" split
+  control, per #114), and shows a toast that tells the student what
+  tapping "Ask ‹Name›" will do next — but doesn't copy or open anything
+  itself. The actual send only happens once "Ask ‹Name›" is tapped
+  afterward. Concretely, `js/ai-external-send.js` gets
+  `_extAiSelectProviderInMenu()` back as a thin selection step (picker
+  row `onclick` points to it again instead of calling
+  `sendQuestionToExternalAi()` directly), and a new
+  `_extAiSelectionToastText()` supplies the instructional toast wording
+  (replacing #115's confirmation-after-sending toast for this path).
+  "Copy for another AI" is unchanged from #115/#113: it never becomes a
+  one-click default, so selecting it is still the only way to use it —
+  it copies the prompt immediately and leaves the picker open, since
+  there's no later "Ask" button for it to defer to. "Copy question
+  image" is unaffected either way.
+- **115 — Selecting an AI in the "Ask AI" picker now sends right away
+  again, and the picker no longer asks for a separate Send tap.** Undoes
+  #113's select-then-confirm step in `js/ai-external-send.js`: tapping a
+  specific assistant in the dropdown immediately copies/opens it and
+  shows the confirmation toast (e.g. "Opened ChatGPT, pre-filled with
+  the question.") right there — the same message that used to wait for
+  a separate Send button press now appears the moment the assistant is
+  picked. The in-between preview line ("Opens ChatGPT with the question
+  already typed in…") and the Send button are both removed, since
+  there's no longer a pending selection for them to describe or confirm.
+  Concretely, each row in the picker now calls `sendQuestionToExternalAi()`
+  directly instead of `_extAiSelectProviderInMenu()` (removed, along with
+  `_extAiConfirmSend()`, `_extAiPreviewText()`, and `_extAiSendLabel()`),
+  and the matching CSS for the preview line and Send button
+  (`.ai-send-menu-preview`, `.ai-send-menu-send`, `.ai-send-menu-item.is-selected`)
+  was removed from `css/styles.css`. #114's default-remembering is
+  unaffected — a specific assistant is still saved as the default the
+  moment it's tapped, since that happens inside `sendQuestionToExternalAi()`
+  itself. "Copy for another AI" still leaves the picker open afterward
+  (it only writes to the clipboard, never opens a site), and "Copy
+  question image" is unchanged.
+- **114 — Selecting an AI in the "Ask AI" picker now remembers it right
+  away, not only once Send is pressed.** One change to
+  `_extAiSelectProviderInMenu()` in `js/ai-external-send.js`, following
+  up on #113's select-then-send picker: tapping a specific assistant
+  (anything but "Copy for another AI") now sets it as the remembered
+  default immediately, the same moment it's selected — the student no
+  longer has to reselect it on their next question just because they
+  closed the picker without pressing Send this time. The picker still
+  doesn't copy or open anything until Send is actually pressed; only
+  *which assistant is remembered* now updates at selection time. Under
+  the hood this reuses the existing default-setting path
+  (`_extAiSetDefaultProvider()`), which already rebuilds the button and
+  reopens the picker fresh with the new default preselected — so
+  selecting a real provider no longer needs a separate manual DOM patch
+  for the highlight/preview/Send-button update; only "Copy for another
+  AI" (which never sets a default) still gets one, since it isn't one
+  specific assistant to remember.
+- **113 — "Ask AI" picker: selecting an assistant no longer sends right
+  away, messaging is simplified for mobile, and copy actions leave the
+  picker open.** Three changes to `js/ai-external-send.js`, all confined
+  to the dropdown opened by the caret / "Ask AI" button:
+  - **Select, then Send.** Tapping an assistant in the list used to send
+    to it immediately. It now only *selects* it — the row highlights, and
+    a one-line preview appears explaining exactly what will happen
+    (`_extAiPreviewText()`), e.g. "Opens ChatGPT with the question already
+    typed in and ready to go" or "Copies the question, then opens
+    Claude — paste it in once it loads." Nothing is copied or opened
+    until the new **Send** button at the bottom of the picker is pressed
+    (`_extAiConfirmSend()`). If a default assistant is already remembered
+    it's preselected when the picker opens, so Send is ready immediately,
+    but it still needs that explicit tap — no accidental sends from a
+    stray click on the list. The one-click "Ask ‹Name›" split button
+    (from #112) is unaffected: it already knows its target and still
+    sends in a single click by design, since reselecting was never part
+    of that path.
+  - **Simpler, mobile-safe messaging.** Every message in the flow —
+    the per-provider preview, the Send button label, and the toast shown
+    after sending — was rewritten to drop keyboard-shortcut phrasing like
+    "Ctrl/Cmd+V", since a large share of students use this from a phone,
+    where there's no Ctrl or Cmd key. Instructions just say "paste it
+    in"; press-and-hold works the same way. The old dedicated "image"
+    hint banner at the top of the picker is gone — its explanation is now
+    folded into the same live, per-provider preview line instead of a
+    separate static paragraph, so there's one simpler place to read what
+    will happen rather than two.
+  - **Copy actions keep the picker open.** "Copy question image" no
+    longer closes the picker when clicked — it copies and stays open, so
+    a student can copy the image and still pick/send a provider
+    afterward, or copy it again. The same applies to selecting "Copy for
+    another AI" and pressing Send: since that option only writes to the
+    clipboard and never opens a site, confirming it no longer closes the
+    picker either, in case the student wants to try a specific assistant
+    next. Every other provider still closes the picker on Send, since
+    opening its real site in a new tab reads as the interaction being
+    finished.
+  - **Removed "Forget default AI."** With the picker's own Send button
+    always requiring a fresh tap-to-confirm, there was no longer a
+    distinct need for a separate action just to clear the remembered
+    default back to "no default" — reopening the picker (via the caret)
+    and sending to a different assistant already changes it in one step,
+    the same way it always could. Removing the menu item keeps the
+    picker shorter without losing any capability.
+- **112 — "Ask AI" gets a remembered default assistant, and images are now
+  auto-copied on send instead of a separate manual step.** Two changes to
+  `js/ai-external-send.js`:
+  - **Default AI.** Whichever assistant the student picks from the "Ask AI"
+    dropdown is now remembered (`localStorage`, `_extAiSetDefaultProvider()`)
+    and turns the button into a one-click split control: "Ask ChatGPT" (or
+    whichever was picked) sends straight there, and a small caret beside it
+    reopens the picker to send this one question elsewhere or change the
+    default — with the current default marked "✓ Default" in the list and a
+    "Forget default AI" entry to go back to the plain picker. The default is
+    shared across every question on the results screen and updates all of
+    them at once (`_extAiRefreshAllButtons()`). "Copy for another AI" is
+    excluded — it's a generic fallback, not one assistant to remember.
+  - **Image auto-copy.** A question's image no longer needs the separate
+    "Copy question image" click to travel along with a send. For prefill
+    sites (ChatGPT, Perplexity) the image is copied to the clipboard
+    automatically right after opening, ready to paste in next to the
+    pre-filled text. For every other AI, the prompt and the image are
+    written to the clipboard together as one combined clipboard item — two
+    representations of the same item (`_extAiCopyTextAndImage()`), so a
+    single paste can hand a rich composer both at once — falling back to a
+    text-only copy if the browser can't do a combined write. "Copy question
+    image" stays in the menu as a manual option for re-copying the image on
+    its own. The dropdown now opens with a hint banner explaining which of
+    the two behaviors applies, before the student picks, and each provider's
+    subtitle reflects it too (`_extAiSubtitleFor()`).
+- **111 — Fixed the "Ask AI" dropdown (#110) being clipped instead of
+  shown.** The menu was rendered as an absolutely-positioned child inside
+  `.ai-send-wrap`, which sits inside `.r-content` → `.r-card` →
+  `.results-body`. `.r-card` uses `overflow: hidden` for its rounded
+  corners and colored side strip, and `.results-body` is itself a scroll
+  container — both clip any child that visually extends past their box,
+  so the dropdown was being cut off (often to nothing visible) instead of
+  floating above the card. It's now rendered as a "portal": appended
+  directly to `<body>` and positioned with `position: fixed` using
+  coordinates computed from the Ask AI button's `getBoundingClientRect()`
+  (`positionAskAiMenu()` in `js/ai-external-send.js`), the same pattern
+  used by most dropdown/popover libraries to escape a clipping ancestor.
+  It now also flips to open **above** the button when there isn't room
+  below, clamps horizontally so it can't run off either edge of the
+  viewport, gets a `max-height` with its own scroll for very short
+  screens, and stays correctly positioned under the button on scroll or
+  resize while open. Below 480px wide it's unaffected — the existing
+  fixed, full-width bottom-sheet layout still applies, taking priority
+  over the new inline positioning.
+- **110 — Added "🤖 Ask AI": send a results-screen question to an external
+  AI chat site, with a provider picker.** A new button sits in the results
+  card's AI row, next to 🪄 Explain and 💬 Chat. Clicking it opens a
+  dropdown — styled after the app's other dropdown pickers (e.g. the
+  custom-quiz collections menu) — listing ChatGPT, Claude, Gemini,
+  Perplexity, DeepSeek, Grok, and a generic "Copy for another AI"
+  fallback. Picking one sends the student to that AI's real website in a
+  new tab, in their own account, with no Gemini API key (or any API key
+  of ours) involved:
+  - **ChatGPT** (`chatgpt.com/?q=…`) and **Perplexity**
+    (`perplexity.ai/search?q=…`) genuinely pre-fill/auto-run the prompt —
+    verified current behavior for both sites, not assumed. Claude, Gemini,
+    DeepSeek, and Grok don't offer an equivalent URL parameter, so for
+    those (and whenever a prompt is too long to safely put in a URL — over
+    `EXTERNAL_AI_MAX_PREFILL_LEN`, 6000 characters) the app instead copies
+    the full prompt to the clipboard and opens the site, with a toast
+    telling the student to paste it in. "Copy for another AI" always just
+    copies, for any assistant not in the list.
+  - **Same context every time, nothing re-typed.** `buildExternalAiPrompt()`
+    (new `js/ai-external-send.js`) builds the prompt from the exact same
+    pieces `buildExplainPrompt()`/`buildChatSystemInstruction()` already
+    send to Gemini: the question, options, correct answer, the student's
+    own answer, and — for a question that's part of a shared case/vignette
+    — the same "linked" ancestor-case context block
+    (`_cqCaseContextBlock()`) used for extraction and chat. If an AI
+    explanation was already generated for this question on-screen, it's
+    included so the new assistant can build on it rather than start over;
+    if the on-screen AI chat has any messages, the full transcript is
+    appended too, so switching assistants mid-conversation doesn't lose
+    anything.
+  - **Images.** Since a browser can't hand another site's composer a file
+    automatically, a question with an image gets a second menu row, "Copy
+    question image" (`copyQuestionImageForAi()`), that copies the image
+    itself to the clipboard via the Clipboard API (`ClipboardItem`) so the
+    student can paste it into the chat right after the prompt; the prompt
+    text also notes the image exists either way.
+  - **Theming & responsiveness.** Three new tokens (`--extai-pale`,
+    `--extai-fg`, `--extai-border`, `--extai-border-strong`) give the
+    button its own accent, distinct from the violet Explain and sky Chat
+    surfaces but inside the same design system. The dropdown wraps like
+    every other button in that row on narrow cards, and below 480px wide
+    it switches to a fixed, full-width bottom sheet instead of a floating
+    panel that could otherwise run off-screen. A small theme-matched
+    toast confirms exactly what happened (opened + pre-filled / opened +
+    "paste it in" / copied only) so the outcome is never ambiguous.
 - **109 — Hid the page-level scrollbar on the home screen.** The home
   screen's content scrolls the page itself (`html`/`body`) rather than
   an internal `.xxx-body` pane, so it was picking up the app's shared

@@ -1412,6 +1412,18 @@ let cqRefineToggle = false; // whether to AI-refine every extracted question's w
 let cqRefineCustomInstructions = ''; // optional custom instructions applied to every refine call
 let cqFillChoicesToggle = false; // whether to AI-fill every question up to 4 answer choices
 
+// ── Content Filter (AI) — same bulk pass as the post-extraction
+// "Content Filter" tool (_editorBulkContentFilter / cqRunContentFilterPass,
+// js/ai-features.js + js/gemini-uploads.js), just offered as a fourth
+// pre-extraction toggle alongside AI Answering / Fill Choices / Refine
+// Questions so it can run automatically right after extraction instead of
+// needing a trip into the editor afterward. Needs its own reference-source
+// files rather than reusing AI Answering's cqAiSourceFiles — that source is
+// optional there, but Content Filter's is mandatory, so the two can't
+// safely share one list. ──
+let cqContentFilterToggle = false; // whether to AI-filter every extracted question against a reference source
+let cqFilterSourceFiles = []; // required source images/PDFs for Content Filter (array of {file, mimeType, name})
+
 // ── Split quiz into multiple quizzes ──
 let cqSplitState = null;
 // shape when active: { context: 'preview'|'saved', quizId: null|string,
@@ -1759,6 +1771,14 @@ const _editorBulkActiveTool = { admin: null, customQuiz: null, cq: null };
 // see _stopAllAiProcesses() and the menu-close guard (_guardedClose).
 const _editorBulkCancelToken = { admin: null, customQuiz: null, cq: null };
 const _editorBulkAiSourceFiles = { admin: [], customQuiz: [], cq: [] };
+// Same shape as above, but this is Content Filter's own reference-source
+// store — kept separate from AI Solve All's because Content Filter
+// REQUIRES a source (see _editorBulkContentFilter) while AI Solve All's
+// is optional, so the two tools can't safely share one file list. Same
+// dropzone component and file-handling code renders/drives both (see
+// _editorBulkSourceStore() and friends below) — just pointed at whichever
+// store its toolKey resolves to.
+const _editorBulkFilterSourceFiles = { admin: [], customQuiz: [], cq: [] };
 const _editorBulkRefineInstructions = { admin: '', customQuiz: '', cq: '' };
 
 function _editorBulkStatusEl(editorKey) {
@@ -1790,7 +1810,7 @@ function _editorBulkSetBusy(editorKey, busy, tool) {
   // 'Reextract' only ever exists for the 'cq' editor — looking up its
   // button/stop-button ids on 'admin'/'customQuiz' just finds nothing and
   // no-ops, same as any other editor-specific id would.
-  ['Solve', 'Fill', 'Refine', 'Reextract'].forEach(name => {
+  ['Solve', 'Filter', 'Fill', 'Refine', 'Reextract'].forEach(name => {
     const btn = document.getElementById(`${editorKey}Bulk${name}Btn`);
     if (btn) btn.disabled = busy;
     const stopBtn = document.getElementById(`${editorKey}Bulk${name}StopBtn`);
@@ -1813,8 +1833,9 @@ function _editorBulkStopTool(editorKey) {
 // options) its own labeled sub-menu directly under that button — so it's
 // never ambiguous which instructions belong to which tool. These are bulk,
 // whole-quiz versions of the same AI Solve / Fill Choices / Refine actions
-// available per-question; every tool here still runs one question at a
-// time under the hood, applying its action to each question in the quiz.
+// available per-question, plus Content Filter (bulk-only, no per-question
+// equivalent); every tool here still runs one question at a time under the
+// hood, applying its action to each question in the quiz.
 function _renderBulkAiToolsPanel(editorKey, questions) {
   const busy = _editorBulkBusy[editorKey];
   const activeTool = _editorBulkActiveTool[editorKey];
@@ -1846,20 +1867,22 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
         <summary><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> AI Solve settings</summary>
         <div style="margin-top:8px;">
           <div class="cq-bulk-ai-label"><svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference source (optional) — upload images/PDFs for the AI to use, or leave empty to answer from general knowledge</div>
-          <div class="cq-dropzone cq-dz-purple" id="${editorKey}BulkSourceDropzone"
+          <div class="cq-dropzone cq-dz-purple" id="${editorKey}BulkSolveSourceDropzone"
             style="${busy ? 'pointer-events:none;opacity:.55;' : ''}"
-            onclick="document.getElementById('${editorKey}BulkSourceFileInput').click()">
+            onclick="document.getElementById('${editorKey}BulkSolveSourceFileInput').click()">
             <div class="cq-dz-icon"><svg class="hicon" style="width:28px;height:28px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
             <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
-            ${_editorBulkSourceFileListHTML(editorKey, _editorBulkAiSourceFiles[editorKey])}
+            ${_editorBulkSourceFileListHTML(editorKey, 'Solve', _editorBulkAiSourceFiles[editorKey])}
             ${_editorBulkAiSourceFiles[editorKey].length ? `<div class="cq-dz-add-more"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Click again to add more files</div>` : ''}
           </div>
-          <input type="file" id="${editorKey}BulkSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
-            onchange="_editorBulkSourceFileSelect('${editorKey}', this)">
-          <div class="cq-bulk-ai-scope">Used only by <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve All — no effect on Fill Choices or Refine Questions. Any source added here is also selectable per-question (as "Editor bulk source").</div>
+          <input type="file" id="${editorKey}BulkSolveSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
+            onchange="_editorBulkSourceFileSelect('${editorKey}', 'Solve', this)">
+          <div class="cq-bulk-ai-scope">Used only by <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve All — no effect on Fill Choices, Refine Questions, or Content Filter. Any source added here is also selectable per-question (as "Editor bulk source").</div>
         </div>
       </details>
     </div>
+
+    ${_renderBulkContentFilterToolHTML(editorKey, busy, activeTool)}
 
     <div class="cq-bulk-ai-tool">
       <div class="cq-bulk-ai-tool-row">
@@ -1905,7 +1928,60 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
   </div>`;
 }
 
-// Fourth bulk tool, preview-only (cq): retries image extraction for every
+// Content Filter — bulk-only, no per-question equivalent (unlike Solve/
+// Fill/Refine, which are also available one question at a time). Checks
+// every question against a REQUIRED reference source and drops any
+// question the AI could only answer from its own knowledge, i.e. not
+// found in that source — a way to weed out off-topic or unsourced
+// questions from a quiz in one pass. Deliberately reuses AI Solve All's
+// own engine under the hood (cqAiSolveQuestions — see
+// _editorBulkContentFilter in this file) rather than a separate answer-
+// checking implementation, since "does the source contain this
+// question's answer" is exactly what that engine already determines
+// per question via found_in_source. The two tools stay fully
+// independent in the UI, though: this one has its own reference-source
+// dropzone (toolKey 'Filter', so it never shares files or state with AI
+// Solve All's), and its own required-source validation, since a filter
+// pass run with no source would just be Solve All in disguise, silently
+// discarding every question it couldn't verify from thin air. The
+// result also never shows the solve-flavoured "AI-answered"/"AI Guess"
+// batch progress or per-question badges Solve All uses — a question
+// either survives the filter or it doesn't, so nothing about how it
+// each was scored is left to inspect afterward.
+function _renderBulkContentFilterToolHTML(editorKey, busy, activeTool) {
+  const files = _editorBulkFilterSourceFiles[editorKey];
+  return `
+    <div class="cq-bulk-ai-tool">
+      <div class="cq-bulk-ai-tool-row">
+        <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFilterBtn" type="button"
+          ${busy ? 'disabled' : ''} onclick="_editorBulkContentFilter('${editorKey}')"
+          title="Removes any question the AI can't answer from the source below"
+          style="background:var(--wrong-fg);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter</button>
+        <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkFilterStopBtn"
+          style="${busy && activeTool === 'Filter' ? 'display:inline-block;' : ''}"
+          title="Stop Content Filter" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
+      </div>
+      <details class="cq-bulk-ai-opts" open>
+        <summary><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Content Filter source</summary>
+        <div style="margin-top:8px;">
+          <div class="cq-bulk-ai-label"><svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference source (required) — upload images/PDFs; any question the AI can only answer from outside this source gets removed</div>
+          <div class="cq-dropzone cq-dz-purple" id="${editorKey}BulkFilterSourceDropzone"
+            style="${busy ? 'pointer-events:none;opacity:.55;' : ''}"
+            onclick="document.getElementById('${editorKey}BulkFilterSourceFileInput').click()">
+            <div class="cq-dz-icon"><svg class="hicon" style="width:28px;height:28px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
+            ${_editorBulkSourceFileListHTML(editorKey, 'Filter', files)}
+            ${files.length ? `<div class="cq-dz-add-more"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Click again to add more files</div>` : ''}
+          </div>
+          <input type="file" id="${editorKey}BulkFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
+            onchange="_editorBulkSourceFileSelect('${editorKey}', 'Filter', this)">
+          <div class="cq-bulk-ai-scope">${files.length ? '' : '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Content Filter won\'t run until at least one file is uploaded here. '}Used only by <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter — separate from AI Solve All's source above, and has no effect on Fill Choices or Refine Questions.</div>
+        </div>
+      </details>
+    </div>`;
+}
+
+
 // question Gemini flagged as has_image but never successfully cropped —
 // the same " AI detected an image… couldn't extract it" case shown per-
 // question below (see _canReextract in renderCQPreview). Grouped and
@@ -1952,54 +2028,66 @@ function _editorBulkGuard(editorKey) {
   return { ed, questions };
 }
 
+// Which reference-source file store a bulk tool's dropzone reads/writes —
+// keyed by the same tool name used everywhere else in this panel ('Solve'
+// or 'Filter') — so AI Solve All and Content Filter can each have their
+// own independent dropzone, sharing all the same rendering/handling code
+// below without their files or DOM ids colliding.
+function _editorBulkSourceStore(toolKey) {
+  return toolKey === 'Filter' ? _editorBulkFilterSourceFiles : _editorBulkAiSourceFiles;
+}
+
 // Renders the staged reference files for a bulk panel's dropzone, with a
 // per-file remove button — same shape/markup as every other reference-
-// source dropzone in the app, just keyed by editor instead of by question.
-function _editorBulkSourceFileListHTML(editorKey, files) {
+// source dropzone in the app, just keyed by editor (and which tool's
+// dropzone this is) instead of by question.
+function _editorBulkSourceFileListHTML(editorKey, toolKey, files) {
   if (!files || !files.length) return '';
   return `<div class="cq-dz-filelist">` + files.map((f, idx) => `
     <div class="cq-dz-file-item">
       <span><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ${escapeHtml(f.name)}</span>
-      <button type="button" onclick="event.stopPropagation();_editorBulkSourceRemoveFile('${editorKey}', ${idx})" title="Remove this file">✕</button>
+      <button type="button" onclick="event.stopPropagation();_editorBulkSourceRemoveFile('${editorKey}', '${toolKey}', ${idx})" title="Remove this file">✕</button>
     </div>`).join('') + `</div>`;
 }
 // Shared validation with every other reference-source dropzone in the app
 // (extraction's cqSourceDropzone, the per-question source library form).
-function _editorBulkSourceAcceptFile(editorKey, file) {
+function _editorBulkSourceAcceptFile(editorKey, toolKey, file) {
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
   if (!isPdf && !isImage) { alert(`"${file.name}" isn't an image or PDF — please upload an image (JPG/PNG/WEBP) or a PDF file.`); return; }
   if (file.size > GEMINI_MAX_FILE_BYTES) { alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`); return; }
   const mimeType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
-  _editorBulkAiSourceFiles[editorKey].push({ file, mimeType, name: file.name });
+  _editorBulkSourceStore(toolKey)[editorKey].push({ file, mimeType, name: file.name });
 }
-function _editorBulkSourceFileSelect(editorKey, input) {
+function _editorBulkSourceFileSelect(editorKey, toolKey, input) {
   const files = Array.from((input && input.files) || []);
-  files.forEach(f => _editorBulkSourceAcceptFile(editorKey, f));
+  files.forEach(f => _editorBulkSourceAcceptFile(editorKey, toolKey, f));
   input.value = '';
   _editorBulkRerender(editorKey);
 }
-function _editorBulkSourceRemoveFile(editorKey, idx) {
-  _editorBulkAiSourceFiles[editorKey].splice(idx, 1);
+function _editorBulkSourceRemoveFile(editorKey, toolKey, idx) {
+  _editorBulkSourceStore(toolKey)[editorKey].splice(idx, 1);
   _editorBulkRerender(editorKey);
 }
-// Wires drag&drop on the bulk panel's reference dropzone. Called after
-// every full render of the editor (the panel is rebuilt via innerHTML
-// each time, same as every other dropzone in this file, so there's no
-// stale-listener risk).
+// Wires drag&drop on both of the bulk panel's reference dropzones (AI
+// Solve All's and Content Filter's). Called after every full render of
+// the editor (the panel is rebuilt via innerHTML each time, same as every
+// other dropzone in this file, so there's no stale-listener risk).
 function _editorBulkSourceSetupDropzone(editorKey) {
-  const dz = document.getElementById(`${editorKey}BulkSourceDropzone`);
-  if (!dz) return;
-  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
-    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
-  }));
-  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
-    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
-  }));
-  dz.addEventListener('drop', e => {
-    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
-    files.forEach(f => _editorBulkSourceAcceptFile(editorKey, f));
-    _editorBulkRerender(editorKey);
+  ['Solve', 'Filter'].forEach(toolKey => {
+    const dz = document.getElementById(`${editorKey}Bulk${toolKey}SourceDropzone`);
+    if (!dz) return;
+    ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+    }));
+    ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+    }));
+    dz.addEventListener('drop', e => {
+      const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+      files.forEach(f => _editorBulkSourceAcceptFile(editorKey, toolKey, f));
+      _editorBulkRerender(editorKey);
+    });
   });
 }
 // Re-renders the whole editor so the dropzone reflects the updated file
@@ -2046,6 +2134,70 @@ async function _editorBulkAiSolve(editorKey) {
     // Setting finalHtml straight onto statusEl above would've been wiped out
     // by that same rerender a moment later, so it's applied here instead,
     // after the rebuild, onto the fresh element that now actually exists.
+    _aiToolsSetStatusById(`${editorKey}BulkAiStatus`, finalHtml);
+  }
+}
+
+/* ── Content Filter — bulk pass that removes any question the AI can only
+   answer from its own knowledge, not from the required reference source.
+   Deliberately layered on top of AI Solve All's own engine
+   (cqAiSolveQuestions) rather than a separate answer-checking
+   implementation, since "was this question's answer found in the
+   source" is exactly what that engine already reports per question via
+   found_in_source/ai_guessed — Content Filter just acts on that result
+   instead of only recording it. A survivor also gets its answer
+   double-checked against the source in the process, same as an AI Solve
+   All pass would do, since that's an unavoidable side effect of asking
+   the same question. Requires at least one reference-source file, unlike
+   AI Solve All — an "AI's own knowledge" fallback here would make this
+   indistinguishable from a pass that filters out nothing.
+
+   Deliberately quiet about the mechanics: cqAiSolveQuestions' own
+   per-batch progress text ("AI is solving questions… (batch N of M)")
+   is swallowed rather than shown (see silentStatusEl below), and neither
+   ai_answered nor ai_guessed is left behind on a surviving question — a
+   question either made it through the filter or it didn't, so there's
+   nothing about how each one was scored left for a stray "AI-answered"/
+   "AI Guess" badge to advertise afterward. ── */
+async function _editorBulkContentFilter(editorKey) {
+  const ctx = _editorBulkGuard(editorKey);
+  if (!ctx) return;
+  const { ed, questions } = ctx;
+
+  const sourceFiles = _editorBulkFilterSourceFiles[editorKey] || [];
+  if (!sourceFiles.length) {
+    const statusEl = _editorBulkStatusEl(editorKey);
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML('Content Filter needs a reference source — upload at least one image or PDF under "Content Filter source" above, then try again.');
+    return;
+  }
+
+  _editorBulkSetBusy(editorKey, true, 'Filter');
+  const token = { cancelled: false };
+  _editorBulkCancelToken[editorKey] = token;
+  // Self-healing + auto-caching (see js/dom-utils.js) — this loop writes
+  // progress across many `await`s, and the panel can be rebuilt mid-run.
+  const statusEl = liveStatusRef(`${editorKey}BulkAiStatus`, `${editorKey}BulkAiStatus`);
+  statusEl.innerHTML = _cqProgressStatusHTML('<svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Checking questions against the source…', 0);
+
+  let finalHtml;
+  try {
+    // Actual filtering logic lives in cqRunContentFilterPass (js/gemini-uploads.js),
+    // shared with the pre-extraction "Content Filter (AI)" toggle so it
+    // only exists in one place.
+    const { removed, remaining } = await cqRunContentFilterPass(questions, sourceFiles, token);
+    finalHtml = token.cancelled
+      ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Content Filter stopped${removed ? ` — ${removed} question${removed !== 1 ? 's' : ''} already removed before stopping` : ''}.</div>`
+      : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Content Filter finished — ${removed} question${removed !== 1 ? 's' : ''} removed, ${remaining} remain${remaining === 1 ? 's' : ''}.</div>`;
+  } catch (e) {
+    finalHtml = _aiToolsErrorHTML(e.message || 'Content Filter failed.');
+  } finally {
+    _editorBulkCancelToken[editorKey] = null;
+    _editorBulkSetBusy(editorKey, false, 'Filter');
+    _markQuestionEditDirty();
+    ed.rerender();
+    // See the matching comment in _editorBulkAiSolve() above for why
+    // finalHtml is applied here, after the rebuild, rather than directly
+    // onto `statusEl` above.
     _aiToolsSetStatusById(`${editorKey}BulkAiStatus`, finalHtml);
   }
 }

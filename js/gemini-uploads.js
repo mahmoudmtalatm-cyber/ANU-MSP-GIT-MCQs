@@ -1187,6 +1187,54 @@ function cqRemoveSourceFile(idx) {
   renderCustomQuizModal();
 }
 
+// Source file helpers for the pre-extraction Content Filter (AI) toggle —
+// deliberately a separate dropzone/store from the one above (cqAiSourceFiles
+// is AI Answering's optional reference source; this one is Content Filter's
+// mandatory one), same as the post-extraction editor keeps
+// _editorBulkFilterSourceFiles separate from _editorBulkAiSourceFiles.
+function setupFilterSourceDropzone() {
+  const dz = document.getElementById('cqFilterSourceDropzone');
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over');
+  }));
+  dz.addEventListener('drop', e => {
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    files.forEach(acceptFilterSourceFile);
+  });
+}
+
+function handleCqFilterSourceFileSelect(event) {
+  const files = Array.from((event.target && event.target.files) || []);
+  files.forEach(acceptFilterSourceFile);
+  event.target.value = '';
+}
+
+function acceptFilterSourceFile(file) {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = file.type.startsWith('image/');
+
+  if (!isPdf && !isImage) {
+    alert(`"${file.name}" isn't an image or PDF — please upload an image (JPG/PNG/WEBP) or a PDF file.`);
+    return;
+  }
+  if (file.size > GEMINI_MAX_FILE_BYTES) {
+    alert(`"${file.name}" is ${formatBytes(file.size)} — that's over Google's ${formatBytes(GEMINI_MAX_FILE_BYTES)} per-file limit for the Gemini API, so it can't be used.`);
+    return;
+  }
+  const mimeType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  cqFilterSourceFiles.push({ file, mimeType, name: file.name });
+  renderCustomQuizModal();
+}
+
+function cqRemoveFilterSourceFile(idx) {
+  cqFilterSourceFiles.splice(idx, 1);
+  renderCustomQuizModal();
+}
+
 // General-purpose AI solver: solves questions at given indices using Gemini.
 // targetIdxs: array of question indices to solve (can be no-key or keyed questions)
 // sourceText: optional reference text
@@ -1503,6 +1551,92 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
     // AI call in the app, not just this loop.
   }
   return { done, errors };
+}
+
+/* ── Shared bulk pass: Content Filter ──
+   Removes every question the AI can only answer from its own knowledge,
+   not from a required reference source. Shared by both call sites —
+   the post-extraction "Content Filter" bulk AI tool
+   (_editorBulkContentFilter, js/ai-features.js) and the pre-extraction
+   "Content Filter (AI)" toggle run inline as part of generateQuizFromAI
+   (js/ai-solve.js) — so the actual filtering logic only exists once.
+   Deliberately layered on top of cqAiSolveQuestions rather than a
+   separate answer-checking implementation, since "was this question's
+   answer found in the source" is exactly what that engine already
+   reports per question via found_in_source/ai_guessed.
+
+   Always runs quiet about the mechanics: cqAiSolveQuestions' own
+   per-batch progress text ("AI is solving questions… (batch N of M)")
+   is swallowed via a throwaway status target, and neither ai_answered
+   nor ai_guessed is left behind on a surviving question — a question
+   either made it through the filter or it didn't, so there's nothing
+   left for a stray "AI-answered"/"AI Guess" badge to advertise
+   afterward. Callers own their own before/after status text.
+
+   Also never actually solves/verifies anything as far as the output is
+   concerned: cqAiSolveQuestions is only borrowed here to learn WHETHER
+   each answer was found in the source, and every surviving question's
+   original `answer` is restored immediately after that call returns.
+   Whether questions get genuinely re-solved is controlled solely by the
+   separate "Solve/verify all questions" toggle elsewhere — if that ran
+   too, it already did so as its own earlier step before Content Filter
+   ever touches these questions.
+
+   Requires at least one reference-source file — callers are expected
+   to validate that themselves (with a message suited to where the
+   toggle lives) before calling this; this function throws if called
+   without one as a last-resort guard. */
+async function cqRunContentFilterPass(questions, sourceFiles, cancelToken) {
+  if (!sourceFiles || !sourceFiles.length) {
+    throw new Error('Content Filter needs a reference source — upload at least one image or PDF first.');
+  }
+
+  const allIdxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
+  // Clear any ai_answered/ai_guessed left on these questions by an
+  // earlier, unrelated AI Solve/Content Filter pass first — otherwise a
+  // question this run never actually reaches (e.g. because the run gets
+  // stopped partway through) could get filtered, or kept, based on a
+  // stale flag from before instead of nothing being decided for it yet.
+  allIdxs.forEach(i => { delete questions[i].ai_answered; delete questions[i].ai_guessed; });
+
+  // Content Filter only needs cqAiSolveQuestions to find out WHERE each
+  // answer came from (found_in_source vs. own knowledge) — it isn't meant
+  // to actually solve/verify anything. Whether questions get re-solved is
+  // controlled solely by the separate "Solve/verify all questions"
+  // toggle, which — if on — has already run as its own earlier step by
+  // the time this runs. So the answer this internal call comes up with is
+  // used only to decide keep-or-remove, then discarded: every surviving
+  // question's original answer is restored below, untouched.
+  const answersBefore = new Map(allIdxs.map(i => [i, questions[i].answer]));
+
+  const silentStatusEl = createSilentStatusStub();
+  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, silentStatusEl, cancelToken);
+
+  answersBefore.forEach((originalAnswer, i) => {
+    if (questions[i]) questions[i].answer = originalAnswer;
+  });
+
+  // The filter itself: drop every question the AI could only answer from
+  // outside the source. Walk backward so splicing doesn't shift
+  // not-yet-checked indices out from under the loop, and run the same
+  // case-group housekeeping a manual per-question delete uses, so a
+  // removed question never leaves a case group's linking broken.
+  let removed = 0;
+  for (let k = allIdxs.length - 1; k >= 0; k--) {
+    const qi = allIdxs[k];
+    const q = questions[qi];
+    if (q && q.ai_guessed) {
+      const [deleted] = questions.splice(qi, 1);
+      _caseGroupOnQuestionDeleted(questions, deleted);
+      removed++;
+    }
+  }
+  // Strip the solve-flavoured flags off whatever's left — a survivor was
+  // only ever checked here to confirm it belongs, not relabelled, so no
+  // "AI-answered" badge should linger on it either.
+  questions.forEach(q => { delete q.ai_answered; delete q.ai_guessed; });
+
+  return { removed, remaining: questions.length };
 }
 
 /* ── Post-extraction bulk pass: Re-extract Missing Images (cq preview only) ──

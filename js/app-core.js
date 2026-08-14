@@ -1086,6 +1086,11 @@ if (changeLog.length > 0) {
     chatBtn.onclick = () => toggleChatPanel(i);
     card.querySelector('.r-content').appendChild(chatBtn);
 
+    // Ask AI — send this question (+ any explanation/chat above) to an
+    // external AI site the student picks from a dropdown. See
+    // js/ai-external-send.js and changelog #110.
+    card.querySelector('.r-content').appendChild(renderAskAiButtonGroup(i));
+
     // Quick-access API Key Manager button (shows the currently active key)
     const apikeyBtn = document.createElement('button');
     apikeyBtn.className = 'ai-apikey-btn';

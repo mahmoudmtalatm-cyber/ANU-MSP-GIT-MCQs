@@ -115,6 +115,40 @@ function liveStatusRef(id, cacheKey) {
   });
 }
 
+/* ── Silent status target ──
+   A handful of internal helpers — cqAiSolveQuestions() and everything it
+   can call into mid-run (per-batch error reporting, the manual/automatic
+   pause banners in cqCheckPause() / _cqEnterPause() /
+   cqFallbackPauseForRateLimit(), all in js/ai-question-tools.js and
+   js/gemini-uploads.js) — take a `statusEl` and both WRITE to it
+   (`.innerHTML =`, `.insertAdjacentHTML()`) and READ from it
+   (`.querySelector()`, to find/replace/remove their own banners).
+
+   Some callers borrow cqAiSolveQuestions() for its side effects only and
+   don't want its own progress/pause chatter to ever reach the screen —
+   e.g. cqRunContentFilterPass() (js/gemini-uploads.js), which uses it
+   solely to learn whether each answer was found in the source and keeps
+   its own, separate status text on top. Those callers need a `statusEl`
+   that safely absorbs every one of the calls above and does nothing.
+
+   A bare `{ innerHTML: '' }` object literal used to stand in for this,
+   which covered plain `.innerHTML = …` writes but had no
+   `insertAdjacentHTML` or `querySelector` — so the moment a silent run
+   actually hit a per-batch error, a rate-limit pause, or a manual pause
+   mid-filter, the shared helpers above would call one of those missing
+   methods on it and throw "statusEl.insertAdjacentHTML is not a
+   function", aborting the whole extraction. createSilentStatusStub()
+   replaces that literal with a stub that implements everything those
+   call sites actually use, so a silent run absorbs all of it instead of
+   crashing. */
+function createSilentStatusStub() {
+  return {
+    innerHTML: '',
+    insertAdjacentHTML() { /* swallowed on purpose — this run stays silent */ },
+    querySelector() { return null; } // "no banner found" — callers null-guard this already
+  };
+}
+
 /* ══════════════════════════════════════════════════════════
    COMMUNITY FILTER BAR — shared markup builder
    ──────────────────────────────────────────────────────────

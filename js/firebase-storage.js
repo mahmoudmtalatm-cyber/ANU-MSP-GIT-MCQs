@@ -935,12 +935,55 @@ function renderCustomQuizModal() {
         ` : ''}
       </div>
 
+      <!-- Content Filter toggle — removes any question the AI can only
+           answer from its own knowledge, not from the reference source
+           uploaded right below it. Unlike AI Answering's reference source
+           above (optional), this one is required: the toggle refuses to
+           run without at least one file, since a filter pass with nothing
+           to check against would be indistinguishable from one that
+           filters out nothing. -->
+      <div style="margin:8px 0 4px;padding:11px 14px;background:${cqContentFilterToggle ? 'var(--wrong-bg)' : 'var(--card)'};border:1.5px solid ${cqContentFilterToggle ? 'var(--wrong-fg)' : 'var(--border)'};border-radius:10px;transition:all .2s;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <div style="position:relative;width:42px;height:24px;flex-shrink:0;">
+            <input type="checkbox" ${cqContentFilterToggle ? 'checked' : ''}
+              onchange="cqContentFilterToggle = this.checked; renderCustomQuizModal()"
+              style="opacity:0;width:0;height:0;position:absolute;" />
+            <span style="position:absolute;inset:0;border-radius:24px;background:${cqContentFilterToggle ? 'var(--wrong-fg)' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;top:3px;left:${cqContentFilterToggle ? '21px' : '3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+          </div>
+          <div>
+            <div style="font-size:.82rem;font-weight:800;color:${cqContentFilterToggle ? 'var(--wrong-fg)' : 'var(--text)'};letter-spacing:.2px;">
+              <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter (AI)
+            </div>
+            <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
+              Removes every question the AI can only answer from its own knowledge, not from the reference source below — needs at least one file
+            </div>
+          </div>
+        </label>
+        ${cqContentFilterToggle ? `
+        <div style="margin:11px 0 0 8px;padding-left:14px;border-left:2.5px solid var(--wrong-fg);">
+          <div style="font-size:.75rem;font-weight:700;color:var(--wrong-fg);margin-bottom:5px;">
+            <svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference Source (required) — upload the images/PDFs every question must check out against
+          </div>
+          <div class="cq-dropzone cq-dz-purple" id="cqFilterSourceDropzone" onclick="document.getElementById('cqFilterSourceFileInput').click()">
+            <div class="cq-dz-icon"><svg class="hicon" style="width:28px;height:28px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
+            ${cqFilterSourceFiles.length ? _cqFileListHTML(cqFilterSourceFiles, 'cqRemoveFilterSourceFile', sf => sf.file) : ''}
+            ${cqFilterSourceFiles.length ? `<div class="cq-dz-add-more"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Click again to add more files</div>` : ''}
+          </div>
+          <input type="file" id="cqFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;"
+            onchange="handleCqFilterSourceFileSelect(event)" />
+        </div>
+        ` : ''}
+      </div>
+
       <!-- Sequential-run notice — shown whenever 2+ AI steps are selected,
            since they all write to the same question objects and could
            otherwise conflict if fired at once. -->
       ${(() => {
         const steps = [
           cqAiAnsweringEnabled ? 'Solve/Answer' : null,
+          cqContentFilterToggle ? 'Content Filter' : null,
           cqFillChoicesToggle ? 'Fill Choices' : null,
           cqRefineToggle ? 'Refine Questions' : null
         ].filter(Boolean);
@@ -1041,6 +1084,7 @@ function renderCustomQuizModal() {
   setupCQDropzone();
   setupLectureDropzone();
   setupSourceDropzone();
+  setupFilterSourceDropzone();
 }
 
 function setupCQDropzone() {

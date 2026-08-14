@@ -91,6 +91,15 @@
       --sky-border:     #AFCCF2;
       --sky-border-strong:#6FA3E8;
 
+      /* Third accent — "Ask AI" (send-to-external-assistant). Kept
+         distinct from the violet AI-explain and sky AI-chat surfaces so
+         all three read as related-but-separate actions at a glance. See
+         changelog #110. */
+      --extai-pale:        #E9F7F1;
+      --extai-fg:          #1B7A5A;
+      --extai-border:      #A8DFC9;
+      --extai-border-strong:#5CBE93;
+
       --shadow-ambient: rgba(20, 40, 90, .10);
       --sigil-line:     rgba(42,95,224,.45);
       /* Soft dotted-grid texture used behind hero/header surfaces — a
@@ -2932,6 +2941,120 @@
 }
 .ai-apikey-btn:hover { background: var(--chip-blue-bg); border-color: var(--accent); }
 .ai-apikey-btn .apikey-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── ASK AI — send this question (+ any explanation/chat already on
+   screen) to an external AI chat site the student picks from a dropdown.
+   See js/ai-external-send.js and changelog #110/#111/#112/#113/#114/#115. ── */
+.ai-send-wrap { position: relative; display: inline-block; }
+.ai-send-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--extai-pale); color: var(--extai-fg); border: 1.5px solid var(--extai-border);
+  border-radius: 7px; padding: 5px 12px; font-family: var(--font);
+  font-size: .8rem; font-weight: 700; cursor: pointer;
+  transition: all .15s; margin-top: 8px; margin-left: 8px;
+}
+.ai-send-btn:hover { background: #DCF3E9; border-color: var(--extai-border-strong); }
+.ai-send-wrap.open .ai-send-btn { background: #DCF3E9; border-color: var(--extai-border-strong); }
+.ai-send-caret { width: 13px; height: 13px; transition: transform .15s ease; }
+.ai-send-wrap.open .ai-send-caret { transform: rotate(180deg); }
+
+/* Split button shown once a default AI is remembered — see
+   _extAiRenderButtonInto() in js/ai-external-send.js. "Ask <Name>" sends
+   straight to it; the narrow caret half reopens the picker to change it.
+   Both halves share the same pill so it reads as one control. */
+.ai-send-split {
+  display: inline-flex; align-items: stretch; margin-top: 8px; margin-left: 8px;
+  border-radius: 7px; overflow: hidden;
+}
+.ai-send-split .ai-send-btn { margin: 0; border-radius: 0; }
+.ai-send-btn-main {
+  border-right: none; display: inline-flex; align-items: center;
+  max-width: min(220px, 46vw); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ai-send-btn-main .sicon:first-child { flex-shrink: 0; }
+.ai-send-btn-caret {
+  padding: 5px 9px; border-left: 1.5px solid var(--extai-border);
+}
+.ai-send-btn-caret .ai-send-caret { margin: 0; }
+
+.ai-send-menu-item.is-default { background: var(--extai-pale); }
+.ai-send-default-badge {
+  display: inline-block; font-size: .62rem; font-weight: 800;
+  color: var(--extai-fg); background: #fff; border: 1px solid var(--extai-border-strong);
+  border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+}
+
+/* Rendered as a sibling of <body> (a "portal"), not nested inside
+   .ai-send-wrap — see renderAskAiButtonGroup()/positionAskAiMenu() in
+   js/ai-external-send.js. .r-card clips overflow for its rounded corners
+   and color strip, and .results-body scrolls its own content, so a menu
+   positioned *inside* either of those was silently clipped to the card's
+   box instead of floating above it (changelog #111). Being a body-level
+   fixed-position element sidesteps both ancestors entirely; JS sets
+   top/left inline for each open. */
+.ai-send-menu {
+  position: fixed; z-index: 9999;
+  background: var(--bg-card); border: 1px solid var(--border-soft-2); border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.18); padding: 8px;
+  width: max-content; min-width: 240px; max-width: min(320px, calc(100vw - 32px));
+  max-height: min(420px, calc(100vh - 32px)); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.ai-send-menu-label {
+  font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted); padding: 4px 8px 6px;
+}
+.ai-send-menu-item {
+  all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+}
+.ai-send-menu-item:hover, .ai-send-menu-item:focus-visible { background: var(--surface-2); }
+.ai-send-badge {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: .78rem; font-weight: 800; letter-spacing: 0;
+}
+.ai-send-badge-outline {
+  background: var(--surface-2); color: var(--text-main); border: 1.5px dashed var(--border-soft-2);
+  font-size: .9rem;
+}
+.ai-send-item-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ai-send-item-name { font-size: .84rem; font-weight: 700; color: var(--text-main); }
+.ai-send-item-sub {
+  font-size: .7rem; font-weight: 500; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ai-send-menu-sep { height: 1px; background: var(--border-soft-2); margin: 5px 4px; }
+.ai-send-menu-image .ai-send-item-name { color: var(--text-main); }
+
+/* Below ~480px there isn't reliable room for a floating panel next to a
+   button that may sit near the screen edge, so the picker becomes a
+   full-width bottom sheet instead — consistent with how narrow layouts
+   are handled elsewhere in the app (e.g. the collections drawer). */
+@media (max-width: 480px) {
+  /* !important beats the inline top/left px values JS sets for the
+     floating-panel placement used above 480px — see
+     positionAskAiMenu() in js/ai-external-send.js, which skips inline
+     positioning at this width for exactly this reason. */
+  .ai-send-menu {
+    left: 10px !important; right: 10px !important; top: auto !important; bottom: 10px !important;
+    width: auto; max-width: none; min-width: 0; max-height: min(60vh, 420px);
+    box-shadow: 0 -10px 30px rgba(0,0,0,.22);
+  }
+}
+
+/* Small floating confirmation used for copy/open feedback — theme-matched,
+   auto-dismissing, and never blocks interaction underneath it. */
+.ext-ai-toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(12px);
+  max-width: min(420px, calc(100vw - 32px));
+  background: var(--text-main); color: #fff; font-family: var(--font);
+  font-size: .82rem; font-weight: 600; line-height: 1.45;
+  padding: 10px 16px; border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.28);
+  opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+  z-index: 999;
+}
+.ext-ai-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .ai-chat-panel { margin-top: 10px; }
 .ai-chat-panel:empty { margin-top: 0; }
