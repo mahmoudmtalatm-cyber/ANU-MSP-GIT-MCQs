@@ -824,6 +824,27 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **125 — Content Filter's strict source-matching prompt (`CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION`,
+  `js/gemini-uploads.js`) is now actually wired up and in effect — it was
+  written and threaded through `cqAiSolveQuestions()`'s `strictSourceCheck`
+  parameter, but the one call site that needed it, `cqRunContentFilterPass()`,
+  was never updated to pass it, so Content Filter was still running the
+  lenient "clearly found in the source" wording used by Solve All / Answer
+  Missing Keys. A question only on the same broad topic as the source (same
+  subject/organ system/chapter, but not the specific fact the question
+  needs) could pass `found_in_source: true` and stay in the set.**
+  - `cqRunContentFilterPass()` now calls `cqAiSolveQuestions(…, true)`,
+    switching it onto `CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION` and the
+    matching strict `found_in_source` line in `instructionPart` — both
+    already existed, only the call site was missing the flag.
+  - This only tightens what Content Filter accepts as "found in the
+    source" when deciding what to keep or remove. It does not touch how
+    any question gets *answered* — `answer` is graded independently of
+    `found_in_source` in both the lenient and strict prompts, Content
+    Filter always restores each surviving question's original answer
+    after its internal check (unchanged), and AI Solve / Answer Missing
+    Keys never pass `strictSourceCheck`, so their own answers and
+    wording are completely unaffected.
 - **124 — Fixed AI Solve / Content Filter losing track of reference-source
   files after a mid-run API key rotation, instead of every batch after the
   rotation failing on a stale file reference.** `cqAiSolveQuestions()`

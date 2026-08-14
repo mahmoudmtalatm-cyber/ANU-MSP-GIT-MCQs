@@ -1303,6 +1303,36 @@ const CQ_SOLVE_PROGRESS_LABEL = {
   single: n => `AI is solving ${n} question${n !== 1 ? 's' : ''}…`
 };
 
+/* ── Strict source-grounding prompt, Content Filter ONLY ──
+   A completely separate system instruction from the normal AI-Solve one
+   above — never shared, never merged behind a flag — so tightening what
+   Content Filter accepts as "found in the source" can never loosen or
+   change AI Solve/Answer Missing Keys' own answer wording or behaviour.
+
+   The normal prompt's bar for found_in_source ("clearly found in the
+   source") is deliberately loose, because for AI Solve/Answer that flag
+   is only informational — a "used general knowledge" badge, nothing is
+   removed because of it. For Content Filter, found_in_source IS the
+   entire keep/remove decision, so a merely-plausible or same-topic match
+   there silently keeps a question that doesn't actually belong. This
+   prompt exists to close that gap: it only ever answers "yes, this exact
+   question is answerable from the source" or "no" — never "probably" —
+   and always errs toward "no" (i.e. remove) whenever there's real doubt,
+   since a false "no" just means a genuinely-sourced question needs a
+   manual second look, while a false "yes" lets an unrelated question
+   silently through into the published set. */
+const CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION =
+  'You are a strict fact-checker verifying whether questions can be answered PURELY from the exact reference source material provided (text and/or images/PDFs) — nothing else. ' +
+  'This is a filtering task, not a general-knowledge quiz: your only job is to catch questions that do NOT genuinely belong to this source, so treat "found_in_source" as a strict pass/fail test, never a soft judgment call. ' +
+  'Set found_in_source to true ONLY if the source material explicitly states, shows, or directly and unambiguously implies the specific fact, value, option, or reasoning needed to answer THIS exact question — not merely the same general subject, topic, organ system, disease category, or chapter. ' +
+  'The correct answer must be verifiable by pointing to a specific passage, table, figure, label, or statement in the source that a person could show you. If you cannot point to that specific place, found_in_source is false. ' +
+  'Being on the same broad topic as the source, being plausible medical/academic knowledge, or being something you could answer confidently from your own training is NOT sufficient — set found_in_source to false in every one of those cases, even if your own answer is correct. ' +
+  'Any uncertainty, any reliance on outside/background knowledge to fill even one gap, or any need to infer beyond what the source literally states — however small — means found_in_source MUST be false. When genuinely unsure whether the source covers it, default to false. ' +
+  'Still provide your best answer letter for every question (using the source where found_in_source is true, your own expert knowledge otherwise) — "answer" and "found_in_source" are graded independently; never let a correct answer talk you into marking found_in_source true. ' +
+  'Some questions may include an image — analyse it carefully against the source\'s own images/figures specifically, not just the general topic. ' +
+  'Respond ONLY with a JSON array. ' +
+  'Be fully deterministic: given the same question and source material, always give the same answer and the same found_in_source verdict.';
+
 // General-purpose AI solver: solves questions at given indices using Gemini.
 // targetIdxs: array of question indices to solve (can be no-key or keyed questions)
 // sourceText: optional reference text
@@ -1311,7 +1341,20 @@ const CQ_SOLVE_PROGRESS_LABEL = {
 // progressLabel: optional { icon, multi, single(n) } — see CQ_SOLVE_PROGRESS_LABEL
 // above and _cqContentFilterProgressLabel in cqRunContentFilterPass for the
 // wording swap that lets Content Filter reuse this same batch progress bar.
-async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken, progressLabel) {
+// strictSourceCheck: optional, default false. Swaps in a much stricter
+// found_in_source system instruction (CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION
+// above) and a matching stricter found_in_source line in instructionPart
+// below — see CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION's own comment for
+// exactly what "strict" means. Only cqRunContentFilterPass sets this
+// (true), since
+// found_in_source is ALL Content Filter keep/remove decisions are based
+// on — a lenient true there lets an unrelated question slip through. AI
+// Solve/Answer Missing Keys never pass it, so their answer quality and
+// wording are completely unchanged by this — the two prompts are kept
+// as fully separate strings for exactly that reason, not a shared one
+// with a strictness flag threaded through it, so a future edit to one
+// can never accidentally bleed into the other.
+async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken, progressLabel, strictSourceCheck) {
   const label = progressLabel || CQ_SOLVE_PROGRESS_LABEL;
   if (!targetIdxs || !targetIdxs.length) return;
 
@@ -1327,12 +1370,14 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
   // lever, so the same instruction is spelled out in the prompt itself and
   // holds even on a fallback-model call where temperature gets stripped.
   const systemInstruction = hasSource
-    ? 'You are a medical/academic expert. Reference source material is provided (text and/or images/PDFs). ' +
-      'For each question, answer based on the source. ' +
-      'If the answer is clearly found in the source, set found_in_source to true; otherwise set it to false and use your own knowledge. ' +
-      'Some questions may include an image — analyse it carefully. ' +
-      'Respond ONLY with a JSON array. ' +
-      'Be fully deterministic: given the same question and source material, always give the same answer.'
+    ? (strictSourceCheck
+        ? CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION
+        : 'You are a medical/academic expert. Reference source material is provided (text and/or images/PDFs). ' +
+          'For each question, answer based on the source. ' +
+          'If the answer is clearly found in the source, set found_in_source to true; otherwise set it to false and use your own knowledge. ' +
+          'Some questions may include an image — analyse it carefully. ' +
+          'Respond ONLY with a JSON array. ' +
+          'Be fully deterministic: given the same question and source material, always give the same answer.')
     : 'You are a medical/academic expert. Answer each question using your expert knowledge. ' +
       'Since no source is provided, set found_in_source to false for all. ' +
       'Some questions may include an image — analyse it carefully. ' +
@@ -1378,7 +1423,9 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           'Respond ONLY with a JSON array (one object per question, same order) with keys:\n' +
           ' "index": the number inside [index:N]\n' +
           ' "answer": the correct option letter (e.g. "A")\n' +
-          ' "found_in_source": true if the answer was clearly found in the provided source material, false if you used your own knowledge\n' +
+          (strictSourceCheck
+            ? ' "found_in_source": true ONLY if this exact question is directly and specifically answerable from the provided source material (a specific passage/figure/table you could point to) — false for ANY other case, including same-topic-but-not-this-question, partial matches, or anything requiring outside knowledge to complete\n'
+            : ' "found_in_source": true if the answer was clearly found in the provided source material, false if you used your own knowledge\n') +
           'No explanation, no preamble, no markdown.'
   };
 
@@ -1739,7 +1786,12 @@ async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statu
   const answersBefore = new Map(allIdxs.map(i => [i, questions[i].answer]));
 
   const progressTarget = statusEl || createSilentStatusStub();
-  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, progressTarget, cancelToken, _cqContentFilterProgressLabel);
+  // strictSourceCheck: true — this is the one call site that actually
+  // needs it. See the strictSourceCheck comment on cqAiSolveQuestions
+  // above for why: found_in_source IS the entire keep/remove decision
+  // here, so it must use CQ_STRICT_SOURCE_SYSTEM_INSTRUCTION, not the
+  // lenient AI-Solve wording.
+  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, progressTarget, cancelToken, _cqContentFilterProgressLabel, true);
 
   answersBefore.forEach((originalAnswer, i) => {
     if (questions[i]) questions[i].answer = originalAnswer;
