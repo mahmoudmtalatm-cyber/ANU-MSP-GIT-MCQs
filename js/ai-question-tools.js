@@ -356,6 +356,32 @@ function _aiToolsCaseContext(questions, q) {
    textarea in every editor. editorKey: 'cq' | 'admin' | 'customQuiz'.
    See aiSolveQuestion()/_toggleAiSourcePicker() and
    aiRefineQuestion()/_toggleAiRefineInstrPicker() further down. */
+/* Shared "how was this question answered" pill — shown next to Q<N> in
+   every editor that can run AI Solve on a question (post-extraction
+   preview, Admin editor, Custom-Quiz editor). Previously this markup only
+   existed inline inside the post-extraction preview's render loop
+   (js/ai-solve.js), so a question AI-guessed via the Admin or Custom-Quiz
+   editor's "AI Solve" (per-question or "AI Solve All") looked identical
+   to one answered correctly by hand — nothing there told you to verify
+   it. Pulling it out here so all three call it means the badge now stays
+   in sync everywhere instead of drifting if only one copy gets updated.
+   `no_answer_key` only ever gets set during extraction (see
+   js/ai-solve.js), so it's simply never true outside that preview — safe
+   to check unconditionally here rather than special-casing editorKey. */
+function _renderAiSolveStatusBadge(q) {
+  if (!q) return '';
+  if (q.ai_guessed) {
+    return `<span title="AI answered this from its own knowledge — answer was not found in the provided source. Please verify." style="background:var(--amber-pale);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-mid);"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> AI Guess</span>`;
+  }
+  if (q.ai_answered) {
+    return `<span title="AI answered this question from the provided source" style="background:var(--violet-pale);color:var(--violet-dark);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--violet-border);"><svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI-answered</span>`;
+  }
+  if (q.no_answer_key) {
+    return `<span title="No answer key found in the PDF — please set the correct answer manually" style="background:var(--unanswered-bg);color:var(--unanswered-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--amber-strong);"><svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No Key</span>`;
+  }
+  return '';
+}
+
 function _renderAiRefineTools(editorKey, i) {
   const busy = _aiToolsIsBusy(editorKey, i);
   const activeAction = _aiToolsActiveAction[_aiToolsKey(editorKey, i)];

@@ -347,6 +347,48 @@ function suiteB() {
       await ctx.cqAiSolveQuestions(questions, targetIdxs, '', [], null, { cancelled: false }, null);
       assertEqual(calls, 2, '21 questions / default 20 = 2 batches, unchanged from before this feature existed');
     });
+
+    await testAsync('"(batch N of M)" is written to statusEl on every batch, including a single-batch run (project drop #131)', async () => {
+      // A fake statusEl that only records what real DOM code would show —
+      // this is the exact regression build #131 fixes: the counter used
+      // to be hidden whenever a run fit in one batch, which is most runs
+      // (default batch size 20, most quizzes under that).
+      function makeFakeStatusEl() {
+        const el = { written: [] };
+        Object.defineProperty(el, 'innerHTML', {
+          set(v) { el.written.push(v); },
+          get() { return el.written[el.written.length - 1] || ''; }
+        });
+        el.insertAdjacentHTML = (pos, html) => { el.written.push(html); };
+        el.querySelector = () => null;
+        return el;
+      }
+
+      ctx.callGeminiWithRetry = async (url, body) => {
+        const answers = body.contents[0].parts
+          .filter(p => p.text && /^Question \d+ \[index:/.test(p.text))
+          .map(p => {
+            const m = p.text.match(/\[index:(\d+)\]/);
+            return { index: Number(m[1]), answer: 'A', found_in_source: true };
+          });
+        return { candidates: [{ content: { parts: [{ text: JSON.stringify(answers) }] } }] };
+      };
+
+      // Single-batch run (5 questions, well under the default 20).
+      const smallEl = makeFakeStatusEl();
+      const smallQuestions = makeQuestions(5);
+      await ctx.cqAiSolveQuestions(smallQuestions, smallQuestions.map((_, i) => i), '', [], smallEl, { cancelled: false });
+      assert(smallEl.written.some(w => /\(batch 1 of 1\)/.test(w)),
+        'a single-batch run should still show "(batch 1 of 1)", not hide the counter');
+
+      // Multi-batch run (45 questions -> 3 batches of 20/20/5).
+      const bigEl = makeFakeStatusEl();
+      const bigQuestions = makeQuestions(45);
+      await ctx.cqAiSolveQuestions(bigQuestions, bigQuestions.map((_, i) => i), '', [], bigEl, { cancelled: false });
+      ['(batch 1 of 3)', '(batch 2 of 3)', '(batch 3 of 3)'].forEach(marker => {
+        assert(bigEl.written.some(w => w.includes(marker)), `multi-batch run should show "${marker}"`);
+      });
+    });
   })();
 }
 
@@ -685,6 +727,57 @@ function suiteF() {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// SUITE G — _renderAiSolveStatusBadge (shared AI Guess/AI-answered/No Key
+// pill) — project drop #131. Previously this markup only existed inline
+// inside the post-extraction preview's render loop (js/ai-solve.js), so
+// the Admin and Custom-Quiz editors (js/quiz-editor.js) never showed it
+// at all. Now all three call the same shared helper (js/ai-question-
+// tools.js) — this suite checks the helper itself renders correctly for
+// every question state, and that both quiz-editor.js render functions
+// actually call it.
+// ═════════════════════════════════════════════════════════════════════
+function suiteG() {
+  console.log('\n== Suite G: _renderAiSolveStatusBadge (shared across all editors) ==');
+  const sandbox = makeSandbox();
+  const ctx = vm.createContext(sandbox);
+  loadInto(ctx, 'ai-question-tools.js');
+
+  test('ai_guessed renders the amber "AI Guess" pill', () => {
+    const html = ctx._renderAiSolveStatusBadge({ ai_guessed: true, ai_answered: true });
+    assert(html.includes('AI Guess'), 'should show "AI Guess"');
+    assert(!html.includes('AI-answered'), 'ai_guessed should take priority over ai_answered');
+  });
+
+  test('ai_answered (without ai_guessed) renders the violet "AI-answered" pill', () => {
+    const html = ctx._renderAiSolveStatusBadge({ ai_answered: true });
+    assert(html.includes('AI-answered'), 'should show "AI-answered"');
+  });
+
+  test('no_answer_key (with neither AI flag) renders the "No Key" pill', () => {
+    const html = ctx._renderAiSolveStatusBadge({ no_answer_key: true });
+    assert(html.includes('No Key'), 'should show "No Key"');
+  });
+
+  test('a plain manually-answered question renders nothing', () => {
+    assertEqual(ctx._renderAiSolveStatusBadge({ answer: 'A' }), '', 'no badge for an ordinary question');
+    assertEqual(ctx._renderAiSolveStatusBadge(null), '', 'no badge for a missing question');
+  });
+
+  test('the post-extraction preview, Admin editor, and Custom-Quiz editor all call the shared helper', () => {
+    const files = ['ai-solve.js', 'quiz-editor.js'];
+    let totalCalls = 0;
+    files.forEach(f => {
+      const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+      const matches = src.match(/_renderAiSolveStatusBadge\(q\)/g) || [];
+      totalCalls += matches.length;
+    });
+    // One call site in ai-solve.js (cq preview), two in quiz-editor.js
+    // (Admin + Custom-Quiz) — three total across the app.
+    assertEqual(totalCalls, 3, 'expected exactly 3 call sites (cq preview, Admin editor, Custom-Quiz editor)');
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════
 (async () => {
   await suiteA();
   await suiteB();
@@ -692,6 +785,7 @@ function suiteF() {
   await suiteD();
   await suiteE();
   suiteF();
+  suiteG();
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) {

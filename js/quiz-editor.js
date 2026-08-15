@@ -37,6 +37,7 @@ function renderAdminQuestionEditor(containerId) {
     html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
+      ${_renderAiSolveStatusBadge(q)}
       ${_renderMergeSourceBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
       ${_renderReorderButtons('admin', i, adminEditQuestions.length)}
@@ -407,6 +408,7 @@ function renderCustomQuizEditor() {
     html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
       <span style="background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;
         border-radius:20px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">Q${i + 1}</span>
+      ${_renderAiSolveStatusBadge(q)}
       ${_renderMergeSourceBadge(q)}
       <span style="flex:1;font-size:.75rem;font-weight:700;color:var(--text-muted);">Question Text</span>
       ${_renderReorderButtons('customQuiz', i, cqEditQuestions.length)}

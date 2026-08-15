@@ -824,6 +824,51 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **131 — AI Solve's "(batch N of M)" progress counter no longer hides
+  itself on the common case (a run that fits in one batch), and the
+  "AI Guess"/"AI-answered"/"No Key" pill now shows in every editor, not
+  just the post-extraction preview.**
+  - **Batch counter now always visible:** `cqAiSolveQuestions()`
+    (`js/gemini-uploads.js`) previously only wrote "(batch N of M)" into
+    the status box when a run actually split into more than one Gemini
+    request — since the default batch size is 20 and most quizzes have
+    fewer questions than that, in practice the counter almost never
+    appeared, in the post-extraction preview, the Admin editor, or the
+    Custom-Quiz editor alike (they all share this one engine). It now
+    always shows "(batch N of M)", even for a single-batch run — e.g.
+    "(batch 1 of 1)" — matching how Fill Choices/Refine Questions
+    already always show a running "(N of M)" count regardless of size.
+    The same wording — "batch N of M" instead of a vague "this batch" —
+    now also appears consistently in the pause and rate-limit-retry
+    banners that can interrupt a run mid-batch. `CQ_SOLVE_PROGRESS_LABEL`
+    and `_cqContentFilterProgressLabel()`'s now-unused `single(n)`
+    wording variant (only ever shown for the single-batch case this
+    removes) was dropped along with it.
+  - **Shared "how was this answered" badge:** the pill shown next to
+    each question's header — amber "AI Guess" (answered from the AI's
+    own knowledge, not the source — please verify), violet
+    "AI-answered" (answered from the provided source), or "No Key" (no
+    answer key found during extraction) — previously only existed
+    inline inside the post-extraction preview's render loop
+    (`js/ai-solve.js`). Running AI Solve (per-question or "AI Solve
+    All") in the Admin or Custom-Quiz editor (`js/quiz-editor.js`) set
+    `ai_answered`/`ai_guessed` on the question exactly the same way, but
+    neither editor ever rendered anything to show it — an AI guess sat
+    there looking identical to a manually-verified answer. Pulled the
+    badge out into one shared `_renderAiSolveStatusBadge(q)`
+    (`js/ai-question-tools.js`, loaded before both files that call it)
+    that all three editors now call from the same spot in their
+    question-header row, so the badge — and any future change to it —
+    stays in sync across all three instead of only ever living in one
+    copy.
+  - Tests: `tests/run-tests.js` Suite B gained a test asserting
+    "(batch N of M)" is written to `statusEl` on every batch of a run,
+    including a single-batch one — the exact regression this build
+    fixes. A new Suite G covers `_renderAiSolveStatusBadge()` directly
+    (every question state: AI Guess, AI-answered, No Key, plain/none)
+    and confirms exactly 3 call sites exist across `ai-solve.js` and
+    `quiz-editor.js` (cq preview, Admin editor, Custom-Quiz editor).
+    36/36 passing.
 - **130 — Content Filter's source + config are one collapsible "Content
   Filter settings" menu (collapsed by default), and every bulk-tool
   options panel now survives re-renders instead of silently collapsing.**

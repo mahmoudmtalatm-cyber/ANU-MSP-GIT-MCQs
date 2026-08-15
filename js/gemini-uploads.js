@@ -1300,10 +1300,16 @@ function cqRemoveFilterSourceFile(idx) {
 // cqRunContentFilterPass below) can pass their own `progressLabel` so the
 // SAME batch-by-batch progress bar reads correctly for what they're
 // actually doing, instead of describing this engine's internals.
+// Always paired with "(batch N of M)" below — see the statusEl write in
+// the loop — so the batch counter is visible on every run, not just ones
+// that happen to split into more than one request. It's genuinely useful
+// even at "batch 1 of 1": it's the same running total Fill Choices/Refine
+// Questions already show ("question N of M"), and a run that's silently
+// stuck partway through a single batch looks identical to one that's
+// still starting up unless the counter is always on screen.
 const CQ_SOLVE_PROGRESS_LABEL = {
   icon: '<svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg>',
-  multi: 'AI is solving questions…',
-  single: n => `AI is solving ${n} question${n !== 1 ? 's' : ''}…`
+  multi: 'AI is solving questions…'
 };
 
 // General-purpose AI solver: solves questions at given indices using Gemini.
@@ -1311,8 +1317,8 @@ const CQ_SOLVE_PROGRESS_LABEL = {
 // sourceText: optional reference text
 // sourceFiles: optional array of {file, mimeType, name}
 // onlyIfNoKey: if true, only process questions with no_answer_key (legacy behaviour)
-// progressLabel: optional { icon, multi, single(n) } — see CQ_SOLVE_PROGRESS_LABEL
-// above and _cqContentFilterProgressLabel() in cqRunContentFilterPass for the
+// progressLabel: optional { icon, multi } — see CQ_SOLVE_PROGRESS_LABEL above
+// and _cqContentFilterProgressLabel() in cqRunContentFilterPass for the
 // wording swap that lets Content Filter reuse this same batch progress bar.
 // chunkSize: optional — questions sent to Gemini per request (default 20,
 // see CHUNK_SIZE below). Content Filter's config menu (js/ai-features.js,
@@ -1411,9 +1417,10 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
     const chunk = chunks[ci];
 
     if (statusEl) {
-      const batchText = chunks.length > 1
-        ? `${label.icon} ${label.multi} (batch ${ci + 1} of ${chunks.length})`
-        : `${label.icon} ${label.single(chunk.length)}`;
+      // Always shows "(batch N of M)", even when there's only one batch —
+      // see the comment on CQ_SOLVE_PROGRESS_LABEL above for why this no
+      // longer hides the counter for the single-batch case.
+      const batchText = `${label.icon} ${label.multi} (batch ${ci + 1} of ${chunks.length})`;
       statusEl.innerHTML = _cqProgressStatusHTML(batchText, (ci / chunks.length) * 100);
     }
 
@@ -1508,14 +1515,14 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           cqCancelToken = { cancelled: false }; // old token is permanently cancelled — start fresh
           cancelToken = cqCancelToken;
           apiKey = (await _cqEnterPause(statusEl,
-            `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before ${chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : 'this batch'} so nothing already done is lost. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`)) || apiKey;
+            `<svg class="sicon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Paused — stepped back to before batch ${ci + 1} of ${chunks.length} so nothing already done is lost. Open <svg class="sicon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Manage APIs to switch keys, then press <svg class="sicon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume to continue.`)) || apiKey;
           ci--; // retry this same batch once resumed
           continue;
         }
         break; // user stopped — not an error, just stop here
       }
       if (e._rateLimitPauseFallback) {
-        apiKey = await cqFallbackPauseForRateLimit(statusEl, chunks.length > 1 ? `batch ${ci + 1} of ${chunks.length}` : null);
+        apiKey = await cqFallbackPauseForRateLimit(statusEl, `batch ${ci + 1} of ${chunks.length}`);
         ci--; // retry this same batch (not counted as an error) once resumed
         continue;
       }
@@ -1735,8 +1742,7 @@ function _cqContentFilterProgressLabel(passNum, totalPasses) {
   const prefix = passNum ? `Pass ${passNum}${totalPasses ? ` of ${totalPasses}` : ''} — ` : '';
   return {
     icon: '<svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
-    multi: `${prefix}Checking questions against the source…`,
-    single: n => `${prefix}Checking ${n} question${n !== 1 ? 's' : ''} against the source…`
+    multi: `${prefix}Checking questions against the source…`
   };
 }
 
