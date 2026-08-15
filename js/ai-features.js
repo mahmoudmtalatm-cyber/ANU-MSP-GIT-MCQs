@@ -2138,53 +2138,28 @@ async function _editorBulkAiSolve(editorKey) {
   }
 }
 
-/* Small pill flagging a question Content Filter couldn't confidently
-   resolve either way after repeated retries — see cqRunContentFilterPass
-   in js/gemini-uploads.js (changelog #131) for how a question ends up
-   here: only ones that stayed genuinely "uncertain" round after round,
-   never a confident reject (those are deleted, not flagged) or a
-   confident keep (those get no badge at all). Deliberately a distinct
-   rose/pink color (--review-*, css/styles.css) rather than reusing the
-   amber "AI Guess" badge — this means something different: "the AI
-   couldn't decide even after several tries," not "the AI guessed once."
-   Purely informational; nothing here clears the flag automatically —
-   editing, re-running Content Filter, or deleting the question are the
-   ways to resolve it. */
-function _renderContentFilterReviewBadge(q) {
-  if (!q || !q.content_filter_flagged) return '';
-  return `<span title="Content Filter couldn't confidently confirm or rule this out after several tries — please check it against the source by hand"
-      style="background:var(--review-pale);color:var(--review-fg);font-size:.68rem;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1.5px solid var(--review-border-strong);"><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Needs Review</span>`;
-}
-
-/* ── Content Filter — bulk pass that removes any question the AI is
-   CONFIDENT it can only answer from its own knowledge, not from the
-   required reference source, and gives genuinely borderline calls
-   repeated second looks before giving up on them (see changelog #131).
+/* ── Content Filter — bulk pass that removes any question the AI can only
+   answer from its own knowledge, not from the required reference source.
    Deliberately layered on top of AI Solve All's own engine
    (cqAiSolveQuestions) rather than a separate answer-checking
    implementation, since "was this question's answer found in the
    source" is exactly what that engine already reports per question via
-   its strict-mode source_verdict/ai_guessed/ai_uncertain — Content
-   Filter just acts on that result instead of only recording it. A
-   question also gets its answer double-checked against the source in
-   the process, same as an AI Solve All pass would do, since that's an
-   unavoidable side effect of asking the same question — but that answer
-   is discarded, never applied (see cqRunContentFilterPass). Requires at
-   least one reference-source file, unlike AI Solve All — an "AI's own
-   knowledge" fallback here would make this indistinguishable from a
-   pass that filters out nothing.
+   found_in_source/ai_guessed — Content Filter just acts on that result
+   instead of only recording it. A survivor also gets its answer
+   double-checked against the source in the process, same as an AI Solve
+   All pass would do, since that's an unavoidable side effect of asking
+   the same question. Requires at least one reference-source file, unlike
+   AI Solve All — an "AI's own knowledge" fallback here would make this
+   indistinguishable from a pass that filters out nothing.
 
    Shows the same live "(batch N of M)" progress bar Solve All does —
    cqRunContentFilterPass re-words cqAiSolveQuestions' own per-batch text
-   to "Checking questions against the source…" for round 1 and
-   "Re-checking questions still in doubt (round N)…" for every retry
-   round (see _cqContentFilterProgressLabel/_cqContentFilterRoundLabel in
-   js/gemini-uploads.js) — and no ai_answered/ai_guessed/ai_uncertain is
-   left behind on any question once the whole pass finishes. A question
-   either made it through cleanly (no badge), got permanently removed
-   (confident reject), or — if it stayed genuinely uncertain through
-   every retry — gets `content_filter_flagged` and the "Needs Review"
-   badge above instead of being deleted on unresolved doubt. ── */
+   to "Checking questions against the source…" instead of hiding it (see
+   _cqContentFilterProgressLabel in js/gemini-uploads.js) — and neither
+   ai_answered nor ai_guessed is left behind on a surviving question — a
+   question either made it through the filter or it didn't, so there's
+   nothing about how each one was scored left for a stray "AI-answered"/
+   "AI Guess" badge to advertise afterward. ── */
 async function _editorBulkContentFilter(editorKey) {
   const ctx = _editorBulkGuard(editorKey);
   if (!ctx) return;
@@ -2211,10 +2186,10 @@ async function _editorBulkContentFilter(editorKey) {
     // shared with the pre-extraction "Content Filter (AI)" toggle so it
     // only exists in one place. Passing statusEl through gives this the
     // same live "(batch N of M)" progress bar Solve All shows.
-    const { removed, remaining, needsReview } = await cqRunContentFilterPass(questions, sourceFiles, token, statusEl);
+    const { removed, remaining } = await cqRunContentFilterPass(questions, sourceFiles, token, statusEl);
     finalHtml = token.cancelled
       ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Content Filter stopped${removed ? ` — ${removed} question${removed !== 1 ? 's' : ''} already removed before stopping` : ''}.</div>`
-      : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Content Filter finished — ${removed} question${removed !== 1 ? 's' : ''} removed, ${remaining} remain${remaining === 1 ? 's' : ''}${needsReview ? `, ${needsReview} flagged "Needs Review" (moved to the end)` : ''}.</div>`;
+      : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Content Filter finished — ${removed} question${removed !== 1 ? 's' : ''} removed, ${remaining} remain${remaining === 1 ? 's' : ''}.</div>`;
   } catch (e) {
     finalHtml = _aiToolsErrorHTML(e.message || 'Content Filter failed.');
   } finally {
