@@ -885,6 +885,11 @@ function renderCustomQuizModal() {
             </div>
           </label>
         </div>
+        <div style="margin:9px 0 0 8px;padding-left:14px;border-left:2.5px solid var(--violet-border);">
+          <div class="cq-batch-config">
+            ${_renderBatchSizeConfigHTML('cqAnswerBatchSizeInput', 'cqAnswerBatchSize', cqAnswerBatchSize, 20)}
+          </div>
+        </div>
         ` : ''}
       </div>
 
@@ -1000,7 +1005,7 @@ function renderCustomQuizModal() {
           </div>
           <input type="file" id="cqFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;"
             onchange="handleCqFilterSourceFileSelect(event)" />
-          <details class="cq-bulk-ai-opts" style="margin-top:9px;">
+          <details class="cq-bulk-ai-opts" style="margin-top:9px;" open>
             <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter config</summary>
             <div style="margin-top:8px;">
               ${_renderCqFilterPassesConfigHTML('renderCustomQuizModal()')}

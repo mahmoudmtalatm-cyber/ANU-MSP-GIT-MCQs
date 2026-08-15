@@ -479,9 +479,13 @@ async function _extractQuestionsFromFile(file, apiKey, onProgress) {
     // abort an in-flight image-extraction request too, and lets a run of
     // consecutive 429s fall back into the same pause/resume UI instead of
     // retrying silently in the background (see getBoundingBoxes's doc
-    // comment in gemini-uploads.js).
+    // comment in gemini-uploads.js). cqImageBatchSize (js/ai-features.js)
+    // is the SAME global the post-extraction "Re-extract Missing Images"
+    // bulk tool's config exposes — sharing it here means tuning it once
+    // applies consistently to both the initial extraction and any later
+    // re-extract pass, rather than needing to be set twice.
     await extractImagesForQuestions(cleaned, file, apiKey, filePart, undefined, cqCancelToken,
-      () => cqPauseRequested);
+      () => cqPauseRequested, cqImageBatchSize);
   }
 
   report(1, `Finished "${escapeHtml(file.name)}"`);
@@ -584,11 +588,14 @@ async function generateQuizFromAI() {
       // Solve ALL questions (including those with existing keys)
       const allIdxs = cleaned.map((_, i) => i);
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is solving all ${cleaned.length} question${cleaned.length !== 1 ? 's' : ''}… please wait.</div>`;
-      await cqAiSolveQuestions(cleaned, allIdxs, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
+      // cqAnswerBatchSize (js/ai-features.js) — this toggle's own
+      // batch-size config, shared by both submodes since they're the same
+      // underlying "AI Answering" step from the user's point of view.
+      await cqAiSolveQuestions(cleaned, allIdxs, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken, null, cqAnswerBatchSize);
     } else if (cqAiAnsweringEnabled && cqAiAnswerSubmode === 'missing' && noKeyQs.length > 0) {
       // Solve only no-key questions
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI is answering ${noKeyQs.length} question${noKeyQs.length !== 1 ? 's' : ''} without an answer key… please wait.</div>`;
-      await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken);
+      await cqAiAnswerMissingKeys(cleaned, cqAiAnswerSource.trim(), cqAiSourceFiles, statusEl, cqCancelToken, cqAnswerBatchSize);
     }
 
     // ── Content Filter — runs right after Solve/Answer (if any) and

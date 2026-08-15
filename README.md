@@ -824,6 +824,45 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **129 — Every batch-using AI tool gets its own batch-size config (not
+  just Content Filter), each defaulting to whatever that tool already
+  used before this setting existed; Micro Filter no longer collapses its
+  own config menu when toggled.**
+  - **Per-tool batch size:** `js/ai-features.js` now has four independent
+    globals instead of Content Filter's `cqFilterBatchSize` being the
+    only one — `cqAnswerBatchSize` (pre-extraction "AI Answering," both
+    its "all" and "missing key" submodes), `cqSolveAllBatchSize`
+    (post-extraction "AI Solve All" bulk tool), and `cqImageBatchSize`
+    (post-extraction "Re-extract Missing Images," which shares its
+    setting with image extraction during the initial "Generate Quiz"
+    step — same underlying `extractImagesForQuestions` call). Each
+    defaults to exactly what that feature's own hardcoded batch size
+    already was — 20 for the three `cqAiSolveQuestions`-based tools, 15
+    for the image ones (`GEMINI_BOUNDING_BOX_BATCH_SIZE`) — so this
+    setting existing at all changes nothing until someone actually
+    touches it. A single shared `_renderBatchSizeConfigHTML()` renders
+    every one of the four config rows (a number input plus a plain-
+    language trade-off hint), so the four can't visually drift apart.
+    `cqAiAnswerMissingKeys()` and `extractImagesForQuestions()` /
+    `cqBulkReextractMissingImages()` (all `js/gemini-uploads.js`) now
+    also take an optional trailing `batchSize`/`chunkSize` argument, same
+    pattern as `cqAiSolveQuestions()` got in #128.
+  - **Micro Filter no longer collapses its config panel:** the `<details>`
+    wrapping the Content Filter config menu, in both places it's shown
+    (`js/firebase-storage.js`'s pre-extraction toggle and
+    `_renderBulkContentFilterToolHTML`'s post-extraction bulk tool,
+    `js/ai-features.js`), is now unconditionally `open` rather than
+    reflecting any state. Toggling Micro Filter still has to trigger a
+    full rerender of the panel (it visually enables/disables the Passes
+    input above it), but that rerender rebuilds the `<details>` open
+    every time now, instead of collapsing back to closed the way a plain
+    `<details>` re-render otherwise would.
+  - Tests: `tests/run-tests.js` gained coverage for all of the above —
+    each tool's independent default, `chunkSize`/`batchSize` forwarding
+    for the two newly-parameterized functions, and a source-level check
+    that both Content Filter config `<details>` tags carry a literal
+    `open` attribute rather than one computed from Micro Filter's state.
+    27/27 passing.
 - **128 — Content Filter gets a config menu (multi-pass, "Micro Filter",
   batch size), is now marked BETA everywhere it appears, and no longer
   destroys a case group's shared context when it removes the question
@@ -892,6 +931,17 @@ change (see the filename of whichever zip you're reading from).
     `_cqNormalizeCaseGroups()` sweep once a pass finishes removing
     anything, repairing any parent link left dangling by processing order
     and dissolving any group a removal shrank down to a single member.
+  - **Local tests:** `tests/run-tests.js` — a dependency-free Node script
+    (`node tests/run-tests.js`) covering all of the above: the multi-pass
+    loop's stopping/cancellation/batch-size-forwarding behavior,
+    `cqAiSolveQuestions()`'s configurable batch size, and the
+    context-preserving promotion logic across single-level, mid-tree,
+    and 3-level-deep case group scenarios, plus one end-to-end run
+    through the real `cqRunContentFilterPass()`. Loads the real source
+    files into a sandboxed `vm` context with minimal DOM/localStorage
+    stand-ins rather than mocking the logic under test itself; the one
+    real network call (`callGeminiWithRetry`) is swapped for a small
+    in-memory fake per test. 20/20 passing.
 - **127 — Two fixes: a real data-loss bug where saving a custom quiz could
   silently delete OTHER custom quizzes on a race, and Custom
   Quizzes/Stats/Retake still rendering empty on open right after a page

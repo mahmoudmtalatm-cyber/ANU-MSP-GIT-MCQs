@@ -1432,13 +1432,46 @@ let cqFilterSourceFiles = []; // required source images/PDFs for Content Filter 
 // — render from these same globals.)
 let cqFilterPasses = 1; // how many passes to run; a pass that changes nothing ends the run early regardless of this number
 let cqFilterMicroToggle = false; // "Micro Filter" — ignore cqFilterPasses, keep passing until a full pass removes nothing; user can stop anytime and keep the last completed pass's result
-let cqFilterBatchSize = 20; // questions sent to Gemini per request for every Content Filter pass
+let cqFilterBatchSize = 20; // questions sent to Gemini per request for every Content Filter pass — the default here matches CHUNK_SIZE's own default in cqAiSolveQuestions (js/gemini-uploads.js), i.e. this setting existing at all doesn't change current behavior until someone actually touches it
+
+// The other three batch-using AI tools each get their own independent
+// batch-size setting too (see the "batch config" work this and
+// cqFilterBatchSize above are both part of) — deliberately separate
+// globals rather than one shared value, since these are genuinely
+// different features/pipeline steps a user may want tuned differently.
+// Every default below is exactly whatever that feature already used
+// before this setting existed, so leaving it untouched changes nothing.
+let cqAnswerBatchSize = 20; // pre-extraction "AI Answering" (js/firebase-storage.js) — both its "all" and "missing key" submodes, forwarded in js/ai-solve.js
+let cqSolveAllBatchSize = 20; // post-extraction "AI Solve All" bulk tool (_editorBulkAiSolve below)
+let cqImageBatchSize = 15; // post-extraction "Re-extract Missing Images" bulk tool — image-bearing questions per request (matches GEMINI_BOUNDING_BOX_BATCH_SIZE's own default, js/gemini-uploads.js)
 
 // Small reusable "BETA" badge — Content Filter is still under test, so
 // every place its button/toggle is labeled gets this appended, making
 // that visible without a one-off note at each call site.
 function _betaBadgeHTML() {
   return '<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:8px;background:#FFF3CD;color:#8A6D00;font-size:.62rem;font-weight:800;letter-spacing:.4px;vertical-align:middle;">BETA</span>';
+}
+
+// Shared single-row batch-size control — used by all four batch-using AI
+// tools' config menus (Content Filter, AI Answering, AI Solve All,
+// Re-extract Missing Images). `inputId` must be unique per render (some
+// of these panels can render more than once, e.g. once per editor
+// instance) so its oninput handler and label's `for` stay correctly
+// paired. `globalVarName` is the literal global variable name to update
+// (e.g. "cqSolveAllBatchSize") — passed as a string since this is built
+// once as an HTML string, not bound live to a JS reference. `defaultVal`
+// is only used for the fallback if the field is ever cleared/invalid and
+// for the hint text below — it does NOT reset the global on every
+// render; whatever the global currently holds is what's shown.
+function _renderBatchSizeConfigHTML(inputId, globalVarName, currentVal, defaultVal, extraHint) {
+  return `
+    <div class="cq-batch-config-row">
+      <label for="${inputId}">Batch size</label>
+      <input type="number" id="${inputId}" min="1" max="50" step="1"
+        value="${currentVal}"
+        oninput="${globalVarName} = Math.min(50, Math.max(1, parseInt(this.value, 10) || ${defaultVal}));" />
+      <span class="cq-batch-config-hint">Questions checked per AI request. Higher = fewer requests and faster overall; lower = smaller, safer requests with less risk of a batch failing or getting cut off. ${defaultVal} is the current default.${extraHint ? ' ' + extraHint : ''}</span>
+    </div>`;
 }
 
 // Content Filter's config menu — shared by both places Content Filter
@@ -1456,7 +1489,11 @@ function _betaBadgeHTML() {
 // on-screen element that needs to reflect it live, so no targeted patch
 // is needed either. Micro Filter is a discrete click, not continuous
 // typing, so a full rerender there is fine — and necessary, since it
-// visually enables/disables the Passes input above.
+// visually enables/disables the Passes input above. That rerender DOES
+// mean this whole config menu gets rebuilt from this function's HTML
+// string, though — the enclosing <details> below is therefore always
+// rendered `open`, never conditionally, so toggling Micro Filter can
+// never visibly collapse a panel the user had open a moment ago.
 //
 // `rerenderCall` is the literal JS the Micro Filter toggle calls
 // afterward to redraw whichever screen is hosting this panel (e.g.
@@ -1467,15 +1504,15 @@ function _betaBadgeHTML() {
 function _renderCqFilterPassesConfigHTML(rerenderCall) {
   const micro = cqFilterMicroToggle;
   return `
-    <div class="cq-filter-config">
-      <div class="cq-filter-config-row">
+    <div class="cq-batch-config">
+      <div class="cq-batch-config-row">
         <label for="cqFilterPassesInput">Passes</label>
         <input type="number" id="cqFilterPassesInput" min="1" max="20" step="1"
           value="${cqFilterPasses}" ${micro ? 'disabled' : ''}
           oninput="cqFilterPasses = Math.max(1, parseInt(this.value, 10) || 1);" />
-        <span class="cq-filter-config-hint">Re-checks whatever survives each pass against the source again. A pass that changes nothing ends the run early even if more were requested — raise this to be more thorough, at the cost of more AI calls.</span>
+        <span class="cq-batch-config-hint">Re-checks whatever survives each pass against the source again. A pass that changes nothing ends the run early even if more were requested — raise this to be more thorough, at the cost of more AI calls.</span>
       </div>
-      <div class="cq-filter-config-row cq-filter-config-toggle-row">
+      <div class="cq-batch-config-row cq-batch-config-toggle-row">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;">
           <div style="position:relative;width:36px;height:20px;flex-shrink:0;">
             <input type="checkbox" ${micro ? 'checked' : ''}
@@ -1486,15 +1523,9 @@ function _renderCqFilterPassesConfigHTML(rerenderCall) {
           </div>
           <span style="font-weight:700;">Micro Filter</span>
         </label>
-        <span class="cq-filter-config-hint">Ignores Passes above and keeps filtering until a full pass removes nothing — the most thorough option, but can take a while. Stop it anytime and keep the last completed pass's result.</span>
+        <span class="cq-batch-config-hint">Ignores Passes above and keeps filtering until a full pass removes nothing — the most thorough option, but can take a while. Stop it anytime and keep the last completed pass's result.</span>
       </div>
-      <div class="cq-filter-config-row">
-        <label for="cqFilterBatchSizeInput">Batch size</label>
-        <input type="number" id="cqFilterBatchSizeInput" min="5" max="50" step="1"
-          value="${cqFilterBatchSize}"
-          oninput="cqFilterBatchSize = Math.min(50, Math.max(5, parseInt(this.value, 10) || 20));" />
-        <span class="cq-filter-config-hint">Questions checked per AI request. Higher = fewer requests and faster overall; lower = smaller, safer requests with less risk of a batch failing or getting cut off. 20 is a good default.</span>
-      </div>
+      ${_renderBatchSizeConfigHTML('cqFilterBatchSizeInput', 'cqFilterBatchSize', cqFilterBatchSize, 20)}
     </div>`;
 }
 
@@ -1970,6 +2001,9 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
           <input type="file" id="${editorKey}BulkSolveSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
             onchange="_editorBulkSourceFileSelect('${editorKey}', 'Solve', this)">
           <div class="cq-bulk-ai-scope">Used only by <svg class="sicon" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13.5" r="1"/><circle cx="15" cy="13.5" r="1"/><path d="M9 17h6M12 8V4M2 12v4M22 12v4"/></svg> AI Solve All — no effect on Fill Choices, Refine Questions, or Content Filter. Any source added here is also selectable per-question (as "Editor bulk source").</div>
+          <div class="cq-batch-config" style="margin-top:10px;">
+            ${_renderBatchSizeConfigHTML(`${editorKey}SolveBatchSizeInput`, 'cqSolveAllBatchSize', cqSolveAllBatchSize, 20)}
+          </div>
         </div>
       </details>
     </div>
@@ -2070,7 +2104,7 @@ function _renderBulkContentFilterToolHTML(editorKey, busy, activeTool) {
           <div class="cq-bulk-ai-scope">${files.length ? '' : '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Content Filter won\'t run until at least one file is uploaded here. '}Used only by <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter — separate from AI Solve All's source above, and has no effect on Fill Choices or Refine Questions.</div>
         </div>
       </details>
-      <details class="cq-bulk-ai-opts">
+      <details class="cq-bulk-ai-opts" open>
         <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter config</summary>
         <div style="margin-top:8px;">
           ${_renderCqFilterPassesConfigHTML(`_caseGroupEditors['${editorKey}'].rerender()`)}
@@ -2100,8 +2134,14 @@ function _renderBulkReextractToolHTML(editorKey, questions, busy, activeTool) {
         <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkReextractStopBtn"
           style="${busy && activeTool === 'Reextract' ? 'display:inline-block;' : ''}"
           title="Stop Re-extract Missing Images" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
-        <span class="cq-bulk-ai-no-opts">Retries only questions flagged with an image that never got extracted — grouped and requested per source file, same batching as extraction itself.</span>
+        <span class="cq-bulk-ai-no-opts">Retries only questions flagged with an image that never got extracted — grouped and requested per source file.</span>
       </div>
+      <details class="cq-bulk-ai-opts">
+        <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Re-extract settings</summary>
+        <div class="cq-batch-config" style="margin-top:8px;">
+          ${_renderBatchSizeConfigHTML(`${editorKey}ReextractBatchSizeInput`, 'cqImageBatchSize', cqImageBatchSize, 15, '(Also used by image extraction during the initial "Generate Quiz" step — this is the same setting.)')}
+        </div>
+      </details>
     </div>`;
 }
 
@@ -2215,7 +2255,9 @@ async function _editorBulkAiSolve(editorKey) {
   try {
     const sourceFiles = _editorBulkAiSourceFiles[editorKey] || [];
     const allIdxs = questions.map((q, i) => i).filter(i => questions[i] && questions[i].question && questions[i].question.trim());
-    await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, statusEl, token);
+    // cqSolveAllBatchSize (js/ai-features.js) — this tool's own batch-size
+    // config, see the "AI Solve settings" panel below.
+    await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, statusEl, token, null, cqSolveAllBatchSize);
     finalHtml = token.cancelled
       ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> AI Solve stopped.</div>`
       : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> AI Solve finished — ${allIdxs.length} question${allIdxs.length !== 1 ? 's' : ''} checked.</div>`;
@@ -2389,7 +2431,9 @@ async function _editorBulkReextractImages(editorKey) {
   statusEl.innerHTML = _cqProgressStatusHTML('<svg class="sicon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Re-extracting missing images…', 0);
   let finalHtml;
   try {
-    const { done, errors, skipped } = await cqBulkReextractMissingImages(questions, statusEl, token);
+    // cqImageBatchSize (js/ai-features.js) — this tool's own batch-size
+    // config, see its "Re-extract settings" panel below.
+    const { done, errors, skipped } = await cqBulkReextractMissingImages(questions, statusEl, token, cqImageBatchSize);
     finalHtml = token.cancelled
       ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Re-extract Missing Images stopped — recovered ${done} image${done !== 1 ? 's' : ''} so far.</div>`
       : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Re-extract Missing Images finished — recovered ${done} image${done !== 1 ? 's' : ''}.</div>`;
@@ -2780,7 +2824,7 @@ function _caseGroupOnQuestionDeleted(questions, deletedQuestion) {
     const promoted = children[0];
     _caseGroupMergeContext(promoted, deletedQuestion);
     promoted.case_is_core = !!deletedQuestion.case_is_core;
-    promoted.case_parent_id = deletedQuestion.case_is_core ? null : deletedQuestion.case_parent_id;
+    promoted.case_parent_id = deletedQuestion.case_is_core ? null : (deletedQuestion.case_parent_id || null);
     // Re-home every OTHER direct child of the deleted question onto the
     // promoted one — give it a link id (lazily, only now that it's
     // actually needed) and point the remaining siblings at that, same as

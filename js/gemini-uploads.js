@@ -1097,24 +1097,27 @@ async function compressImageDataUrl(dataUrl, maxPx = 800, quality = 0.82) {
    own questions without an image; every other batch in the file is
    requested and resolved independently, so one bad or rate-limited batch
    no longer costs the whole file its images. ── */
-async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions, cancelToken, pauseCheck) {
+async function extractImagesForQuestions(questions, file, apiKey, filePart, customInstructions, cancelToken, pauseCheck, batchSize) {
   const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
   const isPdf = mimeType === 'application/pdf';
 
   // Step 1: ask Gemini for bounding boxes of image-bearing questions, in
-  // batches of GEMINI_BOUNDING_BOX_BATCH_SIZE rather than all of them in
-  // one request — see that constant's doc comment above for why. Reuse a
-  // pre-built part when given one; otherwise build it now (inline for
-  // small files, Files API upload for large ones — same size ceiling as
-  // question extraction, so this never hits Gemini's ~20MB inline cap).
-  // Built once and reused across every batch below, exactly as it would
-  // have been reused across retries of the old single request.
+  // batches of GEMINI_BOUNDING_BOX_BATCH_SIZE (or `batchSize`, if the
+  // caller overrides it — see cqImageBatchSize, js/ai-features.js) rather
+  // than all of them in one request — see that constant's doc comment
+  // above for why. Reuse a pre-built part when given one; otherwise build
+  // it now (inline for small files, Files API upload for large ones —
+  // same size ceiling as question extraction, so this never hits
+  // Gemini's ~20MB inline cap). Built once and reused across every batch
+  // below, exactly as it would have been reused across retries of the
+  // old single request.
   const part = filePart || await buildGeminiFilePart(file, apiKey, mimeType);
+  const BATCH_SIZE = Math.max(1, parseInt(batchSize, 10) || GEMINI_BOUNDING_BOX_BATCH_SIZE);
 
   const imageQuestions = questions.filter(q => q.has_image);
   let boxes = [];
-  for (let start = 0; start < imageQuestions.length; start += GEMINI_BOUNDING_BOX_BATCH_SIZE) {
-    const batch = imageQuestions.slice(start, start + GEMINI_BOUNDING_BOX_BATCH_SIZE);
+  for (let start = 0; start < imageQuestions.length; start += BATCH_SIZE) {
+    const batch = imageQuestions.slice(start, start + BATCH_SIZE);
     // getBoundingBoxes itself is best-effort per call — a batch that can't
     // ultimately be recovered (bad JSON, blocked content, etc.) resolves
     // to null rather than throwing, so it's simply skipped here and the
@@ -1532,10 +1535,13 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
   }
 }
 
-// Backward-compat wrapper used in the extraction flow for no-key questions
-async function cqAiAnswerMissingKeys(questions, sourceText, sourceFiles, statusEl, cancelToken) {
+// Backward-compat wrapper used in the extraction flow for no-key questions.
+// chunkSize: optional, forwarded straight through to cqAiSolveQuestions —
+// see cqAnswerBatchSize (js/ai-features.js), which both submodes of the
+// pre-extraction "AI Answering" toggle share (js/ai-solve.js).
+async function cqAiAnswerMissingKeys(questions, sourceText, sourceFiles, statusEl, cancelToken, chunkSize) {
   const noKeyIdxs = questions.map((q, i) => q.no_answer_key ? i : -1).filter(i => i >= 0);
-  await cqAiSolveQuestions(questions, noKeyIdxs, sourceText, sourceFiles, statusEl, cancelToken);
+  await cqAiSolveQuestions(questions, noKeyIdxs, sourceText, sourceFiles, statusEl, cancelToken, null, chunkSize);
 }
 
 /* ── Post-extraction bulk pass: Fill Choices ──
@@ -1892,7 +1898,10 @@ async function cqRunContentFilterPasses(questions, sourceFiles, cancelToken, sta
    another quiz (see _mergeCloneQuestions in community-quizzes.js), have no
    source to re-run extraction against and are counted in `skipped` rather
    than silently ignored. */
-async function cqBulkReextractMissingImages(questions, statusEl, cancelToken) {
+// batchSize: optional — image-bearing questions per bounding-box request,
+// forwarded straight through to extractImagesForQuestions (default
+// GEMINI_BOUNDING_BOX_BATCH_SIZE). See cqImageBatchSize, js/ai-features.js.
+async function cqBulkReextractMissingImages(questions, statusEl, cancelToken, batchSize) {
   const idxs = questions.map((q, i) => i).filter(i => {
     const q = questions[i];
     return q && q.has_image && !q.image && q._sourceFile && !q._notExtractable;
@@ -1933,7 +1942,7 @@ async function cqBulkReextractMissingImages(questions, statusEl, cancelToken) {
     const beforeCount = group.questions.filter(q => q.image).length;
     try {
       await extractImagesForQuestions(group.questions, group.file, apiKey, undefined, undefined,
-        cancelToken, () => cqPauseRequested);
+        cancelToken, () => cqPauseRequested, batchSize);
       const afterCount = group.questions.filter(q => q.image).length;
       done += Math.max(0, afterCount - beforeCount);
     } catch (e) {
