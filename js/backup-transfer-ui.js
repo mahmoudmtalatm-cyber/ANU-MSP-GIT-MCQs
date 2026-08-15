@@ -444,7 +444,13 @@ async function _backupRefreshAfterImport() {
   const { listCustomQuizzes, listQuizCollections } = await import('./local-store.js');
   window._cachedCustomQuizzes = await listCustomQuizzes();
   window._cachedQuizCollections = await listQuizCollections();
-  if (window._currentUser && typeof loadStatsFromFirestore === 'function') {
+  // Not gated on window._currentUser — stats live in local storage for
+  // signed-in and signed-out use alike now, same root-cause fix as
+  // js/firebase-init.js's onAuthStateChanged handler (see its comment).
+  // A signed-out user importing a backup with stats/history needs this
+  // reload too, or the Stats screen won't reflect the import until a
+  // refresh happens to land after sign-in.
+  if (typeof loadStatsFromFirestore === 'function') {
     await loadStatsFromFirestore();
   }
   if (typeof renderCustomQuizModal === 'function') renderCustomQuizModal();

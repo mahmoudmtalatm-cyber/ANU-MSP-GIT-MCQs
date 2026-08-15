@@ -1324,8 +1324,13 @@ function openStats() {
   document.getElementById('statsOverlay').classList.remove('hidden');
   _statsFlow = { year: null, module: null, openSubject: null, openOther: null };
 
-  if (window._currentUser && !window._cachedStats) {
-    // Still loading from Firestore — show spinner
+  if (!window._cachedStats) {
+    // Still loading from local storage (the onAuthStateChanged handler in
+    // js/firebase-init.js hasn't resolved yet) — show a spinner and retry
+    // shortly. Not gated on window._currentUser: stats load from local
+    // storage the same way for signed-in and signed-out use now, so a
+    // signed-out user opening Stats in the brief window before that load
+    // finishes should see this same spinner, not an empty/default state.
     document.getElementById('statsBody').innerHTML = `
       <div style="text-align:center;padding:40px;color:var(--text-muted);">
         <div style="font-size:2rem;margin-bottom:12px;"><svg viewBox="0 0 24 24" style="width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg></div>

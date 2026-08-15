@@ -824,6 +824,58 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **126 — Two fixes: closed the remaining "gated on sign-in when the data
+  actually lives in local storage now" spots left by #125, and fixed a
+  shared quiz not appearing on the Community Quizzes screen within 60
+  seconds of sharing it.**
+  - **Sign-in-gate sweep:** `_backupRefreshAfterImport()`
+    (`js/backup-transfer-ui.js`) — after importing a Backup & Transfer
+    file, custom quizzes/collections always refreshed correctly, but the
+    stats/history reload was wrapped in `if (window._currentUser && …)`,
+    so a signed-out user importing a backup that included stats wouldn't
+    see them on the Stats screen until a page refresh happened to land
+    after signing in. Now reloads unconditionally, same as the
+    quizzes/collections reload right above it. `openStats()`
+    (`js/app-core.js`) — the "still loading, show a spinner and retry
+    shortly" branch only fired `if (window._currentUser && …)`. In the
+    brief window before `firebase-init.js`'s local-storage load finishes,
+    a signed-out user opening Stats would skip straight to rendering an
+    empty/default state instead of the spinner-and-retry a signed-in
+    user got in the same window. Now checks `!window._cachedStats` only,
+    regardless of sign-in state. Also swept `js/community-quizzes.js`,
+    `js/pdf-export.js`, `js/sharing.js`, `js/user-profile.js`, and the
+    admin-only files for the same `window._currentUser` pattern — every
+    other instance is a genuinely account-gated feature (Community
+    Quizzes browsing/sharing, display-name lookup, admin tools), all
+    backed by Firestore and correctly requiring sign-in, so none of those
+    were changed.
+  - **Community-share throttle:** `shareCustomQuiz()` (`js/sharing.js`)
+    correctly uploads the quiz and caches its content locally via
+    `putContentItem()` (`js/content-client.js`) — that part already
+    worked. The bug was in `ensureSharedQuizzesLoaded()`
+    (`js/community-quizzes.js`): its 60-second throttle window (there to
+    avoid re-checking the server on every reopen) skips the real
+    manifest check and instead rebuilds the list from a locally cached
+    `communityKnownIds` array. That array was only ever written at the
+    end of a FULL manifest check — never updated incrementally by a
+    single new item — so a quiz shared inside that 60-second window had
+    its content already cached correctly under `content:community:{id}`,
+    but its id was missing from `communityKnownIds`, so the throttle-path
+    rebuild silently skipped it. `putContentItem()` now appends the
+    item's id to `communityKnownIds` itself, right after caching its
+    content, whenever `category === 'community'` — so every write path
+    (sharing a quiz, an admin editing one) keeps that list correct at the
+    source. `deleteContentItem()` gets the mirror fix — removes the id
+    from `communityKnownIds` on delete, so a removal inside the same
+    throttle window also stays on the fast, zero-network-call path.
+  - Note for a future cleanup pass (not touched here, since it's inert and
+    out of scope for a bug fix): `js/firebase-storage.js` still carries a
+    few hundred lines of the pre-local-storage Firestore implementation
+    for custom quizzes and per-quiz stats history that's no longer called
+    from anywhere — superseded by `js/local-store.js`, confirmed via a
+    full-codebase reference search. It's dead, not buggy, but worth
+    removing in its own dedicated drop to keep the module from misleading
+    future changes.
 - **125 — Fixed custom quizzes (and quiz collections/stats/attempt history)
   appearing to vanish after a page refresh, for any signed-out or
   not-yet-signed-in use of the app.** Saving a quiz always wrote correctly
