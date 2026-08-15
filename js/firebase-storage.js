@@ -586,24 +586,51 @@ async function loadCustomQuizzesFromFirestore() {
   }
 }
 
-async function saveCustomQuizzesList(arr) {
+/* Writes `arr` to local storage: every quiz in it is upserted, and every id
+   in `deletedIds` (if any) is explicitly removed.
+
+   This deliberately does NOT infer deletions by diffing `arr` against
+   what's currently in IndexedDB (i.e. "delete anything on disk that isn't
+   in arr"), even though that's a natural-looking way to write this and is
+   what an earlier version of this function did. That approach is only
+   correct as long as `arr` is guaranteed to be the complete, up-to-date
+   list — and it isn't always: window._cachedCustomQuizzes (what
+   loadCustomQuizzes() returns, and what most callers pass in here as their
+   starting point) gets reset to a fresh load from IndexedDB on every auth
+   state change (see js/firebase-init.js), not just once at page load. A
+   save that happens to land in the brief async window before that reload
+   resolves would build `arr` from an empty/incomplete cache, and a
+   diff-based delete would then silently wipe every quiz missing from it —
+   real, permanent data loss (not just a display glitch that a refresh
+   fixes). Requiring callers that actually mean to delete something to say
+   so via `deletedIds` removes that whole class of bug: a stale snapshot
+   can at worst redundantly re-save quizzes that didn't need it, but it can
+   never delete one just because it happened to be missing from an
+   in-flight load. */
+async function saveCustomQuizzesList(arr, deletedIds = []) {
   // Custom quizzes now live entirely in local storage (see js/local-store.js)
   // — no Firestore round-trip, no Storage image upload, no version bump.
   window._cachedCustomQuizzes = arr;
-  const { saveCustomQuiz, deleteCustomQuiz: deleteLocal, listCustomQuizzes } =
+  const { saveCustomQuiz, deleteCustomQuiz: deleteLocal } =
     await import('./local-store.js');
 
-  const existing = await listCustomQuizzes();
-  const newIds = new Set(arr.map(q => q.id));
-  for (const quiz of existing) {
-    if (!newIds.has(quiz.id)) await deleteLocal(quiz.id);
+  for (const id of deletedIds) {
+    await deleteLocal(id);
   }
   for (const quiz of arr) {
     await saveCustomQuiz(quiz);
   }
 }
 function openCustomQuizzes() {
-  fsAwaitIfNeeded('customQuizzes', 'Loading your quizzes…');
+  fsAwaitIfNeeded('customQuizzes', 'Loading your quizzes…', () => {
+    // Data (window._cachedCustomQuizzes etc. — see firebase-init.js) landed
+    // after this modal's own initial render already ran below. Re-render
+    // now so it actually reflects what just loaded, unless the user already
+    // closed the modal in the meantime.
+    if (!document.getElementById('customQuizOverlay').classList.contains('hidden')) {
+      renderCustomQuizModal();
+    }
+  });
   cqSelectedFiles = [];
   cqGeneratedQuestions = null;
   cqGeneratedTitle = '';
@@ -1186,4 +1213,3 @@ function fileToBase64(file) {
     reader.readAsDataURL(file);
   });
 }
-

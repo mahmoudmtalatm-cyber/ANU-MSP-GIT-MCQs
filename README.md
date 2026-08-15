@@ -824,6 +824,47 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **127 — Two fixes: a real data-loss bug where saving a custom quiz could
+  silently delete OTHER custom quizzes on a race, and Custom
+  Quizzes/Stats/Retake still rendering empty on open right after a page
+  refresh even after #126's fix.**
+  - **Data-loss race condition:** `saveCustomQuizzesList()`
+    (`js/firebase-storage.js`) used to write by diffing: it deleted
+    anything already in IndexedDB that wasn't present in the array it was
+    handed, treating "missing from this array" as "the user removed it."
+    That's only safe if the array is guaranteed to be the complete,
+    current list. It isn't always — `window._cachedCustomQuizzes` gets
+    reset and reloaded fresh from IndexedDB on every auth state change,
+    not just once at page load, and a save landing in the brief async
+    window before that reload resolved would build its array from an
+    empty or incomplete cache — the old diff-delete logic would then wipe
+    out every other quiz missing from it, written straight to IndexedDB,
+    not just a display glitch. `saveCustomQuizzesList(arr, deletedIds = [])`
+    no longer infers deletions from the array shrinking — it upserts
+    every quiz in `arr` and deletes only the ids explicitly passed in
+    `deletedIds`. Updated the two call sites that actually mean to delete
+    a quiz to say so explicitly: `deleteCustomQuiz()` (`js/split-quiz.js`)
+    and the "delete folder + everything filed inside it" path in
+    `_cqDeleteCollectionExecute()` (`js/quiz-collections.js`). Every
+    other caller (move to folder, rename, share, import, split, admin
+    save-as) was already a pure upsert and needed no change.
+  - **Refresh-render race:** `_fsReady.stats` / `_fsReady.customQuizzes`
+    (`js/app-core.js`) used to default to `true` — a leftover from when
+    this data was gated behind sign-in. Now that both live in local
+    storage and load on every visit regardless of sign-in state, that
+    default was wrong: on a fresh page load, before Firebase Auth's
+    first callback has fired, opening Custom Quizzes or Stats saw an
+    already-"ready" flag, skipped the loading wait entirely, and
+    rendered against still-undefined caches with nothing left to trigger
+    a re-render once the real data landed a moment later. Both now
+    default to `false`, and `js/firebase-init.js` explicitly resets them
+    to `false` at the start of every `onAuthStateChanged` reload. The
+    loading-wait helper now also takes an optional ready callback, fired
+    once the moment its flag flips true, so the screen gets a genuine
+    re-render instead of just a toast that disappears — wired into
+    `openCustomQuizzes()` (`js/firebase-storage.js`) and `openRetake()`
+    (`js/app-core.js`), generalizing the same fix `openStats()` already
+    had by hand.
 - **126 — Two fixes: closed the remaining "gated on sign-in when the data
   actually lives in local storage now" spots left by #125, and fixed a
   shared quiz not appearing on the Community Quizzes screen within 60
