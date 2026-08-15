@@ -2597,6 +2597,33 @@
   font-size: .78rem; color: var(--violet-darkest); font-weight: 600; margin: 10px 0 6px;
   line-height: 1.7; display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start;
 }
+/* ── Content Filter config menu (Passes / Micro Filter / Batch size) ──
+   Shared by the pre-extraction toggle (js/firebase-storage.js) and the
+   post-extraction bulk tool (js/ai-features.js), both via
+   _renderCqFilterPassesConfigHTML(). flex-wrap throughout so each row
+   reflows onto its own lines on narrow/mobile widths instead of
+   overflowing or squeezing the number inputs unreadably small. */
+.cq-filter-config {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cq-filter-config-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.cq-filter-config-row > label {
+  font-size: .78rem; font-weight: 700; color: var(--wrong-fg); white-space: nowrap;
+}
+.cq-filter-config-row input[type="number"] {
+  width: 64px; padding: 6px 8px; border: 1.5px solid var(--wrong-fg); border-radius: 6px;
+  font-family: var(--font); font-size: .85rem; background: #fff; outline: none;
+}
+.cq-filter-config-row input[type="number"]:disabled { opacity: .5; }
+.cq-filter-config-hint {
+  flex-basis: 100%; font-size: .71rem; color: var(--text-muted); line-height: 1.45;
+}
+.cq-filter-config-toggle-row { gap: 10px; }
+@media (max-width: 480px) {
+  .cq-filter-config-row input[type="number"] { width: 56px; }
+}
 .cq-split-chip {
   display: inline-flex; align-items: flex-start; gap: 5px;
   background: #fff; border: 1.5px solid var(--violet-border); border-radius: 14px;

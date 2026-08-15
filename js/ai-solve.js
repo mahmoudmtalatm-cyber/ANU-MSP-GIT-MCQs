@@ -604,7 +604,14 @@ async function generateQuizFromAI() {
       statusEl.innerHTML = `<div class="cq-status info"><div class="cq-spinner"></div> <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Checking questions against the reference source…</div>`;
       // statusEl passed through so this shows the same live "(batch N of M)"
       // progress bar Solve/Answer above does, instead of sitting static.
-      filterResult = await cqRunContentFilterPass(cleaned, cqFilterSourceFiles, cqCancelToken, statusEl);
+      // cqRunContentFilterPasses (js/gemini-uploads.js) reads the config
+      // menu's globals — cqFilterPasses / cqFilterMicroToggle /
+      // cqFilterBatchSize (see _renderCqFilterPassesConfigHTML, js/ai-features.js)
+      // — and, for Micro Filter, keeps going until a full pass changes
+      // nothing; the existing Stop button below already cancels cqCancelToken,
+      // which this honors between (and safely mid-) passes.
+      filterResult = await cqRunContentFilterPasses(cleaned, cqFilterSourceFiles, cqCancelToken, statusEl,
+        { passes: cqFilterPasses, micro: cqFilterMicroToggle, batchSize: cqFilterBatchSize });
       cqGeneratedQuestions = cleaned; // filter may have spliced items out — keep the live reference in sync
     }
 
@@ -651,7 +658,7 @@ async function generateQuizFromAI() {
       : noKeyCount > 0 ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${noKeyCount} without key` : '';
     const fileNote = cqSelectedFiles.length > 1 ? ` from ${cqSelectedFiles.length} files` : '';
     const filterNote = filterResult
-      ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> ${filterResult.removed} filtered out`
+      ? ` · <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> ${filterResult.removed} filtered out${filterResult.passesRun > 1 ? ` (${filterResult.passesRun} passes${filterResult.stoppedByUser ? ', stopped early' : ''})` : ''}`
       : '';
     const fillNote = fillResult && fillResult.done > 0
       ? ` · <svg class="sicon" viewBox="0 0 24 24"><path d="M11 4a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1 2 2 0 1 0 0 4 1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1 2 2 0 1 0-4 0 1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-2a1 1 0 0 1 1-1 2 2 0 1 0 0-4 1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h2a1 1 0 0 0 1-1z"/></svg> ${fillResult.done} question${fillResult.done !== 1 ? 's' : ''} filled to 4 choices` : '';

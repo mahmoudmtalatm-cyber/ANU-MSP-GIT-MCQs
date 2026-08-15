@@ -1424,6 +1424,98 @@ let cqFillChoicesToggle = false; // whether to AI-fill every question up to 4 an
 let cqContentFilterToggle = false; // whether to AI-filter every extracted question against a reference source
 let cqFilterSourceFiles = []; // required source images/PDFs for Content Filter (array of {file, mimeType, name})
 
+// ── Content Filter config menu ── (see cqRunContentFilterPasses,
+// js/gemini-uploads.js, for how these are actually used, and
+// _renderCqFilterPassesConfigHTML below for the shared UI both
+// Content Filter call sites — the pre-extraction toggle in
+// js/firebase-storage.js and the post-extraction bulk tool in this file
+// — render from these same globals.)
+let cqFilterPasses = 1; // how many passes to run; a pass that changes nothing ends the run early regardless of this number
+let cqFilterMicroToggle = false; // "Micro Filter" — ignore cqFilterPasses, keep passing until a full pass removes nothing; user can stop anytime and keep the last completed pass's result
+let cqFilterBatchSize = 20; // questions sent to Gemini per request for every Content Filter pass
+
+// Small reusable "BETA" badge — Content Filter is still under test, so
+// every place its button/toggle is labeled gets this appended, making
+// that visible without a one-off note at each call site.
+function _betaBadgeHTML() {
+  return '<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:8px;background:#FFF3CD;color:#8A6D00;font-size:.62rem;font-weight:800;letter-spacing:.4px;vertical-align:middle;">BETA</span>';
+}
+
+// Content Filter's config menu — shared by both places Content Filter
+// runs from: the pre-extraction toggle (js/firebase-storage.js) and the
+// post-extraction bulk tool below (_renderBulkContentFilterToolHTML).
+// Both read/write the SAME globals above (cqFilterPasses etc.) since
+// this is process configuration, not per-quiz data — same pattern the
+// other toggles (cqRefineToggle etc.) already use.
+//
+// The Passes/Batch size number inputs update their globals on `oninput`
+// WITHOUT triggering any rerender — same reasoning as
+// setSplitChunkSize() (js/split-quiz.js): rerendering on every keystroke
+// would tear down and recreate the input the user is actively typing
+// into, stealing focus after each digit. Neither value has any other
+// on-screen element that needs to reflect it live, so no targeted patch
+// is needed either. Micro Filter is a discrete click, not continuous
+// typing, so a full rerender there is fine — and necessary, since it
+// visually enables/disables the Passes input above.
+//
+// `rerenderCall` is the literal JS the Micro Filter toggle calls
+// afterward to redraw whichever screen is hosting this panel (e.g.
+// "renderCustomQuizModal()" for the pre-extraction toggle, or
+// "_caseGroupEditors['cq'].rerender()" for an editor's bulk tool panel)
+// — passed in as a string since the two contexts have no shared
+// rerender function to call directly.
+function _renderCqFilterPassesConfigHTML(rerenderCall) {
+  const micro = cqFilterMicroToggle;
+  return `
+    <div class="cq-filter-config">
+      <div class="cq-filter-config-row">
+        <label for="cqFilterPassesInput">Passes</label>
+        <input type="number" id="cqFilterPassesInput" min="1" max="20" step="1"
+          value="${cqFilterPasses}" ${micro ? 'disabled' : ''}
+          oninput="cqFilterPasses = Math.max(1, parseInt(this.value, 10) || 1);" />
+        <span class="cq-filter-config-hint">Re-checks whatever survives each pass against the source again. A pass that changes nothing ends the run early even if more were requested — raise this to be more thorough, at the cost of more AI calls.</span>
+      </div>
+      <div class="cq-filter-config-row cq-filter-config-toggle-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;">
+          <div style="position:relative;width:36px;height:20px;flex-shrink:0;">
+            <input type="checkbox" ${micro ? 'checked' : ''}
+              onchange="_cqSetFilterMicro(this.checked, () => { ${rerenderCall} })"
+              style="opacity:0;width:0;height:0;position:absolute;" />
+            <span style="position:absolute;inset:0;border-radius:20px;background:${micro ? 'var(--wrong-fg)' : '#ccc'};transition:background .2s;"></span>
+            <span style="position:absolute;top:2px;left:${micro ? '18px' : '2px'};width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+          </div>
+          <span style="font-weight:700;">Micro Filter</span>
+        </label>
+        <span class="cq-filter-config-hint">Ignores Passes above and keeps filtering until a full pass removes nothing — the most thorough option, but can take a while. Stop it anytime and keep the last completed pass's result.</span>
+      </div>
+      <div class="cq-filter-config-row">
+        <label for="cqFilterBatchSizeInput">Batch size</label>
+        <input type="number" id="cqFilterBatchSizeInput" min="5" max="50" step="1"
+          value="${cqFilterBatchSize}"
+          oninput="cqFilterBatchSize = Math.min(50, Math.max(5, parseInt(this.value, 10) || 20));" />
+        <span class="cq-filter-config-hint">Questions checked per AI request. Higher = fewer requests and faster overall; lower = smaller, safer requests with less risk of a batch failing or getting cut off. 20 is a good default.</span>
+      </div>
+    </div>`;
+}
+
+// Turning Micro Filter ON needs an explicit in-app confirmation first —
+// it can mean many passes back-to-back, each a full batch AI run, with
+// no fixed end until the result stabilizes. Turning it OFF never needs
+// confirming. `afterFn` redraws the host screen either way, so the
+// toggle's visual state always matches cqFilterMicroToggle.
+function _cqSetFilterMicro(checked, afterFn) {
+  if (checked) {
+    const ok = confirm(
+      'Micro Filter will keep re-checking the filtered questions against your source, pass after pass, until an entire pass removes nothing — meaning the result has stabilized.\n\n' +
+      'This can take a while and uses more AI calls than a fixed number of passes, especially with many questions. You can stop it at any time and keep the results from the last fully completed pass.\n\n' +
+      'Turn on Micro Filter?'
+    );
+    if (!ok) { if (typeof afterFn === 'function') afterFn(); return; }
+  }
+  cqFilterMicroToggle = checked;
+  if (typeof afterFn === 'function') afterFn();
+}
+
 // ── Split quiz into multiple quizzes ──
 let cqSplitState = null;
 // shape when active: { context: 'preview'|'saved', quizId: null|string,
@@ -1956,7 +2048,7 @@ function _renderBulkContentFilterToolHTML(editorKey, busy, activeTool) {
         <button class="cq-btn cq-btn-secondary" id="${editorKey}BulkFilterBtn" type="button"
           ${busy ? 'disabled' : ''} onclick="_editorBulkContentFilter('${editorKey}')"
           title="Removes any question the AI can't answer from the source below"
-          style="background:var(--wrong-fg);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter</button>
+          style="background:var(--wrong-fg);color:#fff;"><svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter${_betaBadgeHTML()}</button>
         <button class="ai-tool-stop-btn" type="button" id="${editorKey}BulkFilterStopBtn"
           style="${busy && activeTool === 'Filter' ? 'display:inline-block;' : ''}"
           title="Stop Content Filter" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
@@ -1976,6 +2068,12 @@ function _renderBulkContentFilterToolHTML(editorKey, busy, activeTool) {
           <input type="file" id="${editorKey}BulkFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
             onchange="_editorBulkSourceFileSelect('${editorKey}', 'Filter', this)">
           <div class="cq-bulk-ai-scope">${files.length ? '' : '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Content Filter won\'t run until at least one file is uploaded here. '}Used only by <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter — separate from AI Solve All's source above, and has no effect on Fill Choices or Refine Questions.</div>
+        </div>
+      </details>
+      <details class="cq-bulk-ai-opts">
+        <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter config</summary>
+        <div style="margin-top:8px;">
+          ${_renderCqFilterPassesConfigHTML(`_caseGroupEditors['${editorKey}'].rerender()`)}
         </div>
       </details>
     </div>`;
@@ -2182,14 +2280,20 @@ async function _editorBulkContentFilter(editorKey) {
 
   let finalHtml;
   try {
-    // Actual filtering logic lives in cqRunContentFilterPass (js/gemini-uploads.js),
+    // Actual filtering logic lives in cqRunContentFilterPasses (js/gemini-uploads.js),
     // shared with the pre-extraction "Content Filter (AI)" toggle so it
     // only exists in one place. Passing statusEl through gives this the
-    // same live "(batch N of M)" progress bar Solve All shows.
-    const { removed, remaining } = await cqRunContentFilterPass(questions, sourceFiles, token, statusEl);
-    finalHtml = token.cancelled
-      ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Content Filter stopped${removed ? ` — ${removed} question${removed !== 1 ? 's' : ''} already removed before stopping` : ''}.</div>`
-      : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Content Filter finished — ${removed} question${removed !== 1 ? 's' : ''} removed, ${remaining} remain${remaining === 1 ? 's' : ''}.</div>`;
+    // same live "(batch N of M)" progress bar Solve All shows. Reads the
+    // config menu's globals (cqFilterPasses / cqFilterMicroToggle /
+    // cqFilterBatchSize) — see _renderCqFilterPassesConfigHTML above.
+    const { removed, remaining, passesRun, stoppedByUser } = await cqRunContentFilterPasses(
+      questions, sourceFiles, token, statusEl,
+      { passes: cqFilterPasses, micro: cqFilterMicroToggle, batchSize: cqFilterBatchSize }
+    );
+    const passNote = passesRun > 1 ? ` over ${passesRun} pass${passesRun !== 1 ? 'es' : ''}` : '';
+    finalHtml = stoppedByUser
+      ? `<div class="cq-status warning"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Content Filter stopped${removed ? ` — ${removed} question${removed !== 1 ? 's' : ''} removed${passNote} before stopping` : ''}.</div>`
+      : `<div class="cq-status success"><svg class="sicon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Content Filter finished${passNote} — ${removed} question${removed !== 1 ? 's' : ''} removed, ${remaining} remain${remaining === 1 ? 's' : ''}.</div>`;
   } catch (e) {
     finalHtml = _aiToolsErrorHTML(e.message || 'Content Filter failed.');
   } finally {
@@ -2602,16 +2706,98 @@ function _caseGroupSetCore(editorKey, i) {
   ed.rerender();
 }
 
-/* If the question being deleted was the core of a case group — or itself a
-   sub-case with its own children — promote/re-parent so the group doesn't
-   lose its shared context, or leave a dangling reference, entirely. Called
-   by both editors right after splicing a question out. */
-function _caseGroupOnQuestionDeleted(questions, deletedQuestion) {
-  if (deletedQuestion && deletedQuestion.case_group) {
-    const gid = deletedQuestion.case_group;
-    const remaining = questions.filter(o => o.case_group === gid);
-    _caseGroupEnsureSingleCore(questions, gid);
-    _cqNormalizeCaseParents(questions, remaining);
+/* Is `o` a DIRECT child of `parent` within their (shared) case group?
+   Mirrors _cqFindCaseParent()'s own resolution rule, but works purely off
+   the two objects themselves — it deliberately does NOT require `parent`
+   to still be present in the live `questions` array, since this is used
+   below to find a just-deleted question's former children AFTER that
+   question has already been spliced out. */
+function _isDirectCaseChildOf(o, parent) {
+  if (!o || !parent || o === parent) return false;
+  if (o.case_parent_id) return !!parent.case_link_id && o.case_parent_id === parent.case_link_id;
+  // No case_parent_id set at all means "direct child of the group's root
+  // core" — only true if `parent` actually IS that root.
+  return !!parent.case_is_core;
+}
+
+/* Merges a removed case-holder's own case/vignette text (and image, if the
+   promoted question doesn't already have its own) into the question being
+   promoted to replace it — see _caseGroupOnQuestionDeleted() below for why.
+   Skips cleanly if either side is empty, and never duplicates identical
+   text (e.g. re-running normalization on already-merged data). */
+function _caseGroupMergeContext(promoted, removed) {
+  const oldText = (removed.question || '').trim();
+  const ownText = (promoted.question || '').trim();
+  if (oldText && oldText !== ownText && !ownText.startsWith(oldText)) {
+    promoted.question = ownText ? `${oldText}\n\n${ownText}` : oldText;
   }
+  if (removed.image && !promoted.image) promoted.image = removed.image;
+}
+
+/* If the question being deleted was the core of a case group — or itself a
+   sub-case with its own children nested under it, at any depth — promote
+   a replacement so the group doesn't lose its shared context, or leave a
+   dangling reference, entirely. Called by every deletion path (manual
+   per-question delete in both inline editors, and Content Filter's
+   cqRunContentFilterPass/cqRunContentFilterPasses, js/gemini-uploads.js)
+   right after splicing the question out of the array.
+
+   Content Filter is the reason this does more than the old "just promote
+   whichever member happens to be first in array order" fallback: it can
+   remove a question purely because ITS OWN answer isn't verifiable
+   against the source, even though that same question's text is also the
+   shared case/vignette other, still-valid dependent questions rely on for
+   context. Silently deleting it would take that shared context down with
+   it. Instead, the FIRST LINKED question — the earliest of the deleted
+   question's own direct dependents, in document order, i.e. whichever
+   question the case naturally continues into next — inherits BOTH the
+   deleted question's exact position in the case tree (root core, or a
+   nested sub-case under whatever it was itself nested under) AND its
+   case/vignette text and image, merged onto that question's own existing
+   content rather than replacing it (see _caseGroupMergeContext above).
+   Every OTHER direct dependent the deleted question had is re-pointed to
+   hang off the newly promoted question instead, so a mid-tree deletion
+   doesn't orphan its other children — this is what makes multilevel
+   nesting (a sub-case itself nested under another sub-case, to any depth)
+   work the same way whether the question removed was the root or several
+   levels down: only ITS immediate children move, everything above and
+   below that point is untouched.
+
+   Only falls back to the old "just ensure some member is core" behavior
+   when the deleted question had no dependents to promote in the first
+   place — nothing to preserve, so nothing to transplant. */
+function _caseGroupOnQuestionDeleted(questions, deletedQuestion) {
+  if (!deletedQuestion || !deletedQuestion.case_group) return;
+  const gid = deletedQuestion.case_group;
+
+  // Document order is preserved by splice (everything else just shifts
+  // down), so filtering the survivors in place naturally yields the
+  // deleted question's direct children in original document order —
+  // exactly "the first linked question" the case continues into.
+  const children = questions.filter(o => o.case_group === gid && _isDirectCaseChildOf(o, deletedQuestion));
+
+  if (children.length) {
+    const promoted = children[0];
+    _caseGroupMergeContext(promoted, deletedQuestion);
+    promoted.case_is_core = !!deletedQuestion.case_is_core;
+    promoted.case_parent_id = deletedQuestion.case_is_core ? null : deletedQuestion.case_parent_id;
+    // Re-home every OTHER direct child of the deleted question onto the
+    // promoted one — give it a link id (lazily, only now that it's
+    // actually needed) and point the remaining siblings at that, same as
+    // the manual "Make this the root case instead" editor action does.
+    if (children.length > 1) {
+      const newLinkId = _caseGroupEnsureLinkId(promoted);
+      children.slice(1).forEach(sib => { sib.case_parent_id = newLinkId; });
+    }
+  }
+
+  // Safety net either way: repairs core assignment (covers the
+  // no-children fallback case above) and any still-dangling
+  // case_parent_id references — e.g. a child positioned earlier in the
+  // array than its (deleted) parent, processed before the parent's own
+  // promotion above had run.
+  const remaining = questions.filter(o => o.case_group === gid);
+  _caseGroupEnsureSingleCore(questions, gid);
+  _cqNormalizeCaseParents(questions, remaining);
 }
 

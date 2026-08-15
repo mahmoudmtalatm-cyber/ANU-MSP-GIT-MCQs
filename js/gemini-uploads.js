@@ -1309,9 +1309,13 @@ const CQ_SOLVE_PROGRESS_LABEL = {
 // sourceFiles: optional array of {file, mimeType, name}
 // onlyIfNoKey: if true, only process questions with no_answer_key (legacy behaviour)
 // progressLabel: optional { icon, multi, single(n) } — see CQ_SOLVE_PROGRESS_LABEL
-// above and _cqContentFilterProgressLabel in cqRunContentFilterPass for the
+// above and _cqContentFilterProgressLabel() in cqRunContentFilterPass for the
 // wording swap that lets Content Filter reuse this same batch progress bar.
-async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken, progressLabel) {
+// chunkSize: optional — questions sent to Gemini per request (default 20,
+// see CHUNK_SIZE below). Content Filter's config menu (js/ai-features.js,
+// cqFilterBatchSize / _renderCqFilterPassesConfigHTML) is the only caller
+// that ever overrides this; every other caller keeps the default.
+async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles, statusEl, cancelToken, progressLabel, chunkSize) {
   const label = progressLabel || CQ_SOLVE_PROGRESS_LABEL;
   if (!targetIdxs || !targetIdxs.length) return;
 
@@ -1382,8 +1386,9 @@ async function cqAiSolveQuestions(questions, targetIdxs, sourceText, sourceFiles
           'No explanation, no preamble, no markdown.'
   };
 
-  // Chunk into batches of 20 to stay well within token limits
-  const CHUNK_SIZE = 20;
+  // Chunk into batches to stay well within token limits — defaults to 20,
+  // overridable per-call via `chunkSize` (see doc comment above).
+  const CHUNK_SIZE = Math.max(1, parseInt(chunkSize, 10) || 20);
   const chunks = [];
   for (let i = 0; i < targetIdxs.length; i += CHUNK_SIZE) {
     chunks.push(targetIdxs.slice(i, i + CHUNK_SIZE));
@@ -1708,14 +1713,28 @@ async function cqBulkRefineQuestions(questions, customInstructions, statusEl, ca
 
    statusEl (optional): the caller's live status element. Pass this so
    the batch progress bar actually reaches the screen — omit it only if
-   there's genuinely nowhere for progress to be shown. */
-const _cqContentFilterProgressLabel = {
-  icon: '<svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
-  multi: 'Checking questions against the source…',
-  single: n => `Checking ${n} question${n !== 1 ? 's' : ''} against the source…`
-};
+   there's genuinely nowhere for progress to be shown.
 
-async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statusEl) {
+   batchSize (optional): forwarded to cqAiSolveQuestions' CHUNK_SIZE
+   (default 20) — see cqFilterBatchSize in js/ai-features.js.
+
+   passNum / totalPasses (optional): which pass this is, purely for the
+   progress-bar label below — a single pass (the default) shows no "Pass
+   N" prefix at all, same as before multi-pass support existed. Callers
+   that want more than one pass should use cqRunContentFilterPasses()
+   below rather than calling this directly in a loop themselves, since
+   that wrapper also owns the "stop early once nothing changes" and
+   safe-cancellation behaviour multi-pass runs need. */
+function _cqContentFilterProgressLabel(passNum, totalPasses) {
+  const prefix = passNum ? `Pass ${passNum}${totalPasses ? ` of ${totalPasses}` : ''} — ` : '';
+  return {
+    icon: '<svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+    multi: `${prefix}Checking questions against the source…`,
+    single: n => `${prefix}Checking ${n} question${n !== 1 ? 's' : ''} against the source…`
+  };
+}
+
+async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statusEl, batchSize, passNum, totalPasses) {
   if (!sourceFiles || !sourceFiles.length) {
     throw new Error('Content Filter needs a reference source — upload at least one image or PDF first.');
   }
@@ -1739,7 +1758,8 @@ async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statu
   const answersBefore = new Map(allIdxs.map(i => [i, questions[i].answer]));
 
   const progressTarget = statusEl || createSilentStatusStub();
-  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, progressTarget, cancelToken, _cqContentFilterProgressLabel);
+  const label = _cqContentFilterProgressLabel(passNum, totalPasses);
+  await cqAiSolveQuestions(questions, allIdxs, '', sourceFiles, progressTarget, cancelToken, label, batchSize);
 
   answersBefore.forEach((originalAnswer, i) => {
     if (questions[i]) questions[i].answer = originalAnswer;
@@ -1748,8 +1768,12 @@ async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statu
   // The filter itself: drop every question the AI could only answer from
   // outside the source. Walk backward so splicing doesn't shift
   // not-yet-checked indices out from under the loop, and run the same
-  // case-group housekeeping a manual per-question delete uses, so a
-  // removed question never leaves a case group's linking broken.
+  // case-group housekeeping every deletion path uses (_caseGroupOnQuestionDeleted,
+  // js/ai-features.js) — including, since it can be Content Filter itself
+  // removing a case's core/sub-case question, transplanting that shared
+  // case/vignette text onto the first still-surviving question that
+  // depended on it, so a removed core never takes its dependents' shared
+  // context down with it.
   let removed = 0;
   for (let k = allIdxs.length - 1; k >= 0; k--) {
     const qi = allIdxs[k];
@@ -1760,12 +1784,90 @@ async function cqRunContentFilterPass(questions, sourceFiles, cancelToken, statu
       removed++;
     }
   }
+  // Final sweep across every group this pass touched — repairs any
+  // parent link left dangling by processing order (a child positioned
+  // earlier in the array than the — now deleted and promoted-around —
+  // question it pointed at) and dissolves any group the removals above
+  // shrank down to a single remaining member, which no longer needs case
+  // linking at all.
+  if (removed) _cqNormalizeCaseGroups(questions);
   // Strip the solve-flavoured flags off whatever's left — a survivor was
   // only ever checked here to confirm it belongs, not relabelled, so no
   // "AI-answered" badge should linger on it either.
   questions.forEach(q => { delete q.ai_answered; delete q.ai_guessed; });
 
   return { removed, remaining: questions.length };
+}
+
+/* ── Content Filter: multi-pass wrapper ──
+   "Passes" for Content Filter means feeding one pass's SURVIVORS back in
+   as the next pass's input, run against the exact same reference source
+   again — a question can only be dropped by whichever pass first catches
+   it, so a second pass only ever re-checks what the first pass already
+   decided to keep.
+
+   Config (see cqFilterPasses / cqFilterMicroToggle / cqFilterBatchSize
+   and their config-menu UI, both in js/ai-features.js):
+     options.passes    — run at most this many passes (default 1,
+                          ignored when options.micro is true).
+     options.micro     — "Micro Filter": ignore `passes` and keep going
+                          until a pass removes nothing, i.e. the result
+                          has gone stable. The user stops it early via
+                          the same Stop button / cancelToken every other
+                          bulk AI tool already uses.
+     options.batchSize — forwarded to cqAiSolveQuestions' CHUNK_SIZE for
+                          every pass (default 20).
+   Either way, a pass that removes nothing ends the run early even if
+   more passes were requested or Micro Filter is still on — there's
+   nothing left for another pass to find, so running it again would only
+   re-confirm the same result at the cost of another full round of AI
+   calls.
+
+   Safety: works on a private COPY of `questions` (`working` below) and
+   only commits a pass's result back into the caller's actual array once
+   that pass finishes without the cancelToken firing. If the user clicks
+   Stop mid-pass, that in-progress pass's partial removals are discarded
+   entirely and the caller's array is left exactly as the last FULLY
+   completed pass left it — never a half-finished one. This is what lets
+   Micro Filter promise "stop anytime and keep the last results". */
+async function cqRunContentFilterPasses(questions, sourceFiles, cancelToken, statusEl, options) {
+  const opts = options || {};
+  const micro = !!opts.micro;
+  const passesRequested = Math.max(1, parseInt(opts.passes, 10) || 1);
+  const batchSize = Math.max(1, parseInt(opts.batchSize, 10) || 20);
+  const maxPasses = micro ? Infinity : passesRequested;
+
+  let working = questions.slice(); // last FULLY completed pass's result
+  let totalRemoved = 0;
+  let passesRun = 0;
+  let stoppedByUser = false;
+
+  while (passesRun < maxPasses) {
+    if (cancelToken && cancelToken.cancelled) { stoppedByUser = true; break; }
+    // A fresh copy for THIS pass — cqRunContentFilterPass splices its
+    // argument in place, and this must never be `working` itself, or a
+    // pass cut short by Stop would leave `working` half-mutated instead
+    // of at its last clean state.
+    const passArray = working.slice();
+    const passNum = passesRun + 1;
+    const passResult = await cqRunContentFilterPass(
+      passArray, sourceFiles, cancelToken, statusEl, batchSize,
+      passNum, micro ? null : passesRequested
+    );
+    if (cancelToken && cancelToken.cancelled) { stoppedByUser = true; break; } // this pass never finished — discard it, keep `working` as-is
+    passesRun++;
+    totalRemoved += passResult.removed;
+    working = passArray; // this pass finished cleanly — commit it
+    if (passResult.removed === 0) break; // stable: another pass would find nothing new
+  }
+
+  // Sync the caller's live array to match `working`, IN PLACE (splice,
+  // not reassignment) — every caller keeps using this same array
+  // reference afterward (e.g. `cqGeneratedQuestions = cleaned`).
+  questions.length = 0;
+  Array.prototype.push.apply(questions, working);
+
+  return { removed: totalRemoved, remaining: questions.length, passesRun, stoppedByUser };
 }
 
 /* ── Post-extraction bulk pass: Re-extract Missing Images (cq preview only) ──

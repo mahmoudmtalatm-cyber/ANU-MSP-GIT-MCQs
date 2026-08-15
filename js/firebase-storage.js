@@ -980,7 +980,7 @@ function renderCustomQuizModal() {
           </div>
           <div>
             <div style="font-size:.82rem;font-weight:800;color:${cqContentFilterToggle ? 'var(--wrong-fg)' : 'var(--text)'};letter-spacing:.2px;">
-              <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter (AI)
+              <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter (AI)${_betaBadgeHTML()}
             </div>
             <div style="font-size:.73rem;color:var(--text-muted);margin-top:2px;">
               Removes every question the AI can only answer from its own knowledge, not from the reference source below — needs at least one file
@@ -1000,6 +1000,12 @@ function renderCustomQuizModal() {
           </div>
           <input type="file" id="cqFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;"
             onchange="handleCqFilterSourceFileSelect(event)" />
+          <details class="cq-bulk-ai-opts" style="margin-top:9px;">
+            <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter config</summary>
+            <div style="margin-top:8px;">
+              ${_renderCqFilterPassesConfigHTML('renderCustomQuizModal()')}
+            </div>
+          </details>
         </div>
         ` : ''}
       </div>

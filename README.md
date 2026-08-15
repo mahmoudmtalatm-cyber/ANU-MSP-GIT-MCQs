@@ -824,6 +824,74 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **128 — Content Filter gets a config menu (multi-pass, "Micro Filter",
+  batch size), is now marked BETA everywhere it appears, and no longer
+  destroys a case group's shared context when it removes the question
+  that was holding it.**
+  - **Multi-pass Content Filter:** new "Content Filter config" panel —
+    under both places Content Filter runs from, the pre-extraction toggle
+    (`js/firebase-storage.js`) and the post-extraction bulk tool
+    (`_renderBulkContentFilterToolHTML`, `js/ai-features.js`) — adds:
+    - **Passes** (default 1): re-runs the filter on whatever survived the
+      previous pass, checking it against the source again. A pass that
+      removes nothing ends the run early even if more passes were
+      requested, since there's nothing left for another pass to find.
+    - **Micro Filter** (off by default): a toggle that ignores Passes and
+      keeps going until an entire pass changes nothing — the most
+      thorough option. Turning it on requires an in-app confirmation
+      (`_cqSetFilterMicro`, `js/ai-features.js`) warning it can take a
+      while and cost more AI calls; the user can stop it at any point via
+      the same Stop button every other bulk AI tool already has, and
+      keeps whatever the last fully-completed pass produced.
+    - **Batch size** (default 20): how many questions go into each AI
+      request. Brief inline copy explains the trade-off (higher = fewer
+      requests, faster; lower = smaller, safer requests, less risk of a
+      batch failing or getting cut off).
+    All three are shared globals (`cqFilterPasses` / `cqFilterMicroToggle`
+    / `cqFilterBatchSize`), same pattern as the other extraction toggles,
+    rendered by one shared `_renderCqFilterPassesConfigHTML()` so the two
+    call sites can't drift apart.
+    `cqAiSolveQuestions()` (`js/gemini-uploads.js`) now takes an optional
+    trailing `chunkSize` argument (defaults to its old hardcoded 20) so
+    Content Filter can override it without touching any other caller.
+    The actual multi-pass/stop-safe loop lives in a new
+    `cqRunContentFilterPasses()` (`js/gemini-uploads.js`), which both call
+    sites now use instead of calling the single-pass `cqRunContentFilterPass()`
+    directly. It works on a private copy of the question list and only
+    commits a pass's result back once that pass finishes without being
+    cancelled — a Stop click partway through a pass discards that
+    in-progress pass entirely rather than committing a half-finished one,
+    which is what lets Micro Filter honestly promise "stop anytime, keep
+    the last results."
+  - **BETA label:** Content Filter's button/toggle in both places now
+    carries a small "BETA" badge (`_betaBadgeHTML()`, `js/ai-features.js`)
+    so it's visibly still under test.
+  - **Case-context-preserving deletion:** `_caseGroupOnQuestionDeleted()`
+    (`js/ai-features.js`) — shared by every question-deletion path in the
+    app, not just Content Filter — used to just fall back to "promote
+    whichever group member happens to be first in array order" whenever
+    the deleted question was a case group's core (or a nested sub-case
+    with its own children). That's a real problem for Content Filter
+    specifically: it can remove a question purely because ITS OWN answer
+    isn't verifiable against the source, even though that same question's
+    text is also the shared case/vignette other, still-valid dependent
+    questions need for context — the old fallback let that shared context
+    disappear along with it. It now instead promotes the FIRST LINKED
+    question — the earliest of the deleted question's own direct
+    dependents, in document order — to take the deleted question's exact
+    place in the case tree, and merges the deleted question's case/
+    vignette text (and image, if the promoted question doesn't already
+    have one) onto it rather than discarding it (`_caseGroupMergeContext`).
+    Every other direct dependent the deleted question had gets re-pointed
+    onto the newly promoted question instead of left dangling. This is
+    fully multilevel: only the deleted question's own immediate children
+    move — a sub-case nested several levels deep is spliced out of the
+    middle of its chain exactly like the root case would be, and
+    everything above and below that point in the tree is untouched.
+    `cqRunContentFilterPass()` (`js/gemini-uploads.js`) also runs a final
+    `_cqNormalizeCaseGroups()` sweep once a pass finishes removing
+    anything, repairing any parent link left dangling by processing order
+    and dissolving any group a removal shrank down to a single member.
 - **127 — Two fixes: a real data-loss bug where saving a custom quiz could
   silently delete OTHER custom quizzes on a race, and Custom
   Quizzes/Stats/Retake still rendering empty on open right after a page
