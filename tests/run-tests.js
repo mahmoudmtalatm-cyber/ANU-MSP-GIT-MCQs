@@ -606,44 +606,80 @@ function suiteE() {
 }
 
 // ═════════════════════════════════════════════════════════════════════
-// SUITE F — Content Filter config menu never collapses on Micro Filter
+// SUITE F — collapsible panel state (Content Filter source + config
+// merged into one "Content Filter settings" menu, collapsed by default,
+// and no bulk-tool options panel collapses out from under the user when
+// unrelated HTML around it gets rebuilt — e.g. adding/removing a
+// reference-source file, or Micro Filter's onchange rerender).
 // ═════════════════════════════════════════════════════════════════════
 function suiteF() {
-  console.log('\n== Suite F: Content Filter config panel stays open across Micro Filter toggles ==');
+  console.log('\n== Suite F: collapsible panel state persists across re-renders ==');
   const sandbox = makeSandbox();
   const ctx = vm.createContext(sandbox);
   loadInto(ctx, 'ai-features.js', 'gemini-uploads.js');
 
-  test('the config menu\'s <details> is always rendered `open`, regardless of Micro Filter state', () => {
-    ctx.cqFilterMicroToggle = false;
-    const htmlOff = ctx._renderCqFilterPassesConfigHTML('void(0)');
-    ctx.cqFilterMicroToggle = true;
-    const htmlOn = ctx._renderCqFilterPassesConfigHTML('void(0)');
-    // The config HTML itself is just the inner content in this app (the
-    // <details> wrapper lives in the two call sites), so what actually
-    // matters is that BOTH call sites hard-code `open` on that <details>
-    // rather than making it conditional — verified directly against the
-    // real source below, since that's where the collapse bug would live.
-    assert(typeof htmlOff === 'string' && typeof htmlOn === 'string', 'renders in both states without throwing');
+  test('_detailsIsOpen defaults to the caller-supplied value until _detailsToggle is called', () => {
+    assertEqual(ctx._detailsIsOpen('freshScopeKey', false), false, 'unset scope key with default=false');
+    assertEqual(ctx._detailsIsOpen('freshScopeKey', true), true, 'unset scope key with default=true');
+    ctx._detailsToggle('freshScopeKey', true);
+    assertEqual(ctx._detailsIsOpen('freshScopeKey', false), true, 'state set by _detailsToggle overrides the default');
+    ctx._detailsToggle('freshScopeKey', false);
+    assertEqual(ctx._detailsIsOpen('freshScopeKey', true), false, 'state set by _detailsToggle overrides the default, either direction');
   });
 
-  test('both real call sites render their Content Filter config <details> as unconditionally open', () => {
+  // _editorBulkFilterSourceFiles/_editorBulkBusy are declared `const` inside
+  // ai-features.js, so (unlike its `function`-declared helpers) they never
+  // become properties of the vm context and can't be poked at directly from
+  // here — same as every other suite in this file works around that by
+  // driving state only through the real functions. `_renderBulkContentFilterToolHTML`
+  // takes `busy` as a plain argument, so that one's a non-issue; the source
+  // file list is populated via the real `_editorBulkSourceAcceptFile()`, and
+  // each test below uses one of the three pre-seeded editor keys
+  // ('cq'/'admin'/'customQuiz') so they don't share mutable state.
+  test('Content Filter source + config are merged into one "Content Filter settings" panel', () => {
+    const html = ctx._renderBulkContentFilterToolHTML('cq', false, null);
+    const settingsCount = (html.match(/Content Filter settings<\/summary>/g) || []).length;
+    assertEqual(settingsCount, 1, 'exactly one merged "Content Filter settings" menu is rendered');
+    assert(!/Content Filter source<\/summary>/.test(html) && !/Content Filter config<\/summary>/.test(html),
+      'the old separate "Content Filter source"/"Content Filter config" menus no longer exist');
+    assert(html.includes('cqBulkFilterSourceDropzone'), 'the reference-source dropzone lives inside the merged panel');
+    assert(html.includes('cqFilterPassesInput'), 'the passes/batch-size config lives inside the same merged panel');
+  });
+
+  test('the merged Content Filter settings panel is collapsed by default', () => {
+    const html = ctx._renderBulkContentFilterToolHTML('admin', false, null);
+    const detailsTag = html.slice(html.lastIndexOf('<details', html.indexOf('Content Filter settings</summary>')), html.indexOf('Content Filter settings</summary>'));
+    // (^|\s)open(\s|>) rather than a bare \bopen\b — the latter also
+    // matches "this.open" inside the ontoggle="..." attribute value,
+    // which is unrelated to whether the <details> itself starts open.
+    assert(!/(^|\s)open(\s|>)/.test(detailsTag), `should have no standalone "open" attribute on first render — got: ${detailsTag.trim()}`);
+  });
+
+  test('adding a reference-source file (a full rerender) does not collapse a panel the user had open', () => {
+    // Simulate the user having expanded the panel — this is exactly what
+    // the `ontoggle` handler wired onto the real <details> does.
+    ctx._detailsToggle('customQuiz_filterOpts', true);
+    // Simulate adding a source file through the real handler
+    // (_editorBulkSourceFileSelect calls this same function before
+    // triggering the full-panel rerender that used to collapse things).
+    ctx._editorBulkSourceAcceptFile('customQuiz', 'Filter', { name: 'page1.png', type: 'image/png', size: 100 });
+    const html = ctx._renderBulkContentFilterToolHTML('customQuiz', false, null);
+    const detailsTag = html.slice(html.lastIndexOf('<details', html.indexOf('Content Filter settings</summary>')), html.indexOf('Content Filter settings</summary>'));
+    assert(/(^|\s)open(\s|>)/.test(detailsTag), `panel should stay open after the rerender — got: ${detailsTag.trim()}`);
+  });
+
+  test('every bulk-tool options <details> (Solve/Filter/Refine/Reextract) reads its state from _detailsIsOpen, not a hardcoded value', () => {
     const aiFeaturesSrc = fs.readFileSync(path.join(SRC, 'ai-features.js'), 'utf8');
     const firebaseStorageSrc = fs.readFileSync(path.join(SRC, 'firebase-storage.js'), 'utf8');
-    // Match the <details ...> tag that immediately precedes the "Content
-    // Filter config" summary text in each file, and assert it carries a
-    // literal `open` attribute — not `${micro ? 'open' : ''}` or similar,
-    // which would re-collapse the panel every time Micro Filter's onchange
-    // triggers a full rerender (see _renderCqFilterPassesConfigHTML's own
-    // doc comment for why that rerender happens at all).
     [aiFeaturesSrc, firebaseStorageSrc].forEach((src, i) => {
-      const idx = src.indexOf('Content Filter config</summary>');
-      assert(idx > -1, `Content Filter config summary text should exist in file ${i}`);
-      const detailsTag = src.lastIndexOf('<details', idx);
-      assert(detailsTag > -1, `a <details> tag should precede it in file ${i}`);
-      const tagText = src.slice(detailsTag, idx);
-      assert(/\bopen\b/.test(tagText) && !/\$\{[^}]*open/.test(tagText),
-        `<details> wrapping "Content Filter config" must have a literal, unconditional \`open\` attribute in file ${i} — got: ${tagText.replace(/\s+/g, ' ').trim()}`);
+      const re = /<details class="cq-bulk-ai-opts"[^>]*>/g;
+      let m; let count = 0;
+      while ((m = re.exec(src))) {
+        count++;
+        assert(/_detailsIsOpen\(/.test(m[0]), `<details> tag should call _detailsIsOpen() in file ${i} — got: ${m[0]}`);
+        assert(/ontoggle="_detailsToggle\(/.test(m[0]), `<details> tag should wire ontoggle to _detailsToggle() in file ${i} — got: ${m[0]}`);
+      }
+      assert(count > 0, `at least one cq-bulk-ai-opts <details> should exist in file ${i}`);
     });
   });
 }

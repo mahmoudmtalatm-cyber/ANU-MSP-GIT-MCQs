@@ -1,4 +1,27 @@
 /* ══════════════════════════════════════════════════════════
+   COLLAPSIBLE PANEL STATE — generic open/closed memory for any
+   collapsible options panel (class cq-bulk-ai-opts, or similar) in the app.
+   Every one of these panels lives inside HTML that gets rebuilt via
+   innerHTML on unrelated actions — adding/removing a reference-source
+   file, flipping an adjacent toggle, a full modal re-render, etc. —
+   so without state living OUTSIDE the DOM, a <details> the user just
+   opened would silently re-collapse the moment any of that HTML gets
+   redrawn (previously "fixed" in a couple of spots by hardcoding the
+   `open` attribute, which just traded one bug — collapsing under the
+   user — for another: a panel that could never actually be collapsed).
+   Callers give each panel a unique, stable `scopeKey` (e.g.
+   "cq_solveOpts", "cqPreExtractFilterOpts") and read/write through the
+   two helpers below instead of hardcoding `open`. Loaded before
+   js/firebase-storage.js, so both files share this state. */
+const _detailsOpenState = {};
+function _detailsIsOpen(scopeKey, defaultOpen) {
+  return scopeKey in _detailsOpenState ? _detailsOpenState[scopeKey] : !!defaultOpen;
+}
+function _detailsToggle(scopeKey, isOpen) {
+  _detailsOpenState[scopeKey] = isOpen;
+}
+
+/* ══════════════════════════════════════════════════════════
    API KEY MANAGER — multiple Gemini API keys, one active
    Single shared place used by AI explanations, chat, and
    custom quizzes (extract / generate / AI-answer / AI-solve).
@@ -1491,8 +1514,12 @@ function _renderBatchSizeConfigHTML(inputId, globalVarName, currentVal, defaultV
 // typing, so a full rerender there is fine — and necessary, since it
 // visually enables/disables the Passes input above. That rerender DOES
 // mean this whole config menu gets rebuilt from this function's HTML
-// string, though — the enclosing <details> below is therefore always
-// rendered `open`, never conditionally, so toggling Micro Filter can
+// string, though — the enclosing <details> (the merged "Content Filter
+// settings" panel — see _renderBulkContentFilterToolHTML and the
+// pre-extraction Content Filter toggle in js/firebase-storage.js) reads
+// its open/closed state from _detailsOpenState (js/ai-features.js) on
+// every render instead of hardcoding `open`, so toggling Micro Filter —
+// or adding/removing a source file, which rebuilds the same HTML — can
 // never visibly collapse a panel the user had open a moment ago.
 //
 // `rerenderCall` is the literal JS the Micro Filter toggle calls
@@ -1986,7 +2013,7 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
           style="${busy && activeTool === 'Solve' ? 'display:inline-block;' : ''}"
           title="Stop AI Solve All" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
       </div>
-      <details class="cq-bulk-ai-opts">
+      <details class="cq-bulk-ai-opts" ${_detailsIsOpen(`${editorKey}_solveOpts`, false) ? 'open' : ''} ontoggle="_detailsToggle('${editorKey}_solveOpts', this.open)">
         <summary><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> AI Solve settings</summary>
         <div style="margin-top:8px;">
           <div class="cq-bulk-ai-label"><svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference source (optional) — upload images/PDFs for the AI to use, or leave empty to answer from general knowledge</div>
@@ -2037,7 +2064,7 @@ function _renderBulkAiToolsPanel(editorKey, questions) {
           style="${busy && activeTool === 'Refine' ? 'display:inline-block;' : ''}"
           title="Stop Refine Questions" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
       </div>
-      <details class="cq-bulk-ai-opts">
+      <details class="cq-bulk-ai-opts" ${_detailsIsOpen(`${editorKey}_refineOpts`, false) ? 'open' : ''} ontoggle="_detailsToggle('${editorKey}_refineOpts', this.open)">
         <summary><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Refine Questions settings</summary>
         <div style="margin-top:8px;">
           <div class="cq-bulk-ai-label"><svg class="sicon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Custom instructions for Refine (optional)</div>
@@ -2087,8 +2114,8 @@ function _renderBulkContentFilterToolHTML(editorKey, busy, activeTool) {
           style="${busy && activeTool === 'Filter' ? 'display:inline-block;' : ''}"
           title="Stop Content Filter" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
       </div>
-      <details class="cq-bulk-ai-opts" open>
-        <summary><svg class="sicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Content Filter source</summary>
+      <details class="cq-bulk-ai-opts" ${_detailsIsOpen(`${editorKey}_filterOpts`, false) ? 'open' : ''} ontoggle="_detailsToggle('${editorKey}_filterOpts', this.open)">
+        <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter settings</summary>
         <div style="margin-top:8px;">
           <div class="cq-bulk-ai-label"><svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference source (required) — upload images/PDFs; any question the AI can only answer from outside this source gets removed</div>
           <div class="cq-dropzone cq-dz-purple" id="${editorKey}BulkFilterSourceDropzone"
@@ -2102,11 +2129,7 @@ function _renderBulkContentFilterToolHTML(editorKey, busy, activeTool) {
           <input type="file" id="${editorKey}BulkFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;" ${busy ? 'disabled' : ''}
             onchange="_editorBulkSourceFileSelect('${editorKey}', 'Filter', this)">
           <div class="cq-bulk-ai-scope">${files.length ? '' : '<svg class="sicon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Content Filter won\'t run until at least one file is uploaded here. '}Used only by <svg class="sicon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Content Filter — separate from AI Solve All's source above, and has no effect on Fill Choices or Refine Questions.</div>
-        </div>
-      </details>
-      <details class="cq-bulk-ai-opts" open>
-        <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter config</summary>
-        <div style="margin-top:8px;">
+          <div class="cq-bulk-ai-opts-divider"></div>
           ${_renderCqFilterPassesConfigHTML(`_caseGroupEditors['${editorKey}'].rerender()`)}
         </div>
       </details>
@@ -2136,7 +2159,7 @@ function _renderBulkReextractToolHTML(editorKey, questions, busy, activeTool) {
           title="Stop Re-extract Missing Images" onclick="_editorBulkStopTool('${editorKey}')"><svg class="sicon" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg> Stop</button>
         <span class="cq-bulk-ai-no-opts">Retries only questions flagged with an image that never got extracted — grouped and requested per source file.</span>
       </div>
-      <details class="cq-bulk-ai-opts">
+      <details class="cq-bulk-ai-opts" ${_detailsIsOpen(`${editorKey}_reextractOpts`, false) ? 'open' : ''} ontoggle="_detailsToggle('${editorKey}_reextractOpts', this.open)">
         <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Re-extract settings</summary>
         <div class="cq-batch-config" style="margin-top:8px;">
           ${_renderBatchSizeConfigHTML(`${editorKey}ReextractBatchSizeInput`, 'cqImageBatchSize', cqImageBatchSize, 15, '(Also used by image extraction during the initial "Generate Quiz" step — this is the same setting.)')}
@@ -2308,7 +2331,7 @@ async function _editorBulkContentFilter(editorKey) {
   const sourceFiles = _editorBulkFilterSourceFiles[editorKey] || [];
   if (!sourceFiles.length) {
     const statusEl = _editorBulkStatusEl(editorKey);
-    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML('Content Filter needs a reference source — upload at least one image or PDF under "Content Filter source" above, then try again.');
+    if (statusEl) statusEl.innerHTML = _aiToolsErrorHTML('Content Filter needs a reference source — open "Content Filter settings" above, upload at least one image or PDF, then try again.');
     return;
   }
 

@@ -994,20 +994,21 @@ function renderCustomQuizModal() {
         </label>
         ${cqContentFilterToggle ? `
         <div style="margin:11px 0 0 8px;padding-left:14px;border-left:2.5px solid var(--wrong-fg);">
-          <div style="font-size:.75rem;font-weight:700;color:var(--wrong-fg);margin-bottom:5px;">
-            <svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference Source (required) — upload the images/PDFs every question must check out against
-          </div>
-          <div class="cq-dropzone cq-dz-purple" id="cqFilterSourceDropzone" onclick="document.getElementById('cqFilterSourceFileInput').click()">
-            <div class="cq-dz-icon"><svg class="hicon" style="width:28px;height:28px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-            <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
-            ${cqFilterSourceFiles.length ? _cqFileListHTML(cqFilterSourceFiles, 'cqRemoveFilterSourceFile', sf => sf.file) : ''}
-            ${cqFilterSourceFiles.length ? `<div class="cq-dz-add-more"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Click again to add more files</div>` : ''}
-          </div>
-          <input type="file" id="cqFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;"
-            onchange="handleCqFilterSourceFileSelect(event)" />
-          <details class="cq-bulk-ai-opts" style="margin-top:9px;" open>
-            <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter config</summary>
+          <details class="cq-bulk-ai-opts" ${_detailsIsOpen('cqPreExtractFilterOpts', false) ? 'open' : ''} ontoggle="_detailsToggle('cqPreExtractFilterOpts', this.open)">
+            <summary><svg class="sicon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Content Filter settings</summary>
             <div style="margin-top:8px;">
+              <div style="font-size:.75rem;font-weight:700;color:var(--wrong-fg);margin-bottom:5px;">
+                <svg class="sicon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Reference Source (required) — upload the images/PDFs every question must check out against
+              </div>
+              <div class="cq-dropzone cq-dz-purple" id="cqFilterSourceDropzone" onclick="document.getElementById('cqFilterSourceFileInput').click()">
+                <div class="cq-dz-icon"><svg class="hicon" style="width:28px;height:28px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                <div class="cq-dz-text">Click to upload, or drag &amp; drop — one or more reference images or PDFs</div>
+                ${cqFilterSourceFiles.length ? _cqFileListHTML(cqFilterSourceFiles, 'cqRemoveFilterSourceFile', sf => sf.file) : ''}
+                ${cqFilterSourceFiles.length ? `<div class="cq-dz-add-more"><svg class="sicon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Click again to add more files</div>` : ''}
+              </div>
+              <input type="file" id="cqFilterSourceFileInput" accept="image/*,application/pdf" multiple style="display:none;"
+                onchange="handleCqFilterSourceFileSelect(event)" />
+              <div class="cq-bulk-ai-opts-divider"></div>
               ${_renderCqFilterPassesConfigHTML('renderCustomQuizModal()')}
             </div>
           </details>

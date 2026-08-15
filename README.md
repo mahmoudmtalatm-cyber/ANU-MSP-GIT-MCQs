@@ -824,6 +824,49 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **130 — Content Filter's source + config are one collapsible "Content
+  Filter settings" menu (collapsed by default), and every bulk-tool
+  options panel now survives re-renders instead of silently collapsing.**
+  - **Merged Content Filter menu:** both places Content Filter runs from
+    — the pre-extraction toggle (`js/firebase-storage.js`) and the
+    post-extraction bulk tool (`_renderBulkContentFilterToolHTML`,
+    `js/ai-features.js`) — previously showed two separate `<details>`
+    panels, "Content Filter source" and "Content Filter config". These
+    are now a single **"Content Filter settings"** panel containing the
+    reference-source dropzone followed by the passes/Micro Filter/
+    batch-size config, separated by a plain divider
+    (`.cq-bulk-ai-opts-divider`, `css/styles.css`) rather than a second
+    summary row. Collapsed by default in both places.
+  - **Fixed: adding a source collapsed whatever options panel you had
+    open.** Every bulk-tool options panel — AI Solve settings, the new
+    Content Filter settings, Refine Questions settings, Re-extract
+    settings, and both Content Filter menus — lives inside HTML that
+    gets fully rebuilt via `innerHTML` on actions unrelated to the panel
+    itself (adding/removing a reference-source file, toggling Micro
+    Filter, any other bulk-tool rerender). Previously each `<details>`
+    either had no persisted state at all (so it silently re-closed on
+    every such rerender — this is what caused settings to "just
+    collapse" after adding a source to AI Solve All) or was hardcoded
+    `open` as a workaround (build #129's Content Filter fix), which
+    stopped the collapse but meant it could never actually be closed
+    either. Both are now replaced by a small shared state store —
+    `_detailsOpenState` / `_detailsIsOpen()` / `_detailsToggle()`
+    (top of `js/ai-features.js`, loaded before `js/firebase-storage.js`
+    so both files share it) — that every `cq-bulk-ai-opts` `<details>`
+    reads on render and writes to via `ontoggle`, keyed by a stable
+    scope per panel (e.g. `cq_solveOpts`, `cq_filterOpts`,
+    `cqPreExtractFilterOpts`). Whatever the user last set now survives
+    any rerender, in either direction — open stays open, closed stays
+    closed.
+  - Tests: `tests/run-tests.js` Suite F was rewritten — the old suite
+    asserted the previous hardcoded-`open` behavior for Content Filter
+    specifically, which this build intentionally removes. It now covers
+    `_detailsIsOpen`/`_detailsToggle`'s state semantics, that the merged
+    "Content Filter settings" panel renders once (not two separate
+    menus) and collapsed by default, that it survives a simulated
+    source-add rerender while open, and that every `cq-bulk-ai-opts`
+    `<details>` in both files wires up `_detailsIsOpen`/`_detailsToggle`
+    rather than a literal value. 30/30 passing.
 - **129 — Every batch-using AI tool gets its own batch-size config (not
   just Content Filter), each defaulting to whatever that tool already
   used before this setting existed; Micro Filter no longer collapses its

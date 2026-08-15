@@ -2381,6 +2381,10 @@
 .cq-bulk-ai-opts summary {
   font-size: .76rem; font-weight: 700; color: var(--violet-dark); cursor: pointer; user-select: none;
 }
+/* Separates a merged panel's sub-sections (e.g. Content Filter settings'
+   reference-source dropzone from its passes/batch-size config) without a
+   second <details>/summary — one collapsible menu, several sections. */
+.cq-bulk-ai-opts-divider { border-top: 1px solid #DCD0F5; margin: 12px 0; }
 .cq-bulk-ai-label {
   /* Leading icon followed by one run of (occasionally wrapping) text —
      flex-start keeps the icon level with the first line rather than the
