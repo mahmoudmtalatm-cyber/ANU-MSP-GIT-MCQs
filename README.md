@@ -824,6 +824,37 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **125 — Fixed custom quizzes (and quiz collections/stats/attempt history)
+  appearing to vanish after a page refresh, for any signed-out or
+  not-yet-signed-in use of the app.** Saving a quiz always wrote correctly
+  to IndexedDB (`js/local-store.js`) and showed up immediately in the same
+  session, since `saveCustomQuizzesList()` (`js/firebase-storage.js`) sets
+  the in-memory `window._cachedCustomQuizzes` cache directly on save. The
+  bug was on the READ side after a refresh: `js/firebase-init.js`'s
+  `onAuthStateChanged` handler only ever reloaded
+  `window._cachedCustomQuizzes` / `window._cachedQuizCollections` /
+  `window._quizAttempts` from IndexedDB inside its `if (user)` branch — a
+  leftover from before custom quizzes/stats moved from Firestore to local
+  storage, when signing in was in fact what triggered the Firestore fetch.
+  Once everything moved to local storage (an IndexedDB store that's
+  per-device, not per-account) that guard was stale: a signed-out user's
+  data was safely sitting in IndexedDB the whole time, but nothing ever
+  read it back into memory on refresh, so `loadCustomQuizzes()`
+  (`js/firebase-storage.js`) fell back to its `|| []` default and the
+  custom-quizzes list rendered empty. The matching stats loader,
+  `loadStatsFromFirestore()` (`js/app-core.js`), had the identical bug via
+  its own `if (!window._currentUser) return;` guard.
+  - Both loads now happen unconditionally in `onAuthStateChanged`,
+    regardless of whether `user` is set — they're pure local-storage
+    reads with no Firestore dependency left, so there's no reason to gate
+    them on sign-in state. Sign-in-only steps (the one-time Firestore→
+    local migration for pre-existing accounts, display-name pre-load,
+    admin manifest backfill) stay exactly as gated as before.
+  - The migration step now runs *after* this local-storage load rather
+    than before it, and — if it actually pulled anything down from
+    Firestore — triggers one more local-storage reload immediately after,
+    so a freshly-migrated account sees its recovered quizzes/stats without
+    needing a second refresh.
 - **124 — Fixed AI Solve / Content Filter losing track of reference-source
   files after a mid-run API key rotation, instead of every batch after the
   rotation failing on a stale file reference.** `cqAiSolveQuestions()`

@@ -56,31 +56,49 @@ import { firebaseConfig } from './config/firebase-config.js';
     await loadAdminRoster();
     updateAuthUI(window._currentUser);
 
-    if (user) {
-      // Mark as loading before the async calls so fsAwaitIfNeeded shows the spinner
-      _fsReady.stats         = false;
-      _fsReady.customQuizzes = false;
+    // Custom quizzes, quiz collections, attempts, and stats all live
+    // entirely in local storage (IndexedDB) now — never Firestore — and
+    // that storage is per-device, not per-account, so it must be loaded
+    // back into memory on EVERY page load/refresh regardless of sign-in
+    // state. This used to sit inside the `if (user)` branch below, back
+    // when signing in was what actually fetched this data from Firestore;
+    // once everything moved to local storage that guard became a bug —
+    // a signed-out (or not-yet-signed-in) user's custom quizzes/stats
+    // still saved correctly to IndexedDB, but a refresh never read them
+    // back into window._cachedCustomQuizzes etc., so the UI showed nothing
+    // and it looked like the save had been lost. Loading it here, outside
+    // the `if (user)` branch, fixes that for both signed-in and
+    // signed-out use — see the matching comment on
+    // window.loadStatsFromFirestore in js/app-core.js.
+    _fsReady.stats         = false;
+    _fsReady.customQuizzes = false;
+    window._cachedCustomQuizzes = await listCustomQuizzes();
+    window._cachedQuizCollections = await listQuizCollections();
+    await window.loadStatsFromFirestore();
+    window._quizAttempts = await listAttempts();
+    _fsReady.customQuizzes = true;
 
+    if (user) {
       // One-time, safe migration for existing users: pulls any of their
       // OLD Firestore-stored stats/custom quizzes down to local storage
       // first, confirms the write, THEN deletes the old Firestore copies.
       // Safe to re-run if interrupted; already-migrated users return
       // immediately ({ alreadyDone: true }) at essentially no cost.
+      // Runs AFTER the local-storage load above so a migration that adds
+      // data this visit is picked up by a second load, not raced against
+      // the first one.
       const migrationResult = await runOneTimeMigrationIfNeeded(user.uid);
       if (migrationResult.errors && migrationResult.errors.length) {
         console.warn('Migration incomplete, will retry next visit:', migrationResult.errors);
       }
-
-      // Custom quizzes and stats now live entirely in local storage —
-      // never Firestore. Load them from there. Custom quizzes are loaded
-      // directly here; stats reuse the one, already-correct loader in
-      // js/app-core.js (window.loadStatsFromFirestore) rather than
-      // duplicating that logic a second time in this file.
-      window._cachedCustomQuizzes = await listCustomQuizzes();
-      window._cachedQuizCollections = await listQuizCollections();
-      await window.loadStatsFromFirestore();
-      window._quizAttempts = await listAttempts();
-      _fsReady.customQuizzes = true;
+      if (migrationResult.customQuizzesPulled || migrationResult.statsPulled) {
+        // Something old just got pulled down from Firestore — reload local
+        // storage once more so it shows up immediately, without a refresh.
+        window._cachedCustomQuizzes = await listCustomQuizzes();
+        window._cachedQuizCollections = await listQuizCollections();
+        await window.loadStatsFromFirestore();
+        window._quizAttempts = await listAttempts();
+      }
 
       // Pre-load display name so sharing feels instant
       try {
@@ -103,10 +121,6 @@ import { firebaseConfig } from './config/firebase-config.js';
           .then(() => loadPublishedQuestionsIntoSubjects(true)); // skip throttle: backfill may have just changed the manifest
       }
     } else {
-      // No user — nothing to load from Firestore, mark as ready immediately
-      window._cachedStats = null;
       window._userDisplayName = null;
-      _fsReady.customQuizzes = true;
-      _fsReady.stats = true;
     }
   });

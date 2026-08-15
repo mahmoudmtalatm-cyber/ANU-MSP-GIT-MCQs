@@ -422,8 +422,8 @@ function _yearIcon(year, position) {
 const _fsReady = {
   curriculum: false,
   published: false,
-  stats: true, // true until a signed-in user triggers a load
-  customQuizzes: true, // true until a signed-in user triggers a load
+  stats: true, // true until the local-storage load in firebase-init.js's onAuthStateChanged fires (signed-in or not)
+  customQuizzes: true, // true until the local-storage load in firebase-init.js's onAuthStateChanged fires (signed-in or not)
 };
 
 function fsLoadingShow(msg) {
@@ -1193,8 +1193,14 @@ function defaultStats() {
         loadHistoryEntries in js/firebase-storage.js. */
 async function loadStatsFromFirestore() {
   // Name kept for compatibility with existing call sites elsewhere in the
-  // app; stats now live entirely in local storage, never Firestore.
-  if (!window._currentUser) return;
+  // app; stats now live entirely in local storage, never Firestore — and
+  // that local storage (IndexedDB) is per-device, not per-account, so this
+  // read is NOT gated on window._currentUser. It used to return early here
+  // when signed out, back when this function actually talked to Firestore;
+  // now that it's a plain local-store read that guard just meant a
+  // signed-out user's stats never got loaded back into window._cachedStats
+  // after a refresh. See the matching fix in js/firebase-init.js for
+  // custom quizzes / quiz collections / attempts — same root cause.
   try {
     const { getStatsAggregate, listAttempts } = await import('./local-store.js');
     const aggregate = await getStatsAggregate();
