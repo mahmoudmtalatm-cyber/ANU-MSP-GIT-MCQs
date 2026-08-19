@@ -356,7 +356,7 @@ async function renderCommunityQuizzes(forceReload) {
   // already-fixed implementation, so there's no risk of the two drifting
   // out of sync with each other again.
   if (!_allSharedQuizzes.length || forceReload) {
-    body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);"><div style="margin-bottom:10px;display:flex;justify-content:center;color:var(--text-muted);"><svg class="hicon" style="width:32px;height:32px;" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div><div style="font-weight:700;">Loading community quizzes…</div></div>`;
+    body.innerHTML = contentLoaderHTML('Loading community quizzes…');
     const ok = await ensureSharedQuizzesLoaded(forceReload);
     if (!ok) {
       body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--wrong-fg);"><svg class="micon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Failed to load community quizzes. Please try again.</div>`;

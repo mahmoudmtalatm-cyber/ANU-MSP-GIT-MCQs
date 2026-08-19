@@ -418,7 +418,7 @@ async function _pdxRenderCommunityTab() {
     el.innerHTML = `<div class="community-empty">Please sign in to browse community quizzes.</div>`;
     return;
   }
-  if (!_allSharedQuizzes.length) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);"><div style="margin-bottom:8px;display:flex;justify-content:center;color:var(--text-muted);"><svg style="width:28px;height:28px;" class="hicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg></div>Loading community quizzes…</div>`;
+  if (!_allSharedQuizzes.length) el.innerHTML = contentLoaderHTML('Loading community quizzes…');
   // The exact same loader the real " Community Quizzes" screen calls
   // (js/sharing.js → renderCommunityQuizzes → js/community-quizzes.js →
   // ensureSharedQuizzesLoaded) — same cache, same 60s throttle window, so

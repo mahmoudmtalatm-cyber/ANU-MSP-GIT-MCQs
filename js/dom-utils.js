@@ -334,3 +334,41 @@ for (const key of Object.keys(SOURCE_TAB_ICONS)) {
   const entry = SOURCE_TAB_ICONS[key];
   Object.defineProperty(entry, 'full', { get() { return `${entry.icon} ${entry.label}`; } });
 }
+/* ══════════════════════════════════════════════════════════
+   SHARED CONTENT LOADER — one themed loading-state markup for
+   any container that renders while async data (Firestore, the
+   Cloudflare Worker/R2 content API, etc.) is still in flight.
+   ──────────────────────────────────────────────────────────
+   Introduced in #132 to replace five near-identical hand-rolled
+   spinner blocks that had drifted out of sync across files —
+   js/community-quizzes.js, js/admin-panel.js (two spots, one of
+   which wasn't even animated), js/pdf-export.js, and
+   js/sharing.js each built their own "Loading community
+   quizzes…" markup with a different icon and slightly different
+   wrapper styling. Centralizing it here means every one of those
+   screens renders pixel-identical, on-theme loading state, and
+   any future tweak (copy, animation, sizing) only needs to
+   happen once.
+
+   Pairs with the CSS `.content-loader` component (css/styles.css,
+   next to #fsLoadingToast — the two share one two-ring spinner
+   language, just sized/colored for a pill vs. an in-page block).
+   Not for the global "background data" toast itself — that stays
+   on fsLoadingShow()/fsLoadingHide() (js/app-core.js), since it
+   floats independently of whatever screen is on top. Use this
+   instead any time a screen/modal needs to show a loading state
+   INSIDE its own content area while it awaits a promise before it
+   has anything real to render yet.
+
+   message: required — bold primary line, e.g. "Loading community
+     quizzes…". sub: optional smaller line underneath for extra
+     context (e.g. "This can take a few seconds on a slow
+     connection"). Both are inserted as-is — callers pass trusted,
+     hardcoded copy, never raw user input. */
+function contentLoaderHTML(message, sub) {
+  return `<div class="content-loader">
+    <div class="content-loader-ring"><span></span><span></span></div>
+    <div class="content-loader-msg">${message || 'Loading…'}</div>
+    ${sub ? `<div class="content-loader-sub">${sub}</div>` : ''}
+  </div>`;
+}

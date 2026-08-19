@@ -298,7 +298,11 @@ anu-msp-question-bank/
 │   │                              #   HTML cache, used by any long-running
 │   │                              #   background flow (extraction, generation,
 │   │                              #   AI tools) so its UI survives the host
-│   │                              #   modal/editor being re-rendered mid-run
+│   │                              #   modal/editor being re-rendered mid-run.
+│   │                              #   Also home to contentLoaderHTML() — the
+│   │                              #   one shared, theme-branded loading-state
+│   │                              #   markup every screen uses while its own
+│   │                              #   async content is still in flight
 │   ├── app-core.js               # State, screen navigation, quiz engine
 │   │                              #   (timer, render/navigate/mark/submit),
 │   │                              #   subject selection, persistent stats
@@ -824,6 +828,52 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **132 — A shared, theme-branded loading indicator so any screen whose
+  content is still loading shows an obvious, stylish "still working"
+  state instead of looking broken/frozen — and one unified spinner
+  design replaces five near-duplicate hand-rolled ones.**
+  - **The problem:** several screens fetch data (Firestore, the
+    Cloudflare Worker/R2 content API) before they have anything real to
+    render, and in the meantime either showed nothing at all, a plain
+    static line of text with no animation, or one of five slightly
+    different copy-pasted "Loading community quizzes…" spinner blocks —
+    each with its own icon, sizing, and wrapper markup, scattered across
+    `js/community-quizzes.js`, `js/admin-panel.js` (two separate call
+    sites), `js/pdf-export.js`, and `js/sharing.js`. One of
+    `admin-panel.js`'s two copies (the Publish tab's community source
+    picker) wasn't animated at all — just a static eye icon — so opening
+    it during a slow connection looked identical to a stuck/broken
+    screen. `app-core.js`'s Stats screen had the same static-icon
+    problem while waiting on the very first local-storage load.
+  - **The fix — `contentLoaderHTML(message, sub)`:** one new shared
+    helper (`js/dom-utils.js`, loaded before every screen that now calls
+    it) returns a themed, animated loading block — a two-ring spinner
+    (accent-blue outer ring, gold inner ring counter-spinning, echoing
+    the brand badge's own ring) above a bold status line and an optional
+    smaller sub-line. All five former hand-rolled blocks, plus the
+    Stats screen's static one, now call this one function instead of
+    building their own markup, so every "content still loading" state in
+    the app looks — and animates — identically, and any future tweak to
+    copy or styling only has to happen in one place. Styled by the new
+    `.content-loader` component (`css/styles.css`), which scales down
+    (smaller ring, tighter padding) under 480px so it stays proportional
+    on phones.
+  - **Global toast polish:** the existing bottom-right "background data
+    still loading" pill (`#fsLoadingToast`, shown by `fsLoadingShow()`/
+    `fsAwaitIfNeeded()` in `js/app-core.js` for curriculum/lecture/stats/
+    custom-quiz loads that happen before a screen even opens) previously
+    used a plain one-off teal background and a single-ring spinner that
+    didn't match anything else in the app. It now uses the same
+    accent-blue gradient and two-ring spinner language as
+    `.content-loader` above, and on narrow screens (≤480px) it widens
+    into a centered full-width bar anchored to the bottom of the
+    viewport instead of staying a fixed-width pill that could clip a
+    longer message.
+  - Tests: `tests/run-tests.js` gained Suite H, covering
+    `contentLoaderHTML()` directly (default message, optional sub-line,
+    correct CSS classes) and confirming all five former hand-rolled
+    spinner blocks are gone from the codebase and replaced by exactly
+    five `contentLoaderHTML(...)` call sites. 41/41 passing.
 - **131 — AI Solve's "(batch N of M)" progress counter no longer hides
   itself on the common case (a run that fits in one batch), and the
   "AI Guess"/"AI-answered"/"No Key" pill now shows in every editor, not

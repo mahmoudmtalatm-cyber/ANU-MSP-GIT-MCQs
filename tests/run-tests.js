@@ -778,6 +778,69 @@ function suiteG() {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// SUITE H — contentLoaderHTML (shared loading-state markup, project drop #132)
+// ═════════════════════════════════════════════════════════════════════
+function suiteH() {
+  console.log('\n== Suite H: contentLoaderHTML (shared content-loading indicator) ==');
+  const sandbox = makeSandbox();
+  const ctx = vm.createContext(sandbox);
+  loadInto(ctx, 'dom-utils.js');
+
+  test('renders the spinner + given message', () => {
+    const html = ctx.contentLoaderHTML('Loading community quizzes…');
+    assert(html.includes('content-loader'), 'should use the shared .content-loader class');
+    assert(html.includes('content-loader-ring'), 'should include the two-ring spinner');
+    assert(html.includes('Loading community quizzes…'), 'should include the given message');
+  });
+
+  test('falls back to a default message when none is given', () => {
+    const html = ctx.contentLoaderHTML();
+    assert(html.includes('Loading…'), 'should default to "Loading…"');
+  });
+
+  test('includes an optional sub-line only when provided', () => {
+    const withSub = ctx.contentLoaderHTML('Loading…', 'This can take a moment');
+    assert(withSub.includes('content-loader-sub'), 'should render the sub-line wrapper');
+    assert(withSub.includes('This can take a moment'), 'should include the sub-line text');
+
+    const withoutSub = ctx.contentLoaderHTML('Loading…');
+    assert(!withoutSub.includes('content-loader-sub'), 'should omit the sub-line wrapper when not given');
+  });
+
+  test('every former hand-rolled "Loading community quizzes…" spinner now calls the shared helper', () => {
+    // Project drop #132: community-quizzes.js, admin-panel.js (two call
+    // sites), pdf-export.js, and sharing.js each used to build their own
+    // copy-pasted spinner markup (one of them not even animated). All
+    // five now delegate to contentLoaderHTML() instead.
+    const files = ['community-quizzes.js', 'admin-panel.js', 'pdf-export.js', 'sharing.js'];
+    let totalCalls = 0;
+    files.forEach(f => {
+      const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+      const matches = src.match(/contentLoaderHTML\(/g) || [];
+      totalCalls += matches.length;
+    });
+    assertEqual(totalCalls, 5, 'expected 5 call sites (community-quizzes.js x1, admin-panel.js x2, pdf-export.js x1, sharing.js x1)');
+  });
+
+  test('no file still contains its old hand-rolled loading-spinner markup', () => {
+    // Distinctive fragments from each file's own former one-off spinner
+    // block (different icon/wrapper per file) — each should be fully
+    // gone now that they all call contentLoaderHTML() instead.
+    const fingerprints = {
+      'community-quizzes.js': 'class="hicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"',
+      'admin-panel.js': 'ry="2.2"/><path d="M5 5c0 5 5 5 5 7s-5 2-5 7M19 5c0 5-5 5-5 7s5 2 5 7"/></svg> Loading community quizzes',
+      'pdf-export.js': 'class="hicon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"',
+      'sharing.js': '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>',
+      'app-core.js': '<ellipse cx="12" cy="5" rx="7" ry="2.2"/><ellipse cx="12" cy="19" rx="7" ry="2.2"/>',
+    };
+    Object.entries(fingerprints).forEach(([f, fingerprint]) => {
+      const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+      assert(!src.includes(fingerprint), `${f} should no longer contain its old hand-rolled spinner markup`);
+    });
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════
 (async () => {
   await suiteA();
   await suiteB();
@@ -786,6 +849,7 @@ function suiteG() {
   await suiteE();
   suiteF();
   suiteG();
+  suiteH();
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) {

@@ -22,6 +22,11 @@ project drops:
 - `_renderAiSolveStatusBadge()` — the shared "AI Guess"/"AI-answered"/
   "No Key" pill, and that the post-extraction preview, Admin editor,
   and Custom-Quiz editor all render it consistently. (Suite G)
+- `contentLoaderHTML()` — the shared, theme-branded loading-state
+  markup (`js/dom-utils.js`) used by any screen whose content is still
+  being fetched, and that the five former hand-rolled spinner blocks it
+  replaced (`community-quizzes.js`, `admin-panel.js` ×2, `pdf-export.js`,
+  `sharing.js`) are all gone in favor of it. (Suite H)
 
 ## Running
 
