@@ -1347,26 +1347,25 @@ async function saveQuizStats(score, total, wrong, unanswered, timeSecs, timedQs,
 }
 
 function openStats() {
-  fsAwaitIfNeeded('stats', 'Loading your stats…');
+  // Stats live entirely in local storage (IndexedDB), never Firestore —
+  // reads are effectively instant, so this doesn't need its own loading
+  // state. Renders immediately with whatever's cached (loadStats() falls
+  // back to defaultStats() if the very first local-store read genuinely
+  // hasn't landed yet, and renderStatsModal() already has its own correct
+  // "No data yet" empty state for that). fsAwaitIfNeeded's onReady callback
+  // re-renders once the real data lands, silently, with no spinner —
+  // exactly the same lightweight pattern openRetake() below already uses
+  // for this same data. Previously this had its own full-block spinner +
+  // hand-rolled 1500ms retry timer left over from before stats moved off
+  // Firestore; removed as unnecessary now the read is local-only.
+  fsAwaitIfNeeded('stats', 'Loading your stats…', () => {
+    if (!document.getElementById('statsOverlay').classList.contains('hidden')) {
+      renderStatsModal();
+    }
+  });
   document.getElementById('statsOverlay').classList.remove('hidden');
   _statsFlow = { year: null, module: null, openSubject: null, openOther: null };
-
-  if (!window._cachedStats) {
-    // Still loading from local storage (the onAuthStateChanged handler in
-    // js/firebase-init.js hasn't resolved yet) — show a spinner and retry
-    // shortly. Not gated on window._currentUser: stats load from local
-    // storage the same way for signed-in and signed-out use now, so a
-    // signed-out user opening Stats in the brief window before that load
-    // finishes should see this same spinner, not an empty/default state.
-    document.getElementById('statsBody').innerHTML = contentLoaderHTML('Loading your stats…');
-    // Try again shortly
-    setTimeout(() => {
-      if (document.getElementById('statsOverlay').classList.contains('hidden')) return;
-      renderStatsModal();
-    }, 1500);
-  } else {
-    renderStatsModal();
-  }
+  renderStatsModal();
 }
 function closeStats() { document.getElementById('statsOverlay').classList.add('hidden'); fsLoadingHide(); }
 

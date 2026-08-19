@@ -828,36 +828,33 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
-- **132 — A shared, theme-branded loading indicator so any screen whose
-  content is still loading shows an obvious, stylish "still working"
-  state instead of looking broken/frozen — and one unified spinner
-  design replaces five near-duplicate hand-rolled ones.**
-  - **The problem:** several screens fetch data (Firestore, the
-    Cloudflare Worker/R2 content API) before they have anything real to
-    render, and in the meantime either showed nothing at all, a plain
-    static line of text with no animation, or one of five slightly
-    different copy-pasted "Loading community quizzes…" spinner blocks —
-    each with its own icon, sizing, and wrapper markup, scattered across
-    `js/community-quizzes.js`, `js/admin-panel.js` (two separate call
-    sites), `js/pdf-export.js`, and `js/sharing.js`. One of
+- **132 — A shared, theme-branded loading indicator for screens that
+  fetch real, network-backed data (Firestore, the Cloudflare Worker/R2
+  content API) — one unified spinner design replaces five near-duplicate
+  hand-rolled ones, plus a stray unnecessary loading state got removed.**
+  - **The problem:** several screens fetch data before they have
+    anything real to render, and in the meantime either showed nothing
+    at all, a plain static line of text with no animation, or one of
+    five slightly different copy-pasted "Loading community quizzes…"
+    spinner blocks — each with its own icon, sizing, and wrapper markup,
+    scattered across `js/community-quizzes.js`, `js/admin-panel.js` (two
+    separate call sites), `js/pdf-export.js`, and `js/sharing.js`. One of
     `admin-panel.js`'s two copies (the Publish tab's community source
     picker) wasn't animated at all — just a static eye icon — so opening
     it during a slow connection looked identical to a stuck/broken
-    screen. `app-core.js`'s Stats screen had the same static-icon
-    problem while waiting on the very first local-storage load.
+    screen.
   - **The fix — `contentLoaderHTML(message, sub)`:** one new shared
     helper (`js/dom-utils.js`, loaded before every screen that now calls
     it) returns a themed, animated loading block — a two-ring spinner
     (accent-blue outer ring, gold inner ring counter-spinning, echoing
     the brand badge's own ring) above a bold status line and an optional
-    smaller sub-line. All five former hand-rolled blocks, plus the
-    Stats screen's static one, now call this one function instead of
-    building their own markup, so every "content still loading" state in
-    the app looks — and animates — identically, and any future tweak to
-    copy or styling only has to happen in one place. Styled by the new
-    `.content-loader` component (`css/styles.css`), which scales down
-    (smaller ring, tighter padding) under 480px so it stays proportional
-    on phones.
+    smaller sub-line. All five former hand-rolled blocks now call this
+    one function instead of building their own markup, so every
+    "content still loading" state in the app looks — and animates —
+    identically, and any future tweak to copy or styling only has to
+    happen in one place. Styled by the new `.content-loader` component
+    (`css/styles.css`), which scales down (smaller ring, tighter
+    padding) under 480px so it stays proportional on phones.
   - **Global toast polish:** the existing bottom-right "background data
     still loading" pill (`#fsLoadingToast`, shown by `fsLoadingShow()`/
     `fsAwaitIfNeeded()` in `js/app-core.js` for curriculum/lecture/stats/
@@ -869,6 +866,21 @@ change (see the filename of whichever zip you're reading from).
     into a centered full-width bar anchored to the bottom of the
     viewport instead of staying a fixed-width pill that could clip a
     longer message.
+  - **Stats screen: removed a loading state it never needed.** Unlike
+    the other four screens above, `openStats()` (`js/app-core.js`) got a
+    full `.content-loader` block on the first pass — but Statistics data
+    lives entirely in local storage (IndexedDB) now, never Firestore, so
+    that read is effectively instant; the only real race is the literal
+    first tick of a page load, before the async local-store read
+    resolves, which its sibling screen `openRetake()` — reading the
+    exact same data — already handled without any block spinner at all:
+    render immediately with whatever's cached (`loadStats()` falls back
+    to `defaultStats()`, and `renderStatsModal()` already has its own
+    correct "No data yet" empty state), then quietly re-render via
+    `fsAwaitIfNeeded()`'s `onReady` callback once the real data lands —
+    no spinner, no flash. `openStats()` now follows that same pattern
+    instead of its own heavier one, removing a stray 1500ms retry timer
+    left over from before stats moved off Firestore in the process.
   - Tests: `tests/run-tests.js` gained Suite H, covering
     `contentLoaderHTML()` directly (default message, optional sub-line,
     correct CSS classes) and confirming all five former hand-rolled
