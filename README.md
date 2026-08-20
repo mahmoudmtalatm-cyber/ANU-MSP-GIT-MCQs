@@ -828,6 +828,38 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **135 — Fixed a rare AI extraction bug where an answer choice would end
+  up duplicated in two places: once (correctly) in "options", and again
+  copied into the tail end of the "question" text itself.**
+  - **The problem:** `CQ_EXTRACTION_PROMPT` (`js/gemini-uploads.js`) told
+    Gemini to reproduce the question stem exactly and the choices exactly,
+    but never explicitly said the two must not overlap. Most source
+    documents have a clear line break between the stem and its choices,
+    which the model splits correctly by default — but occasionally
+    (usually when a document runs the choices directly into the question
+    paragraph with no line break, e.g. "...most likely diagnosis? A)
+    Diagnosis one B) Diagnosis two...") the model would copy that whole
+    run-on chunk into "question" verbatim AND separately parse the same
+    choices into "options" — so the choice text ends up rendered twice:
+    once as part of the question stem, once as its own answer choice.
+  - **The fix:** added a new explicit rule 5 to `CQ_EXTRACTION_PROMPT`
+    (renumbering the rules after it, and updating the two internal
+    "rule N" cross-references in the cross-page-continuation rule to
+    match — now 1–11 total) requiring the "question" field to contain
+    ONLY the stem and stop before the first choice label, with a
+    concrete run-on example, an explicit self-check ("does any option's
+    text also appear inside 'question'? if so, remove it from
+    'question'"), and a carve-out for values that merely resemble a
+    choice but are genuinely part of the stem's own narrative (a lab
+    value, drug name, etc. mentioned while describing the case), so
+    real content isn't stripped out by mistake.
+  - **Scope:** this is a prompt-only fix, same category as #133 — no
+    `responseSchema` or structured-output constraint was forcing the
+    duplication, and nothing downstream (save/publish/render) alters
+    "question" or "options" text, so nothing else needed to change.
+    41/41 pre-existing tests unaffected; no new test suite added since
+    this is plain-text prompt content with no executable logic to unit
+    test — same reasoning as build #133's symbol-extraction fix.
 - **134 — Fixed the "Loading curriculum…"/"Loading lectures…" toast not
   actually covering the window where curriculum is being loaded, so it
   looked like it "didn't work"; also brought `selectYear()`/
