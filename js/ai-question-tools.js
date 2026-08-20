@@ -481,6 +481,7 @@ Rules:
 - Fix all grammar, spelling, and typo issues.
 - Use clear, formal, exam-style phrasing and structure.
 - Do NOT change what the question is actually asking, its topic, or any fact/number/name in it.
+- Preserve every symbol, Greek letter, subscript/superscript, and special character exactly as given (e.g. β, α, μg, Na+, CO2, ≥, →) — reproduce the real character, never spell it out as a word (do not turn "β-blocker" into "beta-blocker") and never drop it.
 - Do NOT reference or rewrite the answer choices — they're given only as context.
 - Keep it roughly the same length unless told otherwise below.
 - Small, natural phrasing variation between rewrites is fine; the underlying meaning must stay identical every time.
@@ -601,6 +602,7 @@ Write exactly ${count} NEW answer choice${count !== 1 ? 's' : ''} that:
 - Is/are distinct from every existing choice and from each other.
 - Are NOT generic filler like "None of the above", "All of the above", or "I don't know".
 - Draw from varied angles (different mechanisms, related-but-wrong conditions, common misconceptions) rather than minor rewordings of the same idea.
+- Use real symbols where relevant (Greek letters like β/α/γ/μ, ion notation like Na+/K+/Ca2+, arrows/comparisons like ↑/↓/≥), matching the style of the existing choices — never spell a symbol out as a word.
 
 Respond ONLY with a JSON object: {"choices": [${Array(count).fill('"..."').join(', ')}]} containing exactly ${count} string${count !== 1 ? 's' : ''}, in order. No markdown, no preamble.`;
 

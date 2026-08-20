@@ -751,6 +751,7 @@ STRICT RULES:
 5. Do NOT include any question that cannot be answered from the provided material.
 6. Do NOT add explanations, rationales, or commentary.
 7. Favor variety: vary question phrasing, clinical scenario details (patient age/sex/presentation), and which concepts get emphasized rather than defaulting to the most obvious or generic phrasing every time.
+8. Use real symbols, not spelled-out words, wherever the medical convention calls for one — Greek letters (β-blocker, α-adrenergic, γ-glutamyl, not "beta-blocker"/"alpha-adrenergic"), ion notation (Na+, K+, Ca2+, HCO3-), and arrows/comparisons (↑, ↓, ≥, ≤) where natural.
 
 Return ONLY a JSON array, one object per question, in exactly this format:
 [

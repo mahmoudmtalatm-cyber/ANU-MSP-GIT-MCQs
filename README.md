@@ -828,6 +828,53 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **133 — Fixed the AI mis-transcribing Greek letters, ion notation, and
+  math/comparison symbols during extraction (and other AI text tools),
+  instead of reproducing them exactly — e.g. "β-blocker" coming out as
+  "beta-blocker", "Na+" losing its charge, or "↑"/"≥" turning into
+  words.**
+  - **The problem:** `CQ_EXTRACTION_PROMPT` (`js/gemini-uploads.js`),
+    the instruction set the extractor sends to Gemini for every
+    uploaded image/PDF, told the model to reproduce question and
+    answer text "EXACTLY as written" but never called out symbols
+    specifically — so Gemini would often silently normalize Greek
+    letters, ionic/chemical notation, and math symbols into plain
+    English words or drop them, since that's a common OCR/LLM failure
+    mode on scientific text. This is the actual content that gets
+    saved to Firestore and published, so a wrong symbol at extraction
+    time stayed wrong everywhere the question was later shown, edited,
+    or exported.
+  - **The fix:** added a new, explicit rule 3 to `CQ_EXTRACTION_PROMPT`
+    (renumbering the rules that follow it, and updating the two
+    internal "rule N" cross-references in the cross-page-continuation
+    rule to match) requiring every symbol, Greek letter, subscript, and
+    superscript to be reproduced as its real Unicode character — never
+    spelled out as a word and never swapped for a similar-looking
+    Latin letter — with concrete examples for the patterns that come up
+    constantly in medical material: Greek letters (β, α, γ, δ, μ, Δ,
+    θ, λ, σ, ω, π, χ), ion/chemical notation (Na+, K+, Ca2+, Mg2+,
+    HCO3-, CO2, H2O), and math/arrow symbols (±, ≥, ≤, ≠, →, ↑, ↓, °,
+    %, ½, ¼), plus a rule for genuinely illegible symbols (best-effort
+    guess at the real glyph from context, never a word or omission).
+  - **Same fix applied to every other AI tool that touches question
+    text**, so a symbol extracted correctly can't get re-mangled later
+    by a different pass: the Refine Question prompt
+    (`_aiRefineQuestionCall`, `js/ai-question-tools.js`) now explicitly
+    preserves existing symbols while it rewrites a stem, the Fill
+    Choices/Add Choice distractor prompt (`_aiGenerateDistractors`,
+    same file) now writes new choices using real symbols instead of
+    spelling them out, and the Generate Quiz prompt
+    (`buildGenerationPrompt`, `js/ai-solve.js`) now has the same rule
+    for questions it writes from scratch off lecture material.
+  - **Scope check:** confirmed nothing downstream re-mangles a symbol
+    once it's extracted correctly — `escapeHtml()`
+    (`js/ai-features.js`) only escapes the five HTML-special ASCII
+    characters and passes Unicode through untouched, and the only
+    place the app ever transliterates a symbol to plain ASCII is the
+    PDF-export text renderer (`PDX_SYMBOL_MAP` in `js/pdf-export.js`),
+    which is intentional and scoped to that one PDF font limitation —
+    so this was purely a prompt-level extraction issue, not a
+    storage/render bug.
 - **132 — A shared, theme-branded loading indicator for screens that
   fetch real, network-backed data (Firestore, the Cloudflare Worker/R2
   content API) — one unified spinner design replaces five near-duplicate
