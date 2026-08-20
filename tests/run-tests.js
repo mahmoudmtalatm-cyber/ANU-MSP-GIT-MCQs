@@ -841,6 +841,119 @@ function suiteH() {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// SUITE I — curriculum/published loading indicator (project drop #133)
+//   Regression coverage for: fsAwaitIfNeeded('curriculum'/'published', …)
+//   previously only ever fired reactively from inside selectYear()/
+//   selectSubject() (i.e. only if the user clicked in WHILE the load was
+//   still in flight) even though both loads actually start unconditionally
+//   at page boot — so the entire initial-load window had no visible
+//   indicator. Fixed by (a) showing the toast proactively at boot in
+//   js/firebase-init.js, and (b) giving selectYear()/selectSubject() the
+//   same onReady re-render pattern every other fsAwaitIfNeeded caller
+//   (openStats, openRetake, openCustomQuizzes) already used.
+// ═════════════════════════════════════════════════════════════════════
+function suiteI() {
+  console.log('\n== Suite I: curriculum/published loading indicator (#133) ==');
+
+  // ── Extract the real fsLoadingShow/fsLoadingHide/fsAwaitIfNeeded
+  //    implementations verbatim from app-core.js (not a re-typed copy),
+  //    so these tests exercise the actual shipped logic. ──
+  const appCoreSrc = fs.readFileSync(path.join(SRC, 'app-core.js'), 'utf8');
+  const start = appCoreSrc.indexOf('function fsLoadingShow(msg) {');
+  const end = appCoreSrc.indexOf('\nbuildYearGrid();');
+  assert(start !== -1 && end !== -1 && end > start,
+    'could not locate the fsLoadingShow…fsAwaitIfNeeded block in app-core.js — did it move?');
+  const loaderSrc = appCoreSrc.slice(start, end);
+
+  function makeToastSandbox() {
+    const toastEl = { _classes: new Set() };
+    toastEl.classList = {
+      add: c => toastEl._classes.add(c),
+      remove: c => toastEl._classes.delete(c),
+      contains: c => toastEl._classes.has(c),
+    };
+    const labelEl = { textContent: '' };
+    const sandbox = {
+      console,
+      document: {
+        getElementById: id => (id === 'fsLoadingToast' ? toastEl : id === 'fsLoadingMsg' ? labelEl : null),
+      },
+      setInterval, clearInterval,
+      _fsReady: { curriculum: false, published: false, stats: false, customQuizzes: false },
+    };
+    sandbox.global = sandbox;
+    sandbox.globalThis = sandbox;
+    const ctx = vm.createContext(sandbox);
+    vm.runInContext(loaderSrc, ctx, { filename: 'app-core.js (loader block)' });
+    return { ctx, toastEl, labelEl };
+  }
+
+  test('fsAwaitIfNeeded shows the toast immediately when the key is not ready', () => {
+    const { ctx, toastEl } = makeToastSandbox();
+    ctx.fsAwaitIfNeeded('curriculum', 'Loading curriculum…');
+    assert(toastEl.classList.contains('visible'), 'toast should be shown synchronously, not deferred');
+  });
+
+  test('fsAwaitIfNeeded no-ops (no toast) when the key is already ready', () => {
+    const { ctx, toastEl } = makeToastSandbox();
+    ctx._fsReady.curriculum = true;
+    ctx.fsAwaitIfNeeded('curriculum', 'Loading curriculum…');
+    assert(!toastEl.classList.contains('visible'), 'toast should not show for already-ready data');
+  });
+
+  test('fsAwaitIfNeeded hides the toast and fires onReady once the flag flips true', async () => {
+    const { ctx, toastEl } = makeToastSandbox();
+    let onReadyCalled = false;
+    ctx.fsAwaitIfNeeded('curriculum', 'Loading curriculum…', () => { onReadyCalled = true; });
+    assert(toastEl.classList.contains('visible'), 'toast should be visible while curriculum is not ready');
+    ctx._fsReady.curriculum = true;
+    // fsAwaitIfNeeded polls every 100ms — give it two ticks to catch the flip.
+    await new Promise(r => setTimeout(r, 250));
+    assert(!toastEl.classList.contains('visible'), 'toast should hide once the flag flips true');
+    assert(onReadyCalled, 'onReady callback should fire once the flag flips true');
+  });
+
+  test('js/firebase-init.js proactively shows the curriculum/published toast at boot, not only reactively from a click', () => {
+    // Before #133 the ONLY fsAwaitIfNeeded('curriculum', …) call site in the
+    // whole codebase was inside selectYear(), which only runs on a user
+    // click — even though loadCurriculumExtensions()/
+    // loadPublishedQuestionsIntoSubjects() both start unconditionally at
+    // boot. Guards against that gap reopening silently.
+    const src = fs.readFileSync(path.join(SRC, 'firebase-init.js'), 'utf8');
+    const curriculumCallIdx = src.indexOf("fsAwaitIfNeeded('curriculum'");
+    const curriculumAwaitIdx = src.indexOf('await loadCurriculumExtensions()');
+    const publishedCallIdx = src.indexOf("fsAwaitIfNeeded('published'");
+    const publishedAwaitIdx = src.indexOf('await loadPublishedQuestionsIntoSubjects()');
+    assert(curriculumCallIdx !== -1, "firebase-init.js should proactively call fsAwaitIfNeeded('curriculum', …) at boot");
+    assert(publishedCallIdx !== -1, "firebase-init.js should proactively call fsAwaitIfNeeded('published', …) at boot");
+    assert(curriculumCallIdx < curriculumAwaitIdx, 'the curriculum toast must be shown BEFORE awaiting the load, not after');
+    assert(publishedCallIdx < publishedAwaitIdx, 'the published toast must be shown BEFORE awaiting the load, not after');
+  });
+
+  test('selectYear()/selectSubject() pass an onReady callback to fsAwaitIfNeeded, matching every other caller in the app', () => {
+    // openStats/openRetake/openCustomQuizzes all pass a 3rd (onReady) arg;
+    // selectYear()/selectSubject() were the only two exceptions, which is
+    // what made their re-render depend entirely on the loader functions'
+    // own internal _reRenderOpenSelections() call instead of the toast's
+    // own mechanism. This checks the actual call sites, not just any
+    // occurrence of the string, so it can't be satisfied by an unrelated
+    // fsAwaitIfNeeded call elsewhere in the file.
+    const selectYearBlock = appCoreSrc.slice(
+      appCoreSrc.indexOf('function selectYear(year) {'),
+      appCoreSrc.indexOf('function selectModule(mod) {')
+    );
+    const selectSubjectBlock = appCoreSrc.slice(
+      appCoreSrc.indexOf('function selectSubject(name) {'),
+      appCoreSrc.indexOf('function onLectureChange()')
+    );
+    assert(/fsAwaitIfNeeded\(\s*'curriculum'\s*,[^,]+,\s*\(\)\s*=>/.test(selectYearBlock),
+      "selectYear() should call fsAwaitIfNeeded('curriculum', msg, onReady) with a 3rd callback argument");
+    assert(/fsAwaitIfNeeded\(\s*'published'\s*,[^,]+,\s*\(\)\s*=>/.test(selectSubjectBlock),
+      "selectSubject() should call fsAwaitIfNeeded('published', msg, onReady) with a 3rd callback argument");
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════
 (async () => {
   await suiteA();
   await suiteB();
@@ -850,6 +963,7 @@ function suiteH() {
   suiteF();
   suiteG();
   suiteH();
+  suiteI();
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) {

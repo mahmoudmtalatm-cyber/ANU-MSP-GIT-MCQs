@@ -36,8 +36,22 @@ import { firebaseConfig } from './config/firebase-config.js';
   // Load admin-created years/modules/subjects, then admin-published questions.
   // (The admin permission roster is loaded separately, inside onAuthStateChanged
   // below, since it needs to be re-subscribed on every auth change — see there.)
+  //
+  // The "Loading curriculum…" / "Loading lectures…" toast previously only
+  // ever appeared reactively, from inside selectYear()/selectSubject() —
+  // i.e. only if the user happened to click into a year/subject WHILE
+  // these loads were still in flight. But both loads actually start here,
+  // unconditionally, the moment the page boots — before the user has
+  // clicked anything — so the entire initial-load window (the most common
+  // time curriculum genuinely IS loading, on the very Home screen the user
+  // is looking at) had no visible indicator at all. Showing it proactively
+  // here means it now covers that window too; fsAwaitIfNeeded() no-ops
+  // immediately if the flag's already true (e.g. warm cache), so this
+  // adds no visible flash on a fast load.
+  fsAwaitIfNeeded('curriculum', 'Loading curriculum…');
   (async () => {
     await loadCurriculumExtensions();
+    fsAwaitIfNeeded('published', 'Loading lectures…');
     await loadPublishedQuestionsIntoSubjects();
     loadCustomIconsFromServer();
   })();

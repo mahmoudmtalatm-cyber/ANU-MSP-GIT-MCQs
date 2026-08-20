@@ -828,6 +828,64 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **134 — Fixed the "Loading curriculum…"/"Loading lectures…" toast not
+  actually covering the window where curriculum is being loaded, so it
+  looked like it "didn't work"; also brought `selectYear()`/
+  `selectSubject()` in line with the app's own established loading-toast
+  pattern.**
+  - **The problem — root-caused by tracing every call site, not guessed:**
+    `loadCurriculumExtensions()` and `loadPublishedQuestionsIntoSubjects()`
+    (`js/curriculum-admin.js`, `js/data-sync.js`) both start fetching
+    unconditionally the moment the page boots
+    (`js/firebase-init.js`'s top-level IIFE) — but the ONLY place in the
+    entire codebase that showed the corresponding toast
+    (`fsAwaitIfNeeded('curriculum', …)` / `fsAwaitIfNeeded('published', …)`)
+    was inside `selectYear()`/`selectSubject()`, which only run in
+    response to a user clicking a year/subject button. So the whole
+    initial-load window — the most common time curriculum is actually
+    loading, on the very Home screen the user is looking at right after
+    opening the app — had no visible indicator at all; the toast would
+    only ever appear if the user happened to click into a year/subject
+    WHILE that background load was still in flight.
+  - **Confirmed with a timing simulation** (faithfully replicating the
+    real async ordering of `fsAwaitIfNeeded`'s 100ms poll against
+    `loadCurriculumExtensions()`'s fetch) before writing any fix, to be
+    sure this was the actual gap and not a guess: the toast never once
+    became visible in the "user just watches the page load, doesn't
+    click into anything" scenario.
+  - **Also found, while tracing:** `selectYear()`/`selectSubject()` were
+    the only two `fsAwaitIfNeeded` call sites in the whole app that
+    didn't pass an `onReady` callback — every other screen
+    (`openStats()`/`openRetake()` in `js/app-core.js`,
+    `openCustomQuizzes()` in `js/firebase-storage.js`) already uses that
+    3-argument pattern so the screen reliably re-renders the moment the
+    underlying data flips ready, rather than depending on some other
+    function remembering to re-render it. Curriculum/published instead
+    relied entirely on `_reRenderOpenSelections()` being called, by
+    coincidence, from inside the loader functions themselves — real
+    data ends up correct, but only because of that indirect, easy-to-
+    silently-break side channel instead of the toast's own mechanism.
+  - **The fix:**
+    - `js/firebase-init.js` now calls `fsAwaitIfNeeded('curriculum', …)`
+      right before `await loadCurriculumExtensions()`, and
+      `fsAwaitIfNeeded('published', …)` right before
+      `await loadPublishedQuestionsIntoSubjects()` — both fire
+      proactively at boot, so the toast now actually covers the real
+      loading window. `fsAwaitIfNeeded()` no-ops instantly if the data's
+      already warm (cache hit), so this adds no flash on a fast load.
+    - `selectYear()`/`selectSubject()` (`js/app-core.js`) now pass an
+      `onReady` callback — guarded so a stale callback firing after the
+      user has since switched to a different year/subject can't clobber
+      what's currently selected — matching the same pattern as every
+      other screen in the app.
+  - **Tests:** `tests/run-tests.js` gained Suite I, which loads the real
+    `fsLoadingShow`/`fsLoadingHide`/`fsAwaitIfNeeded` implementations
+    (extracted verbatim from `js/app-core.js`, not re-typed) into a
+    sandbox and exercises the actual show/hide/onReady timing, plus
+    structural checks confirming `js/firebase-init.js` shows both
+    toasts before their respective `await` calls and that
+    `selectYear()`/`selectSubject()` each pass a 3rd `onReady` argument.
+    46/46 passing.
 - **133 — Fixed the AI mis-transcribing Greek letters, ion notation, and
   math/comparison symbols during extraction (and other AI text tools),
   instead of reproducing them exactly — e.g. "β-blocker" coming out as

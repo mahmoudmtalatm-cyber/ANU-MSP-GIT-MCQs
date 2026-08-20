@@ -484,7 +484,21 @@ buildYearGrid();
    SUBJECT SELECTION
 ══════════════════════════════════════════════════════════ */
 function selectYear(year) {
-  fsAwaitIfNeeded('curriculum', 'Loading curriculum…');
+  // onReady mirrors openStats()/openCustomQuizzes()'s pattern (js/app-core.js,
+  // js/firebase-storage.js): if curriculum data is still loading when this
+  // runs, the render below happens against whatever's in `curriculum` RIGHT
+  // NOW (possibly stale/incomplete). Previously nothing re-ran this once the
+  // real data landed except loadCurriculumExtensions()'s own internal
+  // _reRenderOpenSelections() call — which only fires on the very FIRST load
+  // (or a later live admin edit), and fires it before flipping
+  // _fsReady.curriculum, which is a fragile ordering to depend on. Passing
+  // onReady here means selectYear() re-runs itself the moment the flag
+  // actually flips true, the same reliable way every other screen already
+  // does it — guarded so a stale callback can't clobber a year the user has
+  // since switched away from.
+  fsAwaitIfNeeded('curriculum', 'Loading curriculum…', () => {
+    if (selectedYear === year) selectYear(year);
+  });
   selectedYear = year;
   selectedModule = '';
   selectedSubject = '';
@@ -553,7 +567,10 @@ function selectModule(mod) {
   subjectSection.classList.remove('hidden');
 }
 function selectSubject(name) {
-  fsAwaitIfNeeded('published', 'Loading lectures…');
+  // Same onReady pattern as selectYear() above — see its comment for why.
+  fsAwaitIfNeeded('published', 'Loading lectures…', () => {
+    if (selectedSubject === name) selectSubject(name);
+  });
   selectedSubject = name;
 
   document.querySelectorAll('.subject-btn').forEach(b =>
