@@ -407,16 +407,45 @@ const PUBLISHED_MANIFEST_THROTTLE_MS = 5 * 60 * 1000;
 const PUBLISHED_MANIFEST_THROTTLE_KEY = 'lastVersionCheck:curriculum';
 
 /* Rebuilds every subject's `lectures` map straight from IndexedDB, with NO
-   network calls at all. Returns true only if EVERY previously-tracked
-   published lecture could be fully reconstructed from cache; the moment
-   any single one is missing (e.g. storage was cleared) it returns false
-   and applies nothing, so the caller falls back to a real manifest check
-   rather than ever showing a partial/incomplete curriculum. */
+   network calls at all. Returns true only if EVERY subject's published-
+   lecture set has been *confirmed* by a real manifest check at some point
+   this session (or a prior one), AND every lecture it lists could be fully
+   reconstructed from cache; the moment any single one is unconfirmed or
+   missing (e.g. storage was cleared, or this is a subject the app has
+   simply never checked yet) it returns false and applies nothing, so the
+   caller falls back to a real manifest check rather than ever showing a
+   partial/incomplete curriculum.
+
+   IMPORTANT — "never checked" vs "confirmed zero": a subject that
+   genuinely has zero published lectures still gets an entry here (an
+   empty {} written by loadPublishedQuestionsIntoSubjects() after a real
+   check — see _idbSet(trackKey, newTrack) below). That is trustworthy.
+   A subject that has NEVER had a real check yet has NO entry at all
+   (_idbGet resolves to `null`). Those two cases both used to collapse
+   into the same `{}` via `(await _idbGet(trackKey)) || {}`, so a
+   never-checked subject was silently treated as "confirmed empty" and
+   this function returned true having loaded nothing for it — with no
+   network call ever made to correct that until skipThrottle forced one
+   (which, in practice, only ever happened automatically for a signed-in
+   admin's own re-publish flow — see loadPublishedQuestionsIntoSubjects()
+   below). That's build #135's "curriculum loads, quizzes silently don't,
+   until you sign in" bug: any browser sitting inside the 5-minute
+   throttle window with even one subject it hasn't confirmed yet (a fresh
+   profile that got throttled by a stray earlier check, a newly-added
+   subject, IndexedDB partially cleared, etc.) got stuck showing zero
+   quizzes for that subject with no error and no automatic recovery for
+   ordinary signed-out or non-admin visitors. Fixed by requiring an
+   explicit `null` check instead of folding it into the `|| {}` fallback. */
 async function _rebuildPublishedFromCacheOnly() {
   const perSubject = {};
   for (const subjName of Object.keys(subjects)) {
     const trackKey = 'publishedTrack:' + subjName;
-    const prevTrack = _sessionPublishedTrack[subjName] || (await _idbGet(trackKey)) || {};
+    let prevTrack = _sessionPublishedTrack[subjName];
+    if (!prevTrack) {
+      const storedTrack = await _idbGet(trackKey);
+      if (storedTrack === null) return false; // never confirmed for this subject — can't trust a cache-only rebuild
+      prevTrack = storedTrack;
+    }
     const lecIds = Object.keys(prevTrack);
     const resolved = [];
     for (const lectureId of lecIds) {

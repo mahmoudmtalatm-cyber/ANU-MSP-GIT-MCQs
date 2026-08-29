@@ -954,6 +954,107 @@ function suiteI() {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// SUITE J — _rebuildPublishedFromCacheOnly() (js/data-sync.js), build #136
+//   "curriculum loads while signed out, but quizzes silently don't, until
+//   sign-in" — root cause was this function treating a subject it had
+//   NEVER confirmed via a real manifest check the same as one CONFIRMED
+//   to have zero published lectures, so it returned true (trusting the
+//   cache) having loaded nothing, with no network call to correct it
+//   until something forced skipThrottle (in practice, only an admin's
+//   own re-publish flow on sign-in).
+// ═════════════════════════════════════════════════════════════════════
+async function suiteJ() {
+  console.log('\n== Suite J: _rebuildPublishedFromCacheOnly (never-checked vs confirmed-empty) ==');
+
+  // A tiny fake IndexedDB-backed store, mirroring the real _idbGet contract:
+  // resolves to `null` for a key that was never written, and to the exact
+  // stored value (including a legitimately empty {}) otherwise.
+  function makeIdbSandbox(seed) {
+    const store = Object.assign({}, seed);
+    const sandbox = {
+      console,
+      window: {}, // no real indexedDB — irrelevant, we override _idbGet/_idbSet below
+      localStorage: makeLocalStorage({}),
+      subjects: {},
+      _fsReady: { curriculum: true, published: false },
+    };
+    sandbox.global = sandbox;
+    sandbox.globalThis = sandbox;
+    const ctx = vm.createContext(sandbox);
+    loadInto(ctx, 'data-sync.js');
+    // Override the real IndexedDB-backed helpers data-sync.js declared for
+    // itself with an in-memory fake — same technique Suite A uses to
+    // shadow cqRunContentFilterPass. _rebuildPublishedFromCacheOnly() and
+    // loadPublishedQuestionsIntoSubjects() both call _idbGet/_idbSet as
+    // plain globals looked up at call time, so reassigning them here
+    // takes effect for every call made after this point.
+    ctx._idbGet = async (key) => (key in store ? store[key] : null);
+    ctx._idbSet = async (key, value) => { store[key] = value; return true; };
+    ctx._idbDelete = async (key) => { delete store[key]; };
+    ctx._reRenderOpenSelections = () => {}; // real one touches the DOM
+    return { ctx, store };
+  }
+
+  await testAsync('a subject with NO prior confirmed check aborts the cache-only rebuild (must not report confirmed-empty)', async () => {
+    const { ctx } = makeIdbSandbox({}); // 'publishedTrack:biology' was never written
+    ctx.subjects = { biology: { lectures: {} } };
+    const ok = await ctx._rebuildPublishedFromCacheOnly();
+    assertEqual(ok, false, 'should refuse to trust the cache for a subject it has never actually checked');
+  });
+
+  await testAsync('a subject CONFIRMED empty by a real prior check is trusted (legitimately zero lectures)', async () => {
+    const { ctx } = makeIdbSandbox({ 'publishedTrack:biology': {} }); // real check ran and found nothing
+    ctx.subjects = { biology: { lectures: {} } };
+    const ok = await ctx._rebuildPublishedFromCacheOnly();
+    assertEqual(ok, true, 'a confirmed-empty subject should be trusted with 0 network calls');
+    assertDeepEqual(ctx.subjects.biology.lectures, {}, 'stays empty — nothing to rebuild for a subject confirmed to have zero published lectures');
+  });
+
+  await testAsync('a subject with real cached lectures is correctly rebuilt from IndexedDB', async () => {
+    const { ctx } = makeIdbSandbox({
+      'publishedTrack:biology': { lec1: 'Cell Biology' },
+      'published:biology:lec1': { lectureName: 'Cell Biology', questions: [{ q: 'Q1' }], order: 1, ver: 't1' },
+    });
+    ctx.subjects = { biology: { lectures: {} } };
+    const ok = await ctx._rebuildPublishedFromCacheOnly();
+    assertEqual(ok, true, 'should trust a fully-cached, previously-confirmed subject');
+    assertDeepEqual(ctx.subjects.biology.lectures, { 'Cell Biology': [{ q: 'Q1' }] });
+  });
+
+  await testAsync('one never-checked subject aborts the WHOLE rebuild, even if every other subject is fully cached', async () => {
+    const { ctx } = makeIdbSandbox({
+      'publishedTrack:biology': { lec1: 'Cell Biology' },
+      'published:biology:lec1': { lectureName: 'Cell Biology', questions: [{ q: 'Q1' }], order: 1, ver: 't1' },
+      // 'publishedTrack:anatomy' deliberately absent — never confirmed
+    });
+    ctx.subjects = { biology: { lectures: {} }, anatomy: { lectures: {} } };
+    const ok = await ctx._rebuildPublishedFromCacheOnly();
+    assertEqual(ok, false, 'a single unconfirmed subject must fall back to a real fetch for everyone, not just itself');
+  });
+
+  await testAsync('end-to-end: loadPublishedQuestionsIntoSubjects() inside the throttle window still loads a never-checked subject instead of leaving it silently empty', async () => {
+    const { ctx } = makeIdbSandbox({});
+    ctx.window._db = {}; // truthy, just needs to exist
+    ctx.window._doc = () => ({});
+    ctx.window._getDoc = async () => ({ exists: () => true, data: () => ({ subjects: { biology: { lec1: 1700000000000 } } }) });
+    ctx.subjects = { biology: { lectures: {} } };
+    // Simulate "already inside the 5-minute throttle window" — e.g. a stray
+    // earlier check in this same browser — which is exactly the state that
+    // used to make an unconfirmed subject get stuck empty.
+    ctx.localStorage.setItem('lastVersionCheck:curriculum', String(Date.now()));
+    // Stub global fetch() for the per-lecture Worker request.
+    ctx.fetch = async () => ({
+      ok: true,
+      json: async () => ({ lectureName: 'Cell Biology', questions: [{ q: 'Q1' }], order: 1 }),
+    });
+    await ctx.loadPublishedQuestionsIntoSubjects();
+    assertEqual(ctx._fsReady.published, true, '_fsReady.published should flip true once the real load finishes');
+    assertDeepEqual(ctx.subjects.biology.lectures, { 'Cell Biology': [{ q: 'Q1' }] },
+      'a never-checked subject must still be populated for real, not silently left empty just because a throttle window happened to be open');
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════
 (async () => {
   await suiteA();
   await suiteB();
@@ -964,6 +1065,7 @@ function suiteI() {
   suiteG();
   suiteH();
   suiteI();
+  await suiteJ();
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) {

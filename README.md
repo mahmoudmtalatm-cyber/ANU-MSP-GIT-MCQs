@@ -828,6 +828,57 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **136 — Fixed curriculum (years/modules/subjects) loading fine while
+  signed out, but quizzes/lectures silently staying empty until you
+  sign in.**
+  - **The problem — root-caused by tracing the actual load path, not
+    guessed:** `loadPublishedQuestionsIntoSubjects()` (`js/data-sync.js`)
+    throttles its real, network-hitting manifest check to once every 5
+    minutes per browser. Inside that throttle window it instead calls
+    `_rebuildPublishedFromCacheOnly()`, which is supposed to rebuild each
+    subject's lecture list purely from IndexedDB with zero network calls.
+    For each subject it computed
+    `const prevTrack = _sessionPublishedTrack[subjName] || (await _idbGet(trackKey)) || {}` —
+    which cannot tell apart two very different situations: a subject a
+    prior real check *confirmed* has zero published lectures (a
+    legitimately stored `{}`), versus a subject that has **never been
+    checked against the server at all** (`_idbGet` resolving to `null`
+    because the key was simply never written — a fresh profile, a newly
+    added subject, or IndexedDB partially cleared). Both collapsed into
+    the same empty `{}` via the trailing `|| {}`, so an unconfirmed
+    subject was silently treated as "confirmed empty": the function
+    still returned `true` (trust the cache, skip the network entirely),
+    `_fsReady.published` flipped to `true` with nothing actually loaded,
+    and no error or warning was ever logged. Curriculum itself
+    (years/modules/subjects) is unaffected because `loadCurriculumExtensions()`
+    is a completely separate, unrelated load path — which is exactly why
+    it kept working while quizzes silently didn't.
+  - **Why signing in "fixed" it:** the *only* thing in the whole codebase
+    that ever forces a real re-check inside that 5-minute window is
+    `js/firebase-init.js`'s `onAuthStateChanged` handler calling
+    `loadPublishedQuestionsIntoSubjects(true)` with `skipThrottle` — but
+    only for the super-admin account, as part of its own
+    manifest-backfill routine. Signing in as anyone else does nothing to
+    correct a wrong cache-only result; an ordinary signed-out or
+    non-admin signed-in visitor stuck in this state had no way to recover
+    short of waiting out the throttle window.
+  - **The fix:** `_rebuildPublishedFromCacheOnly()` now checks the
+    `_idbGet(trackKey)` result explicitly for `null` (never confirmed —
+    abort the whole cache-only rebuild and fall through to a real
+    manifest check) before folding it into the empty-object default,
+    instead of treating "never checked" and "confirmed empty" as the
+    same thing. A confirmed-empty subject (a real prior check that found
+    zero lectures) is still trusted with no network call, exactly as
+    intended — only a genuinely unconfirmed subject now forces a real
+    fetch.
+  - **Verified against the actual regression, not just asserted:** added
+    Suite J (`tests/run-tests.js`, 5 tests) covering a never-checked
+    subject, a confirmed-empty subject, a fully-cached subject, one
+    unconfirmed subject aborting the rebuild for every subject (not just
+    itself), and an end-to-end run of
+    `loadPublishedQuestionsIntoSubjects()` inside an open throttle
+    window. Confirmed all 5 fail against the pre-fix code and pass
+    against the fix before shipping either. 51/51 tests pass overall.
 - **135 — Fixed a rare AI extraction bug where an answer choice would end
   up duplicated in two places: once (correctly) in "options", and again
   copied into the tail end of the "question" text itself.**
