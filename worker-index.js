@@ -260,7 +260,29 @@ async function handleRequest(request, env) {
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    // NOT `immutable`/long max-age (see build #137) — every key here
+    // (curriculum/{subject}/{lectureId}.json, community/{quizId}.json) is
+    // a STABLE url whose *content* changes over time as admins edit and
+    // re-publish, so caching it as if the url were permanent is wrong:
+    // once any browser fetched a given lectureId's json once, it would
+    // keep serving that exact cached response for up to a year — even
+    // though the app's own client-side version check (js/data-sync.js
+    // comparing `cached.ver` against appConfig/publishedManifest, bumped
+    // by bumpManifestVersion() below on every write) had already decided
+    // a re-fetch was needed and issued a plain fetch(url) to get it. The
+    // browser's own HTTP cache silently intercepted that fetch and
+    // returned the stale body without ever reaching this Worker again,
+    // so the app's re-fetch logic never got a chance to run at all. This
+    // is device-specific by nature: only a browser that had already
+    // cached this exact url before the content changed is affected —
+    // which is exactly why it looked so confusing in practice (some
+    // devices broken, others fine, incognito always fine, since a fresh
+    // profile has never cached the url and always hits the network).
+    // `no-cache` (despite the name) still lets browsers store the
+    // response, but forces them to revalidate with the server on every
+    // use via the ETag below — a cheap 304 when nothing changed, a real
+    // fetch of the new body the moment it has.
+    headers.set('Cache-Control', 'no-cache');
     headers.set('etag', object.httpEtag);
     return withCors(new Response(object.body, { headers }));
   }

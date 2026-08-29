@@ -828,6 +828,62 @@ Firestore-side curriculum/community data.
 Newer entries first. Each numbered project drop corresponds to one focused
 change (see the filename of whichever zip you're reading from).
 
+- **137 — Fixed manually re-added lecture/quiz images not showing up on
+  some devices after the failed per-file→inline image migration, while
+  working fine on others and always in an incognito window.**
+  - **The problem — root-caused by tracing exactly what a "content
+    changed" fetch actually does on the wire, not guessed:** every
+    curriculum lecture / community quiz is served by the Worker at a
+    STABLE url (`curriculum/{subject}/{lectureId}.json`,
+    `community/{quizId}.json}`) that the Worker's GET handler
+    (`worker-index.js`) was sending back with
+    `Cache-Control: public, max-age=31536000, immutable`. That header
+    tells the browser this exact response is good for a year and never
+    needs to be checked again — appropriate for a url whose content
+    truly never changes, but this url's *content* changes constantly, as
+    admins edit and republish. The app already has its own correct
+    client-side staleness check (`js/data-sync.js`: `cached.ver === ver`
+    against `appConfig/publishedManifest`, bumped server-side by
+    `bumpManifestVersion()` on every write) that decides when a lecture
+    needs re-fetching and issues a plain `fetch(url)` for it — but once a
+    browser had already cached that url before the content changed, the
+    browser's own HTTP cache silently satisfied that `fetch()` from its
+    year-old local copy and never contacted the Worker at all, so the
+    app's own "this changed, get it again" logic never got the chance to
+    run. This is why it looked so inconsistent: only a device that had
+    already loaded that *specific* lecture/quiz before it was
+    re-published was stuck; a device that hadn't (or an incognito
+    window, which starts with no HTTP cache at all) always fetched fresh
+    and saw the images fine.
+  - **The fix:** changed that response header to `Cache-Control: no-cache`.
+    Responses are still cached, but every use must be revalidated against
+    the Worker first via the `etag` header already being sent (R2's own
+    `object.httpEtag`) — a cheap 304 when nothing changed, a real fetch
+    of the new body the moment it has. This is a single, central fix in
+    the one place every content-fetch call site (there are over a dozen
+    across `js/data-sync.js`, `js/content-client.js`,
+    `js/quiz-editor.js`, `js/community-quizzes.js`,
+    `js/curriculum-admin.js`, `js/admin-panel.js`'s migration tool)
+    ultimately goes through, rather than something that has to be
+    remembered at each individual call site.
+  - **Important — this does not retroactively fix already-affected
+    devices.** A browser that cached one of these urls before this fix
+    was deployed stored that year-long `immutable` instruction *with*
+    the response, and will keep honoring it regardless of what the
+    Worker sends now — the server-side header change only prevents this
+    from happening to anyone going forward. Any device still showing a
+    missing image needs a one-time hard refresh (Ctrl/Cmd+Shift+R) of
+    that lecture, or its site data cleared, to pick up the new content;
+    after that it self-heals for good as future edits correctly
+    revalidate.
+  - **Scope:** infrastructure/response-header fix in `worker-index.js`,
+    the Cloudflare Worker deployed separately from the web app — same
+    category as a `firestore.rules` change, not something the
+    `tests/run-tests.js` browser-side harness (which has no Worker
+    runtime, R2 bindings, or Firebase Admin JWT verification set up to
+    sandbox) covers; verified instead by tracing the exact header
+    through `withCors()` to confirm nothing downstream strips or
+    overwrites it. No client-side code changed.
 - **136 — Fixed curriculum (years/modules/subjects) loading fine while
   signed out, but quizzes/lectures silently staying empty until you
   sign in.**
